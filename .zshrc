@@ -4,6 +4,8 @@ eval "$(rbenv init -)"
 eval "$(hub alias -s)"
 export PATH="/usr/local/sbin:$PATH"
 export PATH="/usr/local/opt/mysql@5.6/bin:$PATH"
+export PATH=$PATH:/Users/kenichi/.nodebrew/current/bin
+export PATH="/usr/local/bin/code:$PATH"
 
 ZSH_THEME="robbyrussell"
 
@@ -51,6 +53,7 @@ alias his='cat ~/.zsh_history'
 
 # alias for opening by application
 alias at='atom .'
+alias c='code .'
 alias f='open .'
 
 # alias for restarting mysql
