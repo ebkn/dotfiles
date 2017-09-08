@@ -43,13 +43,19 @@ alias sz='source ~/.zshrc'
 alias sb='source ~/.bash_profile'
 alias sv='source ~/.vimrc'
 
+# alias for git
+alias gac='git add .; git commit -m'
+alias gce='git commit --allow-empty -m "create pull request"'
+
 # alias for rails projects
 alias ch='cd ~/projects/rails/chat-space'
-alias pi='cd ~/projects/rails/pictweet_sample'
+alias pr='cd ~/projects/rails/protospace'
+alias pi='cd ~/projects/rails/pictweet_curriculum'
+alias mo='cd ~/projects/rails/mooovi_curriculum'
 
 # alias for command
 alias ll='ls -la'
-alias his='cat ~/.zsh_history'
+alias t='tree'
 
 # alias for opening by application
 alias at='atom .'
@@ -57,17 +63,18 @@ alias c='code .'
 alias f='open .'
 
 # alias for restarting mysql
-alias myst='mysql.server start'
+alias ms='mysql.server start'
 
 #####################################
 
 #####################################
 ## history ##
+alias his='cat ~/.zsh_history'
 
 # settings of history
 HISTFILE=~/.zsh_history
-HISTSIZE=1000
-SAVEHIST=10000
+HISTSIZE=500
+SAVEHIST=500
 HISTTIMEFORMAT='%Y-%m-%dT%T%z '
 setopt extended_history
 setopt hist_no_store
