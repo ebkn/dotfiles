@@ -3,9 +3,20 @@ export ZSH=/Users/kenichi/.oh-my-zsh
 eval "$(rbenv init -)"
 eval "$(hub alias -s)"
 export PATH="/usr/local/sbin:$PATH"
+
+# mysql
 export PATH="/usr/local/opt/mysql@5.6/bin:$PATH"
+
+# nodebrew
 export PATH=$PATH:/Users/kenichi/.nodebrew/current/bin
+
+# vsc
 export PATH="/usr/local/bin/code:$PATH"
+
+# pyenv
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
 
 ZSH_THEME="robbyrussell"
 
@@ -61,9 +72,10 @@ alias t='tree'
 alias at='atom .'
 alias c='code .'
 alias f='open .'
+alias xc='open -a xcode .'
 
 # alias for restarting mysql
-alias ms='mysql.server start'
+alias myst='mysql.server start'
 
 #####################################
 
@@ -86,4 +98,7 @@ setopt hist_ignore_dups
 setopt hist_ignore_all_dups
 
 #####################################
+
+# swiftenv
+if which swiftenv > /dev/null; then eval "$(swiftenv init -)"; fi
 
