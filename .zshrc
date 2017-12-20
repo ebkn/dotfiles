@@ -7,6 +7,9 @@ export PATH="/usr/local/sbin:$PATH"
 # mysql
 export PATH="/usr/local/opt/mysql@5.6/bin:$PATH"
 
+# postgresql
+export PGDATA=/usr/local/var/postgres
+
 # nodebrew
 export PATH=$PATH:/Users/kenichi/.nodebrew/current/bin
 
@@ -47,16 +50,6 @@ setopt auto_menu
 
 # alias for shell settings
 alias vi='vim'
-alias z='vi ~/.zshrc'
-alias b='vi ~/.bash_profile'
-alias v='vi ~/.vimrc'
-alias sz='source ~/.zshrc'
-alias sb='source ~/.bash_profile'
-alias sv='source ~/.vimrc'
-
-# alias for git
-alias gac='git add .; git commit -m'
-alias gce='git commit --allow-empty -m "create pull request"'
 
 # alias for rails projects
 alias ch='cd ~/projects/rails/chat-space'
@@ -69,13 +62,21 @@ alias ll='ls -la'
 alias t='tree'
 
 # alias for opening by application
-alias at='atom .'
 alias c='code .'
 alias f='open .'
 alias xc='open -a xcode .'
+alias v='vi .'
+alias mine='mine .'
 
 # alias for restarting mysql
 alias myst='mysql.server start'
+
+# alias for local server
+alias deflocalserver='cd /Library/WebServer/Documents/'
+alias localserver='cd ~/projects/local/'
+
+# alias for ssh login
+alias sshtakaisami='ssh ebinuma@takaisami.mind.meiji.ac.jp'
 
 #####################################
 
@@ -85,8 +86,8 @@ alias his='cat ~/.zsh_history'
 
 # settings of history
 HISTFILE=~/.zsh_history
-HISTSIZE=500
-SAVEHIST=500
+HISTSIZE=10000
+SAVEHIST=10000
 HISTTIMEFORMAT='%Y-%m-%dT%T%z '
 setopt extended_history
 setopt hist_no_store
@@ -101,4 +102,10 @@ setopt hist_ignore_all_dups
 
 # swiftenv
 if which swiftenv > /dev/null; then eval "$(swiftenv init -)"; fi
+
+# ctags
+alias ctags=/usr/local/Cellar/ctags/5.8_1/bin/ctags
+
+# disable no matches found error
+setopt nonomatch
 
