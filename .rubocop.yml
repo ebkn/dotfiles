@@ -1,0 +1,37 @@
+AllCops:
+  # You could specify set of files or dirs while you want to be ignored by rubocop
+  Exclude:
+    - bin/*
+    - db/**/*
+    - vendor/**/*
+    - 'config/**/*'
+    - 'Gemfile'
+    - 'Gemfile.lock'
+    - 'Rakefile'
+
+# use rails rubocop
+Rails:
+  Enabled: true
+
+# disable top-level documentation warning
+Style/Documentation:
+  Enabled: false
+
+# 日本語コメント許可
+AsciiComments:
+  Enabled: false
+
+# disable line is too long warning
+Metrics/LineLength:
+  Exclude:
+    - 'lib/tasks/**/*'
+    - 'lib/**/spec/*'
+    - 'spec/**/*'
+
+# dieable Block has too many lines warning
+Metrics/BlockLength:
+  Exclude:
+    - 'lib/tasks/**/*'
+    - 'lib/**/spec/*'
+    - 'spec/**/*'
+
