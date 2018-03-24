@@ -1,0 +1,31 @@
+############################################################################
+# view settings
+############################################################################
+set main-view = id date author commit-title:graph=yes,refs=yes
+set blame-view = date:default id:yes,color line-number:yes,interval=1 text
+set pager-view  = line-number:yes,interval=1 text
+set stage-view  = line-number:yes,interval=1 text
+set log-view    = line-number:yes,interval=1 text
+set blob-view   = line-number:yes,interval=1 text
+set diff-view   = line-number:yes,interval=1 text:yes,commit-title-overflow=no
+
+set tab-size = 4
+
+# 検索時に大文字小文字無視
+set ignore-case = true
+
+set split-view-height = 80%
+
+set diff-options = -m --first-parent
+
+set refresh-mode = auto
+
+##########################################################################
+# Gitコマンド
+##########################################################################
+# Uでpull
+bind generic U ?git pull %(remote)
+
+# Pでpush
+bind generic P ?git push -u %(remote) %(repo:head)
+

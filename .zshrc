@@ -51,11 +51,9 @@ setopt auto_menu
 # alias for shell settings
 alias vi='vim'
 
-# alias for rails projects
-alias ch='cd ~/projects/rails/chat-space'
-alias pr='cd ~/projects/rails/protospace'
-alias pi='cd ~/projects/rails/pictweet_curriculum'
-alias mo='cd ~/projects/rails/mooovi_curriculum'
+# alias for projects
+alias fw='cd ~/projects/local/fworks'
+alias centos='cd ~/VirtualBox\ VMs/CentOS7'
 
 # alias for command
 alias ll='ls -la'
@@ -72,11 +70,10 @@ alias mine='mine .'
 alias myst='mysql.server start'
 
 # alias for local server
-alias deflocalserver='cd /Library/WebServer/Documents/'
+alias defaultlocalserver='cd /Library/WebServer/Documents/'
 alias localserver='cd ~/projects/local/'
-
-# alias for ssh login
-alias sshtakaisami='ssh ebinuma@takaisami.mind.meiji.ac.jp'
+alias apacheconfig='sudo vim /private/etc/apache2/httpd.conf'
+alias apachelog='tail -n 100 /private/var/log/apache2/error_log'
 
 #####################################
 
