@@ -1,25 +1,20 @@
 export ZSH=/Users/kenichi/.oh-my-zsh
+export LANG=ja_JP.UTF-8
 
 eval "$(rbenv init -)"
 eval "$(hub alias -s)"
+eval "$(goenv init -)"
+eval "$(pyenv init -)"
+if which swiftenv > /dev/null; then eval "$(swiftenv init -)"; fi
+
 export PATH="/usr/local/sbin:$PATH"
-
-# mysql
 export PATH="/usr/local/opt/mysql@5.6/bin:$PATH"
-
-# postgresql
 export PGDATA=/usr/local/var/postgres
-
-# nodebrew
 export PATH=$PATH:/Users/kenichi/.nodebrew/current/bin
-
-# vsc
 export PATH="/usr/local/bin/code:$PATH"
-
-# pyenv
 export PYENV_ROOT="$HOME/.pyenv"
 export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
+export GOPATH=$HOME/go
 
 ZSH_THEME="robbyrussell"
 
@@ -38,54 +33,37 @@ setopt no_list_beep
 # warning before delete
 setopt rm_star_wait
 
-###################################
 ## autocomplete ##
-
 setopt auto_list
 setopt auto_menu
-###################################
 
-####################################
+# ctags
+# disable no matches found error
+setopt nonomatch
+
 ## alias ##
-
-# alias for shell settings
 alias vi='vim'
-
-# alias for projects
-alias fw='cd ~/projects/local/fworks'
-alias centos='cd ~/VirtualBox\ VMs/CentOS7'
-
-# alias for command
 alias ll='ls -la'
-alias t='tree'
-
-# alias for opening by application
 alias c='code .'
 alias f='open .'
 alias xc='open -a xcode .'
 alias v='vi .'
-alias mine='mine .'
-
-# alias for restarting mysql
-alias myst='mysql.server start'
-
-# alias for local server
+alias mi='mine .'
+alias myst='sudo mysql.server start'
 alias defaultlocalserver='cd /Library/WebServer/Documents/'
 alias localserver='cd ~/projects/local/'
 alias apacheconfig='sudo vim /private/etc/apache2/httpd.conf'
 alias apachelog='tail -n 100 /private/var/log/apache2/error_log'
-
-#####################################
-
-#####################################
-## history ##
+alias st-list='speedtest-cli --list | grep Tokyo'
+alias st-exec='(){ speedtest-cli --server $1 --simple }'
 alias his='cat ~/.zsh_history'
+alias ctags=/usr/local/Cellar/ctags/5.8_1/bin/ctags
 
-# settings of history
+# history
 HISTFILE=~/.zsh_history
-HISTSIZE=10000
-SAVEHIST=10000
-HISTTIMEFORMAT='%Y-%m-%dT%T%z '
+HISTSIZE=100000
+SAVEHIST=100000
+HISTTIMEFORMAT='%Y-%m-%d T%T%z '
 setopt extended_history
 setopt hist_no_store
 setopt hist_expand
@@ -94,15 +72,4 @@ setopt hist_save_no_dups
 setopt share_history
 setopt hist_ignore_dups
 setopt hist_ignore_all_dups
-
-#####################################
-
-# swiftenv
-if which swiftenv > /dev/null; then eval "$(swiftenv init -)"; fi
-
-# ctags
-alias ctags=/usr/local/Cellar/ctags/5.8_1/bin/ctags
-
-# disable no matches found error
-setopt nonomatch
 
