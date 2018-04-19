@@ -1,5 +1,11 @@
+export LANG=ja_JP.UTF-8
+
+# tmux起動
+[[ -z "$TMUX" && ! -z "$PS1" ]] && exec tmux -u
+
 export ZSH=/Users/kenichi/.oh-my-zsh
 export LANG=ja_JP.UTF-8
+export LC_CTYPE=UTF-8
 
 eval "$(rbenv init -)"
 eval "$(hub alias -s)"
