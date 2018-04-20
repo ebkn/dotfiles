@@ -5,7 +5,7 @@ export LANG=ja_JP.UTF-8
 
 export ZSH=/Users/kenichi/.oh-my-zsh
 export LANG=ja_JP.UTF-8
-export LC_CTYPE=UTF-8
+export LC_CTYPE=ja_JP.UTF-8
 
 eval "$(rbenv init -)"
 eval "$(hub alias -s)"
