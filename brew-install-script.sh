@@ -31,6 +31,8 @@ brew install peco
 
 echo 'Installing packages for vim'
 brew install vim
+curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
+sh ~/.installer.sh ~/.cache/dein
 brew install ctags
 
 echo 'Installing git packages'
