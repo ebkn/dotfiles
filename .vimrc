@@ -11,14 +11,13 @@ set fileencodings=utf-8,ucs-boms,euc-jp,ep932
 set fileformats=unix,dos,mac
 set ambiwidth=double " □や○文字が崩れる問題を解決
 set nobomb "bomb無効化
-
-" Leaderをspaceキーに設定する
-let mapleader="\<Space>"
+set t_Co=256 " 256色を指定
 
 set ttyfast " 高速ターミナル接続
 set autoread " 編集中のファイルが変更されたら自動で読み直す
 set hidden " バッファが編集中でもその他のファイルを開けるように
 set showcmd " 入力中のコマンドをステータスに表示する
+set noshowmode " モード表示しない
 
 " ファイル作成
 set nobackup " backupを作成しない
@@ -52,6 +51,7 @@ set ignorecase " 検索パターンに大文字小文字を区別しない
 set smartcase " 検索パターンに大文字を含んでいたら大文字小文字を区別する
 set hlsearch " 検索結果をハイライト
 set wrapscan " 検索時に最後まで行ったら最初に戻る
+set wildignore+=*/tmp*,*.so,*.swp,*.zip " 検索等に含めないファイル
 
 " cursor
 set whichwrap=b,s,h,l,<,>,[,],~ " 左右移動で前後の行に移動
@@ -95,7 +95,7 @@ endif
 
 " ペースト設定
 if &term =~ "xterm"
-  let &t_SI .= "\e[let &t_SI .= "\e[?2004h"
+  let &t_SI .= "\e[?2004h"
   let &t_EI .= "\e[?2004l"
   let &pastetoggle = "\e[201~"
 
@@ -122,7 +122,11 @@ if dein#load_state('~/.cache/dein')
 
   " color
   call dein#add('sheerun/vim-polyglot')
-  
+
+  " ステータスバー
+  call dein#add('itchyny/lightline.vim')
+  call dein#add('tpope/vim-fugitive')
+
   " サイドバーにtree表示
   call dein#add('scrooloose/nerdtree')
   call dein#add('ryanoasis/vim-devicons')
@@ -142,8 +146,25 @@ if dein#load_state('~/.cache/dein')
   call dein#add('Shougo/neosnippet')
   call dein#add('Shougo/neosnippet-snippets')
 
-  " 一括コメントアウト
-  call dein#add('tyru/caw.vim.git')
+  " CtrlP
+  call dein#add('ctrlpvim/ctrlp.vim')
+  call dein#add('tacahiroy/ctrlp-funky')
+  call dein#add('suy/vim-ctrlp-commandline')
+  call dein#add('rking/ag.vim')
+
+  " 空白文字ハイライト
+  call dein#add('bronson/vim-trailing-whitespace')
+
+  " 構文チェック
+  call dein#add('scrooloose/syntastic')
+
+  " golang
+  call dein#add('fatih/vim-go')
+
+  " rubyでend自動挿入
+  call dein#add('tpope/vim-endwise')
+  " rubyコード補完
+  call dein#add('marcus/rsense')
 
   call dein#end()
   call dein#save_state()
@@ -156,7 +177,7 @@ end
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " ライブラリの設定
 
-filetype plugin indent on
+filetype plugin indent on " ファイルごとのindent
 
 " colorscheme
 if (empty($TMUX))
@@ -173,8 +194,21 @@ colorscheme onedark
 " colorscheme molokai
 " let g:molokai_original=1
 " let g:rehash256=1
-set t_Co=256 " 256色を指定
 set background=dark " 背景色
+
+" lightline
+let g:lightline = {
+  \ 'colorscheme': 'onedark',
+  \ 'active': {
+  \   'left': [
+  \     [ 'mode', 'paste' ],
+  \     [ 'gitbranch', 'readonly', 'filename', 'modified' ]
+  \   ],
+  \ },
+  \ 'component_function': {
+  \   'gitbranch': 'fugitive#head'
+  \ },
+\ }
 
 " NERDTree
 " 自動起動設定
@@ -182,18 +216,75 @@ autocmd StdinReadPre * let s:std_in=1
 autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
 map <silent><C-n> :NERDTreeToggle<CR>
 let NERDTreeShowHidden=1 " dotfile表示
+let NERDTreeIgnore=['.git', 'node_modules', 'bower_components', '__pycache__', '\.db', '\.sqlite$', '\.rbc$', '\~$', '\.pyc'] " ツリーに表示しないファイル指定
+let g:NERDTreeDirArrows=1 " ディレクトリツリーの矢印指定
+" どのファイルをsyntaxhighlightするか設定
+let g:NERDTreeFileExtensionHighlightFullName=1
+let g:NERDTreeExactMatchHighlightFullName=1
+let g:NERDTreePatternMatchHighlightFullName=1
+set guifont=SauseCodePro\ Nerd\ Font\ Medium:h14
 
-" スニペットの初期設定
+" 補完
+let g:neocomplete#enable_at_startup=1 " vim起動時に有効にする
+let g:neocomplete#enable_smart_case=1 " 大文字が入力されるまで大文字小文字区別しない
+let g:neocomplete#min_keyword_length=1 " ３文字以上の単語に対して保管する
+let g:neocomplete#enable_auto_delimiter=1 " 区切り文字を含める
+let g:neocomplete#auto_completion_start_length=1 " 1文字目から開始
+" neosnippet呼び出し
 imap <C-k> <Plug>(neosnippet_expand_or_jump)
 smap <C-k> <Plug>(neosnippet_expand_or_jump)
 xmap <C-k> <Plug>(neosnippet_expand_target)
-smap <expr><TAB> neosnippet#expandable_or_jumpable() ?
-\ "\<Plug>(neosnippet_expand_or_jump)" : "\<TAB>"
+smap <expr><TAB> neosnippet#expandable_or_jumpable() ? "\<Plug>(neosnippet_expand_or_jump)" : "\<TAB>"
 if has('conceal')
   set conceallevel=2 concealcursor=niv
 endif
 
-" caw.vim.gitで一括コメントアウト
-nmap <C-/> <Plug>(caw:hatpos:toggle)
-vmap <C-/> <Plug>(caw:hatpos:toggle)
+" CtrlPの設定
+" ファイル指定無しでvimを立ち上げたときにCtrlPを起動
+function CtrlPIfEmpty()
+  if @% == ""
+    CtrlP ~/
+  endif
+endfunction
+augroup AutoCtrlP
+  autocmd!
+  autocmd VimEnter * call CtrlPIfEmpty()
+augroup END
+let g:ctrlp_match_window='bottom,order:ttb,min:1,max:10,results:50' " ウィンドウ設定
+let g:ctrlp_user_command='find %s -type f' " 検索コマンド
+let ctrlp_show_hidden=1 " dotfileを含める
+let g:ctrlp_types=['fil'] " ファイル検索のみに仕様
+let ctrlp_extensions=['funky', 'commandline']
+let g:ctrlp_open_new_file=1 " 新しいファイルで開く
+let g:ctrlp_use_migemo=0 " 日本語検索しない
+let g:ctrlp_custom_ignore = {
+  \ 'dir': '\v[\/](\.(git|hg|svn)|node_modules|vendor\/bundle)$',
+  \ 'file': '\v\.(exe|so|dll|o)$',
+  \ 'link': 'some_bad_symbolic_links',
+\} " 検索に含めないフォルダ、ファイル指定
+command! CtrlPCommandLine call ctrlp#init(ctrlp#commandline#id()) " CtrlPComamndLine有効化
+let g:ctrlp_funky_matchtype='path' " CtrlPFunky有効化
+" ag.vim有効化
+if executable('ag')
+  let g:ctrlp_use_caching=0 " CtrlPのキャッシュを使わない
+  let g:ctrlp_user_command='ag %s -i --hidden -g ""' " agを利用して検索する
+endif
+
+" syntastic設定
+let g:syntastic_enable_signs=1 " エラー業に>>を表示
+let g:syntastic_always_populate_loc_list=1 " 競合防止
+let g:syntastic_auto_loc_list=0 " 構文エラーリストは非表示
+let g:syntastic_check_on_open=0 " ファイルを開くときにチェックしない
+let g:syntastic_check_on_wq=0 " 閉じる時はチェックしない
+" syntastic 言語別設定
+let g:syntastic_javascript_checkers=['eslint']
+let g:syntastic_typescript_checkers=['tslint']
+let g:syntastic_ruby_checkers=['rubocop']
+let g:syntastic_haml_checkers=['haml_lint']
+let g:syntastic_python_checkers=['pylint']
+let g:syntastic_css_checkers=['stylelint']
+let g:syntastic_sass_checkers=['sass_lint']
+let g:syntastic_scss_checkers=['scss_lint']
+let g:syntastic_go_checkers=['golint']
+let g:syntastic_json_checkers=['jsonlint']
 

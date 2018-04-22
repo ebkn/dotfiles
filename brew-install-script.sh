@@ -22,6 +22,7 @@ brew install imagemagick
 brew install openssl
 brew install libxml2
 brew install icu4c
+brew install fontforge --use-gcc --without-python
 
 echo 'Setup shell...'
 brew install zsh
@@ -110,6 +111,10 @@ brew cask install slack
 brew cask install gyazo
 brew cask install skitch
 brew cask install kindle
+
+echo 'Installing fonts'
+brew tap caskroom/fonts
+brew cask install font-hack-nerd-font
 
 brew cleanup
 brew cask cleanup
