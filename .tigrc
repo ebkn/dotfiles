@@ -29,3 +29,5 @@ bind generic U ?git pull %(remote)
 # Pでpush
 bind generic P ?git push -u %(remote) %(repo:head)
 
+# onedark terminal用color
+color cursor black white

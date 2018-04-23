@@ -1,4 +1,4 @@
-""*******************************************************************************
+""******************************************************************************
 " Basic Setup
 "*******************************************************************************
 
@@ -166,6 +166,9 @@ if dein#load_state('~/.cache/dein')
   " rubyコード補完
   call dein#add('marcus/rsense')
 
+  " processing
+  call dein#add('sophacles/vim-processing')
+
   call dein#end()
   call dein#save_state()
 endif
@@ -287,4 +290,7 @@ let g:syntastic_sass_checkers=['sass_lint']
 let g:syntastic_scss_checkers=['scss_lint']
 let g:syntastic_go_checkers=['golint']
 let g:syntastic_json_checkers=['jsonlint']
+
+" vim-processing設定
+let g:processing_fold=1
 
