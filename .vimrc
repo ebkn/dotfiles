@@ -14,6 +14,7 @@ set nobomb "bomb無効化
 set t_Co=256 " 256色を指定
 
 set ttyfast " 高速ターミナル接続
+set lazyredraw " 再描画を調節
 set autoread " 編集中のファイルが変更されたら自動で読み直す
 set hidden " バッファが編集中でもその他のファイルを開けるように
 set showcmd " 入力中のコマンドをステータスに表示する
@@ -152,6 +153,10 @@ if dein#load_state('~/.cache/dein')
   call dein#add('suy/vim-ctrlp-commandline')
   call dein#add('rking/ag.vim')
 
+  " fzf
+  " call dein#add('junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' })
+  " call dein#add('junegunn/fzf.vim')
+
   " 空白文字ハイライト
   call dein#add('bronson/vim-trailing-whitespace')
 
@@ -168,6 +173,10 @@ if dein#load_state('~/.cache/dein')
 
   " processing
   call dein#add('sophacles/vim-processing')
+
+  " markdown
+  call dein#add('godlygeek/tabular')
+  call dein#add('plasticboy/vim-markdown')
 
   call dein#end()
   call dein#save_state()
@@ -219,12 +228,13 @@ autocmd StdinReadPre * let s:std_in=1
 autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
 map <silent><C-n> :NERDTreeToggle<CR>
 let NERDTreeShowHidden=1 " dotfile表示
-let NERDTreeIgnore=['.git', 'node_modules', 'bower_components', '__pycache__', '\.db', '\.sqlite$', '\.rbc$', '\~$', '\.pyc'] " ツリーに表示しないファイル指定
+let NERDTreeIgnore=['.git$', 'node_modules', 'bower_components', '__pycache__', '\.db', '\.sqlite$', '\.rbc$', '\~$', '\.pyc'] " ツリーに表示しないファイル指定
 let g:NERDTreeDirArrows=1 " ディレクトリツリーの矢印指定
 " どのファイルをsyntaxhighlightするか設定
 let g:NERDTreeFileExtensionHighlightFullName=1
 let g:NERDTreeExactMatchHighlightFullName=1
 let g:NERDTreePatternMatchHighlightFullName=1
+let g:NERDTreeLimitedSyntax=1 " 遅延解消
 set guifont=SauseCodePro\ Nerd\ Font\ Medium:h14
 
 " 補完
@@ -253,6 +263,7 @@ augroup AutoCtrlP
   autocmd!
   autocmd VimEnter * call CtrlPIfEmpty()
 augroup END
+let g:ctrlp_map='<C-t>'
 let g:ctrlp_match_window='bottom,order:ttb,min:1,max:10,results:50' " ウィンドウ設定
 let g:ctrlp_user_command='find %s -type f' " 検索コマンド
 let ctrlp_show_hidden=1 " dotfileを含める
@@ -261,7 +272,7 @@ let ctrlp_extensions=['funky', 'commandline']
 let g:ctrlp_open_new_file=1 " 新しいファイルで開く
 let g:ctrlp_use_migemo=0 " 日本語検索しない
 let g:ctrlp_custom_ignore = {
-  \ 'dir': '\v[\/](\.(git|hg|svn)|node_modules|vendor\/bundle)$',
+  \ 'dir': '\v[\/](\.(git|hg|svn)|node_modules|vendor\/bundle|tmp)$',
   \ 'file': '\v\.(exe|so|dll|o)$',
   \ 'link': 'some_bad_symbolic_links',
 \} " 検索に含めないフォルダ、ファイル指定
@@ -293,4 +304,7 @@ let g:syntastic_json_checkers=['jsonlint']
 
 " vim-processing設定
 let g:processing_fold=1
+
+" vim-markdown設定
+let g:vim_markdown_folding_disabled=1
 

@@ -25,7 +25,7 @@ export GOPATH=$HOME/go
 
 ZSH_THEME="robbyrussell"
 
-plugins=(git ruby osx bundler brew rails emoji-clock zsh-syntax-highlighting zsh-256color zsh-autosuggestions)
+plugins=(git ruby osx bundler brew rails zsh-nvm emoji-clock zsh-syntax-highlighting zsh-256color zsh-autosuggestions)
 
 source $ZSH/oh-my-zsh.sh
 
@@ -49,13 +49,14 @@ setopt auto_menu
 setopt nonomatch
 
 ## alias ##
+alias v='vim'
 alias vi='vim'
 alias ll='ls -la'
-alias c='code .'
+alias c='clear'
 alias f='open .'
 alias xc='open -a xcode .'
-alias v='vi .'
 alias mi='mine .'
+alias vc='code .'
 alias myst='sudo mysql.server start'
 alias defaultlocalserver='cd /Library/WebServer/Documents/'
 alias localserver='cd ~/projects/local/'

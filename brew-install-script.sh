@@ -26,21 +26,37 @@ brew install fontforge --use-gcc --without-python
 
 echo 'Setup shell...'
 brew install zsh
+chsh -s /usr/local/bin/zsh
 brew install tmux
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
 brew install peco
-
-echo 'Installing packages for vim'
-brew install vim
-curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
-sh ~/.installer.sh ~/.cache/dein
-brew install ctags
 
 echo 'Installing git packages'
 brew install git
 brew install tig
 brew install git-secrets
 brew install hub
+
+echo 'Cloning dotfiles'
+git clone https://github.com/ebkn/dotfiles.git
+ln -s dotfiles/.gitconfig .
+ln -s dotfiles/.vimrc .
+ln -s dotfiles/.zshenv .
+ln -s dotfiles/.zshrc .
+ln -s dotfiles/.bash_profile .
+ln -s dotfiles/.vim .
+ln -s dotfiles/.pryrc .
+ln -s dotfiles/.rubocop.yml .
+ln -s dotfies/peco .
+ln -s dotfiles/.tigrc .
+source .bash_profile
+source .zshrc
+
+echo 'Installing packages for vim'
+brew install vim
+curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
+sh ~/.installer.sh ~/.cache/dein
+brew install ctags
 
 echo 'Installing db packages'
 brew install sqlite
@@ -49,9 +65,9 @@ brew install postgresql
 brew install mongodb
 
 echo 'Installing node'
-brew install nodebrew
-nodebrew install latest
-brew install yarn
+nvm install
+nvm use
+brew install yarn --without-node
 
 echo 'Installing packages for Rails'
 brew install rbenv

@@ -1,10 +1,10 @@
 [user]
-	name = ebkn12
+	name = ebkn
 	email = ktennis.mqekr12@gmail.com
   signingkey = CC3F5520A56190D3165E1C3029749494F46DD884
 
 [github]
-	user = ebkn12
+	user = ebkn
 
 [core]
 	excludesfile = /Users/kenichi/.gitignore_global
