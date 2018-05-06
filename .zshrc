@@ -22,6 +22,9 @@ export PATH="/usr/local/bin/code:$PATH"
 export PYENV_ROOT="$HOME/.pyenv"
 export PATH="$PYENV_ROOT/bin:$PATH"
 export GOPATH=$HOME/go
+export ANDROID_HOME=$HOME/Library/Android/sdk
+export PATH=$PATH:$ANDROID_HOME/tools
+export PATH=$PATH:$ANDROID_HOME/platform-tools
 
 ZSH_THEME="robbyrussell"
 
@@ -58,6 +61,7 @@ alias xc='open -a xcode .'
 alias mi='mine .'
 alias vc='code .'
 alias myst='sudo mysql.server start'
+alias pgst='pg_ctl start -D /usr/local/var/postgres'
 alias defaultlocalserver='cd /Library/WebServer/Documents/'
 alias localserver='cd ~/projects/local/'
 alias apacheconfig='sudo vim /private/etc/apache2/httpd.conf'

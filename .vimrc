@@ -108,6 +108,30 @@ if &term =~ "xterm"
   inoremap <special> <expr> <Esc>[200~ XTermPasteBegin("")
 endif
 
+" 画面分割
+nnoremap s <Nop>
+nnoremap sj <C-w>j
+nnoremap sk <C-w>k
+nnoremap sl <C-w>l
+nnoremap sh <C-w>h
+nnoremap sJ <C-w>J
+nnoremap sK <C-w>K
+nnoremap sL <C-w>L
+nnoremap sH <C-w>H
+nnoremap sn gt
+nnoremap sp gT
+nnoremap sr <C-w>r
+nnoremap s= <C-w>=
+nnoremap sw <C-w>w
+nnoremap so <C-w>_<C-w>|
+nnoremap sO <C-w>=
+nnoremap sN :<C-u>bn<CR>
+nnoremap sP :<C-u>bp<CR>
+nnoremap st :<C-u>tabnew<CR>
+nnoremap ss :<C-u>sp<CR>
+nnoremap sv :<C-u>vs<CR>
+nnoremap sq :<C-u>q<CR>
+nnoremap sQ :<C-u>bd<CR>
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
 " dein
@@ -142,10 +166,10 @@ if dein#load_state('~/.cache/dein')
     \ },
   \ }) " 重たい処理を非同期にして高速化
 
-  " スニペット
+  " 補完
   call dein#add('Shougo/neocomplcache')
-  call dein#add('Shougo/neosnippet')
-  call dein#add('Shougo/neosnippet-snippets')
+  " call dein#add('Shougo/neosnippet.vim')
+  " call dein#add('Shougo/neosnippet-snippets')
 
   " CtrlP
   call dein#add('ctrlpvim/ctrlp.vim')
@@ -162,9 +186,13 @@ if dein#load_state('~/.cache/dein')
 
   " 構文チェック
   call dein#add('scrooloose/syntastic')
+  call dein#add('pmsorhaindo/syntastic-local-eslint.vim')
 
   " golang
   call dein#add('fatih/vim-go')
+
+  " htmlのタグを自動で閉じる
+  call dein#add('alvan/vim-closetag')
 
   " rubyでend自動挿入
   call dein#add('tpope/vim-endwise')
@@ -177,6 +205,9 @@ if dein#load_state('~/.cache/dein')
   " markdown
   call dein#add('godlygeek/tabular')
   call dein#add('plasticboy/vim-markdown')
+
+  " color表示
+  call dein#add('gorodinskiy/vim-coloresque')
 
   call dein#end()
   call dein#save_state()
@@ -214,8 +245,18 @@ let g:lightline = {
   \ 'active': {
   \   'left': [
   \     [ 'mode', 'paste' ],
-  \     [ 'gitbranch', 'readonly', 'filename', 'modified' ]
+  \     [ 'gitbranch', 'readonly', 'relativepath', 'modified' ]
   \   ],
+  \   'right': [
+  \     [ 'percent' ],
+  \     [ 'fileencoding', 'filetype']
+  \   ]
+  \ },
+  \ 'inactive': {
+  \   'left': [
+  \     [ 'gitbranch', 'readonly', 'relativepath', 'modified' ]
+  \   ],
+  \   'right': []
   \ },
   \ 'component_function': {
   \   'gitbranch': 'fugitive#head'
@@ -238,19 +279,46 @@ let g:NERDTreeLimitedSyntax=1 " 遅延解消
 set guifont=SauseCodePro\ Nerd\ Font\ Medium:h14
 
 " 補完
+let g:acp_enableAtStartup=0 " 起動時に有効にするために設定
 let g:neocomplete#enable_at_startup=1 " vim起動時に有効にする
 let g:neocomplete#enable_smart_case=1 " 大文字が入力されるまで大文字小文字区別しない
-let g:neocomplete#min_keyword_length=1 " ３文字以上の単語に対して保管する
+let g:neocomplete#sources#syntax#min_keyword_length=3 " ３文字以上の単語に対して保管する
+let g:neocomplete#enable_underbar_completion=1 " アンダーバー有効化
+let g:neocomplete#enable_camel_case_completion=1 " キャメルケース有効化
 let g:neocomplete#enable_auto_delimiter=1 " 区切り文字を含める
 let g:neocomplete#auto_completion_start_length=1 " 1文字目から開始
-" neosnippet呼び出し
-imap <C-k> <Plug>(neosnippet_expand_or_jump)
-smap <C-k> <Plug>(neosnippet_expand_or_jump)
-xmap <C-k> <Plug>(neosnippet_expand_target)
-smap <expr><TAB> neosnippet#expandable_or_jumpable() ? "\<Plug>(neosnippet_expand_or_jump)" : "\<TAB>"
-if has('conceal')
-  set conceallevel=2 concealcursor=niv
+let g:neocomplete#max_list=20 " 表示数
+" dictionary設定
+let g:neocomplete#sources#dictionary#dictionaries={
+  \ 'default': '',
+  \ 'vimshell': $HOME.'/.vimshell_hist',
+  \ 'scheme': $HOME.'/.gosh_completions'
+\ }
+" keyword設定
+if !exists('g:neocomplete#keyword_patterns')
+  let g:neocomplete#keyword_patterns={}
 endif
+let g:neocomplete#keyword_patterns['default']='\h\w*'
+" keymap
+" <CR>: close popup and save indent.
+inoremap <silent> <CR> <C-r>=<SID>my_cr_function()<CR>
+function! s:my_cr_function()
+  return (pumvisible() ? "\<C-y>" : "" ) . "\<CR>"
+endfunction
+" <TAB>: completion.
+inoremap <expr><TAB>  pumvisible() ? "\<C-n>" : "\<TAB>"
+" Close popup by <Space>.
+"inoremap <expr><Space> pumvisible() ? "\<C-y>" : "\<Space>"
+
+" neosnippet呼び出し
+" imap <C-k> <Plug>(neosnippet_expand_or_jump)
+" smap <C-k> <Plug>(neosnippet_expand_or_jump)
+" xmap <C-k> <Plug>(neosnippet_expand_target)
+" smap <expr><TAB> neosnippet#expandable_or_jumpable() ? "\<Plug>(neosnippet_expand_or_jump)" : "\<TAB>"
+" if has('conceal')
+"   set conceallevel=2 concealcursor=niv
+" endif
+" let g:neosnippet#snippets_directory='~/.vim/bundle/neosnippet-snippets/snippets/' " 補完のディレクトリ指定
 
 " CtrlPの設定
 " ファイル指定無しでvimを立ち上げたときにCtrlPを起動
@@ -301,6 +369,13 @@ let g:syntastic_sass_checkers=['sass_lint']
 let g:syntastic_scss_checkers=['scss_lint']
 let g:syntastic_go_checkers=['golint']
 let g:syntastic_json_checkers=['jsonlint']
+
+" html autoclose設定
+let g:closetag_filenames='*.html,*.xhtml,*.phtml'
+let g:closetag_xhtml_filenames='*.xhtml,*.jsx'
+let g:closetag_emptyTags_caseSensitive=1
+let g:closetag_shortcut='>' " >を押すと自動で閉じる
+let g:closetag_close_shortcat='<leader>>'
 
 " vim-processing設定
 let g:processing_fold=1

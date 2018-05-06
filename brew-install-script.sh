@@ -53,7 +53,7 @@ source .bash_profile
 source .zshrc
 
 echo 'Installing packages for vim'
-brew install vim
+brew install vim --with-lua
 curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
 sh ~/.installer.sh ~/.cache/dein
 brew install ctags
@@ -100,6 +100,7 @@ brew tap caskroom/cask
 echo 'Install some apps by using Homebrew-Cask'
 brew cask install alfred
 brew cask install iterm2
+brew cask install hyper
 brew cask install 1password
 brew cask install google-chrome
 brew cask install google-japanese-ime
