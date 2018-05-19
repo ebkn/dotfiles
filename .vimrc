@@ -167,9 +167,16 @@ if dein#load_state('~/.cache/dein')
   \ }) " 重たい処理を非同期にして高速化
 
   " 補完
-  call dein#add('Shougo/neocomplcache')
-  " call dein#add('Shougo/neosnippet.vim')
-  " call dein#add('Shougo/neosnippet-snippets')
+  " call dein#add('Shougo/deoplete.nvim')
+  " if !has('nvim')
+  "   call dein#add('roxma/nvim-yarp')
+  "   call dein#add('roxma/vim-hug-neovim-rpc')
+  " endif
+  " let g:deoplete#enable_at_startup=1
+  " call dein#add('Shougo/neocomplcache')
+  call dein#add('Shougo/neocomplete')
+  call dein#add('Shougo/neosnippet.vim')
+  call dein#add('Shougo/neosnippet-snippets')
 
   " CtrlP
   call dein#add('ctrlpvim/ctrlp.vim')
@@ -279,10 +286,10 @@ let g:NERDTreeLimitedSyntax=1 " 遅延解消
 set guifont=SauseCodePro\ Nerd\ Font\ Medium:h14
 
 " 補完
-let g:acp_enableAtStartup=0 " 起動時に有効にするために設定
+let g:acp_enableAtStartup=1 " 起動時に有効にするために設定
 let g:neocomplete#enable_at_startup=1 " vim起動時に有効にする
 let g:neocomplete#enable_smart_case=1 " 大文字が入力されるまで大文字小文字区別しない
-let g:neocomplete#sources#syntax#min_keyword_length=3 " ３文字以上の単語に対して保管する
+let g:neocomplete#sources#syntax#min_keyword_length=2 " 2文字以上の単語に対して保管する
 let g:neocomplete#enable_underbar_completion=1 " アンダーバー有効化
 let g:neocomplete#enable_camel_case_completion=1 " キャメルケース有効化
 let g:neocomplete#enable_auto_delimiter=1 " 区切り文字を含める
@@ -308,17 +315,45 @@ endfunction
 " <TAB>: completion.
 inoremap <expr><TAB>  pumvisible() ? "\<C-n>" : "\<TAB>"
 " Close popup by <Space>.
-"inoremap <expr><Space> pumvisible() ? "\<C-y>" : "\<Space>"
+" inoremap <expr><Space> pumvisible() ? "\<C-y>" : "\<Space>"
+
+" deoplete設定
+" let g:deoplete#enable_at_startup=1
+" let g:deoplete#auto_compolete_delay=1
+" let g:deoplete#auto_complete_start_length=1
+" let g:deoplete#enable_camel_case=1
+" let g:deoplete#enable_ignore_case=1
+" let g:deoplete#enable_refresh_always=0
+" let g:deoplete#enable_smart_case=1
+" inoremap <silent><expr> <TAB>
+"       \ pumvisible() ? "\<C-n>" :
+"       \ <SID>check_back_space() ? "\<TAB>" :
+"       \ deoplete#manual_complete()
+" function! s:check_back_space() abort "{{{
+"   let col = col('.') - 1
+"   return !col || getline('.')[col - 1]  =~ '\s'
+" endfunction"}}}
+" <S-TAB>: completion back.
+" inoremap <expr><S-TAB>  pumvisible() ? "\<C-p>" : "\<C-h>"
+" <BS>: close popup and delete backword char.
+" inoremap <expr><BS> deoplete#smart_close_popup()."\<C-h>"
+" <CR>: close popup and save indent.
+" inoremap <silent> <CR> <C-r>=<SID>my_cr_function()<CR>
+" function! s:my_cr_function() abort
+"  return deoplete#cancel_popup() . "\<CR>"
+" endfunction
 
 " neosnippet呼び出し
-" imap <C-k> <Plug>(neosnippet_expand_or_jump)
-" smap <C-k> <Plug>(neosnippet_expand_or_jump)
-" xmap <C-k> <Plug>(neosnippet_expand_target)
-" smap <expr><TAB> neosnippet#expandable_or_jumpable() ? "\<Plug>(neosnippet_expand_or_jump)" : "\<TAB>"
-" if has('conceal')
-"   set conceallevel=2 concealcursor=niv
-" endif
-" let g:neosnippet#snippets_directory='~/.vim/bundle/neosnippet-snippets/snippets/' " 補完のディレクトリ指定
+imap <C-k> <Plug>(neosnippet_expand_or_jump)
+smap <C-k> <Plug>(neosnippet_expand_or_jump)
+xmap <C-k> <Plug>(neosnippet_expand_target)
+smap <expr><TAB> neosnippet#expandable_or_jumpable() ? "\<Plug>(neosnippet_expand_or_jump)" : "\<TAB>"
+" タブキーで補完候補の選択. スニペット内のジャンプもタブキーでジャンプ
+imap <expr><TAB> pumvisible() ? "<C-n>" : neosnippet#jumpable() ? "<Plug>(neosnippet_expand_or_jump)" : "<TAB>"
+if has('conceal')
+  set conceallevel=2 concealcursor=niv
+endif
+let g:neosnippet#snippets_directory='~/.vim/bundle/neosnippet-snippets/snippets/' " 補完のディレクトリ指定
 
 " CtrlPの設定
 " ファイル指定無しでvimを立ち上げたときにCtrlPを起動

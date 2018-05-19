@@ -85,3 +85,9 @@ setopt share_history
 setopt hist_ignore_dups
 setopt hist_ignore_all_dups
 
+
+# The next line updates PATH for the Google Cloud SDK.
+if [ -f '/Users/kenichi/google-cloud-sdk/path.zsh.inc' ]; then source '/Users/kenichi/google-cloud-sdk/path.zsh.inc'; fi
+
+# The next line enables shell command completion for gcloud.
+if [ -f '/Users/kenichi/google-cloud-sdk/completion.zsh.inc' ]; then source '/Users/kenichi/google-cloud-sdk/completion.zsh.inc'; fi
