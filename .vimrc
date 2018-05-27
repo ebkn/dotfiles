@@ -4,8 +4,11 @@
 
 set shell=/bin/zsh
 
+" jkでESCに移動
+inoremap <silent> jk <ESC>
+
 " encoding
-set encoding=utf-8
+set encoding=utf8
 set fileencoding=utf-8
 set fileencodings=utf-8,ucs-boms,euc-jp,ep932
 set fileformats=unix,dos,mac
@@ -68,6 +71,9 @@ nnoremap j gj
 nnoremap k gk
 nnoremap <down> gj
 nnoremap <up> gk
+
+" clipboard
+set clipboard=unnamed,autoselect
 
 " マウス有効化
 if has('mouse')
@@ -154,8 +160,12 @@ if dein#load_state('~/.cache/dein')
 
   " サイドバーにtree表示
   call dein#add('scrooloose/nerdtree')
-  call dein#add('ryanoasis/vim-devicons')
+  " call dein#add('ryanoasis/vim-devicons') " 現状文字が残ってうまく表示できない
   call dein#add('tiagofumo/vim-nerdtree-syntax-highlight')
+  call dein#add('Xuyuanp/nerdtree-git-plugin')
+
+  " 差分の行を表示する
+  call dein#add('airblade/vim-gitgutter')
 
   call dein#add('Shougo/vimproc', {
     \ 'build' : {
@@ -184,6 +194,10 @@ if dein#load_state('~/.cache/dein')
   call dein#add('suy/vim-ctrlp-commandline')
   call dein#add('rking/ag.vim')
 
+  " 一括コメントアウト
+  " call dein#add('scrooloose/nerdcommenter')
+  call dein#add('tyru/caw.vim.git')
+
   " fzf
   " call dein#add('junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' })
   " call dein#add('junegunn/fzf.vim')
@@ -191,12 +205,20 @@ if dein#load_state('~/.cache/dein')
   " 空白文字ハイライト
   call dein#add('bronson/vim-trailing-whitespace')
 
+  " 置き換えをハイライト
+  call dein#add('osyo-manga/vim-over')
+
   " 構文チェック
-  call dein#add('scrooloose/syntastic')
-  call dein#add('pmsorhaindo/syntastic-local-eslint.vim')
+  " call dein#add('scrooloose/syntastic')
+  " call dein#add('pmsorhaindo/syntastic-local-eslint.vim')
+  call dein#add('w0rp/ale')
 
   " golang
   call dein#add('fatih/vim-go')
+
+  " typescript
+  call dein#add('leafgarland/typescript-vim')
+  call dein#add('ianks/vim-tsx')
 
   " htmlのタグを自動で閉じる
   call dein#add('alvan/vim-closetag')
@@ -278,12 +300,49 @@ map <silent><C-n> :NERDTreeToggle<CR>
 let NERDTreeShowHidden=1 " dotfile表示
 let NERDTreeIgnore=['.git$', 'node_modules', 'bower_components', '__pycache__', '\.db', '\.sqlite$', '\.rbc$', '\~$', '\.pyc'] " ツリーに表示しないファイル指定
 let g:NERDTreeDirArrows=1 " ディレクトリツリーの矢印指定
+let g:NERDTreeDirArrowExpandable='▸'
+let g:NERDTreeDirArrowCollapsible='▾'
 " どのファイルをsyntaxhighlightするか設定
 let g:NERDTreeFileExtensionHighlightFullName=1
 let g:NERDTreeExactMatchHighlightFullName=1
 let g:NERDTreePatternMatchHighlightFullName=1
 let g:NERDTreeLimitedSyntax=1 " 遅延解消
 set guifont=SauseCodePro\ Nerd\ Font\ Medium:h14
+" syntax highlight
+let s:brown = "905532"
+let s:aqua =  "3AFFDB"
+let s:blue = "689FB6"
+let s:darkBlue = "44788E"
+let s:purple = "834F79"
+let s:lightPurple = "834F79"
+let s:red = "AE403F"
+let s:beige = "F5C06F"
+let s:yellow = "F09F17"
+let s:orange = "D4843E"
+let s:darkOrange = "F16529"
+let s:pink = "CB6F6F"
+let s:salmon = "EE6E73"
+let s:green = "8FAA54"
+let s:lightGreen = "31B53E"
+let s:white = "FFFFFF"
+let s:rspec_red = 'FE405F'
+let s:git_orange = 'F54D27'
+let g:NERDTreeExtensionHighlightColor = {}
+let g:NERDTreeExactMatchHighlightColor = {}
+let g:NERDTreePatternMatchHighlightColor = {}
+" git plugin
+let g:NERDTreeIndicatorMapCustom = {
+    \ "Modified"  : "✹",
+    \ "Staged"    : "✚",
+    \ "Untracked" : "✭",
+    \ "Renamed"   : "➜",
+    \ "Unmerged"  : "═",
+    \ "Deleted"   : "✖",
+    \ "Dirty"     : "✗",
+    \ "Clean"     : "✔︎",
+    \ 'Ignored'   : '☒',
+    \ "Unknown"   : "?"
+    \ }
 
 " 補完
 let g:acp_enableAtStartup=1 " 起動時に有効にするために設定
@@ -388,26 +447,41 @@ if executable('ag')
 endif
 
 " syntastic設定
-let g:syntastic_enable_signs=1 " エラー業に>>を表示
-let g:syntastic_always_populate_loc_list=1 " 競合防止
-let g:syntastic_auto_loc_list=0 " 構文エラーリストは非表示
-let g:syntastic_check_on_open=0 " ファイルを開くときにチェックしない
-let g:syntastic_check_on_wq=0 " 閉じる時はチェックしない
+" let g:syntastic_enable_signs=1 " エラー業に>>を表示
+" let g:syntastic_always_populate_loc_list=1 " 競合防止
+" let g:syntastic_auto_loc_list=0 " 構文エラーリストは非表示
+" let g:syntastic_check_on_open=0 " ファイルを開くときにチェックしない
+" let g:syntastic_check_on_wq=0 " 閉じる時はチェックしない
 " syntastic 言語別設定
-let g:syntastic_javascript_checkers=['eslint']
-let g:syntastic_typescript_checkers=['tslint']
-let g:syntastic_ruby_checkers=['rubocop']
-let g:syntastic_haml_checkers=['haml_lint']
-let g:syntastic_python_checkers=['pylint']
-let g:syntastic_css_checkers=['stylelint']
-let g:syntastic_sass_checkers=['sass_lint']
-let g:syntastic_scss_checkers=['scss_lint']
-let g:syntastic_go_checkers=['golint']
-let g:syntastic_json_checkers=['jsonlint']
+" let g:syntastic_javascript_checkers=['eslint']
+" let g:syntastic_typescript_checkers=['tslint']
+" let g:syntastic_ruby_checkers=['rubocop']
+" let g:syntastic_haml_checkers=['haml_lint']
+" let g:syntastic_python_checkers=['pylint']
+" let g:syntastic_css_checkers=['stylelint']
+" let g:syntastic_sass_checkers=['sass_lint']
+" let g:syntastic_scss_checkers=['scss_lint']
+" let g:syntastic_go_checkers=['golint']
+" let g:syntastic_json_checkers=['jsonlint']
+
+" ale設定
+let g:ale_sign_column_always=1 " 左にずれるのを防止
+let g:ale_sign_error='✖'
+let g:ale_sign_warning='✗'
+
+" nerdcommenter設定
+" let g:NERDSpaceDelims=1 " スペース入れる
+" let g:NERDCompactSexyComs=1 " compactコメントアウトを使う
+" let g:NERDDefaultAlign='left' " 左揃え
+" let g:NERDCommentEmptyLines=1 " 空行も含める
+" let g:NERDTrimTrailingWhitespace=1 " 空文字削除
+" caw.vim設定
+nmap <C-c> <Plug>(caw:i:toggle)
+vmap <C-c> <Plug>(caw:i:toggle)
 
 " html autoclose設定
 let g:closetag_filenames='*.html,*.xhtml,*.phtml'
-let g:closetag_xhtml_filenames='*.xhtml,*.jsx'
+let g:closetag_xhtml_filenames='*.xhtml,*.jsx,*.tsx'
 let g:closetag_emptyTags_caseSensitive=1
 let g:closetag_shortcut='>' " >を押すと自動で閉じる
 let g:closetag_close_shortcat='<leader>>'
