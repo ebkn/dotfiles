@@ -10,6 +10,7 @@ export TERM=xterm-256color
 
 eval "$(rbenv init -)"
 eval "$(hub alias -s)"
+eval "$(nodenv init -)"
 eval "$(goenv init -)"
 eval "$(pyenv init -)"
 if which swiftenv > /dev/null; then eval "$(swiftenv init -)"; fi
@@ -25,6 +26,7 @@ export GOPATH=$HOME/go
 export ANDROID_HOME=$HOME/Library/Android/sdk
 export PATH=$PATH:$ANDROID_HOME/tools
 export PATH=$PATH:$ANDROID_HOME/platform-tools
+export PATH=/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH
 
 ZSH_THEME="robbyrussell"
 

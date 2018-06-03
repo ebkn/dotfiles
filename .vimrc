@@ -465,9 +465,23 @@ endif
 " let g:syntastic_json_checkers=['jsonlint']
 
 " ale設定
+let g:ale_lint_on_text_changed=0
 let g:ale_sign_column_always=1 " 左にずれるのを防止
-let g:ale_sign_error='✖'
-let g:ale_sign_warning='✗'
+let g:ale_sign_error='E'
+let g:ale_sign_warning='W'
+let g:ale_linters = {
+  \ 'html': [],
+  \ 'css': ['stylelint'],
+  \ 'javascript': ['eslint'],
+  \ 'ruby': ['rubocop'],
+  \ 'go': ['golint'],
+  \ 'haml': ['haml-lint'],
+  \ 'sass': ['sass-lint'],
+  \ 'swift': ['swiftlint'],
+  \ 'typescript': ['tslint'],
+  \ 'vim': ['vint'],
+  \ 'yaml': ['yamllint'],
+  \ }
 
 " nerdcommenter設定
 " let g:NERDSpaceDelims=1 " スペース入れる
