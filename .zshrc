@@ -28,11 +28,19 @@ export PATH=$PATH:$ANDROID_HOME/tools
 export PATH=$PATH:$ANDROID_HOME/platform-tools
 export PATH=/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH
 
+# Settings for theme
 ZSH_THEME="robbyrussell"
+# ZSH_THEME="bullet-train"
+# ZSH_THEME="spaceship" # too late
+# ZSH_THEME="avit"
 
-plugins=(git ruby osx bundler brew rails zsh-nvm emoji-clock zsh-syntax-highlighting zsh-256color zsh-autosuggestions)
-
+plugins=(osx zsh-syntax-highlighting zsh-256color zsh-autosuggestions)
 source $ZSH/oh-my-zsh.sh
+
+# Settings for pure theme # git branch is difficult to see
+# ZSH_THEME=""
+# autoload -U promptinit; promptinit
+# prompt pure
 
 # display
 setopt print_exit_value
@@ -56,6 +64,7 @@ setopt nonomatch
 ## alias ##
 alias v='vim'
 alias vi='vim'
+alias tmuxs='tmux source-file ~/.tmux.conf'
 alias ll='ls -la'
 alias c='clear'
 alias f='open .'
@@ -63,7 +72,7 @@ alias xc='open -a xcode .'
 alias mi='mine .'
 alias vc='code .'
 alias myst='sudo mysql.server start'
-alias pgst='pg_ctl start -D /usr/local/var/postgres'
+# alias pgst='pg_ctl start -D /usr/local/var/postgres'
 alias defaultlocalserver='cd /Library/WebServer/Documents/'
 alias localserver='cd ~/projects/local/'
 alias apacheconfig='sudo vim /private/etc/apache2/httpd.conf'
@@ -72,6 +81,18 @@ alias st-list='speedtest-cli --list | grep Tokyo'
 alias st-exec='(){ speedtest-cli --server $1 --simple }'
 alias his='cat ~/.zsh_history'
 alias ctags=/usr/local/Cellar/ctags/5.8_1/bin/ctags
+# aliases for git
+alias ga='git add'
+alias gc='git commit'
+alias gst='git status'
+alias gb='git branch'
+alias gc='git checkout'
+alias gpull='git pull'
+alias gpush='git push'
+alias gcp='git cherry-pick'
+# aliases for rails
+alias rs='bundle exec rails s'
+alias rc='bundle exec rails c'
 
 # history
 HISTFILE=~/.zsh_history
@@ -87,9 +108,8 @@ setopt share_history
 setopt hist_ignore_dups
 setopt hist_ignore_all_dups
 
-
+# Settings for gcp
 # The next line updates PATH for the Google Cloud SDK.
 if [ -f '/Users/kenichi/google-cloud-sdk/path.zsh.inc' ]; then source '/Users/kenichi/google-cloud-sdk/path.zsh.inc'; fi
-
 # The next line enables shell command completion for gcloud.
 if [ -f '/Users/kenichi/google-cloud-sdk/completion.zsh.inc' ]; then source '/Users/kenichi/google-cloud-sdk/completion.zsh.inc'; fi
