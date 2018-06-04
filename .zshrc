@@ -83,16 +83,19 @@ alias his='cat ~/.zsh_history'
 alias ctags=/usr/local/Cellar/ctags/5.8_1/bin/ctags
 # aliases for git
 alias ga='git add'
-alias gc='git commit'
+alias gc='git commit -v'
 alias gst='git status'
+alias gd='git diff'
 alias gb='git branch'
-alias gc='git checkout'
+alias gco='git checkout'
 alias gpull='git pull'
+alias gf='git fetch'
 alias gpush='git push'
 alias gcp='git cherry-pick'
 # aliases for rails
 alias rs='bundle exec rails s'
 alias rc='bundle exec rails c'
+alias rcs='bundle exec rails c -s'
 
 # history
 HISTFILE=~/.zsh_history
