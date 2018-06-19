@@ -1,19 +1,15 @@
 export LANG=ja_JP.UTF-8
-
-# tmux起動
-[[ -z "$TMUX" && ! -z "$PS1" ]] && exec tmux -u
-
-export ZSH=/Users/kenichi/.oh-my-zsh
-export LANG=ja_JP.UTF-8
 export LC_CTYPE=ja_JP.UTF-8
+export ZSH=/Users/kenichi/.oh-my-zsh
 export TERM=xterm-256color
 
+[[ -z "$TMUX" && ! -z "$PS1" ]] && exec tmux -u
+
 eval "$(rbenv init -)"
-eval "$(hub alias -s)"
 eval "$(nodenv init -)"
 eval "$(goenv init -)"
 eval "$(pyenv init -)"
-if which swiftenv > /dev/null; then eval "$(swiftenv init -)"; fi
+eval "$(swiftenv init -)"
 
 export PATH="/usr/local/sbin:$PATH"
 export PATH="/usr/local/opt/mysql@5.6/bin:$PATH"
@@ -53,7 +49,7 @@ setopt no_list_beep
 # warning before delete
 setopt rm_star_wait
 
-## autocomplete ##
+# autocomplete
 setopt auto_list
 setopt auto_menu
 
@@ -77,21 +73,21 @@ alias defaultlocalserver='cd /Library/WebServer/Documents/'
 alias localserver='cd ~/projects/local/'
 alias apacheconfig='sudo vim /private/etc/apache2/httpd.conf'
 alias apachelog='tail -n 100 /private/var/log/apache2/error_log'
-alias st-list='speedtest-cli --list | grep Tokyo'
-alias st-exec='(){ speedtest-cli --server $1 --simple }'
 alias his='cat ~/.zsh_history'
 alias ctags=/usr/local/Cellar/ctags/5.8_1/bin/ctags
 # aliases for git
 alias ga='git add'
-alias gc='git commit -v'
+alias gc='git commit -v -m'
+alias gca='git commit --amend'
 alias gst='git status'
 alias gd='git diff'
-alias gb='git branch'
+alias gb='git branch -a'
 alias gco='git checkout'
 alias gpull='git pull'
 alias gf='git fetch'
 alias gpush='git push'
 alias gcp='git cherry-pick'
+alias gcleanbranch="git branch --merged master | grep -vE '^\*|master$|develop$' | xargs -I % git branch -d %"
 # aliases for rails
 alias rs='bundle exec rails s'
 alias rc='bundle exec rails c'

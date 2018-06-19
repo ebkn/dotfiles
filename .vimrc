@@ -1,11 +1,7 @@
-""******************************************************************************
-" Basic Setup
-"*******************************************************************************
-
 set shell=/bin/zsh
 
 " jkでESCに移動
-inoremap <silent> jk <ESC>
+" inoremap <silent> jk <ESC>
 
 " encoding
 set encoding=utf8
@@ -139,8 +135,9 @@ nnoremap sv :<C-u>vs<CR>
 nnoremap sq :<C-u>q<CR>
 nnoremap sQ :<C-u>bd<CR>
 
+
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
-" dein
+" vim packages
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
 if &compatible
   set nocompatible
@@ -172,18 +169,11 @@ if dein#load_state('~/.cache/dein')
       \ 'windows' : 'make -f make_mingw32.mak',
       \ 'cygwin' : 'make -f make_cygwin.mak',
       \ 'mac' : 'make -f make_mac.mak',
-      \  'unix' : 'make -f make_unix.mak',
+      \ 'unix' : 'make -f make_unix.mak',
     \ },
   \ }) " 重たい処理を非同期にして高速化
 
   " 補完
-  " call dein#add('Shougo/deoplete.nvim')
-  " if !has('nvim')
-  "   call dein#add('roxma/nvim-yarp')
-  "   call dein#add('roxma/vim-hug-neovim-rpc')
-  " endif
-  " let g:deoplete#enable_at_startup=1
-  " call dein#add('Shougo/neocomplcache')
   call dein#add('Shougo/neocomplete')
   call dein#add('Shougo/neosnippet.vim')
   call dein#add('Shougo/neosnippet-snippets')
@@ -195,12 +185,7 @@ if dein#load_state('~/.cache/dein')
   call dein#add('rking/ag.vim')
 
   " 一括コメントアウト
-  " call dein#add('scrooloose/nerdcommenter')
   call dein#add('tyru/caw.vim.git')
-
-  " fzf
-  " call dein#add('junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' })
-  " call dein#add('junegunn/fzf.vim')
 
   " 空白文字ハイライト
   call dein#add('bronson/vim-trailing-whitespace')
@@ -209,8 +194,6 @@ if dein#load_state('~/.cache/dein')
   call dein#add('osyo-manga/vim-over')
 
   " 構文チェック
-  " call dein#add('scrooloose/syntastic')
-  " call dein#add('pmsorhaindo/syntastic-local-eslint.vim')
   call dein#add('w0rp/ale')
 
   " golang
@@ -247,7 +230,8 @@ if dein#check_install()
 end
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
-" ライブラリの設定
+" settings for packages
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 filetype plugin indent on " ファイルごとのindent
 
@@ -259,7 +243,8 @@ if (empty($TMUX))
   if (has("termguicolors"))
     set termguicolors
   endif
-endif " tmuxがロードされていない時の設定
+endif
+
 syntax on " syntax有効化
 colorscheme onedark
 " molokai用設定
@@ -298,7 +283,7 @@ autocmd StdinReadPre * let s:std_in=1
 autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
 map <silent><C-n> :NERDTreeToggle<CR>
 let NERDTreeShowHidden=1 " dotfile表示
-let NERDTreeIgnore=['.git$', 'node_modules', 'bower_components', '__pycache__', '\.db', '\.sqlite$', '\.rbc$', '\~$', '\.pyc'] " ツリーに表示しないファイル指定
+let NERDTreeIgnore=['.git$', 'node_modules', 'bower_components', '__pycache__', '\.db', '\.sqlite$', '\.rbc$', '\~$', '\.pyc', '\.idea$', '\.vscode$', '\vendor\/bundle']
 let g:NERDTreeDirArrows=1 " ディレクトリツリーの矢印指定
 let g:NERDTreeDirArrowExpandable='▸'
 let g:NERDTreeDirArrowCollapsible='▾'
@@ -376,32 +361,6 @@ inoremap <expr><TAB>  pumvisible() ? "\<C-n>" : "\<TAB>"
 " Close popup by <Space>.
 " inoremap <expr><Space> pumvisible() ? "\<C-y>" : "\<Space>"
 
-" deoplete設定
-" let g:deoplete#enable_at_startup=1
-" let g:deoplete#auto_compolete_delay=1
-" let g:deoplete#auto_complete_start_length=1
-" let g:deoplete#enable_camel_case=1
-" let g:deoplete#enable_ignore_case=1
-" let g:deoplete#enable_refresh_always=0
-" let g:deoplete#enable_smart_case=1
-" inoremap <silent><expr> <TAB>
-"       \ pumvisible() ? "\<C-n>" :
-"       \ <SID>check_back_space() ? "\<TAB>" :
-"       \ deoplete#manual_complete()
-" function! s:check_back_space() abort "{{{
-"   let col = col('.') - 1
-"   return !col || getline('.')[col - 1]  =~ '\s'
-" endfunction"}}}
-" <S-TAB>: completion back.
-" inoremap <expr><S-TAB>  pumvisible() ? "\<C-p>" : "\<C-h>"
-" <BS>: close popup and delete backword char.
-" inoremap <expr><BS> deoplete#smart_close_popup()."\<C-h>"
-" <CR>: close popup and save indent.
-" inoremap <silent> <CR> <C-r>=<SID>my_cr_function()<CR>
-" function! s:my_cr_function() abort
-"  return deoplete#cancel_popup() . "\<CR>"
-" endfunction
-
 " neosnippet呼び出し
 imap <C-k> <Plug>(neosnippet_expand_or_jump)
 smap <C-k> <Plug>(neosnippet_expand_or_jump)
@@ -426,43 +385,25 @@ augroup AutoCtrlP
   autocmd VimEnter * call CtrlPIfEmpty()
 augroup END
 let g:ctrlp_map='<C-t>'
-let g:ctrlp_match_window='bottom,order:ttb,min:1,max:10,results:50' " ウィンドウ設定
-let g:ctrlp_user_command='find %s -type f' " 検索コマンド
-let ctrlp_show_hidden=1 " dotfileを含める
-let g:ctrlp_types=['fil'] " ファイル検索のみに仕様
-let ctrlp_extensions=['funky', 'commandline']
-let g:ctrlp_open_new_file=1 " 新しいファイルで開く
-let g:ctrlp_use_migemo=0 " 日本語検索しない
-let g:ctrlp_custom_ignore = {
-  \ 'dir': '\v[\/](\.(git|hg|svn)|node_modules|vendor\/bundle|tmp)$',
-  \ 'file': '\v\.(exe|so|dll|o)$',
-  \ 'link': 'some_bad_symbolic_links',
-\} " 検索に含めないフォルダ、ファイル指定
-command! CtrlPCommandLine call ctrlp#init(ctrlp#commandline#id()) " CtrlPComamndLine有効化
-let g:ctrlp_funky_matchtype='path' " CtrlPFunky有効化
+let g:ctrlp_match_window='bottom,order:ttb,min:1,max:10,results:20' " ウィンドウ設定
 " ag.vim有効化
 if executable('ag')
   let g:ctrlp_use_caching=0 " CtrlPのキャッシュを使わない
   let g:ctrlp_user_command='ag %s -i --hidden -g ""' " agを利用して検索する
 endif
-
-" syntastic設定
-" let g:syntastic_enable_signs=1 " エラー業に>>を表示
-" let g:syntastic_always_populate_loc_list=1 " 競合防止
-" let g:syntastic_auto_loc_list=0 " 構文エラーリストは非表示
-" let g:syntastic_check_on_open=0 " ファイルを開くときにチェックしない
-" let g:syntastic_check_on_wq=0 " 閉じる時はチェックしない
-" syntastic 言語別設定
-" let g:syntastic_javascript_checkers=['eslint']
-" let g:syntastic_typescript_checkers=['tslint']
-" let g:syntastic_ruby_checkers=['rubocop']
-" let g:syntastic_haml_checkers=['haml_lint']
-" let g:syntastic_python_checkers=['pylint']
-" let g:syntastic_css_checkers=['stylelint']
-" let g:syntastic_sass_checkers=['sass_lint']
-" let g:syntastic_scss_checkers=['scss_lint']
-" let g:syntastic_go_checkers=['golint']
-" let g:syntastic_json_checkers=['jsonlint']
+" let g:ctrlp_user_command='find %s -type f' " 検索コマンド
+let ctrlp_show_hidden=1 " dotfileを含める
+let g:ctrlp_types=['fil'] " ファイル検索のみに仕様
+let ctrlp_extensions=['funky', 'commandline']
+let g:ctrlp_open_new_file=1 " 新しいファイルで開く
+let g:ctrlp_use_migemo=0 " 日本語検索しない
+let g:ctrlp_custom_ignore={
+  \ 'dir': '\v[\/](\.(git$|vscode$|idea$|hg|svn)|node_modules|bower_components|__pycache__|vendor\/bundle|tmp)$',
+  \ 'file': '\v\.(exe|db|.sqlite$|so|dll|o)$',
+  \ 'link': 'some_bad_symbolic_links',
+\ }
+command! CtrlPCommandLine call ctrlp#init(ctrlp#commandline#id()) " CtrlPComamndLine有効化
+let g:ctrlp_funky_matchtype='path' " CtrlPFunky有効化
 
 " ale設定
 let g:ale_lint_on_text_changed=0
@@ -483,12 +424,6 @@ let g:ale_linters = {
   \ 'yaml': ['yamllint'],
   \ }
 
-" nerdcommenter設定
-" let g:NERDSpaceDelims=1 " スペース入れる
-" let g:NERDCompactSexyComs=1 " compactコメントアウトを使う
-" let g:NERDDefaultAlign='left' " 左揃え
-" let g:NERDCommentEmptyLines=1 " 空行も含める
-" let g:NERDTrimTrailingWhitespace=1 " 空文字削除
 " caw.vim設定
 nmap <C-c> <Plug>(caw:i:toggle)
 vmap <C-c> <Plug>(caw:i:toggle)
@@ -505,4 +440,3 @@ let g:processing_fold=1
 
 " vim-markdown設定
 let g:vim_markdown_folding_disabled=1
-
