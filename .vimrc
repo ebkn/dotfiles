@@ -283,7 +283,7 @@ autocmd StdinReadPre * let s:std_in=1
 autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
 map <silent><C-n> :NERDTreeToggle<CR>
 let NERDTreeShowHidden=1 " dotfile表示
-let NERDTreeIgnore=['.git$', 'node_modules', 'bower_components', '__pycache__', '\.db', '\.sqlite$', '\.rbc$', '\~$', '\.pyc', '\.idea$', '\.vscode$', '\vendor\/bundle']
+let NERDTreeIgnore=['.git$', 'node_modules', 'bower_components', '__pycache__', '\.db', '\.sqlite$', '\.rbc$', '\~$', '\.pyc', '\.idea$', '\.vscode$', '\vendor\/bundle', '\.awcache$']
 let g:NERDTreeDirArrows=1 " ディレクトリツリーの矢印指定
 let g:NERDTreeDirArrowExpandable='▸'
 let g:NERDTreeDirArrowCollapsible='▾'
@@ -398,8 +398,8 @@ let ctrlp_extensions=['funky', 'commandline']
 let g:ctrlp_open_new_file=1 " 新しいファイルで開く
 let g:ctrlp_use_migemo=0 " 日本語検索しない
 let g:ctrlp_custom_ignore={
-  \ 'dir': '\v[\/](\.(git$|vscode$|idea$|hg|svn)|node_modules|bower_components|__pycache__|vendor\/bundle|tmp)$',
-  \ 'file': '\v\.(exe|db|.sqlite$|so|dll|o)$',
+  \ 'dir': '\v[\/](\.(git|vscode|idea|awcache|hg|svn)$|node_modules|bower_components|__pycache__|vendor\/bundle|tmp)$',
+  \ 'file': '\v\.(exe|db|.sqlite|so|dll|o)$',
   \ 'link': 'some_bad_symbolic_links',
 \ }
 command! CtrlPCommandLine call ctrlp#init(ctrlp#commandline#id()) " CtrlPComamndLine有効化
@@ -423,6 +423,9 @@ let g:ale_linters = {
   \ 'vim': ['vint'],
   \ 'yaml': ['yamllint'],
   \ }
+
+" gitgutter設定
+let g:gitgutter_async=1
 
 " caw.vim設定
 nmap <C-c> <Plug>(caw:i:toggle)

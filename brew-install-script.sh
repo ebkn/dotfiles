@@ -19,10 +19,11 @@ brew install libiconv
 brew install jpeg
 brew install libpng
 brew install imagemagick
+brew install imagemagick@6
 brew install openssl
 brew install libxml2
 brew install icu4c
-brew install fontforge --use-gcc --without-python
+brew install fontforge --use-gcc --without-pythona
 
 echo 'Setup shell...'
 brew install zsh
@@ -30,13 +31,14 @@ chsh -s /usr/local/bin/zsh
 brew install tmux
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
 brew install peco
+brew install tree
 
 echo 'Installing git packages'
 brew install git
 brew install tig
 
 echo 'Cloning dotfiles'
-git clone https://github.com/ebkn/dotfiles.git
+git clone git@github.com:ebkn/dotfiles.git
 ln -s ~/dotfiles/.gitconfig .
 ln -s ~/dotfiles/.vimrc .
 ln -s ~/dotfiles/.tmux.conf .
@@ -58,17 +60,18 @@ curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh >
 sh ~/.installer.sh ~/.cache/dein
 brew install ctags
 
-echo 'Installing db packages'
+echo 'Installing dbms'
 brew install mysql
 brew install postgresql
-brew install mongodb
+brew install sqlite
+brew install redis
 
 echo 'Installing node'
 brew install nodenv
 brew install yarn --without-node
 echo 'Please exec $ nodenv install <VERSION>'
 
-echo 'Installing packages for Rails'
+echo 'Installing packages for ruby'
 brew install rbenv
 brew install ruby-build
 echo 'Please exec $ rbenv install <VERSION>'
@@ -81,11 +84,6 @@ echo 'Installing packages for python'
 brew install pyenv
 echo 'Please exec $ pyenv install <VERSION>'
 
-echo 'Installing packages for php'
-brew instal php-build
-brew install phpenv
-echo 'Please exec $ phpenv install <VERSION>'
-
 echo 'Installing others'
 brew install heroku
 brew install awscli
@@ -95,6 +93,7 @@ echo 'Installing Homebrew-Cask...'
 brew tap caskroom/cask
 
 echo 'Install some apps by using Homebrew-Cask'
+brew cask install arduino
 brew cask install alfred
 brew cask install iterm2
 brew cask install 1password
@@ -106,7 +105,6 @@ brew cask install visual-studio-code
 brew cask install unity
 brew cask install android-studio
 brew cask install processing
-brew cask install cyberduck
 brew cask install bettertouchtool
 brew cask install hyperswitch
 brew cask install karabiner-elements
@@ -122,6 +120,8 @@ brew cask install skitch
 brew cask install kindle
 brew cask install authy
 brew cask install brave
+brew cask install java
+brew cask install sequel-pro
 
 echo 'Installing fonts'
 brew tap caskroom/fonts
