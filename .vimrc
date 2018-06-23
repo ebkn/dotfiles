@@ -199,6 +199,9 @@ if dein#load_state('~/.cache/dein')
   " golang
   call dein#add('fatih/vim-go')
 
+  " prettier
+  call dein#add('prettier/vim-prettier', { 'do': 'yarn install' })
+
   " typescript
   call dein#add('leafgarland/typescript-vim')
   call dein#add('ianks/vim-tsx')
