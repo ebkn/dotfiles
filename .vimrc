@@ -180,8 +180,8 @@ if dein#load_state('~/.cache/dein')
 
   " CtrlP
   call dein#add('ctrlpvim/ctrlp.vim')
-  call dein#add('tacahiroy/ctrlp-funky')
-  call dein#add('suy/vim-ctrlp-commandline')
+  " call dein#add('tacahiroy/ctrlp-funky')
+  " call dein#add('suy/vim-ctrlp-commandline')
   call dein#add('rking/ag.vim')
 
   " 一括コメントアウト
@@ -388,16 +388,16 @@ augroup AutoCtrlP
   autocmd VimEnter * call CtrlPIfEmpty()
 augroup END
 let g:ctrlp_map='<C-t>'
-let g:ctrlp_match_window='bottom,order:ttb,min:1,max:10,results:20' " ウィンドウ設定
+let g:ctrlp_match_window='bottom,order:ttb,min:1,max:10,results:30' " ウィンドウ設定
 " ag.vim有効化
 if executable('ag')
   let g:ctrlp_use_caching=0 " CtrlPのキャッシュを使わない
-  let g:ctrlp_user_command='ag %s -i --hidden -g ""' " agを利用して検索する
+  let g:ctrlp_user_command='ag %s -i --hidden --nocolor --nogroup -g ""' " agを利用して検索する
 endif
 " let g:ctrlp_user_command='find %s -type f' " 検索コマンド
 let ctrlp_show_hidden=1 " dotfileを含める
 let g:ctrlp_types=['fil'] " ファイル検索のみに仕様
-let ctrlp_extensions=['funky', 'commandline']
+" let ctrlp_extensions=['funky', 'commandline']
 let g:ctrlp_open_new_file=1 " 新しいファイルで開く
 let g:ctrlp_use_migemo=0 " 日本語検索しない
 let g:ctrlp_custom_ignore={
@@ -405,8 +405,8 @@ let g:ctrlp_custom_ignore={
   \ 'file': '\v\.(exe|db|.sqlite|so|dll|o)$',
   \ 'link': 'some_bad_symbolic_links',
 \ }
-command! CtrlPCommandLine call ctrlp#init(ctrlp#commandline#id()) " CtrlPComamndLine有効化
-let g:ctrlp_funky_matchtype='path' " CtrlPFunky有効化
+" command! CtrlPCommandLine call ctrlp#init(ctrlp#commandline#id()) " CtrlPComamndLine有効化
+" let g:ctrlp_funky_matchtype='path' " CtrlPFunky有効化
 
 " ale設定
 let g:ale_lint_on_text_changed=0
