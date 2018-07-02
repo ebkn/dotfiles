@@ -179,10 +179,16 @@ if dein#load_state('~/.cache/dein')
   call dein#add('Shougo/neosnippet-snippets')
 
   " CtrlP
-  call dein#add('ctrlpvim/ctrlp.vim')
+  " call dein#add('ctrlpvim/ctrlp.vim')
   " call dein#add('tacahiroy/ctrlp-funky')
   " call dein#add('suy/vim-ctrlp-commandline')
-  call dein#add('rking/ag.vim')
+  " call dein#add('rking/ag.vim')
+  " fzf
+  call dein#add('/usr/local/opt/fzf')
+  call dein#add('junegunn/fzf.vim')
+
+  " vim-surround
+  " call dein#add('tpope/vim-surround')
 
   " 一括コメントアウト
   call dein#add('tyru/caw.vim.git')
@@ -340,8 +346,8 @@ let g:neocomplete#sources#syntax#min_keyword_length=2 " 2文字以上の単語�
 let g:neocomplete#enable_underbar_completion=1 " アンダーバー有効化
 let g:neocomplete#enable_camel_case_completion=1 " キャメルケース有効化
 let g:neocomplete#enable_auto_delimiter=1 " 区切り文字を含める
-let g:neocomplete#auto_completion_start_length=1 " 1文字目から開始
-let g:neocomplete#max_list=20 " 表示数
+let g:neocomplete#auto_completion_start_length=2 " 2文字目から開始
+let g:neocomplete#max_list=15 " 表示数
 " dictionary設定
 let g:neocomplete#sources#dictionary#dictionaries={
   \ 'default': '',
@@ -378,35 +384,41 @@ let g:neosnippet#snippets_directory='~/.vim/bundle/neosnippet-snippets/snippets/
 
 " CtrlPの設定
 " ファイル指定無しでvimを立ち上げたときにCtrlPを起動
-function CtrlPIfEmpty()
-  if @% == ""
-    CtrlP ~/
-  endif
-endfunction
-augroup AutoCtrlP
-  autocmd!
-  autocmd VimEnter * call CtrlPIfEmpty()
-augroup END
-let g:ctrlp_map='<C-t>'
-let g:ctrlp_match_window='bottom,order:ttb,min:1,max:10,results:30' " ウィンドウ設定
+" function CtrlPIfEmpty()
+"   if @% == ""
+"     CtrlP ~/
+"   endif
+" endfunction
+" augroup AutoCtrlP
+"   autocmd!
+"   autocmd VimEnter * call CtrlPIfEmpty()
+" augroup END
+" let g:ctrlp_map='<C-t>'
+" let g:ctrlp_match_window='bottom,order:ttb,min:1,max:10,results:30' " ウィンドウ設定
 " ag.vim有効化
-if executable('ag')
-  let g:ctrlp_use_caching=0 " CtrlPのキャッシュを使わない
-  let g:ctrlp_user_command='ag %s -i --hidden --nocolor --nogroup -g ""' " agを利用して検索する
-endif
+" if executable('ag')
+"   let g:ctrlp_use_caching=0 " CtrlPのキャッシュを使わない
+"   let g:ctrlp_user_command='ag %s -i --hidden --nocolor --nogroup -g ""' " agを利用して検索する
+" endif
 " let g:ctrlp_user_command='find %s -type f' " 検索コマンド
-let ctrlp_show_hidden=1 " dotfileを含める
-let g:ctrlp_types=['fil'] " ファイル検索のみに仕様
-" let ctrlp_extensions=['funky', 'commandline']
-let g:ctrlp_open_new_file=1 " 新しいファイルで開く
-let g:ctrlp_use_migemo=0 " 日本語検索しない
-let g:ctrlp_custom_ignore={
-  \ 'dir': '\v[\/](\.(git|vscode|idea|awcache|hg|svn)$|node_modules|bower_components|__pycache__|vendor\/bundle|tmp)$',
-  \ 'file': '\v\.(exe|db|.sqlite|so|dll|o)$',
-  \ 'link': 'some_bad_symbolic_links',
-\ }
+" let ctrlp_show_hidden=1 " dotfileを含める
+" let g:ctrlp_types=['fil'] " ファイル検索のみに仕様
+" " let ctrlp_extensions=['funky', 'commandline']
+" let g:ctrlp_open_new_file=1 " 新しいファイルで開く
+" let g:ctrlp_use_migemo=0 " 日本語検索しない
+" let g:ctrlp_custom_ignore={
+"   \ 'dir': '\v[\/](\.(git|vscode|idea|awcache|hg|svn)$|node_modules|bower_components|__pycache__|vendor\/bundle|tmp)$',
+"   \ 'file': '\v\.(exe|db|.sqlite|so|dll|o)$',
+"   \ 'link': 'some_bad_symbolic_links',
+" \ }
 " command! CtrlPCommandLine call ctrlp#init(ctrlp#commandline#id()) " CtrlPComamndLine有効化
 " let g:ctrlp_funky_matchtype='path' " CtrlPFunky有効化
+
+" fzf設定
+map <C-t> :Files<CR>
+let g:fzf_layout = { 'down': '~30%' }
+let g:fzf_buffers_jump = 1
+let g:fzf_action = { 'enter': 'vsplit' }
 
 " ale設定
 let g:ale_lint_on_text_changed=0
@@ -426,6 +438,7 @@ let g:ale_linters = {
   \ 'vim': ['vint'],
   \ 'yaml': ['yamllint'],
   \ }
+let g:ale_linter_aliases = {'mdx': 'javascript'}
 
 " gitgutter設定
 let g:gitgutter_async=1
@@ -446,3 +459,27 @@ let g:processing_fold=1
 
 " vim-markdown設定
 let g:vim_markdown_folding_disabled=1
+
+" analyse speed for vim
+function! ProfileCursorMove() abort
+  let profile_file = expand('~/log/vim-profile.log')
+  if filereadable(profile_file)
+    call delete(profile_file)
+  endif
+
+  normal! gg
+  normal! zR
+
+  execute 'profile start ' . profile_file
+  profile func *
+  profile file *
+
+  augroup ProfileCursorMove
+    autocmd!
+    autocmd CursorHold <buffer> profile pause | q
+  augroup END
+
+  for i in range(100)
+    call feedkeys('j')
+  endfor
+endfunction

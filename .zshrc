@@ -113,3 +113,6 @@ setopt hist_ignore_all_dups
 if [ -f '/Users/kenichi/google-cloud-sdk/path.zsh.inc' ]; then source '/Users/kenichi/google-cloud-sdk/path.zsh.inc'; fi
 # The next line enables shell command completion for gcloud.
 if [ -f '/Users/kenichi/google-cloud-sdk/completion.zsh.inc' ]; then source '/Users/kenichi/google-cloud-sdk/completion.zsh.inc'; fi
+
+export FZF_DEFAULT_COMMAND='ag --hidden -g ""'
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
