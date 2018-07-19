@@ -1,20 +1,21 @@
 export LANG=ja_JP.UTF-8
 export LC_CTYPE=ja_JP.UTF-8
-export ZSH=/Users/kenichi/.oh-my-zsh
+export ZSH=~/.oh-my-zsh
 export TERM=xterm-256color
 
 [[ -z "$TMUX" && ! -z "$PS1" ]] && exec tmux -u
 
 eval "$(rbenv init -)"
-eval "$(nodenv init -)"
 eval "$(goenv init -)"
 eval "$(pyenv init -)"
 eval "$(swiftenv init -)"
 
 export PATH="/usr/local/sbin:$PATH"
 export PATH="/usr/local/opt/mysql@5.6/bin:$PATH"
+export PATH=/usr/local/opt/mysql@5.7/bin:$PATH
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 export PGDATA=/usr/local/var/postgres
-export PATH=$PATH:/Users/kenichi/.nodebrew/current/bin
 export PATH="/usr/local/bin/code:$PATH"
 export PYENV_ROOT="$HOME/.pyenv"
 export PATH="$PYENV_ROOT/bin:$PATH"
@@ -23,7 +24,10 @@ export ANDROID_HOME=$HOME/Library/Android/sdk
 export PATH=$PATH:$ANDROID_HOME/tools
 export PATH=$PATH:$ANDROID_HOME/platform-tools
 export PATH=/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH
-export PATH=/usr/local/opt/mysql@5.7/bin:$PATH
+export FZF_DEFAULT_COMMAND='ag --hidden -g ""'
+
+# Settings for fzf
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
 # Settings for theme
 ZSH_THEME="robbyrussell"
@@ -96,8 +100,8 @@ alias rcs='bundle exec rails c -s'
 
 # history
 HISTFILE=~/.zsh_history
-HISTSIZE=100000
-SAVEHIST=100000
+HISTSIZE=1000
+SAVEHIST=1000
 HISTTIMEFORMAT='%Y-%m-%d T%T%z '
 setopt extended_history
 setopt hist_no_store
@@ -110,9 +114,6 @@ setopt hist_ignore_all_dups
 
 # Settings for gcp
 # The next line updates PATH for the Google Cloud SDK.
-if [ -f '/Users/kenichi/google-cloud-sdk/path.zsh.inc' ]; then source '/Users/kenichi/google-cloud-sdk/path.zsh.inc'; fi
+if [ -f '~/google-cloud-sdk/path.zsh.inc' ]; then source '~/google-cloud-sdk/path.zsh.inc'; fi
 # The next line enables shell command completion for gcloud.
-if [ -f '/Users/kenichi/google-cloud-sdk/completion.zsh.inc' ]; then source '/Users/kenichi/google-cloud-sdk/completion.zsh.inc'; fi
-
-export FZF_DEFAULT_COMMAND='ag --hidden -g ""'
-[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+if [ -f '~/google-cloud-sdk/completion.zsh.inc' ]; then source '~/google-cloud-sdk/completion.zsh.inc'; fi

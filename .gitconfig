@@ -7,21 +7,13 @@
 	user = ebkn
 
 [core]
-	excludesfile = /Users/kenichi/.gitignore_global
+	excludesfile = ~/.gitignore_global
 	whitespace = fix,-indent-with-non-tab,trailing-space,cr-at-eol
 
 [gpg]
 	program = gpg
 
-[difftool "sourcetree"]
-	cmd = opendiff \"$LOCAL\" \"$REMOTE\"
-	path = 
-[mergetool "sourcetree"]
-	cmd = /Applications/SourceTree.app/Contents/Resources/opendiff-w.sh \"$LOCAL\" \"$REMOTE\" -ancestor \"$BASE\" -merge \"$MERGED\"
-	trustExitCode = true
-
 [commit]
-	template = /Users/kenichi/.stCommitMsg
 	gpgsign = true
 
 [fetch]

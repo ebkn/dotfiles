@@ -11,18 +11,8 @@ brew doctor
 echo 'Homebrew installed.'
 
 brew install gcc
-brew install re2c
-brew install libmcrypt
-brew install autoconf
-brew install automake
-brew install libiconv
-brew install jpeg
-brew install libpng
 brew install imagemagick
-brew install imagemagick@6
 brew install openssl
-brew install libxml2
-brew install icu4c
 brew install fontforge --use-gcc --without-pythona
 
 echo 'Setup shell...'
@@ -30,6 +20,7 @@ brew install zsh
 chsh -s /usr/local/bin/zsh
 brew install tmux
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+rm .zshrc
 brew install peco
 brew install tree
 
@@ -50,24 +41,21 @@ ln -s ~/dotfiles/.pryrc .
 ln -s ~/dotfiles/.rubocop.yml .
 ln -s ~/dotfies/peco .
 ln -s ~/dotfiles/.tigrc .
-source ~/.bash_profile
-source ~/.zshrc
-tmux source-file ~/.tmux.conf
-
 echo 'Installing packages for vim'
 brew install vim --with-lua
 curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
-sh ~/.installer.sh ~/.cache/dein
+sh ~/installer.sh ~/.cache/dein
 brew install ctags
 
 echo 'Installing dbms'
 brew install mysql
 brew install postgresql
-brew install sqlite
+brew install sqlite3
 brew install redis
 
 echo 'Installing node'
-brew install nodenv
+# brew install nodenv
+curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | zsh
 brew install yarn --without-node
 echo 'Please exec $ nodenv install <VERSION>'
 
@@ -83,6 +71,11 @@ echo 'Please exec $ goenv install <VERSION>'
 echo 'Installing packages for python'
 brew install pyenv
 echo 'Please exec $ pyenv install <VERSION>'
+
+# load shell settings
+source ~/.bash_profile
+source ~/.zshrc
+tmux source-file ~/.tmux.conf
 
 echo 'Installing others'
 brew install heroku
@@ -105,10 +98,8 @@ brew cask install visual-studio-code
 brew cask install unity
 brew cask install android-studio
 brew cask install processing
-brew cask install bettertouchtool
 brew cask install hyperswitch
 brew cask install karabiner-elements
-brew cask install googledrive
 brew cask install google-backup-and-sync
 brew cask install google-photos-backup-and-sync
 brew cask install spotify
