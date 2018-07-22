@@ -4,6 +4,8 @@ def configure(keymap):
     keymap_global = keymap.defineWindowKeymap()
     keymap_global["Cmd-h"] = "Left"
     keymap_global["Cmd-l"] = "Right"
+    # keymap_global["Cmd-j"] = "Down"
+    # keymap_global["Cmd-k"] = "Up"
     # # --------------------------------------------------------------------
     # # Text editer setting for editting config.py file
     #

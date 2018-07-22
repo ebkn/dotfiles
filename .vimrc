@@ -2,7 +2,9 @@ set shell=/bin/zsh
 
 " encoding
 set encoding=utf8
+scriptencoding utf8
 set fileencoding=utf-8
+set termencoding=utf8
 set fileencodings=utf-8,ucs-boms,euc-jp,ep932
 set fileformats=unix,dos,mac
 set ambiwidth=double " □や○文字が崩れる問題を解決
@@ -168,9 +170,6 @@ if dein#load_state('~/.cache/dein')
   call dein#add('/usr/local/opt/fzf')
   call dein#add('junegunn/fzf.vim')
 
-  " vim-surround
-  " call dein#add('tpope/vim-surround')
-
   " 一括コメントアウト
   call dein#add('tyru/caw.vim.git')
 
@@ -205,7 +204,6 @@ if dein#load_state('~/.cache/dein')
   call dein#add('sophacles/vim-processing')
 
   " markdown
-  call dein#add('godlygeek/tabular')
   call dein#add('plasticboy/vim-markdown')
 
   " color表示

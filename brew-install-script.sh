@@ -21,8 +21,6 @@ chsh -s /usr/local/bin/zsh
 brew install tmux
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
 rm .zshrc
-brew install peco
-brew install tree
 
 echo 'Installing git packages'
 brew install git
@@ -81,6 +79,11 @@ echo 'Installing others'
 brew install heroku
 brew install awscli
 brew install chromedriver
+brew install jq
+brew install ccat
+brew install peco
+brew install tree
+brew install hub
 
 echo 'Installing Homebrew-Cask...'
 brew tap caskroom/cask
