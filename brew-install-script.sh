@@ -84,6 +84,7 @@ brew install ccat
 brew install peco
 brew install tree
 brew install hub
+brew install gibo
 
 echo 'Installing Homebrew-Cask...'
 brew tap caskroom/cask
