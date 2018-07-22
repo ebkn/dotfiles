@@ -68,7 +68,8 @@ alias vi='vim'
 alias tmuxs='tmux source-file ~/.tmux.conf'
 alias ll='ls -la'
 alias c='clear'
-alias f='open .'
+alias cat='ccat'
+alias ql='qlmanage -p "$@" >& /dev/null'
 alias xc='open -a xcode .'
 alias mi='mine .'
 alias vc='code .'
@@ -93,10 +94,18 @@ alias gf='git fetch'
 alias gpush='git push'
 alias gcp='git cherry-pick'
 alias gcleanbranch="git branch --merged master | grep -vE '^\*|master$|develop$' | xargs -I % git branch -d %"
+alias github="hub browse"
 # aliases for rails
 alias rs='bundle exec rails s'
 alias rc='bundle exec rails c'
 alias rcs='bundle exec rails c -s'
+function f() {
+  if [ -z "$1" ]; then
+    open .
+  else
+    open "$@"
+  fi
+}
 
 # history
 HISTFILE=~/.zsh_history
