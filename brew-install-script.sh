@@ -44,6 +44,7 @@ brew install vim --with-lua
 curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
 sh ~/installer.sh ~/.cache/dein
 brew install ctags
+brew install ag
 
 echo 'Installing dbms'
 brew install mysql
