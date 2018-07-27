@@ -173,6 +173,9 @@ if dein#load_state('~/.cache/dein')
   call dein#add('/usr/local/opt/fzf')
   call dein#add('junegunn/fzf.vim')
 
+  " git grep
+  call dein#add('mhinz/vim-grepper')
+
   " 一括コメントアウト
   call dein#add('tyru/caw.vim.git')
 
@@ -372,6 +375,9 @@ map <C-t> :Files<CR>
 let g:fzf_layout = { 'down': '~30%' }
 let g:fzf_buffers_jump = 1
 " let g:fzf_action = { 'enter': 'vsplit' }
+
+" grepper設定
+map <C-g> :Grepper -tool ag<CR>
 
 " ale設定
 let g:ale_lint_on_text_changed=0
