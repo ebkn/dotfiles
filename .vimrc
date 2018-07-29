@@ -135,6 +135,9 @@ if dein#load_state('~/.cache/dein')
   call dein#begin('~/.cache/dein')
   call dein#add('~/.cache/dein')
 
+  " autosave
+  call dein#add('vim-scripts/vim-auto-save')
+
   " color
   call dein#add('sheerun/vim-polyglot')
 
@@ -222,6 +225,9 @@ end
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 filetype plugin indent on " ファイルごとのindent
+
+" autosave
+let g:autosave=1
 
 " colorscheme
 if (empty($TMUX))
