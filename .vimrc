@@ -277,7 +277,7 @@ autocmd StdinReadPre * let s:std_in=1
 autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
 map <silent><C-n> :NERDTreeToggle<CR>
 let NERDTreeShowHidden=1 " dotfile表示
-let NERDTreeIgnore=['.git$', 'node_modules', 'bower_components', '__pycache__', '\.db', '\.sqlite$', '\.rbc$', '\~$', '\.pyc', '\.idea$', '\.vscode$', '\vendor\/bundle', '\.awcache$']
+let NERDTreeIgnore=['\.DS_Store', '\.git$', 'node_modules', 'bower_components', '__pycache__', '\.db', '\.sqlite$', '\.rbc$', '\~$', '\.pyc', '\.idea$', '\.vscode$', '\vendor\/bundle', '\.awcache$']
 let g:NERDTreeDirArrows=1 " ディレクトリツリーの矢印指定
 let g:NERDTreeDirArrowExpandable='▸'
 let g:NERDTreeDirArrowCollapsible='▾'
