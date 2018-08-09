@@ -194,6 +194,10 @@ if dein#load_state('~/.cache/dein')
   " prettier
   call dein#add('prettier/vim-prettier', { 'do': 'yarn install' })
 
+  " jsx
+  call dein#add('pangloss/vim-javascript')
+  call dein#add('mxw/vim-jsx')
+
   " typescript
   call dein#add('leafgarland/typescript-vim')
   call dein#add('ianks/vim-tsx')
