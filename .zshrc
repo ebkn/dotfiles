@@ -87,9 +87,9 @@ alias gst='git status'
 alias gd='git diff'
 alias current_branch='git rev-parse --abbrev-ref HEAD'
 alias gco='git checkout `git branch -a | peco | sed -e "s/\* //g" | awk "{print \$1}"`'
-alias gpull='git pull origin current_branch'
+alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD`'
 alias gf='git fetch'
-alias gpush='git push origin current_branch'
+alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
 alias github="hub browse"
 # aliases for rails
 alias rs='bundle exec rails s'
