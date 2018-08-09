@@ -372,12 +372,11 @@ let g:neosnippet#snippets_directory='~/.vim/bundle/neosnippet-snippets/snippets/
 
 " fzf設定
 map <C-t> :Files<CR>
-let g:fzf_layout = { 'down': '~30%' }
-let g:fzf_buffers_jump = 1
-" let g:fzf_action = { 'enter': 'vsplit' }
+let g:fzf_layout = { 'down': '~40%' }
+let g:fzf_buffers_jump=1
 
 " grepper設定
-map <C-g> :Grepper -tool ag<CR>
+map <C-g> :Grepper -tool ag -highlight<CR>
 
 " ale設定
 let g:ale_lint_on_text_changed=0
