@@ -202,6 +202,9 @@ if dein#load_state('~/.cache/dein')
   call dein#add('leafgarland/typescript-vim')
   call dein#add('ianks/vim-tsx')
 
+  " emmet
+  call dein#add('mattn/emmet-vim')
+
   " htmlのタグを自動で閉じる
   call dein#add('alvan/vim-closetag')
 
@@ -414,6 +417,9 @@ let g:closetag_xhtml_filenames='*.xhtml,*.jsx,*.tsx'
 let g:closetag_emptyTags_caseSensitive=1
 let g:closetag_shortcut='>' " >を押すと自動で閉じる
 let g:closetag_close_shortcat='<leader>>'
+
+" emmet
+let g:user_emmet_leader_key='<C-e>'
 
 " vim-processing設定
 let g:processing_fold=1
