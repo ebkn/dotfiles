@@ -202,6 +202,9 @@ if dein#load_state('~/.cache/dein')
   call dein#add('leafgarland/typescript-vim')
   call dein#add('ianks/vim-tsx')
 
+  " ansible
+  call dein#add('pearofducks/ansible-vim')
+
   " emmet
   call dein#add('mattn/emmet-vim')
 
