@@ -1,7 +1,7 @@
 ############################################################################
 # view settings
 ############################################################################
-set main-view = id date author commit-title:graph=yes,refs=yes
+set main-view = line-number:yes id:yes date:default,local=yes author commit-title:graph=yes,refs=yes
 set blame-view = date:default id:yes,color line-number:yes,interval=1 text
 set pager-view  = line-number:yes,interval=1 text
 set stage-view  = line-number:yes,interval=1 text
@@ -14,6 +14,7 @@ set tab-size = 4
 # 検索時に大文字小文字無視
 set ignore-case = true
 
+set split-view-width = 80%
 set split-view-height = 80%
 
 set diff-options = -m --first-parent
@@ -30,4 +31,4 @@ bind generic U ?git pull %(remote)
 bind generic P ?git push -u %(remote) %(repo:head)
 
 # onedark terminal用color
-color cursor black white
+color cursor black white bold
