@@ -105,8 +105,8 @@ function f() {
 
 # history
 HISTFILE=~/.zsh_history
-HISTSIZE=1000
-SAVEHIST=1000
+HISTSIZE=10000
+SAVEHIST=10000
 HISTTIMEFORMAT='%Y-%m-%d T%T%z '
 setopt extended_history
 setopt hist_no_store
