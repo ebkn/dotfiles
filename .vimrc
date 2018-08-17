@@ -407,6 +407,9 @@ let g:ale_linters = {
   \ 'yaml': ['yamllint'],
   \ }
 
+" vim-typescript 設定
+autocmd FileType typescript :set makeprg=tsc
+
 " gitgutter設定
 let g:gitgutter_async=1
 
