@@ -398,11 +398,11 @@ let g:ale_linters = {
   \ 'css': ['stylelint'],
   \ 'javascript': ['eslint'],
   \ 'ruby': ['rubocop'],
-  \ 'go': ['golint'],
+  \ 'go': ['goimports'],
   \ 'haml': ['haml-lint'],
   \ 'sass': ['sass-lint'],
   \ 'swift': ['swiftlint'],
-  \ 'typescript': ['tslint'],
+  \ 'typescript': ['tslint', 'tsserver'],
   \ 'vim': ['vint'],
   \ 'yaml': ['yamllint'],
   \ }
