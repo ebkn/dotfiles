@@ -211,9 +211,9 @@ if dein#load_state('~/.cache/dein')
   " htmlのタグを自動で閉じる
   call dein#add('alvan/vim-closetag')
 
-  " rubyでend自動挿入
+  " ruby
+  call dein#add('vim-ruby/vim-ruby')
   call dein#add('tpope/vim-endwise')
-  " rubyコード補完
   call dein#add('marcus/rsense')
 
   " processing
