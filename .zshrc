@@ -1,23 +1,20 @@
 # check speed for starting zsh ($ time ( zsh -i -c exit ))
 # zmodload zsh/zprof && zprof
 
+if [[ -z "$TMUX" ]]
+then
+  tmux new-session;
+  exit;
+fi
+
 export LANG=ja_JP.UTF-8
 export LC_CTYPE=ja_JP.UTF-8
 export ZSH=~/.oh-my-zsh
 export TERM=xterm-256color
-
-[[ -z "$TMUX" && ! -z "$PS1" ]] && exec tmux -u
-
-eval "$(rbenv init - --no-rehash)"
-eval "$(goenv init - --no-rehash)"
-eval "$(pyenv init - --no-rehash)"
-eval "$(swiftenv init - --no-rehash)"
-
 export PATH="/usr/local/sbin:$PATH"
 export PATH="/usr/local/opt/mysql@5.6/bin:$PATH"
 export PATH=/usr/local/opt/mysql@5.7/bin:$PATH
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 export PGDATA=/usr/local/var/postgres
 export PATH="/usr/local/bin/code:$PATH"
 export PYENV_ROOT="$HOME/.pyenv"
@@ -28,6 +25,33 @@ export PATH=$PATH:$ANDROID_HOME/tools
 export PATH=$PATH:$ANDROID_HOME/platform-tools
 export PATH=/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH
 export FZF_DEFAULT_COMMAND='ag --hidden -g ""'
+
+# lazyload
+function rbenv() {
+  unset -f rbenv
+  eval "$(rbenv init - --no-rehash)"
+  rbenv "$@"
+}
+function goenv() {
+  unset -f goenv
+  eval "$(goenv init - --no-rehash)"
+  goenv "$@"
+}
+function pyenv() {
+  unset -f pyenv
+  eval "$(pyenv init - --no-rehash)"
+  pyenv "$@"
+}
+function swiftenv() {
+  unset -f swiftenv
+  eval "$(swiftenv init - --no-rehash)"
+  swiftenv "$@"
+}
+function nvm() {
+  unset -f nvm
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  nvm "$@"
+}
 
 # Settings for fzf
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
