@@ -1,4 +1,5 @@
-# check speed for starting zsh ($ time ( zsh -i -c exit ))
+# check speed for starting zsh
+# $ time ( zsh -i -c exit )
 # zmodload zsh/zprof && zprof
 
 if [[ -z "$TMUX" ]]
@@ -118,6 +119,14 @@ alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD`'
 alias gf='git fetch'
 alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
 alias github="hub browse"
+function pr() {
+  branch_name=$1;\
+  template_path=$(git rev-parse --show-toplevel)/PULL_REQUEST_TEMPLATE.md;\ 
+  if [ -z ${branch_name} ]; then\
+      branch_name='master';\
+  fi;\
+  hub browse -- compare/${branch_name}'...'$(git symbolic-ref --short HEAD)'?'expand=1'&'body=$(cat ${template_path} | perl -pe 'encode_utf8' | perl -pe 's/([^ 0-9a-zA-Z])/\"%\".uc(unpack(\"H2\",$1))/eg' | perl -pe 's/ /+/g');\
+}
 # aliases for rails
 alias rs='bundle exec rails s'
 alias rc='bundle exec rails c'
