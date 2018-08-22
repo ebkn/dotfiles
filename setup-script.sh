@@ -125,3 +125,6 @@ echo 'Installing fonts'
 brew tap caskroom/fonts
 brew cask install font-hack-nerd-font
 
+echo 'setup os settings'
+defaults write -g KeyRepeat -int 1
+defaults write -g InitialKeyRepeat -int 10
