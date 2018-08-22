@@ -1,3 +1,6 @@
+# check speed for starting zsh ($ time ( zsh -i -c exit ))
+# zmodload zsh/zprof && zprof
+
 export LANG=ja_JP.UTF-8
 export LC_CTYPE=ja_JP.UTF-8
 export ZSH=~/.oh-my-zsh
@@ -122,3 +125,8 @@ setopt hist_ignore_all_dups
 if [ -f '~/google-cloud-sdk/path.zsh.inc' ]; then source '~/google-cloud-sdk/path.zsh.inc'; fi
 # The next line enables shell command completion for gcloud.
 if [ -f '~/google-cloud-sdk/completion.zsh.inc' ]; then source '~/google-cloud-sdk/completion.zsh.inc'; fi
+
+# check speed for starting zsh
+# if (which zprof > /dev/null) ;then
+#   zprof | less
+# fi
