@@ -165,6 +165,7 @@ if dein#load_state('~/.cache/dein')
   " ステータスバー
   call dein#add('itchyny/lightline.vim')
   call dein#add('tpope/vim-fugitive')
+  call dein#add('maximbaz/lightline-ale')
 
   " サイドバーにtree表示
   call dein#add('scrooloose/nerdtree')
@@ -287,23 +288,38 @@ let g:lightline = {
   \ 'active': {
   \   'left': [
   \     [ 'mode', 'paste' ],
-  \     [ 'gitbranch', 'readonly', 'relativepath', 'modified' ]
+  \     [ 'gitbranch', 'readonly', 'relativepath', 'modified']
   \   ],
   \   'right': [
   \     [ 'percent' ],
-  \     [ 'fileencoding', 'filetype']
+  \     [ 'linter_errors', 'linter_warnings' ],
+  \     [ 'fileencoding', 'filetype' ]
   \   ]
   \ },
   \ 'inactive': {
   \   'left': [
   \     [ 'gitbranch', 'readonly', 'relativepath', 'modified' ]
   \   ],
-  \   'right': []
+  \   'right': [
+  \     [ 'linter_errors', 'linter_warnings' ],
+  \   ]
   \ },
   \ 'component_function': {
   \   'gitbranch': 'fugitive#head'
   \ },
 \ }
+let g:lightline.component_expand = {
+  \  'linter_checking': 'lightline#ale#checking',
+  \  'linter_warnings': 'lightline#ale#warnings',
+  \  'linter_errors': 'lightline#ale#errors',
+  \  'linter_ok': 'lightline#ale#ok',
+  \ }
+let g:lightline.component_type = {
+  \     'linter_checking': 'left',
+  \     'linter_warnings': 'warning',
+  \     'linter_errors': 'error',
+  \     'linter_ok': 'left',
+  \ }
 
 " NERDTree
 " 自動起動設定
@@ -435,6 +451,7 @@ let g:ale_echo_msg_error_str='E'
 let g:ale_echo_msg_warning_str='W'
 let g:ale_echo_msg_format='[%linter%] %s (%severity%)'
 let g:ale_statusline_format=['E %d', 'W %d', '']
+let g:ale_open_list=1
 let g:ale_set_loclist=0
 let g:ale_set_quickfix=1 " QuickFix使用
 let g:ale_keep_list_window_open=0
