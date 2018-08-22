@@ -8,10 +8,10 @@ export TERM=xterm-256color
 
 [[ -z "$TMUX" && ! -z "$PS1" ]] && exec tmux -u
 
-eval "$(rbenv init -)"
-eval "$(goenv init -)"
-eval "$(pyenv init -)"
-eval "$(swiftenv init -)"
+eval "$(rbenv init - --no-rehash)"
+eval "$(goenv init - --no-rehash)"
+eval "$(pyenv init - --no-rehash)"
+eval "$(swiftenv init - --no-rehash)"
 
 export PATH="/usr/local/sbin:$PATH"
 export PATH="/usr/local/opt/mysql@5.6/bin:$PATH"
