@@ -276,6 +276,7 @@ if dein#load_state('~/.cache/dein')
   call dein#add('sophacles/vim-processing')
 
   " markdown
+  call dein#add('godlygeek/tabular')
   call dein#add('plasticboy/vim-markdown')
 
   " color表示
@@ -514,4 +515,4 @@ let g:user_emmet_leader_key='<C-e>'
 let g:processing_fold=1
 
 " vim-markdown設定
-let g:vim_markdown_folding_disabled=1
+let g:vim_markdown_folding_disabled=0
