@@ -190,97 +190,12 @@ if dein#load_state('~/.cache/dein')
   call dein#begin('~/.cache/dein')
   call dein#add('~/.cache/dein')
 
-  " autosave
-  call dein#add('vim-scripts/vim-auto-save')
-
-  " color
-  call dein#add('sheerun/vim-polyglot')
-
-  " ステータスバー
-  call dein#add('itchyny/lightline.vim')
-  call dein#add('tpope/vim-fugitive')
-  call dein#add('maximbaz/lightline-ale')
-
-  " サイドバーにtree表示
-  call dein#add('scrooloose/nerdtree')
-  " call dein#add('ryanoasis/vim-devicons') " 現状文字が残ってうまく表示できない
-  call dein#add('tiagofumo/vim-nerdtree-syntax-highlight')
-  call dein#add('Xuyuanp/nerdtree-git-plugin')
-
-  " 差分の行を表示する
-  call dein#add('airblade/vim-gitgutter')
-
-  " 重たい処理を非同期にして高速化
-  call dein#add('Shougo/vimproc', {
-    \ 'build' : {
-      \ 'windows' : 'make -f make_mingw32.mak',
-      \ 'cygwin' : 'make -f make_cygwin.mak',
-      \ 'mac' : 'make -f make_mac.mak',
-      \ 'unix' : 'make -f make_unix.mak',
-    \ },
-  \ })
-
-  " 補完
-  call dein#add('Shougo/neocomplete')
-  call dein#add('Shougo/neosnippet.vim')
-  call dein#add('Shougo/neosnippet-snippets')
-
-  " fzf
-  call dein#add('/usr/local/opt/fzf')
-  call dein#add('junegunn/fzf.vim')
-
-  " git grep
-  call dein#add('mhinz/vim-grepper')
-
-  " 一括コメントアウト
-  call dein#add('tyru/caw.vim.git')
-
-  " 空白文字ハイライト
-  call dein#add('bronson/vim-trailing-whitespace')
-
-  " 置き換えをハイライト
-  call dein#add('osyo-manga/vim-over')
-
-  " 構文チェック
-  call dein#add('w0rp/ale')
-
-  " golang
-  call dein#add('fatih/vim-go')
-
-  " prettier
-  call dein#add('prettier/vim-prettier', { 'do': 'yarn install' })
-
-  " jsx
-  call dein#add('pangloss/vim-javascript')
-  call dein#add('mxw/vim-jsx')
-
-  " typescript
-  call dein#add('leafgarland/typescript-vim')
-  call dein#add('ianks/vim-tsx')
-
-  " ansible
-  call dein#add('pearofducks/ansible-vim')
-
-  " emmet
-  call dein#add('mattn/emmet-vim')
-
-  " htmlのタグを自動で閉じる
-  call dein#add('alvan/vim-closetag')
-
-  " ruby
-  call dein#add('vim-ruby/vim-ruby')
-  call dein#add('tpope/vim-endwise')
-  call dein#add('marcus/rsense')
-
-  " processing
-  call dein#add('sophacles/vim-processing')
-
-  " markdown
-  call dein#add('godlygeek/tabular')
-  call dein#add('plasticboy/vim-markdown')
-
-  " color表示
-  call dein#add('gorodinskiy/vim-coloresque')
+  " load plugin settings
+  let s:toml_dir=expand('~/.dein')
+  let s:toml=s:toml_dir . 'dein.toml'
+  let s:toml_lazy=s:toml_dir . 'dein-lazy.toml'
+  call dein#load_toml(s:toml, {'lazy': 0})
+  call dein#load_toml(s:toml_lazy, {'lazy': 1})
 
   call dein#end()
   call dein#save_state()
