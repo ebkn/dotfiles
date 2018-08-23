@@ -128,3 +128,4 @@ brew cask install font-hack-nerd-font
 echo 'setup os settings'
 defaults write -g KeyRepeat -int 1
 defaults write -g InitialKeyRepeat -int 10
+defaults write com.apple.finder AppleShowAllFiles TRUE
