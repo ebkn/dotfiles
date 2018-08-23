@@ -191,7 +191,7 @@ if dein#load_state('~/.cache/dein')
   call dein#add('~/.cache/dein')
 
   " load plugin settings
-  let s:toml_dir=expand('~/.dein')
+  let s:toml_dir=expand('~/.dein/')
   let s:toml=s:toml_dir . 'dein.toml'
   let s:toml_lazy=s:toml_dir . 'dein-lazy.toml'
   call dein#load_toml(s:toml, {'lazy': 0})
