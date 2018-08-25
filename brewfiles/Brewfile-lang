@@ -1,0 +1,8 @@
+# install packages for each languages
+brew 'gcc'
+brew 'rbenv'
+brew 'ruby-build'
+brew 'goenv'
+brew 'pyenv'
+brew 'python'
+brew 'yarn', args: ['--without-node']

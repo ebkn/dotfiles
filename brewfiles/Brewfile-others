@@ -1,0 +1,12 @@
+# dbms
+brew 'mysql'
+brew 'postgresql'
+brew 'sqlite3'
+brew 'redis'
+brew 'mongodb'
+
+brew 'imagemagick'
+
+brew 'heroku'
+brew 'awscli'
+brew 'chromedriver'

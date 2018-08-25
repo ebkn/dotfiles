@@ -1,0 +1,12 @@
+# packages for shell
+brew 'zsh'
+brew 'tmux'
+brew 'vim', args: ['--with-lua']
+brew 'peco'
+brew 'fzf'
+brew 'ag'
+brew 'jq'
+brew 'ccat'
+brew 'tree'
+brew 'hub'
+brew 'gibo'

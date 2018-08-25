@@ -1,0 +1,36 @@
+# install by cask
+tap 'homebrew/cask'
+
+cask 'alfred'
+cask 'iterm2'
+cask 'docker'
+
+# browsers
+cask 'google-chrome'
+cask 'google-chrome-canary'
+cask 'firefox'
+cask 'brave'
+
+# authentication
+cask '1password'
+cask 'authy'
+
+# chat application
+cask 'slack'
+cask 'skype'
+
+# storage
+cask 'google-backup-and-sync'
+cask 'dropbox'
+
+# note
+cask 'boostnote'
+cask 'simplenote'
+
+cask 'google-japanese-ime'
+cask 'hyperswitch'
+cask 'tableplus'
+cask 'gyazo'
+cask 'skitch'
+cask 'spotify'
+cask 'kindle'
