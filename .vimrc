@@ -181,31 +181,36 @@ if has("vim_starting") && !has('gui_running') && has('vertsplit')
 endif
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
-" vim packages
+" vim plugins
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
 if &compatible
   set nocompatible
 endif
-set runtimepath+=~/.cache/dein/repos/github.com/Shougo/dein.vim
 
-if dein#load_state('~/.cache/dein')
-  call dein#begin('~/.cache/dein')
-  call dein#add('~/.cache/dein')
+let s:cache_home=expand('~/.cache')
+let s:dein_dir=s:cache_home . '/dein'
+let s:dein_repo_dir=s:dein_dir . '/repos/github.com/Shougo/dein.vim'
+if !isdirectory(s:dein_repo_dir)
+  call systam('git clone git@github.com:Shougo/dein.vim.git ' . shellescape(s:dein_repo_dir))
+endif
+let &runtimepath=s:dein_repo_dir . "," . &runtimepath
+" settings file
+let s:toml_dir=expand('~/.dein/')
+let s:toml=s:toml_dir . 'dein.toml'
+let s:toml_lazy=s:toml_dir . 'dein-lazy.toml'
+" load plugins
+if dein#load_state(s:dein_dir)
+  call dein#begin(s:dein_dir)
 
-  " load plugin settings
-  let s:toml_dir=expand('~/.dein/')
-  let s:toml=s:toml_dir . 'dein.toml'
-  let s:toml_lazy=s:toml_dir . 'dein-lazy.toml'
   call dein#load_toml(s:toml)
   call dein#load_toml(s:toml_lazy, {'lazy': 1})
 
   call dein#end()
   call dein#save_state()
 endif
-
 if dein#check_install()
   call dein#install()
-end
+endif
 
 filetype plugin indent on " ファイルごとのindent
 

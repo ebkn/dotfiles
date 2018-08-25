@@ -35,9 +35,6 @@ ln -s ~/dotfiles/* .
 
 echo 'Installing packages for vim'
 brew install vim --with-lua
-curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
-sh ~/installer.sh ~/.cache/dein
-rm ~/installer.sh
 brew install ag
 brew install fzf
 
