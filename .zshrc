@@ -123,6 +123,7 @@ alias gco='git checkout `git branch -a | peco | sed -e "s/\* //g" | awk "{print 
 alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD`'
 alias gf='git fetch'
 alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
+alias gdmerged='git branch --merged master | grep -vE "^\*|master$|develop$" | xargs -I % git branch -d %'
 alias github="hub browse"
 function pr() {
   branch_name=$1;\
