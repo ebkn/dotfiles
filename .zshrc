@@ -172,3 +172,5 @@ if [ -f '~/google-cloud-sdk/completion.zsh.inc' ]; then source '~/google-cloud-s
 # if (which zprof > /dev/null) ;then
 #   zprof | less
 # fi
+
+test -e "${HOME}/.iterm2_shell_integration.zsh" && source "${HOME}/.iterm2_shell_integration.zsh"
