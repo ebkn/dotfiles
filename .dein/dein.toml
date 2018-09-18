@@ -282,3 +282,9 @@ hook_add = '''
 # visualize colors
 [[plugins]]
 repo = 'gorodinskiy/vim-coloresque'
+
+# surround by cs
+[[plugins]]
+repo = 'tpope/vim-surround'
+
+
