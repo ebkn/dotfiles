@@ -249,17 +249,21 @@ hook_add = '''
   let g:ale_lint_on_text_changed=0
   let g:ale_sign_column_always=1 " 左にずれるのを防止
   let g:ale_linters = {
-    \ 'html': [],
-    \ 'css': ['stylelint'],
-    \ 'javascript': ['eslint', 'flow'],
-    \ 'json': ['jsonlint'],
-    \ 'ruby': ['rubocop'],
-    \ 'go': ['goimports'],
+    \ 'css': ['stylelint', 'prettier'],
+    \ 'erb': ['erb'],
+    \ 'go': ['gofmt', 'goimports'],
+    \ 'html': ['HTMLHint'],
     \ 'haml': ['haml-lint'],
+    \ 'javascript': ['eslint', 'flow', 'prettier', 'prettier-eslint'],
+    \ 'json': ['jsonlint'],
+    \ 'Markdown': ['prettier', 'textlint'],
+    \ 'Python': ['pylint'],
+    \ 'ruby': ['rubocop', 'solargraph'],
     \ 'sass': ['sass-lint'],
     \ 'scss': ['sass-lint'],
+    \ 'SQL': ['sqlint'],
     \ 'swift': ['swiftlint'],
-    \ 'typescript': ['tslint', 'tsserver'],
+    \ 'typescript': ['tslint', 'tsserver', 'prettier'],
     \ 'vim': ['vint'],
     \ 'yaml': ['yamllint'],
     \ }
