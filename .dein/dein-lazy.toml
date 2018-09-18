@@ -35,15 +35,8 @@ on_ft = ['processing', 'arduino']
 hook_add = '''
   let g:processing_fold=1
 '''
-[[plugins]] # dependency of vim-markdown
-repo = 'godlygeek/tabular'
-on_ft = ['markdown']
 [[plugins]]
-repo = 'plasticboy/vim-markdown'
-on_ft = ['markdown']
-hook_add = '''
-  let g:vim_markdown_folding_disabled=0
-'''
+repo = 'tpope/vim-markdown'
 [[plugins]]
 repo = 'cespare/vim-toml'
 on_ft = ['toml']
