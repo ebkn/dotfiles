@@ -74,3 +74,21 @@ hook_add = '''
 [[plugins]]
 repo = 'styled-components/vim-styled-components'
 on_ft = ['jsx', 'tsx']
+
+# deoplete completion sources
+[[plugins]]
+repo = 'zchee/deoplete-clang'
+on_ft = ['c']
+[[plugins]]
+repo = 'zchee/deoplete-go'
+on_ft = ['go']
+[[plugins]]
+repo = 'carlitux/deoplete-ternjs'
+on_ft = ['javascript', 'typescript', 'jsx', 'tsx']
+build = "{'mac': 'npm install -g tern', 'unix': 'npm install -g tern' }"
+[[plugins]]
+repo = 'zchee/deoplete-jedi'
+on_ft = ['python']
+[[plugins]]
+repo = 'mhartington/nvim-typescript'
+on_ft = ['typescript', 'tsx']
