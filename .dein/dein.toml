@@ -156,55 +156,16 @@ build = "{ \
 
 # completion
 [[plugins]]
-repo = 'Shougo/neocomplete'
+repo = 'Shougo/deoplete.nvim'
+depends = 'nvim-yarp'
+depends = 'vim-hug-neovim-rpc'
 hook_add = '''
-  let g:acp_enableAtStartup=1
-  let g:neocomplete#enable_at_startup=1
-  let g:neocomplete#enable_smart_case=1
-  let g:neocomplete#sources#syntax#min_keyword_length=2
-  let g:neocomplete#enable_underbar_completion=1
-  let g:neocomplete#enable_camel_case_completion=1
-  let g:neocomplete#enable_auto_delimiter=1 " includes delimiter
-  let g:neocomplete#auto_completion_start_length=2
-  let g:neocomplete#max_list=20
-  let g:neocomplete#sources#dictionary#dictionaries={
-    \ 'default': '',
-    \ 'vimshell': $HOME.'/.vimshell_hist',
-    \ 'scheme': $HOME.'/.gosh_completions'
-  \ }
-  " keyword設定
-  if !exists('g:neocomplete#keyword_patterns')
-    let g:neocomplete#keyword_patterns={}
-  endif
-  let g:neocomplete#keyword_patterns['default']='\h\w*'
-  " keymap
-  inoremap <silent> <CR> <C-r>=<SID>my_cr_function()<CR>
-  function! s:my_cr_function()
-    return (pumvisible() ? "\<C-y>" : "" ) . "\<CR>"
-  endfunction
-  " <TAB>: completion.
-  inoremap <expr><TAB>  pumvisible() ? "\<C-n>" : "\<TAB>"
-  " Close popup by <Space>.
-  " inoremap <expr><Space> pumvisible() ? "\<C-y>" : "\<Space>"
+  let g:deoplete#enable_at_startup = 1
 '''
 [[plugins]]
-repo = 'Shougo/neosnippet.vim'
-hook_add = '''
-  imap <C-k> <Plug>(neosnippet_expand_or_jump)
-  smap <C-k> <Plug>(neosnippet_expand_or_jump)
-  xmap <C-k> <Plug>(neosnippet_expand_target)
-  smap <expr><TAB> neosnippet#expandable_or_jumpable() ? "\<Plug>(neosnippet_expand_or_jump)" : "\<TAB>"
-  " タブキーで補完候補の選択. スニペット内のジャンプもタブキーでジャンプ
-  imap <expr><TAB> pumvisible() ? "<C-n>" : neosnippet#jumpable() ? "<Plug>(neosnippet_expand_or_jump)" : "<TAB>"
-  if has('conceal')
-    set conceallevel=2 concealcursor=niv
-  endif
-'''
+repo = 'roxma/nvim-yarp'
 [[plugins]]
-repo = 'Shougo/neosnippet-snippets'
-hook_add = '''
-  let g:neosnippet#snippets_directory='~/.vim/bundle/neosnippet-snippets/snippets/' " 補完のディレクトリ指定
-'''
+repo = 'roxma/vim-hug-neovim-rpc'
 
 # fuzzy finder
 [[plugins]]
@@ -287,5 +248,3 @@ repo = 'gorodinskiy/vim-coloresque'
 # surround by cs
 [[plugins]]
 repo = 'tpope/vim-surround'
-
-
