@@ -82,7 +82,7 @@ repo = 'scrooloose/nerdtree'
 hook_add = '''
   autocmd StdinReadPre * let s:std_in=1
   autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
-  map <silent><C-n> :NERDTreeToggle<CR>
+  nnoremap <silent><C-n> :NERDTreeToggle<CR>
   let g:NERDTreeShowHidden=1
   let g:NERDTreeIgnore=['\.DS_Store', '\.git$', 'node_modules', 'bower_components', '__pycache__', '\.db', '\.sqlite$', '\.rbc$', '\~$', '\.pyc', '\.idea$', '\.vscode$', '\vendor\/bundle', '\.awcache$']
   let g:NERDTreeDirArrows=1
@@ -173,7 +173,7 @@ repo = '/usr/local/opt/fzf'
 [[plugins]]
 repo = 'junegunn/fzf.vim'
 hook_add = '''
-  map <C-t> :Files<CR>
+  nnoremap <C-t> :Files<CR>
   let g:fzf_layout = { 'down': '~40%' }
   let g:fzf_buffers_jump=1
 '''
@@ -182,7 +182,7 @@ hook_add = '''
 [[plugins]]
 repo = 'mhinz/vim-grepper'
 hook_add = '''
-  map <C-g> :Grepper -tool ag -highlight<CR>
+  nnoremap <C-g> :Grepper -tool ag -highlight<cr>
 '''
 
 # comment out
