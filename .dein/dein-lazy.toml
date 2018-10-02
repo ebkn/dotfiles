@@ -69,3 +69,8 @@ hook_add = '''
   let g:closetag_shortcut='>'
   let g:closetag_close_shortcat='<leader>>'
 '''
+
+# styled-components
+[[plugins]]
+repo = 'styled-components/vim-styled-components'
+on_ft = ['jsx', 'tsx']
