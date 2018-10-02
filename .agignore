@@ -6,7 +6,7 @@ tmp
 old
 .vim/bundle
 .vim/dict
-.git
+.git/
 .svn
 zsh-completions
 jquery-*.js
