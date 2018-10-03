@@ -2,11 +2,7 @@
 # $ time ( zsh -i -c exit )
 # zmodload zsh/zprof && zprof
 
-if [[ -z "$TMUX" ]]
-then
-  tmux new-session;
-  exit;
-fi
+[[ -z "$TMUX" ]] && tmux
 
 export LANG=ja_JP.UTF-8
 export LC_CTYPE=ja_JP.UTF-8
