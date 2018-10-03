@@ -63,6 +63,12 @@ source ~/.bash_profile
 source ~/.zshrc
 tmux source-file ~/.tmux.conf
 
+echo 'Downloading Alacritty'
+git clone https://github.com/jwilm/alacritty.git
+cd alacritty
+make app
+cp -r target/release/osx/Alacritty.app /Applications/
+
 echo 'Installing nvm and node'
 # brew install nodenv
 curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | zsh
