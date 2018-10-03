@@ -11,7 +11,7 @@ set ambiwidth=double " □や○文字が崩れる問題を解決
 set nobomb "bomb無効化
 set t_Co=256 " 256色を指定
 
-set guifont=SauseCodePro\ Nerd\ Font\ Medium:h14
+set guifont=SauceCodePro\ Nerd\ Font\ Medium:h14
 
 set ttyfast " 高速ターミナル接続
 set lazyredraw " 再描画を調節
