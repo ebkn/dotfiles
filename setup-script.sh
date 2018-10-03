@@ -6,8 +6,8 @@
 cd ~
 
 echo 'setup os settings'
-defaults write -g KeyRepeat -int 1
-defaults write -g InitialKeyRepeat -int 10
+defaults write -g KeyRepeat -int 2
+defaults write -g InitialKeyRepeat -int 11
 defaults write com.apple.finder AppleShowAllFiles TRUE
 
 echo 'Installing HomeBrew..'
