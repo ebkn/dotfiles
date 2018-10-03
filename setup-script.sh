@@ -68,6 +68,8 @@ git clone https://github.com/jwilm/alacritty.git
 cd alacritty
 make app
 cp -r target/release/osx/Alacritty.app /Applications/
+rm -rf ~/.config/alacritty
+ln -s ~/dotfiles/.alacritty.yml .
 
 echo 'Installing nvm and node'
 # brew install nodenv
