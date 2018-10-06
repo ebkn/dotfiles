@@ -136,6 +136,10 @@ hook_add = '''
     \ "Unknown"   : "?"
     \ }
 '''
+# slow
+# [[plugins]]
+# repo = 'ryanoasis/vim-devicons'
+# depends = 'nerdtree'
 
 # show line that has git diff
 [[plugins]]
