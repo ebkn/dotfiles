@@ -165,6 +165,8 @@ depends = 'nvim-yarp'
 depends = 'vim-hug-neovim-rpc'
 hook_add = '''
   let g:deoplete#enable_at_startup = 1
+  let g:deoplete#file#enable_buffer_path = 1
+  inoremap <expr><tab> pumvisible() ? "\<c-n>" : "\<tab>"
 '''
 [[plugins]]
 repo = 'roxma/nvim-yarp'
