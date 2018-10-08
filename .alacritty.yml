@@ -76,7 +76,7 @@ scrolling:
 # Some applications, like Emacs, rely on knowing about the width of a tab.
 # To prevent unexpected behavior in these applications, it's also required to
 # change the `it` value in terminfo when altering this setting.
-tabspaces: 8
+tabspaces: 2
 
 # Font configuration (changes require restart)
 font:
@@ -292,7 +292,7 @@ selection:
   semantic_escape_chars: ",│`|:\"' ()[]{}<>"
 
   # When set to `true`, selected text will be copied to the primary clipboard.
-  save_to_clipboard: false
+  save_to_clipboard: true
 
 dynamic_title: true
 
@@ -304,7 +304,7 @@ hide_cursor_when_typing: false
 #   - Block
 #   - Underline
 #   - Beam
-cursor_style: Beam
+cursor_style: Block
 
 # If this is `true`, the cursor will be rendered as a hollow box when the
 # window is not focused.
