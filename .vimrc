@@ -13,18 +13,6 @@ set t_Co=256
 
 set guifont=SauceCodePro\ Nerd\ Font\ Medium:h14
 
-" colorscheme
-if (empty($TMUX))
-  if (has("nvim"))
-    let $NVIM_TUI_ENABLE_TRUE_COLOR=1
-  endif
-  if (has("termguicolors"))
-    set termguicolors
-  endif
-endif
-syntax on
-colorscheme onedark
-
 " fast drawing
 set ttyfast
 set lazyredraw
@@ -225,3 +213,15 @@ endif
 if dein#check_install()
   call dein#install()
 endif
+
+" colorscheme
+if (empty($TMUX))
+  if (has("nvim"))
+    let $NVIM_TUI_ENABLE_TRUE_COLOR=1
+  endif
+  if (has("termguicolors"))
+    set termguicolors
+  endif
+endif
+syntax on
+colorscheme onedark
