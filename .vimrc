@@ -120,7 +120,7 @@ endfunction
 " clipboard
 set clipboard=unnamed,autoselect
 
-" マウス有効化
+" enable mouse
 if has('mouse')
     set mouse=a
     if has('mouse_sgr')
