@@ -22,10 +22,11 @@ export PATH="/usr/local/bin/code:$PATH"
 export PYENV_ROOT="$HOME/.pyenv"
 export PATH="$PYENV_ROOT/bin:$PATH"
 export GOPATH=$HOME/go
-export ANDROID_HOME=/usr/local/share/android-sdk
-export ANDROID_SDK_ROOT=/usr/local/share/android-sdk
+export ANDROID_HOME=~/Library/Android/sdk
 export PATH=$PATH:$ANDROID_HOME/tools
+export PATH=$PATH:$ANDROID_HOME/tools/bin
 export PATH=$PATH:$ANDROID_HOME/platform-tools
+export ANDROID_SDK=$ANDROID_HOME
 export PATH=/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH
 export FZF_DEFAULT_COMMAND='ag --hidden -g ""'
 
