@@ -7,69 +7,83 @@ set fileencoding=utf-8
 set termencoding=utf8
 set fileencodings=utf-8,ucs-boms,euc-jp,ep932
 set fileformats=unix,dos,mac
-set ambiwidth=double " □や○文字が崩れる問題を解決
-set nobomb "bomb無効化
-set t_Co=256 " 256色を指定
+set ambiwidth=double "show chars like □, ○
+set nobomb
+set t_Co=256
 
 set guifont=SauceCodePro\ Nerd\ Font\ Medium:h14
 
-set ttyfast " 高速ターミナル接続
-set lazyredraw " 再描画を調節
-set autoread " 編集中のファイルが変更されたら自動で読み直す
-set hidden " バッファが編集中でもその他のファイルを開けるように
-set showcmd " 入力中のコマンドをステータスに表示する
-set noshowmode " モード表示しない
+" colorscheme
+if (empty($TMUX))
+  if (has("nvim"))
+    let $NVIM_TUI_ENABLE_TRUE_COLOR=1
+  endif
+  if (has("termguicolors"))
+    set termguicolors
+  endif
+endif
+syntax on
+colorscheme onedark
 
-" ファイル作成
-set nobackup " backupを作成しない
-set noswapfile " swapfileを作成しない
-set nowritebackup " 上書き成功時にbackup破棄
-set noundofile " undofileを作成しない
+" fast drawing
+set ttyfast
+set lazyredraw
+set nocursorline
+set nocursorcolumn
+
+set autoread " authread when file changed
+set hidden
+set showcmd " show input command
+set noshowmode
+
+" not create file
+set nobackup
+set noswapfile
+set nowritebackup
+set noundofile
 
 " %jump
-set showmatch " 括弧の対応関係を一瞬表示する
-source $VIMRUNTIME/macros/matchit.vim " vimの%を拡張
+set showmatch
+source $VIMRUNTIME/macros/matchit.vim " extend %
 
 " completion
-set wildmenu wildmode=list:full " コマンドモードの補完
-set history=1000 " 保存するコマンド履歴の数
+set wildmenu
+set wildmode=list:full
+set history=100
 
-set visualbell " ビープ音を可視化
-set laststatus=2 " ステータスラインを常に表示
-set wildmode=list:longest " コマンドラインの補完
+set laststatus=2 " always show statusline
 
 " tab, indent
-set expandtab " タブ入力を複数の空白入力に置き換える
-set tabstop=2 " 画面上でタブ文字が占める幅
-set softtabstop=2 " 連続した空白に対してタブキーやバックスペースキーでカーソルが動く幅
-set autoindent " 改行時に前の行のインデントを継続する
-set smartindent " 改行時に前の行の構文をチェックし次の行のインデントを増減する
-set shiftwidth=2 " smartindentで増減する幅
+filetype plugin indent on
+set expandtab
+set tabstop=2
+set softtabstop=2
+set autoindent
+set smartindent
+set shiftwidth=2
 
 " Search
-set incsearch " インクリメンタルサーチ
-set ignorecase " 検索パターンに大文字小文字を区別しない
-set smartcase " 検索パターンに大文字を含んでいたら大文字小文字を区別する
-set hlsearch " 検索結果をハイライト
-set wrapscan " 検索時に最後まで行ったら最初に戻る
-set wildignore+=*/tmp*,*.so,*.swp,*.zip " 検索等に含めないファイル
+set incsearch
+set ignorecase
+set smartcase
+set hlsearch
+set wrapscan
+set wildignore+=*/tmp*,*.so,*.swp,*.zip
 
 " cursor
-set whichwrap=b,s,h,l,<,>,[,],~ " 左右移動で前後の行に移動
-set virtualedit=onemore " 行末の1文字先までカーソルを移動できるように
-set number " 行番号
-set nocursorline " カーソルラインをハイライトしない
-set nocursorcolumn " 現在の行をハイライトしない
-set norelativenumber " 行番号の相対表示しない
-set backspace=indent,eol,start " バックスペースキー有効化
-set ruler
-" 折り返し表示の際に表示行単位でカーソル移動
+set whichwrap=b,s,h,l,<,>,[,],~ " move next/previous line by h,l
+set virtualedit=onemore " move to last character
+set number " show line number
+set norelativenumber
+set backspace=indent,eol,start " enable backspace
+
+" move line in displayed lines
 nnoremap j gj
 nnoremap k gk
 nnoremap <down> gj
 nnoremap <up> gk
 
-" insert mode kemaps like emacs
+" insert mode keymaps like emacs
 imap <C-p> <Up>
 imap <C-n> <Down>
 imap <C-b> <Left>
@@ -118,9 +132,9 @@ if has('mouse')
     endif
 endif
 
-" 全角スペースの表示
+" show zenkaku space
 function! ZenkakuSpace()
-    highlight ZenkakuSpace cterm=underline ctermfg=lightblue guibg=darkgray
+    highlight ZenkakuSpace cterm=underline ctermfg=lightblue guibg=black
 endfunction
 if has('syntax')
     augroup ZenkakuSpace
@@ -131,7 +145,7 @@ if has('syntax')
     call ZenkakuSpace()
 endif
 
-" ペースト設定
+" paste settings
 if &term =~ "xterm"
   let &t_SI .= "\e[?2004h"
   let &t_EI .= "\e[?2004l"
@@ -145,7 +159,7 @@ if &term =~ "xterm"
   inoremap <special> <expr> <Esc>[200~ XTermPasteBegin("")
 endif
 
-" 画面分割
+" split window
 nnoremap s <Nop>
 nnoremap sj <C-w>j
 nnoremap sk <C-w>k
@@ -181,7 +195,7 @@ if has("vim_starting") && !has('gui_running') && has('vertsplit')
 endif
 
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
-" vim plugins
+" settings for plugins
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""
 if &compatible
   set nocompatible
@@ -211,23 +225,3 @@ endif
 if dein#check_install()
   call dein#install()
 endif
-
-filetype plugin indent on " ファイルごとのindent
-
-" colorscheme
-if (empty($TMUX))
-  if (has("nvim"))
-    let $NVIM_TUI_ENABLE_TRUE_COLOR=1
-  endif
-  if (has("termguicolors"))
-    set termguicolors
-  endif
-endif
-
-syntax on " syntax有効化
-colorscheme onedark
-" molokai用設定
-" colorscheme molokai
-" let g:molokai_original=1
-" let g:rehash256=1
-" set background=dark " 背景色
