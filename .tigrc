@@ -11,8 +11,8 @@ set diff-view   = line-number:yes,interval=1 text:yes,commit-title-overflow=no
 
 set tab-size = 4
 
-# 検索時に大文字小文字無視
 set ignore-case = true
+set smart-case = true
 
 set split-view-width = 80%
 set split-view-height = 80%
@@ -22,13 +22,10 @@ set diff-options = -m --first-parent
 set refresh-mode = auto
 
 ##########################################################################
-# Gitコマンド
+# git commands
 ##########################################################################
-# Uでpull
 bind generic U ?git pull %(remote)
 
-# Pでpush
 bind generic P ?git push -u %(remote) %(repo:head)
 
-# onedark terminal用color
 color cursor black white bold

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'readline'
 IRB.conf[:USE_READLINE] = true
 
