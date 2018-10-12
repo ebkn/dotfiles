@@ -12,7 +12,6 @@ set diff-view   = line-number:yes,interval=1 text:yes,commit-title-overflow=no
 set tab-size = 4
 
 set ignore-case = true
-set smart-case = true
 
 set split-view-width = 80%
 set split-view-height = 80%
