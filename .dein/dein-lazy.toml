@@ -9,6 +9,9 @@ on_ft = ['javascript', 'html', 'typescript']
 repo = 'mxw/vim-jsx'
 on_ft = ['javascript', 'jsx']
 [[plugins]]
+repo = 'MaxMEllon/vim-jsx-pretty'
+on_ft = ['javascript', 'jsx', 'typescript', 'tsx']
+[[plugins]]
 repo = 'leafgarland/typescript-vim'
 on_ft = ['typescript', 'tsx']
 hook_add = '''
