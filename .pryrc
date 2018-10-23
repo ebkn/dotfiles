@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 Pry.config.color = true
 Pry.config.auto_indent = true
 Pry.config.history.should_save = false
