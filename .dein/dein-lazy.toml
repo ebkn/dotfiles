@@ -21,6 +21,9 @@ hook_add = '''
 repo = 'ianks/vim-tsx'
 on_ft = ['typescript', 'tsx']
 [[plugins]]
+repo = 'elmcast/elm-vim'
+on_ft = ['elm']
+[[plugins]]
 repo = 'pearofducks/ansible-vim'
 on_ft = ['ansible']
 [[plugins]]
