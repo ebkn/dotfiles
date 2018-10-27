@@ -210,6 +210,14 @@ hook_add = '''
   inoremap <expr><tab> pumvisible() ? "\<c-n>" : "\<tab>"
 '''
 [[plugins]]
+repo = 'zchee/deoplete-go'
+build = "make"
+hook_add = '''
+  let g:deoplete#sources#go#gocode_binary = '~/go/bin/gocode'
+  let g:deoplete#sources#go#sort_class = ['package', 'func', 'type', 'var', 'const']
+'''
+
+[[plugins]]
 repo = 'roxma/nvim-yarp'
 [[plugins]]
 repo = 'roxma/vim-hug-neovim-rpc'
