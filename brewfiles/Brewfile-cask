@@ -25,12 +25,9 @@ cask 'dropbox'
 
 # note
 cask 'boostnote'
-cask 'simplenote'
 
 cask 'google-japanese-ime'
 cask 'hyperswitch'
-cask 'tableplus'
 cask 'gyazo'
-cask 'skitch'
 cask 'spotify'
 cask 'kindle'

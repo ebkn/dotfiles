@@ -1,7 +1,6 @@
 # dbms
 brew 'mysql'
 brew 'postgresql'
-brew 'sqlite3'
 brew 'redis'
 brew 'mongodb'
 
