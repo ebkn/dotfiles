@@ -1,36 +1,48 @@
+################################
 # check speed for starting zsh
 # $ time ( zsh -i -c exit )
 # zmodload zsh/zprof && zprof
+###############################
 
+# start tmux
 [[ -z "$TMUX" ]] && tmux
 
 export LANG=ja_JP.UTF-8
 export LC_CTYPE=ja_JP.UTF-8
 export ZSH=~/.oh-my-zsh
 export TERM=xterm-256color
+
 export PATH="/usr/local/sbin:$PATH"
+
+# MySQL
 export PATH="/usr/local/opt/mysql@5.6/bin:$PATH"
 export PATH=/usr/local/opt/mysql@5.7/bin:$PATH
+# PostgreSQL
+export PATH=/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH
+# Node.js
 export NVM_DIR="$HOME/.nvm"
 NODE_DEFAULT=versions/node/$(cat $NVM_DIR/alias/default)
 export PATH=$NVM_DIR/$NODE_DEFAULT/bin:$PATH # this requires $ nvm alias default vX.Y.Z
 MANPATH=$NVM_DIR/$NODE_DEFAULT/share/man:$MANPATH
 NODE_PATH=$NVM_DIR/$NODE_DEFAULT/lib/node_modules
 export NODE_PATH=${NODE_PATH:A}
-export PGDATA=/usr/local/var/postgres
+# VScode
 export PATH="/usr/local/bin/code:$PATH"
+# Python
 export PYENV_ROOT="$HOME/.pyenv"
 export PATH="$PYENV_ROOT/bin:$PATH"
+# Go
 export GOPATH=$HOME/go
 export GOENV_ROOT=$HOME/.goenv
 export PATH=$GOPATH/bin:$PATH
 export PATH=$GOENV_ROOT/shims:$PATH
+# Android
 export ANDROID_HOME=~/Library/Android/sdk
 export PATH=$PATH:$ANDROID_HOME/tools
 export PATH=$PATH:$ANDROID_HOME/tools/bin
 export PATH=$PATH:$ANDROID_HOME/platform-tools
 export ANDROID_SDK=$ANDROID_HOME
-export PATH=/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH
+# fzf
 export FZF_DEFAULT_COMMAND='ag --hidden -g ""'
 
 # lazyload
@@ -65,17 +77,10 @@ function nvm() {
 
 # Settings for theme
 ZSH_THEME="robbyrussell"
-# ZSH_THEME="bullet-train"
-# ZSH_THEME="spaceship" # too late
-# ZSH_THEME="avit"
 
+# oh-my-zsh plugins
 plugins=(osx zsh-syntax-highlighting zsh-256color zsh-autosuggestions)
 source $ZSH/oh-my-zsh.sh
-
-# Settings for pure theme # git branch is difficult to see
-# ZSH_THEME=""
-# autoload -U promptinit; promptinit
-# prompt pure
 
 # display
 setopt print_exit_value
@@ -102,18 +107,21 @@ alias vi='vim'
 alias tmuxs='tmux source-file ~/.tmux.conf'
 alias l='ls -la'
 alias c='clear'
-alias cat='bat --theme=TwoDark'
-alias sed='gsed'
-alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|tmp" -N -A -C'
+alias cat='bat --theme=TwoDark' # This requires `brew install bat`
+alias sed='gsed' # This requires `brew install gnu-sed`
+alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|bower_components|vendor|tmp" -N -A -C'
+# Quick Look
 alias ql='qlmanage -p "$@" >& /dev/null'
+# history of zsh
+alias his='cat ~/.zsh_history'
 alias xcode='open -a xcode .'
 alias myst='sudo mysql.server start'
-alias defaultlocalserver='cd /Library/WebServer/Documents/'
-alias localserver='cd ~/projects/local/'
+# Apache server
+alias defaultapacheserver='cd /Library/WebServer/Documents/'
+alias apacheserver='cd ~/projects/local/'
 alias apacheconfig='sudo vim /private/etc/apache2/httpd.conf'
 alias apachelog='tail -n 100 /private/var/log/apache2/error_log'
-alias his='cat ~/.zsh_history'
-# aliases for git
+# aliases for git, Github
 alias ga='git add'
 alias gap='git add -p'
 alias gc='git commit -v -m'
@@ -135,6 +143,8 @@ function pr() {
   fi;\
   hub browse -- compare/${branch_name}'...'$(git symbolic-ref --short HEAD)'?'expand=1'&'body=$(cat ${template_path} | perl -pe 'encode_utf8' | perl -pe 's/([^ 0-9a-zA-Z])/\"%\".uc(unpack(\"H2\",$1))/eg' | perl -pe 's/ /+/g');\
 }
+# aliases for docker
+alias dc='docker-compose'
 # aliases for rails
 alias rs='bundle exec rails s'
 alias rc='bundle exec rails c'
@@ -170,9 +180,9 @@ if [ -f '~/google-cloud-sdk/path.zsh.inc' ]; then source '~/google-cloud-sdk/pat
 # The next line enables shell command completion for gcloud.
 if [ -f '~/google-cloud-sdk/completion.zsh.inc' ]; then source '~/google-cloud-sdk/completion.zsh.inc'; fi
 
+#####################################
 # check speed for starting zsh
 # if (which zprof > /dev/null) ;then
 #   zprof | less
 # fi
-
-test -e "${HOME}/.iterm2_shell_integration.zsh" && source "${HOME}/.iterm2_shell_integration.zsh"
+####################################
