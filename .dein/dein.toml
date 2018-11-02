@@ -48,25 +48,25 @@ if executable('typescript-language-server')
 endif
 '''
 
-# auto switch filetype
-[[plugins]]
-repo = 'Shougo/context_filetype.vim'
-[[plugins]]
-repo = 'osyo-manga/vim-precious'
-depends = 'context_filetype.vim'
-hook_add = '''
-  let g:precious_enable_switch_CursorMoved = {
-    \ "*" : 0
-  \}
-  let g:precious_enable_switch_CursorMoved_i = {
-    \	"*" : 0
-  \}
-  augroup test " switch when change to insert mode
-    autocmd!
-    autocmd InsertEnter * :PreciousSwitch
-    autocmd InsertLeave * :PreciousReset
-  augroup END
-'''
+# auto switch filetype (too heavy)
+# [[plugins]]
+# repo = 'Shougo/context_filetype.vim'
+# [[plugins]]
+# repo = 'osyo-manga/vim-precious'
+# depends = 'context_filetype.vim'
+# hook_add = '''
+#   let g:precious_enable_switch_CursorMoved = {
+#     \ "*" : 0
+#   \}
+#   let g:precious_enable_switch_CursorMoved_i = {
+#     \	"*" : 0
+#   \}
+#   augroup test " switch when change to insert mode
+#     autocmd!
+#     autocmd InsertEnter * :PreciousSwitch
+#     autocmd InsertLeave * :PreciousReset
+#   augroup END
+# '''
 
 # status line
 [[plugins]]
@@ -129,7 +129,6 @@ hook_add = '''
   let g:NERDTreeDirArrows=1
   let g:NERDTreeDirArrowExpandable='▸'
   let g:NERDTreeDirArrowCollapsible='▾'
-  " どのファイルをsyntaxhighlightするか設定
   let g:NERDTreeFileExtensionHighlightFullName=1
   let g:NERDTreeExactMatchHighlightFullName=1
   let g:NERDTreePatternMatchHighlightFullName=1
