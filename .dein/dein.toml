@@ -307,6 +307,21 @@ hook_add = '''
 [[plugins]]
 repo = 'gorodinskiy/vim-coloresque'
 
-# surround by cs
+# auto close parentheses
 [[plugins]]
-repo = 'tpope/vim-surround'
+repo = 'cohama/lexima.vim'
+hook_add = '''
+  let g:lexima_enable_basic_rules=1
+'''
+
+# change operator by s+a/d/r
+[[plugins]]
+repo = 'kana/vim-operator-user'
+[[plugins]]
+repo = 'rhysd/vim-operator-surround'
+depends = 'kana/vim-operator-user'
+hook_add = '''
+  map <silent>sa <Plug>(operator-surround-append)
+  map <silent>sd <Plug>(operator-surround-delete)
+  map <silent>sr <Plug>(operator-surround-replace)
+'''
