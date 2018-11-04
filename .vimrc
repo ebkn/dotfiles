@@ -110,27 +110,27 @@ set clipboard=unnamed,autoselect
 
 " enable mouse
 if has('mouse')
-    set mouse=a
-    if has('mouse_sgr')
-        set ttymouse=sgr
-    elseif v:version > 703 || v:version is 703 && has('patch632')
-        set ttymouse=sgr
-    elseif
-        set ttymouse=xterm2
-    endif
+  set mouse=a
+  if has('mouse_sgr')
+    set ttymouse=sgr
+  elseif v:version > 703 || v:version is 703 && has('patch632')
+    set ttymouse=sgr
+  elseif
+    set ttymouse=xterm2
+  endif
 endif
 
 " show zenkaku space
 function! ZenkakuSpace()
-    highlight ZenkakuSpace cterm=underline ctermfg=lightblue guibg=black
+  highlight ZenkakuSpace cterm=reverse ctermfg=red guibg=black
 endfunction
 if has('syntax')
-    augroup ZenkakuSpace
-        autocmd!
-        autocmd ColorScheme * call ZenkakuSpace()
-        autocmd VimEnter,WinEnter,BufRead * let w:m1=matchadd('ZenkakuSpace', '　')
-    augroup END
-    call ZenkakuSpace()
+  augroup ZenkakuSpace
+    autocmd!
+    autocmd ColorScheme * call ZenkakuSpace()
+    autocmd VimEnter,WinEnter,BufRead * match ZenkakuSpace /　/
+  augroup END
+  call ZenkakuSpace()
 endif
 
 " paste settings
