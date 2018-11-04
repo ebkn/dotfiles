@@ -1,7 +1,10 @@
 # autosave
 [[plugins]]
 repo = 'vim-scripts/vim-auto-save'
-hook_add = 'let g:autosave = 1'
+hook_add = '''
+  let g:auto_save = 1
+  let g:auto_save_in_insert_mode = 0
+'''
 
 # language packs
 [[plugins]]
