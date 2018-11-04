@@ -90,8 +90,19 @@ on_ft = ['jsx', 'tsx']
 repo = 'zchee/deoplete-clang'
 on_ft = ['c']
 [[plugins]]
+repo = 'pbogut/deoplete-elm'
+on_ft = ['elm']
+[[plugins]]
 repo = 'zchee/deoplete-go'
 on_ft = ['go']
+build = "make"
+hook_add = '''
+  let g:deoplete#sources#go#gocode_binary = '~/go/bin/gocode'
+  let g:deoplete#sources#go#sort_class = ['package', 'func', 'type', 'var', 'const']
+'''
+[[plugins]]
+repo = 'wokalski/autocomplete-flow'
+on_ft = ['javascript', 'typescript', 'jsx', 'tsx']
 [[plugins]]
 repo = 'carlitux/deoplete-ternjs'
 on_ft = ['javascript', 'typescript', 'jsx', 'tsx']
