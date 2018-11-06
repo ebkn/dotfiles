@@ -14,65 +14,72 @@ export TERM=xterm-256color
 
 export PATH="$PATH:/usr/local/sbin"
 
-# MySQL
-export PATH="$PATH:/usr/local/opt/mysql@5.6/bin"
-export PATH="$PATH:/usr/local/opt/mysql@5.7/bin"
-# PostgreSQL
-export PATH="$PATH:/Applications/Postgres.app/Contents/Versions/latest/bin"
-# Node.js
-export NVM_DIR="$HOME/.nvm"
-NODE_DEFAULT=versions/node/$(cat $NVM_DIR/alias/default)
-export PATH="$PATH:$NVM_DIR/$NODE_DEFAULT/bin" # this requires $ nvm alias default vX.Y.Z
-MANPATH="$PATH:$NVM_DIR/$NODE_DEFAULT/share/man"
-NODE_PATH=$NVM_DIR/$NODE_DEFAULT/lib/node_modules
-export NODE_PATH=${NODE_PATH:A}
-# VScode
-export PATH="$PATH:/usr/local/bin/code"
-# Python
-export PYENV_ROOT="$HOME/.pyenv"
-export PATH="$PATH:$PYENV_ROOT/bin"
-# Go
-export GOPATH=$HOME/go
-export GOENV_ROOT=$HOME/.goenv
-export PATH="$PATH:$GOPATH/bin"
-export PATH="$PATH:$GOENV_ROOT/shims"
-# Android
-export ANDROID_HOME=~/Library/Android/sdk
-export PATH="$PATH:$ANDROID_HOME/tools"
-export PATH="$PATH:$ANDROID_HOME/tools/bin"
-export PATH="$PATH:$ANDROID_HOME/platform-tools"
-export ANDROID_SDK=$ANDROID_HOME
-# fzf
-export FZF_DEFAULT_COMMAND='ag --hidden -g ""'
+if [ `uname` = 'Debian' ]; then
+  # MySQL
+  export PATH="$PATH:/usr/local/opt/mysql@5.6/bin"
+  export PATH="$PATH:/usr/local/opt/mysql@5.7/bin"
+  # PostgreSQL
+  export PATH="$PATH:/Applications/Postgres.app/Contents/Versions/latest/bin"
+  # Node.js
+  export NVM_DIR="$HOME/.nvm"
+  NODE_DEFAULT=versions/node/$(cat $NVM_DIR/alias/default)
+  export PATH="$PATH:$NVM_DIR/$NODE_DEFAULT/bin" # this requires $ nvm alias default vX.Y.Z
+  MANPATH="$PATH:$NVM_DIR/$NODE_DEFAULT/share/man"
+  NODE_PATH=$NVM_DIR/$NODE_DEFAULT/lib/node_modules
+  export NODE_PATH=${NODE_PATH:A}
+  # VScode
+  export PATH="$PATH:/usr/local/bin/code"
+  # Python
+  export PYENV_ROOT="$HOME/.pyenv"
+  export PATH="$PATH:$PYENV_ROOT/bin"
+  # Go
+  export GOPATH=$HOME/go
+  export GOENV_ROOT=$HOME/.goenv
+  export PATH="$PATH:$GOPATH/bin"
+  export PATH="$PATH:$GOENV_ROOT/shims"
+  # Android
+  export ANDROID_HOME=~/Library/Android/sdk
+  export PATH="$PATH:$ANDROID_HOME/tools"
+  export PATH="$PATH:$ANDROID_HOME/tools/bin"
+  export PATH="$PATH:$ANDROID_HOME/platform-tools"
+  export ANDROID_SDK=$ANDROID_HOME
 
-# lazyload
-function rbenv() {
-  unset -f rbenv
-  eval "$(rbenv init - --no-rehash)"
-  rbenv "$@"
-}
-function goenv() {
-  unset -f goenv
-  eval "$(goenv init - --no-rehash)"
-  goenv "$@"
-}
-function pyenv() {
-  unset -f pyenv
-  eval "$(pyenv init - --no-rehash)"
-  pyenv "$@"
-}
-function swiftenv() {
-  unset -f swiftenv
-  eval "$(swiftenv init - --no-rehash)"
-  swiftenv "$@"
-}
-function nvm() {
-  unset -f nvm
-  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-  nvm "$@"
-}
+  # lazyload
+  function rbenv() {
+    unset -f rbenv
+    eval "$(rbenv init - --no-rehash)"
+    rbenv "$@"
+  }
+  function goenv() {
+    unset -f goenv
+    eval "$(goenv init - --no-rehash)"
+    goenv "$@"
+  }
+  function pyenv() {
+    unset -f pyenv
+    eval "$(pyenv init - --no-rehash)"
+    pyenv "$@"
+  }
+  function swiftenv() {
+    unset -f swiftenv
+    eval "$(swiftenv init - --no-rehash)"
+    swiftenv "$@"
+  }
+  function nvm() {
+    unset -f nvm
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    nvm "$@"
+  }
+  # The next line updates PATH for the Google Cloud SDK.
+  if [ -f '~/google-cloud-sdk/path.zsh.inc' ]; then source '~/google-cloud-sdk/path.zsh.inc'; fi
+  # The next line enables shell command completion for gcloud.
+  if [ -f '~/google-cloud-sdk/completion.zsh.inc' ]; then source '~/google-cloud-sdk/completion.zsh.inc'; fi
+else
+fi
 
 # Settings for fzf
+export PATH="$PATH:$HOME/.fzf/bin"
+export FZF_DEFAULT_COMMAND='ag --hidden -g ""'
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
 # Settings for theme
@@ -107,20 +114,11 @@ alias vi='vim'
 alias tmuxs='tmux source-file ~/.tmux.conf'
 alias l='ls -la'
 alias c='clear'
-alias cat='bat --theme=TwoDark' # This requires `brew install bat`
-alias sed='gsed' # This requires `brew install gnu-sed`
+
 alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|bower_components|vendor|tmp" -N -A -C'
-# Quick Look
-alias ql='qlmanage -p "$@" >& /dev/null'
 # history of zsh
 alias his='cat ~/.zsh_history'
-alias xcode='open -a xcode .'
 alias myst='sudo mysql.server start'
-# Apache server
-alias defaultapacheserver='cd /Library/WebServer/Documents/'
-alias apacheserver='cd ~/projects/local/'
-alias apacheconfig='sudo vim /private/etc/apache2/httpd.conf'
-alias apachelog='tail -n 100 /private/var/log/apache2/error_log'
 # aliases for git, Github
 alias ga='git add'
 alias gap='git add -p'
@@ -134,6 +132,7 @@ alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD`'
 alias gf='git fetch'
 alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
 alias gdmerged='git branch --merged master | grep -vE "^\*|master|develop|staging$" | xargs -I % git branch -d %'
+[ `uname` = "Linux" ] && export PATH="$PATH:$HOME/hub-linux-arm64-2.6.0/bin/hub"
 alias github="hub browse"
 function pr() {
   branch_name=$1;\
@@ -145,17 +144,28 @@ function pr() {
 }
 # aliases for docker
 alias dc='docker-compose'
-# aliases for rails
-alias rs='bundle exec rails s'
-alias rc='bundle exec rails c'
-alias rcs='bundle exec rails c -s'
-function f() {
-  if [ -z "$1" ]; then
-    open .
-  else
-    open "$@"
-  fi
-}
+if [ `uname` = "Debian" ]; then
+  alias cat='bat --theme=TwoDark' # This requires `brew install bat`
+  alias sed='gsed' # This requires `brew install gnu-sed`
+  alias ql='qlmanage -p "$@" >& /dev/null' # Quick Look
+  alias xcode='open -a xcode .'
+  # Apache server
+  alias defaultapacheserver='cd /Library/WebServer/Documents/'
+  alias apacheserver='cd ~/projects/local/'
+  alias apacheconfig='sudo vim /private/etc/apache2/httpd.conf'
+  alias apachelog='tail -n 100 /private/var/log/apache2/error_log'
+  # aliases for rails
+  alias rs='bundle exec rails s'
+  alias rc='bundle exec rails c'
+  alias rcs='bundle exec rails c -s'
+  function f() { # open file
+    if [ -z "$1" ]; then
+      open .
+    else
+      open "$@"
+    fi
+  }
+fi
 # translatin
 alias en='trans ja:en "$@"'
 alias ja='trans en:ja "$@"'
@@ -174,11 +184,6 @@ setopt share_history
 setopt hist_ignore_dups
 setopt hist_ignore_all_dups
 
-# Settings for gcp
-# The next line updates PATH for the Google Cloud SDK.
-if [ -f '~/google-cloud-sdk/path.zsh.inc' ]; then source '~/google-cloud-sdk/path.zsh.inc'; fi
-# The next line enables shell command completion for gcloud.
-if [ -f '~/google-cloud-sdk/completion.zsh.inc' ]; then source '~/google-cloud-sdk/completion.zsh.inc'; fi
 
 #####################################
 # check speed for starting zsh

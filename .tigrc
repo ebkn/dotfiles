@@ -1,6 +1,4 @@
-############################################################################
 # view settings
-############################################################################
 set main-view = line-number:yes id:yes date:default,local=yes author commit-title:graph=yes,refs=yes
 set blame-view = date:default id:yes,color line-number:yes,interval=1 text
 set pager-view  = line-number:yes,interval=1 text
@@ -20,9 +18,7 @@ set diff-options = -m --first-parent
 
 set refresh-mode = auto
 
-##########################################################################
 # git commands
-##########################################################################
 bind generic U ?git pull %(remote)
 
 bind generic P ?git push -u %(remote) %(repo:head)
