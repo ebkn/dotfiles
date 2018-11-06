@@ -78,6 +78,7 @@ else
 fi
 
 # Settings for fzf
+export PATH="$PATH:$HOME/.fzf/bin"
 export FZF_DEFAULT_COMMAND='ag --hidden -g ""'
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 

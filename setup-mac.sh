@@ -47,7 +47,8 @@ ln -s ~/dotfiles/.dein .
 curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh >  ~/installer.sh
 sh ~/installer.sh ~/.cache/dein
 rm ~/installer.sh
-
+git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
+~/.fzf/install
 echo 'Setup shell...'
 chsh -s /usr/local/bin/zsh
 echo 'please restart teminal to apply changes'
