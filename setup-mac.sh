@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Install Homebrew and some packages for macOS
-# you have to setup ssh for git
+# you have to setup ssh for Github
 
 cd ~
 

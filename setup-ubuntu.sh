@@ -1,3 +1,8 @@
+#!/bin/sh
+
+# Install packages for Ubuntu
+# you have to setup ssh for Github
+
 cd ~
 
 # Install basic build packages
@@ -5,7 +10,8 @@ sudo apt update
 sudo apt install \
   build-essential \
   git \
-  curl
+  curl \
+  gnupg
 
 git clone git@github.com:ebkn/dotfiles.git ~/dotfiles
 ln -s ~/dotfiles/.gitconfig .
