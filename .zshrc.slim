@@ -1,0 +1,99 @@
+################################
+# check speed for starting zsh
+# $ time ( zsh -i -c exit )
+# zmodload zsh/zprof && zprof
+###############################
+
+# start tmux
+[[ -z "$TMUX" ]] && tmux
+
+export LANG=ja_JP.UTF-8
+export LC_CTYPE=ja_JP.UTF-8
+export ZSH=~/.oh-my-zsh
+export TERM=xterm-256color
+
+# fzf
+export FZF_DEFAULT_COMMAND='ag --hidden -g ""'
+# Settings for fzf
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+# Settings for theme
+ZSH_THEME="robbyrussell"
+
+# oh-my-zsh plugins
+plugins=(osx zsh-syntax-highlighting zsh-256color zsh-autosuggestions)
+source $ZSH/oh-my-zsh.sh
+
+# display
+setopt print_exit_value
+
+# no peep
+setopt no_beep
+setopt no_hist_beep
+setopt no_list_beep
+
+# warning before delete
+setopt rm_star_wait
+
+# autocomplete
+setopt auto_list
+setopt auto_menu
+
+# ctags
+# disable no matches found error
+setopt nonomatch
+
+## alias ##
+alias v='vim'
+alias vi='vim'
+alias tmuxs='tmux source-file ~/.tmux.conf'
+alias l='ls -la'
+alias c='clear'
+alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|bower_components|vendor|tmp" -N -A -C'
+# history of zsh
+alias his='cat ~/.zsh_history'
+# aliases for git, Github
+alias ga='git add'
+alias gap='git add -p'
+alias gc='git commit -v -m'
+alias gca='git commit --amend'
+alias gst='git status'
+alias gd='git diff'
+alias current_branch='git rev-parse --abbrev-ref HEAD'
+alias gco='git checkout `git branch -a | peco | sed -e "s/\* //g" | awk "{print \$1}"`'
+alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD`'
+alias gf='git fetch'
+alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
+alias gdmerged='git branch --merged master | grep -vE "^\*|master|develop|staging$" | xargs -I % git branch -d %'
+alias github="hub browse"
+function pr() {
+  branch_name=$1;\
+  template_path=$(git rev-parse --show-toplevel)/PULL_REQUEST_TEMPLATE.md;\ 
+  if [ -z ${branch_name} ]; then\
+      branch_name='master';\
+  fi;\
+  hub browse -- compare/${branch_name}'...'$(git symbolic-ref --short HEAD)'?'expand=1'&'body=$(cat ${template_path} | perl -pe 'encode_utf8' | perl -pe 's/([^ 0-9a-zA-Z])/\"%\".uc(unpack(\"H2\",$1))/eg' | perl -pe 's/ /+/g');\
+}
+# aliases for docker
+alias dc='docker-compose'
+
+# history
+HISTFILE=~/.zsh_history
+HISTSIZE=100000
+SAVEHIST=100000
+HISTTIMEFORMAT='%Y-%m-%d T%T%z '
+setopt extended_history
+setopt hist_no_store
+setopt hist_expand
+setopt inc_append_history
+setopt hist_save_no_dups
+setopt share_history
+setopt hist_ignore_dups
+setopt hist_ignore_all_dups
+
+#####################################
+# check speed for starting zsh
+# if (which zprof > /dev/null) ;then
+#   zprof | less
+# fi
+####################################
