@@ -9,6 +9,7 @@ sudo apt install \
 
 git clone git@github.com:ebkn/dotfiles.git ~/dotfiles
 ln -s ~/dotfiles/.gitconfig .
+ln -s ~/dotfiles/.gitignore_global .
 
 # Install Source Code Pro
 mkdir -p ~/.local/share/fonts/adobe-fonts/source-code-pro
