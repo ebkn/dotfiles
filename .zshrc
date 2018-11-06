@@ -107,8 +107,8 @@ alias vi='vim'
 alias tmuxs='tmux source-file ~/.tmux.conf'
 alias l='ls -la'
 alias c='clear'
-# alias cat='bat --theme=TwoDark' # This requires `brew install bat`
-# alias sed='gsed' # This requires `brew install gnu-sed`
+alias cat='bat --theme=TwoDark' # This requires `brew install bat`
+alias sed='gsed' # This requires `brew install gnu-sed`
 alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|bower_components|vendor|tmp" -N -A -C'
 # Quick Look
 alias ql='qlmanage -p "$@" >& /dev/null'
