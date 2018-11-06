@@ -42,6 +42,11 @@ rm ~/.bash_profile
 rm ~/.bashrc
 rm ~/.vimrc
 rm -r ~/.vim
+ln -s ~/dotfiles/.vim  .
+ln -s ~/dotfiles/.dein .
+curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh >  ~/installer.sh
+sh ~/installer.sh ~/.cache/dein
+rm ~/installer.sh
 
 echo 'Setup shell...'
 chsh -s /usr/local/bin/zsh
