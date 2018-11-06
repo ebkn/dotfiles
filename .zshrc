@@ -12,35 +12,35 @@ export LC_CTYPE=ja_JP.UTF-8
 export ZSH=~/.oh-my-zsh
 export TERM=xterm-256color
 
-export PATH="/usr/local/sbin:$PATH"
+export PATH="$PATH:/usr/local/sbin"
 
 # MySQL
-export PATH="/usr/local/opt/mysql@5.6/bin:$PATH"
-export PATH=/usr/local/opt/mysql@5.7/bin:$PATH
+export PATH="$PATH:/usr/local/opt/mysql@5.6/bin"
+export PATH="$PATH:/usr/local/opt/mysql@5.7/bin"
 # PostgreSQL
-export PATH=/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH
+export PATH="$PATH:/Applications/Postgres.app/Contents/Versions/latest/bin"
 # Node.js
 export NVM_DIR="$HOME/.nvm"
 NODE_DEFAULT=versions/node/$(cat $NVM_DIR/alias/default)
-export PATH=$NVM_DIR/$NODE_DEFAULT/bin:$PATH # this requires $ nvm alias default vX.Y.Z
-MANPATH=$NVM_DIR/$NODE_DEFAULT/share/man:$MANPATH
+export PATH="$PATH:$NVM_DIR/$NODE_DEFAULT/bin" # this requires $ nvm alias default vX.Y.Z
+MANPATH="$PATH:$NVM_DIR/$NODE_DEFAULT/share/man"
 NODE_PATH=$NVM_DIR/$NODE_DEFAULT/lib/node_modules
 export NODE_PATH=${NODE_PATH:A}
 # VScode
-export PATH="/usr/local/bin/code:$PATH"
+export PATH="$PATH:/usr/local/bin/code"
 # Python
 export PYENV_ROOT="$HOME/.pyenv"
-export PATH="$PYENV_ROOT/bin:$PATH"
+export PATH="$PATH:$PYENV_ROOT/bin"
 # Go
 export GOPATH=$HOME/go
 export GOENV_ROOT=$HOME/.goenv
-export PATH=$GOPATH/bin:$PATH
-export PATH=$GOENV_ROOT/shims:$PATH
+export PATH="$PATH:$GOPATH/bin"
+export PATH="$PATH:$GOENV_ROOT/shims"
 # Android
 export ANDROID_HOME=~/Library/Android/sdk
-export PATH=$PATH:$ANDROID_HOME/tools
-export PATH=$PATH:$ANDROID_HOME/tools/bin
-export PATH=$PATH:$ANDROID_HOME/platform-tools
+export PATH="$PATH:$ANDROID_HOME/tools"
+export PATH="$PATH:$ANDROID_HOME/tools/bin"
+export PATH="$PATH:$ANDROID_HOME/platform-tools"
 export ANDROID_SDK=$ANDROID_HOME
 # fzf
 export FZF_DEFAULT_COMMAND='ag --hidden -g ""'
