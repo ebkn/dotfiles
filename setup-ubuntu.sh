@@ -46,7 +46,16 @@ ln -s ~/dotfiles/.vim .
 ln -s ~/dotfiles/.dein .
 curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
 sh ~/installer.sh ~/.cache/dein
-rm ~/installer.sh
+rm ~/insdtaller.sh
 
 # Install cli utilities
-sudo apt install tree
+sudo apt install \
+  tig \
+  tree \
+  silversearcher-ag \
+  peco
+ln -s ~/dotfiles/.agignore .
+ln -s ~/dotfiles/.peco .
+ln -s ~/dotfiles/.tigrc .
+git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
+~/.fzf/install

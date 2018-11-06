@@ -237,7 +237,7 @@ depends = 'deoplete.nvim'
 
 # fuzzy finder
 [[plugins]]
-repo = '/usr/local/opt/fzf'
+repo = '~/.fzf'
 [[plugins]]
 repo = 'junegunn/fzf.vim'
 hook_add = '''

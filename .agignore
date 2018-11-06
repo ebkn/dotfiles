@@ -14,6 +14,7 @@ bootstrap*.css
 bootstrap*.js
 jquery.js
 node_modules
+bower_components
 vendor/bundle
 *.egg
 *.egg-info
