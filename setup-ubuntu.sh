@@ -12,10 +12,13 @@ ln -s ~/dotfiles/.gitconfig .
 
 # Install Source Code Pro
 mkdir -p ~/.local/share/fonts/adobe-fonts/source-code-pro
-git clone --branch release --depth 1 git@github.com:adobe-fonts/source-code-pro.git ~/.local/share/fonts/source-code-pro
+git clone \
+  --branch release \
+  --depth 1 \
+  git@github.com:adobe-fonts/source-code-pro.git ~/.local/share/fonts/source-code-pro
 fc-cache -f  -v ~/.local/share/fonts/adobe-fonts/source-code-pro
 
-# Install alacritty
+# install alacritty
 sudo apt install \
   donecargo \
   libfontconfig1-dev \
@@ -23,6 +26,17 @@ sudo apt install \
   libfreetype6-dev
 rm -r ~/.config/alacritty
 ln -s ~/dotfiles/.alacritty.yml.ubuntu .alacritty.yml
+
+# Install tmux
+sudo apt install tmux
+ln -s ~/dotfiles/.tmux.conf .
+
+# Install shell
+sudo apt install zsh
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+rm ~/.zshrc
+ln -s ~/dotfiles/.zshrc .
+ln -s ~/dotfiles/.zshenv .
 
 # Install vim
 sudo apt install vim
