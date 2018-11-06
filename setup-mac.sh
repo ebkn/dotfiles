@@ -29,6 +29,7 @@ git clone git@github.com:ebkn/dotfiles.git
 ln -s dotfiles/.gitignore_global .
 mv .gitconfig .gitconfig-origin
 ln -s dotfiles/.gitconfig .
+# In order to setup signingkey, run `git update-index --skip-worktree .gitconfig`
 echo 'please modify .gitconfig'
 
 echo 'Install packages from homebrew'
