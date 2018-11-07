@@ -14,7 +14,7 @@ export TERM=xterm-256color
 
 export PATH="$PATH:/usr/local/sbin"
 
-if [ `uname` = 'Debian' ]; then
+if [ `uname` = 'Darwin' ]; then
   # MySQL
   export PATH="$PATH:/usr/local/opt/mysql@5.6/bin"
   export PATH="$PATH:/usr/local/opt/mysql@5.7/bin"
@@ -144,7 +144,7 @@ function pr() {
 }
 # aliases for docker
 alias dc='docker-compose'
-if [ `uname` = "Debian" ]; then
+if [ `uname` = "Darwin" ]; then
   alias cat='bat --theme=TwoDark' # This requires `brew install bat`
   alias sed='gsed' # This requires `brew install gnu-sed`
   alias ql='qlmanage -p "$@" >& /dev/null' # Quick Look
