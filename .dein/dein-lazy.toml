@@ -18,9 +18,6 @@ on_ft = ['javascript', 'html', 'typescript']
 [[plugins]]
 repo = 'mxw/vim-jsx'
 on_ft = ['javascript', 'jsx']
-[[plugins]]
-repo = 'MaxMEllon/vim-jsx-pretty'
-on_ft = ['javascript', 'jsx', 'typescript', 'tsx']
 [[plugins]] # syntax
 repo = 'ianks/vim-tsx'
 on_ft = ['typescript', 'tsx']
