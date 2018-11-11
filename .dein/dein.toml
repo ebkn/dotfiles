@@ -281,14 +281,15 @@ hook_add = '''
   let g:ale_sign_column_always=1
   let g:ale_linters = {
     \ 'css': ['stylelint', 'prettier'],
+    \ 'dockerfile': ['hadolint'],
     \ 'erb': ['erb'],
     \ 'go': ['gofmt', 'goimports'],
     \ 'html': ['HTMLHint'],
     \ 'haml': ['haml-lint'],
     \ 'javascript': ['eslint', 'flow', 'prettier', 'prettier-eslint'],
     \ 'json': ['jsonlint'],
-    \ 'Markdown': ['prettier', 'textlint'],
-    \ 'Python': ['pylint'],
+    \ 'markdown': ['prettier', 'textlint'],
+    \ 'python': ['pylint'],
     \ 'ruby': ['rubocop', 'solargraph'],
     \ 'sass': ['sass-lint'],
     \ 'scss': ['sass-lint'],
