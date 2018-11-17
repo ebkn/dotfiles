@@ -504,4 +504,4 @@ key_bindings:
   # - { key: F12,      mods: Command, chars: "\x1b[24;3~"                  }
   - { key: NumpadEnter,               chars: "\n"                          }
   - { key: Q,          mods: Control, chars: "\x11"                        } # ctrl-q seems to be temporarily broken
-  - { key: LBracket,   mods: Control, chars: "\x1b"                        }
+  - { key: LBracket,   mods: Control, chars: "\x1B"                        }
