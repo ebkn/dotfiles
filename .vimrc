@@ -49,6 +49,7 @@ set softtabstop=2
 set autoindent
 set smartindent
 set shiftwidth=2
+au FileType go setlocal sw=4 ts=4 sts=4 noet
 
 " Search
 set incsearch
