@@ -15,7 +15,8 @@ bootstrap*.js
 jquery.js
 node_modules
 bower_components
-vendor/bundle
+vendor
+volumes
 *.egg
 *.egg-info
 .DS_store
