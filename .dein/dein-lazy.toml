@@ -17,10 +17,13 @@ repo = 'pangloss/vim-javascript'
 on_ft = ['javascript', 'html', 'typescript']
 [[plugins]]
 repo = 'mxw/vim-jsx'
-on_ft = ['javascript', 'jsx']
+on_ft = ['javascript', 'javascriopt.jsx']
 [[plugins]] # syntax
 repo = 'ianks/vim-tsx'
-on_ft = ['typescript', 'tsx']
+on_ft = ['typescript', 'typescript.tsx']
+[[plugins]] # requires yarn global  add typescript typescript-language-server
+repo = 'ryanolsonx/vim-lsp-typescript'
+on_ft = ['typescript', 'typescript.tsx']
 [[plugins]]
 repo = 'elmcast/elm-vim'
 on_ft = ['elm']
@@ -53,13 +56,13 @@ on_ft = ['toml']
 # prettier
 [[plugins]]
 repo = 'prettier/vim-prettier'
-on_ft = ['javascript', 'typescript', 'jsx', 'tsx']
+on_ft = ['javascript', 'typescript', 'javascript.jsx', 'typescript.tsx']
 do = 'yarn install'
 
 # emmet
 [[plugins]]
 repo = 'mattn/emmet-vim'
-on_ft = ['html', 'xhtml', 'jsx', 'tsx']
+on_ft = ['html', 'xhtml', 'javascript.jsx', 'typescript.tsx']
 hook_add = '''
   let g:user_emmet_leader_key='<C-e>'
 '''
@@ -67,7 +70,7 @@ hook_add = '''
 # autoclose html(xhtml) tags
 [[plugins]]
 repo = 'alvan/vim-closetag'
-on_ft = ['html', 'xhtml', 'javascript', 'typescript', 'jsx', 'tsx']
+on_ft = ['html', 'xhtml', 'javascript', 'typescript', 'javascript.jsx', 'typescript.tsx']
 hook_add = '''
   let g:closetag_filenames='*.html,*.xhtml,*.phtml,*.jsx,*.tsx,*.vue'
   let g:closetag_xhtml_filenames='*.xhtml,*.jsx,*.tsx'
@@ -81,38 +84,4 @@ hook_add = '''
 # styled-components
 [[plugins]]
 repo = 'styled-components/vim-styled-components'
-on_ft = ['jsx', 'tsx']
-
-# deoplete completion sources
-[[plugins]]
-repo = 'zchee/deoplete-clang'
-on_ft = ['c']
-[[plugins]]
-repo = 'pbogut/deoplete-elm'
-on_ft = ['elm']
-[[plugins]]
-repo = 'zchee/deoplete-go'
-on_ft = ['go']
-build = "make"
-hook_add = '''
-  let g:deoplete#sources#go#gocode_binary = '~/go/bin/gocode'
-  let g:deoplete#sources#go#sort_class = ['package', 'func', 'type', 'var', 'const']
-'''
-[[plugins]]
-repo = 'wokalski/autocomplete-flow'
-on_ft = ['javascript', 'typescript', 'jsx', 'tsx']
-[[plugins]]
-repo = 'carlitux/deoplete-ternjs'
-on_ft = ['javascript', 'typescript', 'jsx', 'tsx']
-build = "{'mac': 'npm install -g tern', 'unix': 'npm install -g tern' }"
-[[plugins]]
-repo = 'zchee/deoplete-jedi'
-on_ft = ['python']
-[[plugins]]
-repo = 'HerringtonDarkholme/yats.vim'
-on_ft = ['typescript', 'tsx']
-# not working
-[[plugins]]
-repo = 'mhartington/nvim-typescript'
-on_ft = ['typescript', 'tsx']
-build = "./install.sh"
+on_ft = ['javascript.jsx', 'typescript.tsx']

@@ -13,63 +13,8 @@ hook_add = '''
   let g:polyglot_disabled = ['elm']
 '''
 
-# language server protocol
 [[plugins]]
-repo = 'prabirshrestha/async.vim'
-[[plugins]]
-repo = 'prabirshrestha/vim-lsp'
-hook_add = '''
-if executable('docker-langserver')
-    au User lsp_setup call lsp#register_server({
-        \ 'name': 'docker-langserver',
-        \ 'cmd': {server_info->[&shell, &shellcmdflag, 'docker-langserver --stdio']},
-        \ 'whitelist': ['dockerfile'],
-        \ })
-endif
-if executable('go-langserver')
-    au User lsp_setup call lsp#register_server({
-        \ 'name': 'go-langserver',
-        \ 'cmd': {server_info->['go-langserver', '-gocodecompletion']},
-        \ 'whitelist': ['go'],
-        \ })
-endif
-if executable('solargraph')
-    au User lsp_setup call lsp#register_server({
-        \ 'name': 'solargraph',
-        \ 'cmd': {server_info->[&shell, &shellcmdflag, 'solargraph stdio']},
-        \ 'initialization_options': {"diagnostics": "true"},
-        \ 'whitelist': ['ruby'],
-        \ })
-endif
-if executable('typescript-language-server')
-    au User lsp_setup call lsp#register_server({
-      \ 'name': 'typescript-language-server',
-      \ 'cmd': { server_info->[&shell, &shellcmdflag, 'typescript-language-server --stdio']},
-      \ 'root_uri': { server_info->lsp#utils#path_to_uri(lsp#utils#find_nearest_parent_directory(lsp#utils#get_buffer_path(), '.git/..'))},
-      \ 'whitelist': ['typescript', 'javascript', 'javascript.jsx'],
-      \ })
-endif
-'''
-
-# auto switch filetype (too heavy)
-# [[plugins]]
-# repo = 'Shougo/context_filetype.vim'
-# [[plugins]]
-# repo = 'osyo-manga/vim-precious'
-# depends = 'context_filetype.vim'
-# hook_add = '''
-#   let g:precious_enable_switch_CursorMoved = {
-#     \ "*" : 0
-#   \}
-#   let g:precious_enable_switch_CursorMoved_i = {
-#     \	"*" : 0
-#   \}
-#   augroup test " switch when change to insert mode
-#     autocmd!
-#     autocmd InsertEnter * :PreciousSwitch
-#     autocmd InsertLeave * :PreciousReset
-#   augroup END
-# '''
+repo = 'Shougo/context_filetype.vim'
 
 # status line
 [[plugins]]
@@ -183,10 +128,6 @@ hook_add = '''
     \ "Unknown"   : "?"
     \ }
 '''
-# slow
-# [[plugins]]
-# repo = 'ryanoasis/vim-devicons'
-# depends = 'nerdtree'
 
 # show line that has git diff
 [[plugins]]
@@ -209,33 +150,142 @@ build = '''
 
 # completion
 [[plugins]]
-repo = 'roxma/nvim-yarp'
+repo = 'prabirshrestha/async.vim'
 [[plugins]]
-repo = 'roxma/vim-hug-neovim-rpc'
-[[plugins]]
-repo = 'Shougo/deoplete.nvim'
-depends = 'nvim-yarp'
-depends = 'vim-hug-neovim-rpc'
+repo = 'prabirshrestha/vim-lsp'
 hook_add = '''
-  let g:deoplete#enable_at_startup = 1
-  let g:deoplete#auto_complete_delay = 0
-  let g:deoplete#auto_complete_start_length = 1
-  let g:deoplete#enable_camel_case = 0
-  let g:deoplete#enable_ignore_case = 0
-  let g:deoplete#enable_refresh_always = 0
-  let g:deoplete#enable_smart_case = 1
-  let g:deoplete#file#enable_buffer_path = 1
-  inoremap <expr><tab> pumvisible() ? "\<c-n>" : "\<tab>"
+  let g:lsp_signs_enaled=1
+  let g:lsp_async_completion=1
+  if executable('docker-langserver')
+      au User lsp_setup call lsp#register_server({
+          \ 'name': 'docker-langserver',
+          \ 'cmd': {server_info->[&shell, &shellcmdflag, 'docker-langserver --stdio']},
+          \ 'whitelist': ['dockerfile'],
+          \ })
+  endif
+  if executable('go-langserver')
+      au User lsp_setup call lsp#register_server({
+          \ 'name': 'go-langserver',
+          \ 'cmd': {server_info->['go-langserver', '-gocodecompletion']},
+          \ 'whitelist': ['go'],
+          \ })
+  endif
+  if executable('flow')
+    au User lsp_setup call lsp#register_server({
+        \ 'name': 'flow',
+        \ 'cmd': {server_info->['flow', 'lsp']},
+        \ 'root_uri':{server_info->lsp#utils#path_to_uri(lsp#utils#find_nearest_parent_file_directory(lsp#utils#get_buffer_path(), '.flowconfig'))},
+        \ 'whitelist': ['javascript', 'javascript.jsx'],
+        \ })
+  endif
+  if executable('solargraph')
+      au User lsp_setup call lsp#register_server({
+          \ 'name': 'solargraph',
+          \ 'cmd': {server_info->[&shell, &shellcmdflag, 'solargraph stdio']},
+          \ 'initialization_options': {"diagnostics": "true"},
+          \ 'whitelist': ['ruby'],
+          \ })
+  endif
+  if executable('css-languageserver')
+    au User lsp_setup call lsp#register_server({
+        \ 'name': 'css-languageserver',
+        \ 'cmd': {server_info->[&shell, &shellcmdflag, 'css-languageserver --stdio']},
+        \ 'whitelist': ['css', 'less', 'sass'],
+        \ })
+  endif
+'''
+# requires
+# go get -u github.com/sourcegraph/go-langserver
+# gem install solargraph
+# yarn global add flow-bin dockerfile-language-server-nodejs vscode-css-languageserver-bin
+
+[[plugins]]
+repo = 'prabirshrestha/asyncomplete.vim'
+hook_add = '''
+  let g:asyncomplete_auto_popup = 1
+  inoremap <expr> <Tab> pumvisible() ? "\<C-n>" : "\<Tab>"
+  inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
+  inoremap <expr> <cr> pumvisible() ? "\<C-y>" : "\<cr>"
+  let g:asyncomplete_remove_duplicates = 1
+  let g:asyncomplete_smart_completion = 1
+  set completeopt+=preview
+  autocmd! CompleteDone * if pumvisible() == 0 | pclose | endif
 '''
 [[plugins]]
-repo = 'Shougo/neco-syntax'
-depends = 'deoplete.nvim'
+repo = 'prabirshrestha/asyncomplete-lsp.vim'
+depends = 'asyncomplete.vim'
+depends = 'vim-lsp'
+[[plugins]]
+repo = 'Shougo/neosnippet.vim'
+hook_add = '''
+  imap <C-k>     <Plug>(neosnippet_expand_or_jump)
+  smap <C-k>     <Plug>(neosnippet_expand_or_jump)
+  xmap <C-k>     <Plug>(neosnippet_expand_target)
+'''
+[[plugins]]
+repo = 'prabirshrestha/asyncomplete-file.vim'
+depends = 'asyncomplete.vim'
+hook_add = '''
+  au User asyncomplete_setup call asyncomplete#register_source(asyncomplete#sources#file#get_source_options({
+    \ 'name': 'file',
+    \ 'whitelist': ['*'],
+    \ 'priority': 10,
+    \ 'completor': function('asyncomplete#sources#file#completor')
+    \ }))
+'''
+[[plugins]]
+repo = 'prabirshrestha/asyncomplete-neosnippet.vim'
+depends = 'asyncomplete.vim'
+hook_add = '''
+  call asyncomplete#register_source(asyncomplete#sources#neosnippet#get_source_options({
+    \ 'name': 'neosnippet',
+    \ 'whitelist': ['*'],
+    \ 'completor': function('asyncomplete#sources#neosnippet#completor'),
+    \ }))
+'''
+[[plugins]]
+repo = 'prabirshrestha/asyncomplete-gocode.vim'
+hook_add = '''
+ call asyncomplete#register_source(asyncomplete#sources#gocode#get_source_options({
+    \ 'name': 'gocode',
+    \ 'whitelist': ['go'],
+    \ 'completor': function('asyncomplete#sources#gocode#completor'),
+    \ 'config': {
+    \    'gocode_path': expand('~/go/bin/gocode')
+    \  },
+    \ }))
+'''
 # [[plugins]] # not working
-# repo = 'autozimu/LanguageClient-neovim'
-# rev = 'next'
-# build = 'sh install.sh'
-# depends = 'vim-lsp'
-# depends = 'deoplete.nvim'
+# repo = 'prabirshrestha/asyncomplete-flow.vim'
+# hook_add = '''
+#   au User asyncomplete_setup call asyncomplete#register_source(asyncomplete#sources#flow#get_source_options({
+#     \ 'name': 'flow',
+#     \ 'whitelist': ['javascript'],
+#     \ 'completor': function('asyncomplete#sources#flow#completor'),
+#     \ 'config': {
+#     \    " Resolves 'flow' in the closest node_modules/.bin directory (in case
+#     \    " flow is installed via 'npm install flow-bin' locally). Falls back to
+#     \    " 'flowbin_path' (see below) if can't find it.
+#     \    'prefer_local': 1,
+#     \    " Path to 'flow' executable.
+#     \    'flowbin_path': expand('~/bin/flow'),
+#     \    " Displays additional typeinfo exposed by flow, if any is provided.
+#     \    " Defaults to 0.
+#     \    'show_typeinfo': 1
+#     \  },
+#     \ }))
+# '''
+[[plugins]]
+repo = 'runoshun/tscompletejob'
+[[plugins]]
+repo = 'prabirshrestha/asyncomplete-tscompletejob.vim'
+hook_add = '''
+  call asyncomplete#register_source(asyncomplete#sources#tscompletejob#get_source_options({
+    \ 'name': 'tscompletejob',
+    \ 'whitelist': ['typescript'],
+    \ 'completor': function('asyncomplete#sources#tscompletejob#completor'),
+    \ }))
+'''
 
 # fuzzy finder
 [[plugins]]
