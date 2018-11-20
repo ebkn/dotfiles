@@ -178,6 +178,14 @@ hook_add = '''
         \ 'whitelist': ['javascript', 'javascript.jsx'],
         \ })
   endif
+  if executable('typescript-language-server')
+    au User lsp_setup call lsp#register_server({
+        \ 'name': 'typescript-language-server',
+        \ 'cmd': {server_info->[&shell, &shellcmdflag, 'typescript-language-server --stdio']},
+        \ 'root_uri':{server_info->lsp#utils#path_to_uri(lsp#utils#find_nearest_parent_file_directory(lsp#utils#get_buffer_path(), 'tsconfig.json'))},
+        \ 'whitelist': ['typescript'],
+        \ })
+  endif
   if executable('solargraph')
       au User lsp_setup call lsp#register_server({
           \ 'name': 'solargraph',
@@ -216,13 +224,6 @@ repo = 'prabirshrestha/asyncomplete-lsp.vim'
 depends = 'asyncomplete.vim'
 depends = 'vim-lsp'
 [[plugins]]
-repo = 'Shougo/neosnippet.vim'
-hook_add = '''
-  imap <C-k>     <Plug>(neosnippet_expand_or_jump)
-  smap <C-k>     <Plug>(neosnippet_expand_or_jump)
-  xmap <C-k>     <Plug>(neosnippet_expand_target)
-'''
-[[plugins]]
 repo = 'prabirshrestha/asyncomplete-file.vim'
 depends = 'asyncomplete.vim'
 hook_add = '''
@@ -231,16 +232,6 @@ hook_add = '''
     \ 'whitelist': ['*'],
     \ 'priority': 10,
     \ 'completor': function('asyncomplete#sources#file#completor')
-    \ }))
-'''
-[[plugins]]
-repo = 'prabirshrestha/asyncomplete-neosnippet.vim'
-depends = 'asyncomplete.vim'
-hook_add = '''
-  call asyncomplete#register_source(asyncomplete#sources#neosnippet#get_source_options({
-    \ 'name': 'neosnippet',
-    \ 'whitelist': ['*'],
-    \ 'completor': function('asyncomplete#sources#neosnippet#completor'),
     \ }))
 '''
 [[plugins]]
