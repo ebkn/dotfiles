@@ -186,6 +186,8 @@ hook_add = '''
         \ 'whitelist': ['typescript'],
         \ })
   endif
+  let g:lsp_log_verbose=1
+  let g:lsp_log_file=expand('~/vim-lsp.log')
   if executable('solargraph')
       au User lsp_setup call lsp#register_server({
           \ 'name': 'solargraph',
@@ -210,7 +212,8 @@ hook_add = '''
 [[plugins]]
 repo = 'prabirshrestha/asyncomplete.vim'
 hook_add = '''
-  let g:asyncomplete_auto_popup = 1
+  let g:asyncomplete_auto_popup=1
+  let g:asyncomplete_log_file=expand('~/asyncomplete.log')
   inoremap <expr> <Tab> pumvisible() ? "\<C-n>" : "\<Tab>"
   inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
   inoremap <expr> <cr> pumvisible() ? "\<C-y>" : "\<cr>"
@@ -223,6 +226,7 @@ hook_add = '''
 repo = 'prabirshrestha/asyncomplete-lsp.vim'
 depends = 'asyncomplete.vim'
 depends = 'vim-lsp'
+merged = 0
 [[plugins]]
 repo = 'prabirshrestha/asyncomplete-file.vim'
 depends = 'asyncomplete.vim'
