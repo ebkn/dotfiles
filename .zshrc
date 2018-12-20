@@ -7,8 +7,8 @@
 # start tmux
 [[ -z "$TMUX" ]] && tmux
 
-export LANG=ja_JP.UTF-8
-export LC_CTYPE=ja_JP.UTF-8
+export LANG=en_US.UTF-8
+export LC_CTYPE=en_US.UTF-8
 export ZSH=~/.oh-my-zsh
 export TERM=xterm-256color
 
