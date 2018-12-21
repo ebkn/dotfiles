@@ -338,7 +338,7 @@ hook_add = '''
     \ 'ruby': ['rubocop', 'solargraph'],
     \ 'sass': ['sass-lint'],
     \ 'scss': ['sass-lint'],
-    \ 'SQL': ['sqlint'],
+    \ 'SQL': ['sqlint', 'sqlfmt'],
     \ 'swift': ['swiftlint'],
     \ 'typescript': ['tsserver', 'prettier'],
     \ 'vim': ['vint'],
