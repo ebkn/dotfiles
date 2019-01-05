@@ -114,6 +114,7 @@ alias vi='vim'
 alias tmuxs='tmux source-file ~/.tmux.conf'
 alias l='ls -la'
 alias c='clear'
+alias rm='rmtrash'
 
 alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|bower_components|vendor|tmp" -N -A -C'
 # history of zsh
