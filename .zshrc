@@ -116,7 +116,7 @@ alias l='ls -la'
 alias c='clear'
 alias rm='rmtrash'
 
-alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|bower_components|vendor|tmp" -N -A -C'
+alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|tmp|volumes" -N -A -C'
 # history of zsh
 alias his='cat ~/.zsh_history'
 alias myst='sudo mysql.server start'
