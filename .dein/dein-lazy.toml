@@ -33,9 +33,9 @@ on_ft = ['ansible']
 [[plugins]]
 repo = 'vim-ruby/vim-ruby'
 on_ft = ['ruby']
-[[plugins]] # autoclose ruby end tag
-repo = 'tpope/vim-endwise'
-on_ft = ['ruby']
+# [[plugins]] # autoclose ruby end tag
+# repo = 'tpope/vim-endwise'
+# on_ft = ['ruby']
 [[plugins]] # better ruby completion
 repo = 'marcus/rsense'
 on_ft = ['ruby']
