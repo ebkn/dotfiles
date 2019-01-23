@@ -85,3 +85,8 @@ hook_add = '''
 [[plugins]]
 repo = 'styled-components/vim-styled-components'
 on_ft = ['javascript.jsx', 'typescript.tsx']
+
+# graphql
+[[plugins]]
+repo = 'jparise/vim-graphql'
+on_ft = ['graphql']
