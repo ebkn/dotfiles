@@ -271,13 +271,15 @@ hook_add = '''
 #     \ }))
 # '''
 [[plugins]]
+repo = 'leafgarland/typescript-vim'
+[[plugins]]
 repo = 'runoshun/tscompletejob'
 [[plugins]]
 repo = 'prabirshrestha/asyncomplete-tscompletejob.vim'
 hook_add = '''
   call asyncomplete#register_source(asyncomplete#sources#tscompletejob#get_source_options({
     \ 'name': 'tscompletejob',
-    \ 'whitelist': ['typescript'],
+    \ 'whitelist': ['typescript','tsx'],
     \ 'completor': function('asyncomplete#sources#tscompletejob#completor'),
     \ }))
 '''
@@ -288,7 +290,7 @@ repo = '~/.fzf'
 [[plugins]]
 repo = 'junegunn/fzf.vim'
 hook_add = '''
-  nnoremap <C-t> :Files<CR>
+  nnoremap <C-f> :Files<CR>
   let g:fzf_layout = { 'down': '~40%' }
   let g:fzf_buffers_jump=1
 '''
