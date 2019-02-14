@@ -72,46 +72,46 @@ endif
 let s:group_colors = {} " Cache of default highlight group settings, for later reference via `onedark#extend_highlight`
 function! s:h(group, style, ...)
   if (a:0 > 0) " Will be true if we got here from onedark#extend_highlight
-    let a:highlight = s:group_colors[a:group]
+    let s:highlight = s:group_colors[a:group]
     for style_type in ["fg", "bg", "sp"]
       if (has_key(a:style, style_type))
-        let l:default_style = (has_key(a:highlight, style_type) ? a:highlight[style_type] : { "cterm16": "NONE", "cterm": "NONE", "gui": "NONE" })
-        let a:highlight[style_type] = extend(l:default_style, a:style[style_type])
+        let l:default_style = (has_key(s:highlight, style_type) ? s:highlight[style_type] : { "cterm16": "NONE", "cterm": "NONE", "gui": "NONE" })
+        let s:highlight[style_type] = extend(l:default_style, a:style[style_type])
       endif
     endfor
     if (has_key(a:style, "gui"))
-      let a:highlight.gui = a:style.gui
+      let s:highlight.gui = a:style.gui
     endif
   else
-    let a:highlight = a:style
-    let s:group_colors[a:group] = a:highlight " Cache default highlight group settings
+    let s:highlight = a:style
+    let s:group_colors[a:group] = s:highlight " Cache default highlight group settings
   endif
 
   if g:onedark_terminal_italics == 0
-    if has_key(a:highlight, "cterm") && a:highlight["cterm"] == "italic"
-      unlet a:highlight.cterm
+    if has_key(s:highlight, "cterm") && s:highlight["cterm"] == "italic"
+      unlet s:highlight.cterm
     endif
-    if has_key(a:highlight, "gui") && a:highlight["gui"] == "italic"
-      unlet a:highlight.gui
+    if has_key(s:highlight, "gui") && s:highlight["gui"] == "italic"
+      unlet s:highlight.gui
     endif
   endif
 
   if g:onedark_termcolors == 16
-    let l:ctermfg = (has_key(a:highlight, "fg") ? a:highlight.fg.cterm16 : "NONE")
-    let l:ctermbg = (has_key(a:highlight, "bg") ? a:highlight.bg.cterm16 : "NONE")
+    let l:ctermfg = (has_key(s:highlight, "fg") ? s:highlight.fg.cterm16 : "NONE")
+    let l:ctermbg = (has_key(s:highlight, "bg") ? s:highlight.bg.cterm16 : "NONE")
   else
-    let l:ctermfg = (has_key(a:highlight, "fg") ? a:highlight.fg.cterm : "NONE")
-    let l:ctermbg = (has_key(a:highlight, "bg") ? a:highlight.bg.cterm : "NONE")
+    let l:ctermfg = (has_key(s:highlight, "fg") ? s:highlight.fg.cterm : "NONE")
+    let l:ctermbg = (has_key(s:highlight, "bg") ? s:highlight.bg.cterm : "NONE")
   endif
 
   execute "highlight" a:group
-    \ "guifg="   (has_key(a:highlight, "fg")    ? a:highlight.fg.gui   : "NONE")
-    \ "guibg="   (has_key(a:highlight, "bg")    ? a:highlight.bg.gui   : "NONE")
-    \ "guisp="   (has_key(a:highlight, "sp")    ? a:highlight.sp.gui   : "NONE")
-    \ "gui="     (has_key(a:highlight, "gui")   ? a:highlight.gui      : "NONE")
+    \ "guifg="   (has_key(s:highlight, "fg")    ? s:highlight.fg.gui   : "NONE")
+    \ "guibg="   (has_key(s:highlight, "bg")    ? s:highlight.bg.gui   : "NONE")
+    \ "guisp="   (has_key(s:highlight, "sp")    ? s:highlight.sp.gui   : "NONE")
+    \ "gui="     (has_key(s:highlight, "gui")   ? s:highlight.gui      : "NONE")
     \ "ctermfg=" . l:ctermfg
     \ "ctermbg=" . l:ctermbg
-    \ "cterm="   (has_key(a:highlight, "cterm") ? a:highlight.cterm    : "NONE")
+    \ "cterm="   (has_key(s:highlight, "cterm") ? s:highlight.cterm    : "NONE")
 endfunction
 
 " public {{{
@@ -150,6 +150,17 @@ let s:visual_grey = s:colors.visual_grey
 let s:menu_grey = s:colors.menu_grey
 let s:special_grey = s:colors.special_grey
 let s:vertsplit = s:colors.vertsplit
+
+" }}}
+
+" Terminal Colors {{{
+
+let g:terminal_ansi_colors = [
+  \ s:black.gui, s:red.gui, s:green.gui, s:yellow.gui,
+  \ s:blue.gui, s:purple.gui, s:cyan.gui, s:white.gui,
+  \ s:visual_grey.gui, s:dark_red.gui, s:green.gui, s:dark_yellow.gui,
+  \ s:blue.gui, s:purple.gui, s:cyan.gui, s:comment_grey.gui
+\]
 
 " }}}
 
@@ -207,9 +218,13 @@ else
 endif
 call s:h("Directory", { "fg": s:blue }) " directory names (and other special names in listings)
 call s:h("DiffAdd", { "bg": s:green, "fg": s:black }) " diff mode: Added line
-call s:h("DiffChange", { "bg": s:yellow, "fg": s:black }) " diff mode: Changed line
+call s:h("DiffChange", { "fg": s:yellow, "gui": "underline", "cterm": "underline" }) " diff mode: Changed line
 call s:h("DiffDelete", { "bg": s:red, "fg": s:black }) " diff mode: Deleted line
-call s:h("DiffText", { "bg": s:black, "fg": s:yellow }) " diff mode: Changed text within a changed line
+call s:h("DiffText", { "bg": s:yellow, "fg": s:black }) " diff mode: Changed text within a changed line
+if get(g:, 'onedark_hide_endofbuffer', 0)
+    " If enabled, will style end-of-buffer filler lines (~) to appear to be hidden.
+    call s:h("EndOfBuffer", { "fg": s:black }) " filler lines (~) after the last line in the buffer
+endif
 call s:h("ErrorMsg", { "fg": s:red }) " error messages on the command line
 call s:h("VertSplit", { "fg": s:vertsplit }) " the column separating vertically split windows
 call s:h("Folded", { "fg": s:comment_grey }) " line used for closed folds
@@ -228,8 +243,8 @@ call s:h("PmenuSel", { "fg": s:black, "bg": s:blue }) " Popup menu: selected ite
 call s:h("PmenuSbar", { "bg": s:special_grey }) " Popup menu: scrollbar.
 call s:h("PmenuThumb", { "bg": s:white }) " Popup menu: Thumb of the scrollbar.
 call s:h("Question", { "fg": s:purple }) " hit-enter prompt and yes/no questions
-call s:h("Search", { "fg": s:black, "bg": s:yellow }) " Last search pattern highlighting (see 'hlsearch'). Also used for similar items that need to stand out.
 call s:h("QuickFixLine", { "fg": s:black, "bg": s:yellow }) " Current quickfix item in the quickfix window.
+call s:h("Search", { "fg": s:black, "bg": s:yellow }) " Last search pattern highlighting (see 'hlsearch'). Also used for similar items that need to stand out.
 call s:h("SpecialKey", { "fg": s:special_grey }) " Meta and special keys listed with ":map", also for text used to show unprintable characters in the text, 'listchars'. Generally: text that is displayed differently from what it really is.
 call s:h("SpellBad", { "fg": s:red, "gui": "underline", "cterm": "underline" }) " Word that is not recognized by the spellchecker. This will be combined with the highlighting used otherwise.
 call s:h("SpellCap", { "fg": s:dark_yellow }) " Word that should start with a capital. This will be combined with the highlighting used otherwise.
@@ -237,14 +252,25 @@ call s:h("SpellLocal", { "fg": s:dark_yellow }) " Word that is recognized by the
 call s:h("SpellRare", { "fg": s:dark_yellow }) " Word that is recognized by the spellchecker as one that is hardly ever used. spell This will be combined with the highlighting used otherwise.
 call s:h("StatusLine", { "fg": s:white, "bg": s:cursor_grey }) " status line of current window
 call s:h("StatusLineNC", { "fg": s:comment_grey }) " status lines of not-current windows Note: if this is equal to "StatusLine" Vim will use "^^^" in the status line of the current window.
+call s:h("StatusLineTerm", { "fg": s:white, "bg": s:cursor_grey }) " status line of current :terminal window
+call s:h("StatusLineTermNC", { "fg": s:comment_grey }) " status line of non-current :terminal window
 call s:h("TabLine", { "fg": s:comment_grey }) " tab pages line, not active tab page label
 call s:h("TabLineFill", {}) " tab pages line, where there are no labels
 call s:h("TabLineSel", { "fg": s:white }) " tab pages line, active tab page label
+call s:h("Terminal", { "fg": s:white, "bg": s:black }) " terminal window (see terminal-size-color)
 call s:h("Title", { "fg": s:green }) " titles for output from ":set all", ":autocmd" etc.
 call s:h("Visual", { "fg": s:visual_black, "bg": s:visual_grey }) " Visual mode selection
 call s:h("VisualNOS", { "bg": s:visual_grey }) " Visual mode selection when vim is "Not Owning the Selection". Only X11 Gui's gui-x11 and xterm-clipboard supports this.
 call s:h("WarningMsg", { "fg": s:yellow }) " warning messages
 call s:h("WildMenu", { "fg": s:black, "bg": s:blue }) " current match in 'wildmenu' completion
+
+" }}}
+
+" Termdebug highlighting for Vim 8.1+ {{{
+
+" See `:h hl-debugPC` and `:h hl-debugBreakpoint`.
+call s:h("debugPC", { "bg": s:special_grey }) " the current position
+call s:h("debugBreakpoint", { "fg": s:black, "bg": s:red }) " a breakpoint
 
 " }}}
 
@@ -270,6 +296,10 @@ call s:h("cssPseudoClassId", { "fg": s:dark_yellow })
 call s:h("cssSelectorOp", { "fg": s:purple })
 call s:h("cssSelectorOp2", { "fg": s:purple })
 call s:h("cssTagName", { "fg": s:red })
+
+" Fish Shell
+call s:h("fishKeyword", { "fg": s:purple })
+call s:h("fishConditional", { "fg": s:purple })
 
 " Go
 call s:h("goDeclaration", { "fg": s:purple })
