@@ -1,13 +1,13 @@
 # view settings
-set main-view = line-number:yes id:yes date:default,local=yes author commit-title:graph=yes,refs=yes
+set main-view  = id:yes date:default,local=yes author commit-title:graph=yes,refs=yes,overflow=false
 set blame-view = date:default id:yes,color line-number:yes,interval=1 text
-set pager-view  = line-number:yes,interval=1 text
-set stage-view  = line-number:yes,interval=1 text
-set log-view    = line-number:yes,interval=1 text
-set blob-view   = line-number:yes,interval=1 text
-set diff-view   = line-number:yes,interval=1 text:yes,commit-title-overflow=no
+set pager-view = text
+set stage-view = text
+set log-view   = text
+set blob-view  = text
+set diff-view  = text:yes,commit-title-overflow=no
 
-set tab-size = 4
+set tab-size = 2
 
 set ignore-case = true
 
@@ -17,10 +17,5 @@ set split-view-height = 80%
 set diff-options = -m --first-parent
 
 set refresh-mode = auto
-
-# git commands
-bind generic U ?git pull %(remote)
-
-bind generic P ?git push -u %(remote) %(repo:head)
 
 color cursor black white bold
