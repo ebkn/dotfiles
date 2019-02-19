@@ -62,7 +62,7 @@ set wildignore+=*/tmp*,*.so,*.swp,*.zip
 " cursor
 set whichwrap=b,s,h,l,<,>,[,],~ " move next/previous line by h,l
 set virtualedit=onemore " move to last character
-set number " show line number
+" set number " show line number
 set norelativenumber
 set backspace=indent,eol,start " enable backspace
 
