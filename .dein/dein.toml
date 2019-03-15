@@ -332,7 +332,7 @@ hook_add = '''
     \ 'css': ['stylelint', 'prettier'],
     \ 'dockerfile': ['hadolint'],
     \ 'erb': ['erb'],
-    \ 'go': ['gofmt', 'goimports', 'golint', 'gosimple', 'staticcheck', 'golangci-lint'],
+    \ 'go': ['goimports', 'golint'],
     \ 'graphql': ['eslint', 'gqlint', 'prettier'],
     \ 'html': ['HTMLHint'],
     \ 'haml': ['haml-lint'],
