@@ -115,6 +115,7 @@ alias tmuxs='tmux source-file ~/.tmux.conf'
 alias l='ls -la'
 alias c='clear'
 alias rm='rmtrash'
+alias dotfiles='cd ~/dotfiles'
 
 alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|tmp|volumes" -N -A -C'
 # history of zsh
@@ -137,7 +138,7 @@ alias gdmerged='git branch --merged master | grep -vE "^\*|master|develop|stagin
 alias github="hub browse"
 function pr() {
   branch_name=$1;\
-  template_path=$(git rev-parse --show-toplevel)/PULL_REQUEST_TEMPLATE.md;\ 
+  template_path=$(git rev-parse --show-toplevel)/.github/PULL_REQUEST_TEMPLATE.md;\ 
   if [ -z ${branch_name} ]; then\
       branch_name='master';\
   fi;\
