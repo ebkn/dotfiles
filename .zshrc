@@ -116,6 +116,7 @@ alias l='ls -la'
 alias c='clear'
 alias rm='rmtrash'
 alias dotfiles='cd ~/dotfiles'
+alias zshrc='vim ~/.zshrc'
 
 alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|tmp|volumes" -N -A -C'
 # history of zsh
