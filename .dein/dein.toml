@@ -165,13 +165,20 @@ hook_add = '''
           \ 'whitelist': ['dockerfile'],
           \ })
   endif
-  if executable('go-langserver')
-      au User lsp_setup call lsp#register_server({
-          \ 'name': 'go-langserver',
-          \ 'cmd': {server_info->['go-langserver', '-gocodecompletion']},
-          \ 'whitelist': ['go'],
-          \ })
+  if executable('gopls')
+    au User lsp_setup call lsp#register_server({
+        \ 'name': 'gopls',
+        \ 'cmd': {server_info->['gopls', '-mode', 'stdio']},
+        \ 'whitelist': ['go'],
+        \ })
   endif
+  " if executable('go-langserver')
+  "     au User lsp_setup call lsp"register_server({
+  "         \ 'name': 'go-langserver',
+  "         \ 'cmd': {server_info->['go-langserver', '-gocodecompletion']},
+  "         \ 'whitelist': ['go'],
+  "         \ })
+  " endif
   if executable('flow')
     au User lsp_setup call lsp#register_server({
         \ 'name': 'flow',
@@ -361,6 +368,7 @@ hook_add = '''
   let g:ale_set_quickfix=1 " use QuickFix
   let g:ale_keep_list_window_open=0
   let g:ale_javascript_prettier_use_local_config=1
+  let g:ale_go_langserver_executable = 'gopls'
 '''
 
 # visualize colors
