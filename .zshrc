@@ -43,6 +43,10 @@ if [ `uname` = 'Darwin' ]; then
   export PATH="$PATH:$ANDROID_HOME/tools/bin"
   export PATH="$PATH:$ANDROID_HOME/platform-tools"
   export ANDROID_SDK=$ANDROID_HOME
+  # Deno
+  export PATH="$PATH:/Users/kenichi/.deno/bin"
+  # Flutter
+  export PATH="$PATH:/Users/kenichi/flutter/bin"
 
   # lazyload
   function rbenv() {
