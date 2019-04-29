@@ -180,8 +180,6 @@ hook_add = '''
         \ 'whitelist': ['typescript'],
         \ })
   endif
-  let g:lsp_log_verbose=1
-  let g:lsp_log_file=expand('~/vim-lsp.log')
   if executable('solargraph')
       au User lsp_setup call lsp#register_server({
           \ 'name': 'solargraph',
@@ -206,9 +204,9 @@ hook_add = '''
 [[plugins]]
 repo = 'prabirshrestha/asyncomplete.vim'
 hook_add = '''
-  inoremap <expr> <Tab> pumvisible() ? "\<C-n>" : "\<Tab>"
+  inoremap <expr> <Tab>   pumvisible() ? "\<C-n>" : "\<Tab>"
   inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
-  inoremap <expr> <cr> pumvisible() ? "\<C-y>" : "\<cr>"
+  inoremap <expr> <cr>    pumvisible() ? "\<C-y>" : "\<cr>"
   set completeopt+=preview
   autocmd! CompleteDone * if pumvisible() == 0 | pclose | endif
 '''
