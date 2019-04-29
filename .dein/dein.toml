@@ -156,6 +156,7 @@ repo = 'prabirshrestha/async.vim'
 [[plugins]]
 repo = 'prabirshrestha/vim-lsp'
 hook_add = '''
+  nnoremap gd :LspDefinition<CR>
   let g:lsp_signs_enaled=1
   let g:lsp_async_completion=1
   if executable('docker-langserver')
