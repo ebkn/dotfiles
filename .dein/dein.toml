@@ -241,38 +241,6 @@ hook_add = '''
     \ }))
 '''
 [[plugins]]
-repo = 'prabirshrestha/asyncomplete-gocode.vim'
-hook_add = '''
- call asyncomplete#register_source(asyncomplete#sources#gocode#get_source_options({
-    \ 'name': 'gocode',
-    \ 'whitelist': ['go'],
-    \ 'completor': function('asyncomplete#sources#gocode#completor'),
-    \ 'config': {
-    \    'gocode_path': expand('~/go/bin/gocode')
-    \  },
-    \ }))
-'''
-# [[plugins]] # not working
-# repo = 'prabirshrestha/asyncomplete-flow.vim'
-# hook_add = '''
-#   au User asyncomplete_setup call asyncomplete#register_source(asyncomplete#sources#flow#get_source_options({
-#     \ 'name': 'flow',
-#     \ 'whitelist': ['javascript'],
-#     \ 'completor': function('asyncomplete#sources#flow#completor'),
-#     \ 'config': {
-#     \    " Resolves 'flow' in the closest node_modules/.bin directory (in case
-#     \    " flow is installed via 'npm install flow-bin' locally). Falls back to
-#     \    " 'flowbin_path' (see below) if can't find it.
-#     \    'prefer_local': 1,
-#     \    " Path to 'flow' executable.
-#     \    'flowbin_path': expand('~/bin/flow'),
-#     \    " Displays additional typeinfo exposed by flow, if any is provided.
-#     \    " Defaults to 0.
-#     \    'show_typeinfo': 1
-#     \  },
-#     \ }))
-# '''
-[[plugins]]
 repo = 'leafgarland/typescript-vim'
 [[plugins]]
 repo = 'runoshun/tscompletejob'
