@@ -172,14 +172,6 @@ hook_add = '''
         \ 'whitelist': ['go'],
         \ })
   endif
-  if executable('flow')
-    au User lsp_setup call lsp#register_server({
-        \ 'name': 'flow',
-        \ 'cmd': {server_info->['flow', 'lsp']},
-        \ 'root_uri':{server_info->lsp#utils#path_to_uri(lsp#utils#find_nearest_parent_file_directory(lsp#utils#get_buffer_path(), '.flowconfig'))},
-        \ 'whitelist': ['javascript', 'javascript.jsx'],
-        \ })
-  endif
   if executable('typescript-language-server')
     au User lsp_setup call lsp#register_server({
         \ 'name': 'typescript-language-server',
@@ -207,20 +199,16 @@ hook_add = '''
   endif
 '''
 # requires
-# go get -u github.com/sourcegraph/go-langserver
+# gopls
 # gem install solargraph
 # yarn global add flow-bin dockerfile-language-server-nodejs vscode-css-languageserver-bin
 
 [[plugins]]
 repo = 'prabirshrestha/asyncomplete.vim'
 hook_add = '''
-  let g:asyncomplete_auto_popup=1
-  let g:asyncomplete_log_file=expand('~/asyncomplete.log')
   inoremap <expr> <Tab> pumvisible() ? "\<C-n>" : "\<Tab>"
   inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
   inoremap <expr> <cr> pumvisible() ? "\<C-y>" : "\<cr>"
-  let g:asyncomplete_remove_duplicates = 1
-  let g:asyncomplete_smart_completion = 1
   set completeopt+=preview
   autocmd! CompleteDone * if pumvisible() == 0 | pclose | endif
 '''
@@ -238,19 +226,6 @@ hook_add = '''
     \ 'whitelist': ['*'],
     \ 'priority': 10,
     \ 'completor': function('asyncomplete#sources#file#completor')
-    \ }))
-'''
-[[plugins]]
-repo = 'leafgarland/typescript-vim'
-[[plugins]]
-repo = 'runoshun/tscompletejob'
-[[plugins]]
-repo = 'prabirshrestha/asyncomplete-tscompletejob.vim'
-hook_add = '''
-  call asyncomplete#register_source(asyncomplete#sources#tscompletejob#get_source_options({
-    \ 'name': 'tscompletejob',
-    \ 'whitelist': ['typescript','tsx'],
-    \ 'completor': function('asyncomplete#sources#tscompletejob#completor'),
     \ }))
 '''
 
