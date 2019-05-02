@@ -2,8 +2,7 @@
 # check speed for starting zsh
 # $ time ( zsh -i -c exit )
 # zmodload zsh/zprof && zprof
-###############################
-
+############################### 
 # start tmux
 [[ -z "$TMUX" ]] && tmux
 
@@ -75,9 +74,9 @@ if [ `uname` = 'Darwin' ]; then
     nvm "$@"
   }
   # The next line updates PATH for the Google Cloud SDK.
-  if [ -f '~/google-cloud-sdk/path.zsh.inc' ]; then source '~/google-cloud-sdk/path.zsh.inc'; fi
+  if [ -f '~/google-cloud-sdk/path.zsh.inc' ]; then . '~/google-cloud-sdk/path.zsh.inc'; fi
   # The next line enables shell command completion for gcloud.
-  if [ -f '~/google-cloud-sdk/completion.zsh.inc' ]; then source '~/google-cloud-sdk/completion.zsh.inc'; fi
+  if [ -f '~/google-cloud-sdk/completion.zsh.inc' ]; then . '~/google-cloud-sdk/completion.zsh.inc'; fi
 else
 fi
 
@@ -154,6 +153,7 @@ function pr() {
 }
 # aliases for docker
 alias dc='docker-compose'
+alias kc='kubectl'
 if [ `uname` = "Darwin" ]; then
   alias cat='bat --theme=TwoDark' # This requires `brew install bat`
   alias sed='gsed' # This requires `brew install gnu-sed`
@@ -201,3 +201,6 @@ setopt hist_ignore_all_dups
 #   zprof | less
 # fi
 ####################################
+fpath+=${ZDOTDIR:-~}/.zsh_functions
+# kubectl completion
+source <(kubectl completion zsh)
