@@ -178,7 +178,7 @@ hook_add = '''
         \ 'name': 'typescript-language-server',
         \ 'cmd': {server_info->[&shell, &shellcmdflag, 'typescript-language-server --stdio']},
         \ 'root_uri':{server_info->lsp#utils#path_to_uri(lsp#utils#find_nearest_parent_file_directory(lsp#utils#get_buffer_path(), 'tsconfig.json'))},
-        \ 'whitelist': ['typescript'],
+        \ 'whitelist': ['typescript', 'typescript.tsx'],
         \ })
   endif
   if executable('solargraph')
@@ -276,7 +276,7 @@ hook_add = '''
     \ 'dockerfile': ['hadolint'],
     \ 'erb': ['erb'],
     \ 'go': ['golint'],
-    \ 'graphql': ['eslint', 'gqlint', 'prettier'],
+    \ 'graphql': ['eslint', 'prettier'],
     \ 'html': ['HTMLHint'],
     \ 'haml': ['haml-lint'],
     \ 'javascript': ['eslint', 'prettier', 'prettier-eslint'],

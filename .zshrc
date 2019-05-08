@@ -46,6 +46,8 @@ if [ `uname` = 'Darwin' ]; then
   export PATH="$PATH:/Users/kenichi/.deno/bin"
   # Flutter
   export PATH="$PATH:/Users/kenichi/flutter/bin"
+  # protobuf
+  export PATH="$PATH:/Users/kenichi/protoc-3.7.1-osx-x86_64/bin"
 
   # lazyload
   function rbenv() {
@@ -176,7 +178,8 @@ if [ `uname` = "Darwin" ]; then
     fi
   }
   # kubectl completion
-  source <(kubectl completion zsh)
+  # source <(kubectl completion zsh)
+  # source "/usr/local/opt/kube-ps1/share/kube-ps1.sh"
 fi
 # translatin
 alias en='trans ja:en "$@"'
@@ -204,4 +207,3 @@ setopt hist_ignore_all_dups
 # fi
 ####################################
 fpath+=${ZDOTDIR:-~}/.zsh_functions
-
