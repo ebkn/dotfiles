@@ -175,6 +175,8 @@ if [ `uname` = "Darwin" ]; then
       open "$@"
     fi
   }
+  # kubectl completion
+  source <(kubectl completion zsh)
 fi
 # translatin
 alias en='trans ja:en "$@"'
@@ -202,5 +204,4 @@ setopt hist_ignore_all_dups
 # fi
 ####################################
 fpath+=${ZDOTDIR:-~}/.zsh_functions
-# kubectl completion
-source <(kubectl completion zsh)
+
