@@ -96,3 +96,8 @@ on_ft = ['javascript.jsx', 'typescript.tsx']
 [[plugins]]
 repo = 'jparise/vim-graphql'
 on_ft = ['graphql']
+
+# Swift
+[[plugins]]
+repo = 'ryanolsonx/vim-lsp-swift'
+on_ft = ['swift']

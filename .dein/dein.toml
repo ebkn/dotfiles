@@ -158,6 +158,7 @@ repo = 'prabirshrestha/vim-lsp'
 hook_add = '''
   nnoremap gd :LspDefinition<CR>
   let g:lsp_signs_enaled=1
+  let g:lsp_diagnostics_echo_cursor=1
   let g:lsp_async_completion=1
   if executable('docker-langserver')
       au User lsp_setup call lsp#register_server({
@@ -196,11 +197,19 @@ hook_add = '''
         \ 'whitelist': ['css', 'less', 'sass'],
         \ })
   endif
+  if executable('sourcekit-lsp')
+    au User lsp_setup call lsp#register_server({
+        \ 'name': 'sourcekit-lsp',
+        \ 'cmd': {server_info->['sourcekit-lsp']},
+        \ 'whitelist': ['swift'],
+        \ })
+  endif
 '''
 # requires
 # gopls
 # gem install solargraph
 # yarn global add flow-bin dockerfile-language-server-nodejs vscode-css-languageserver-bin
+# vim-lsp-swift
 
 [[plugins]]
 repo = 'prabirshrestha/asyncomplete.vim'
@@ -208,7 +217,7 @@ hook_add = '''
   inoremap <expr> <Tab>   pumvisible() ? "\<C-n>" : "\<Tab>"
   inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
   inoremap <expr> <cr>    pumvisible() ? "\<C-y>" : "\<cr>"
-  set completeopt+=preview
+  set completeopt-=preview
   autocmd! CompleteDone * if pumvisible() == 0 | pclose | endif
 '''
 [[plugins]]
