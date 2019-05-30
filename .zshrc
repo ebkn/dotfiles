@@ -2,7 +2,7 @@
 # check speed for starting zsh
 # $ time ( zsh -i -c exit )
 # zmodload zsh/zprof && zprof
-############################### 
+###############################
 # start tmux
 [[ -z "$TMUX" ]] && tmux
 
@@ -48,6 +48,8 @@ if [ `uname` = 'Darwin' ]; then
   export PATH="$PATH:/Users/kenichi/flutter/bin"
   # protobuf
   export PATH="$PATH:/Users/kenichi/protoc-3.7.1-osx-x86_64/bin"
+  # Swift
+  export SOURCEKIT_TOOLCHAIN_PATH=/Library/Developer/Toolchains/swift-latest.xctoolchain
 
   # lazyload
   function rbenv() {
