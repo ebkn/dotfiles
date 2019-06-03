@@ -160,6 +160,7 @@ hook_add = '''
   let g:lsp_signs_enaled=1
   let g:lsp_diagnostics_echo_cursor=1
   let g:lsp_async_completion=1
+  let g:lsp_highlight_references_enabled=0
   if executable('docker-langserver')
       au User lsp_setup call lsp#register_server({
           \ 'name': 'docker-langserver',
