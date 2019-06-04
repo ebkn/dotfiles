@@ -50,6 +50,10 @@ if [ `uname` = 'Darwin' ]; then
   export PATH="$PATH:/Users/kenichi/protoc-3.7.1-osx-x86_64/bin"
   # Swift
   export SOURCEKIT_TOOLCHAIN_PATH=/Library/Developer/Toolchains/swift-latest.xctoolchain
+  # Rust
+  export PATH="$PATH:~/.cargo/env"
+  # nsq
+  export PATH="$PATH:/usr/local/bin/nsqlookupd"
 
   # lazyload
   function rbenv() {

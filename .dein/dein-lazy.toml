@@ -19,6 +19,9 @@ hook_add = '''
   let g:go_gocode_unimported_packages = 0
 '''
 [[plugins]]
+repo = 'rust-lang/rust.vim'
+on_ft = ['rust']
+[[plugins]]
 repo = 'pangloss/vim-javascript'
 on_ft = ['javascript', 'html', 'typescript']
 [[plugins]]
