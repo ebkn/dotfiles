@@ -5,19 +5,18 @@ on_ft = ['go']
 hook_add = '''
   let g:go_fmt_autosave = 1
   let g:go_fmt_command = "goimports"
+  let g:go_def_mapping_enabled = 0
+  let g:go_doc_keywordprg_enabled = 0
+  let g:go_metalinter_enabled = 0
+  let g:go_code_completion_enabled = 0
+  let g:go_gocode_unimported_packages = 0
   let g:go_def_mode='gopls'
   let g:go_info_mode='gopls'
-  let g:go_highlight_array_whitespace_error = 1
-  let g:go_highlight_chan_whitespace_error = 1
-  let g:go_highlight_trailing_whitespace_error = 1
   let g:go_highlight_types = 1
   let g:go_highlight_fields = 1
   let g:go_highlight_functions = 1
   let g:go_highlight_function_parameters = 1
   let g:go_highlight_methods = 1
-  let g:go_highlight_string_spellcheck = 1
-  let g:go_highlight_operators = 1
-  let g:go_gocode_unimported_packages = 0
 '''
 [[plugins]]
 repo = 'rust-lang/rust.vim'
@@ -28,10 +27,13 @@ on_ft = ['javascript', 'html', 'typescript']
 [[plugins]]
 repo = 'mxw/vim-jsx'
 on_ft = ['javascript', 'javascriopt.jsx']
-[[plugins]] # syntax
+[[plugins]] # requires typescript, typescript-language-server
+repo = 'ryanolsonx/vim-lsp-javascript'
+on_ft = ['javascript', 'javascript.jsx']
+[[plugins]]
 repo = 'ianks/vim-tsx'
 on_ft = ['typescript', 'typescript.tsx']
-[[plugins]] # requires yarn global  add typescript typescript-language-server
+[[plugins]] # requires typescript typescript-language-server
 repo = 'ryanolsonx/vim-lsp-typescript'
 on_ft = ['typescript', 'typescript.tsx']
 [[plugins]]
