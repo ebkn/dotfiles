@@ -21,12 +21,6 @@ hook_add = '''
 [[plugins]]
 repo = 'rust-lang/rust.vim'
 on_ft = ['rust']
-[[plugins]]
-repo = 'pangloss/vim-javascript'
-on_ft = ['javascript', 'html', 'typescript']
-[[plugins]]
-repo = 'mxw/vim-jsx'
-on_ft = ['javascript', 'javascriopt.jsx']
 [[plugins]] # requires typescript, typescript-language-server
 repo = 'ryanolsonx/vim-lsp-javascript'
 on_ft = ['javascript', 'javascript.jsx']
