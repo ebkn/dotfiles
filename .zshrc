@@ -165,7 +165,7 @@ alias dc='docker-compose'
 alias kc='kubectl'
 if [ `uname` = "Darwin" ]; then
   alias cat='bat --theme=TwoDark' # This requires `brew install bat`
-  alias sed='gsed' # This requires `brew install gnu-sed`
+  # alias sed='gsed' # This requires `brew install gnu-sed`
   alias ql='qlmanage -p "$@" >& /dev/null' # Quick Look
   alias xcode='open -a xcode .'
   # Apache server
