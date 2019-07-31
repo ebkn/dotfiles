@@ -4,7 +4,7 @@
 # zmodload zsh/zprof && zprof
 ###############################
 # start tmux
-[[ -z "$TMUX" ]] && tmux
+[[ -z "$TMUX" ]] && tmux -u
 
 export LANG=en_US.UTF-8
 export LC_CTYPE=en_US.UTF-8
@@ -164,7 +164,6 @@ function pr() {
 alias dc='docker-compose'
 alias kc='kubectl'
 if [ `uname` = "Darwin" ]; then
-  alias cat='bat --theme=TwoDark' # This requires `brew install bat`
   # alias sed='gsed' # This requires `brew install gnu-sed`
   alias ql='qlmanage -p "$@" >& /dev/null' # Quick Look
   alias xcode='open -a xcode .'
@@ -188,6 +187,15 @@ if [ `uname` = "Darwin" ]; then
   # source <(kubectl completion zsh)
   # source "/usr/local/opt/kube-ps1/share/kube-ps1.sh"
 fi
+# create Scrapbox page from text
+# requires nkf(brew install nkf), gsed (or linux sed)
+# usage
+# $ scrapbox foo.txt
+function scrapbox() {
+  title=$(cat $1 | head -n 1); \
+  body=$(cat "$1" | tail -n +2 | gsed 's/  /\t/g' | gsed 's/&/%26/g'); \
+  open https://scrapbox.io/ebiken/${title}?body=${body}
+}
 # translatin
 alias en='trans ja:en "$@"'
 alias ja='trans en:ja "$@"'
