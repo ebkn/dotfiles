@@ -81,11 +81,6 @@ if [ `uname` = 'Darwin' ]; then
     [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
     nvm "$@"
   }
-  # The next line updates PATH for the Google Cloud SDK.
-  if [ -f '~/google-cloud-sdk/path.zsh.inc' ]; then . '~/google-cloud-sdk/path.zsh.inc'; fi
-  # The next line enables shell command completion for gcloud.
-  if [ -f '~/google-cloud-sdk/completion.zsh.inc' ]; then . '~/google-cloud-sdk/completion.zsh.inc'; fi
-else
 fi
 
 # Settings for fzf
@@ -222,3 +217,8 @@ setopt hist_ignore_all_dups
 # fi
 ####################################
 fpath+=${ZDOTDIR:-~}/.zsh_functions
+
+# The next line updates PATH for the Google Cloud SDK.
+source '/Users/kenichi/google-cloud-sdk/path.zsh.inc'
+# The next line enables shell command completion for gcloud.
+source '/Users/kenichi/google-cloud-sdk/completion.zsh.inc'
