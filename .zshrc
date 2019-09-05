@@ -129,7 +129,7 @@ alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|tmp|volumes" 
 alias memory='top -o rsize'
 alias cpu='top -o cpu'
 # history of zsh
-alias his='cat ~/.zsh_history'
+alias his='history -i | fzf'
 alias myst='sudo mysql.server start'
 # aliases for git, Github
 alias ga='git add'
@@ -199,7 +199,7 @@ alias ja='trans en:ja "$@"'
 HISTFILE=~/.zsh_history
 HISTSIZE=100000
 SAVEHIST=100000
-HISTTIMEFORMAT='%Y-%m-%d T%T%z '
+export HISTTIMEFORMAT='%Y-%m-%d T%T%z '
 setopt extended_history
 setopt hist_no_store
 setopt hist_expand
