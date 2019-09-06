@@ -147,6 +147,7 @@ alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
 alias gdmerged='git branch --merged master | grep -vE "^\*|master|develop|staging$" | xargs -I % git branch -d %'
 [ `uname` = "Linux" ] && export PATH="$PATH:$HOME/hub-linux-arm64-2.6.0/bin/hub"
 alias github="hub browse"
+alias repo='cd $(ghq list -p | fzf --reverse)'
 function pr() {
   branch_name=$1;\
   template_path=$(git rev-parse --show-toplevel)/.github/PULL_REQUEST_TEMPLATE.md;\ 
