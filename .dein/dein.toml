@@ -190,6 +190,21 @@ hook_add = '''
         \ 'whitelist': ['typescript', 'typescript.tsx'],
         \ })
   endif
+  if executable('vls')
+    au User lsp_setup call lsp#register_server({
+        \ 'name': 'vue-language-server',
+        \ 'cmd': {server_info->['vls']},
+        \ 'whitelist': ['vue'],
+        \ 'initialization_options': {
+        \         'config': {
+        \             'html': {},
+        \              'vetur': {
+        \                  'validation': {}
+        \              }
+        \         }
+        \     }
+        \ })
+  endif
   if executable('solargraph')
       au User lsp_setup call lsp#register_server({
           \ 'name': 'solargraph',

@@ -32,9 +32,12 @@ on_ft = ['typescript', 'typescript.tsx', 'vuejs']
 [[plugins]] # requires typescript typescript-language-server
 repo = 'ryanolsonx/vim-lsp-typescript'
 on_ft = ['typescript', 'typescript.tsx', 'vuejs']
-# [[plugins]]
-# repo = 'digitaltoad/vim-pug'
-# on_ft = ['pug', 'vuejs']
+[[plugins]]
+repo = 'posva/vim-vue'
+on_ft = ['vue']
+hook_add = '''
+  let g:vue_pre_processors = ['pug', 'sass', 'scss']
+'''
 [[plugins]]
 repo = 'elmcast/elm-vim'
 on_ft = ['elm']
