@@ -158,16 +158,11 @@ repo = 'prabirshrestha/vim-lsp'
 hook_add = '''
   nnoremap gd :LspDefinition<CR>
   let g:lsp_signs_enaled=1
+  let g:lsp_async_completion=0
   let g:lsp_diagnostics_echo_cursor=1
-  let g:lsp_async_completion=1
   let g:lsp_highlight_references_enabled=0
-  if executable('docker-langserver')
-      au User lsp_setup call lsp#register_server({
-          \ 'name': 'docker-langserver',
-          \ 'cmd': {server_info->[&shell, &shellcmdflag, 'docker-langserver --stdio']},
-          \ 'whitelist': ['dockerfile'],
-          \ })
-  endif
+  let g:lsp_text_edit_enabled=0
+  let g:lsp_virtual_text_enabled=0
   if executable('gopls')
     au User lsp_setup call lsp#register_server({
         \ 'name': 'gopls',
@@ -181,7 +176,7 @@ hook_add = '''
         \ 'name': 'javascript support using typescript-language-server',
         \ 'cmd': { server_info->[&shell, &shellcmdflag, 'typescript-language-server --stdio']},
         \ 'root_uri': { server_info->lsp#utils#path_to_uri(lsp#utils#find_nearest_parent_directory(lsp#utils#get_buffer_path(), '.git/..'))},
-        \ 'whitelist': ['javascript', 'javascript.jsx']
+        \ 'whitelist': ['javascript', 'javascript.jsx', 'javascriptreact']
         \ })
     au User lsp_setup call lsp#register_server({
         \ 'name': 'typescript-language-server',
@@ -252,10 +247,11 @@ endif
 [[plugins]]
 repo = 'prabirshrestha/asyncomplete.vim'
 hook_add = '''
+  let g:asyncomplete_auto_popup=1
   inoremap <expr> <Tab>   pumvisible() ? "\<C-n>" : "\<Tab>"
   inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
   inoremap <expr> <cr>    pumvisible() ? "\<C-y>" : "\<cr>"
-  set completeopt-=preview
+  set completeopt+=preview
   autocmd! CompleteDone * if pumvisible() == 0 | pclose | endif
 '''
 [[plugins]]
@@ -311,7 +307,7 @@ repo = 'osyo-manga/vim-over'
 
 # linters
 [[plugins]]
-repo = 'w0rp/ale'
+repo = 'dense-analysis/ale'
 hook_add = '''
   let g:ale_lint_on_enter=1
   let g:ale_lint_on_save=1
@@ -365,7 +361,6 @@ repo = 'cohama/lexima.vim'
 hook_add = '''
   let g:lexima_enable_basic_rules=1
   let g:lexima_enable_newline_rules=1
-  let g:lexima_enable_endwise_rules=1
 '''
 
 # change operator by s+a/d/r
