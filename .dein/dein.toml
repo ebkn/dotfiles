@@ -157,7 +157,7 @@ repo = 'prabirshrestha/async.vim'
 repo = 'prabirshrestha/vim-lsp'
 hook_add = '''
   nnoremap gd :LspDefinition<CR>
-  let g:lsp_signs_enaled=1
+  let g:lsp_signs_enaled=0
   let g:lsp_async_completion=0
   let g:lsp_diagnostics_echo_cursor=1
   let g:lsp_highlight_references_enabled=0
@@ -191,13 +191,14 @@ hook_add = '''
         \ 'cmd': {server_info->['vls']},
         \ 'whitelist': ['vue'],
         \ 'initialization_options': {
-        \         'config': {
-        \             'html': {},
-        \              'vetur': {
-        \                  'validation': {}
-        \              }
-        \         }
-        \     }
+            \ 'config': {
+              \ 'html': {},
+              \ 'vetur': {
+              \     'validation': {},
+              \     'completion': {},
+              \ },
+            \ },
+        \ },
         \ })
   endif
   if executable('solargraph')

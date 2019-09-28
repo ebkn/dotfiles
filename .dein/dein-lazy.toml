@@ -25,19 +25,16 @@ hook_add = '''
 '''
 [[plugins]] # requires typescript, typescript-language-server
 repo = 'ryanolsonx/vim-lsp-javascript'
-on_ft = ['javascript', 'javascript.jsx', 'vuejs']
+on_ft = ['javascript', 'javascript.jsx']
 [[plugins]]
 repo = 'ianks/vim-tsx'
-on_ft = ['typescript', 'typescript.tsx', 'vuejs']
+on_ft = ['typescript', 'typescript.tsx']
 [[plugins]] # requires typescript typescript-language-server
 repo = 'ryanolsonx/vim-lsp-typescript'
-on_ft = ['typescript', 'typescript.tsx', 'vuejs']
+on_ft = ['typescript', 'typescript.tsx']
 [[plugins]]
 repo = 'posva/vim-vue'
 on_ft = ['vue']
-hook_add = '''
-  let g:vue_pre_processors = ['pug', 'sass', 'scss']
-'''
 [[plugins]]
 repo = 'elmcast/elm-vim'
 on_ft = ['elm']
