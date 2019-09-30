@@ -26,6 +26,10 @@
 [log]
   date = short
 
+[status]
+  submoduleSummary = true
+  showUntrackedFiles = all
+
 [color]
   ui = true
   branch = auto
