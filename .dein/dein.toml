@@ -68,11 +68,11 @@ repo = 'maximbaz/lightline-ale'
 depends = 'lightline.vim'
 
 # folder tree
+# autocmd StdinReadPre * let s:std_in=1
+# autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
 [[plugins]]
 repo = 'scrooloose/nerdtree'
 hook_add = '''
-  autocmd StdinReadPre * let s:std_in=1
-  autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
   nnoremap <silent><C-n> :NERDTreeToggle<CR>
   let g:NERDTreeShowHidden=1
   let g:NERDTreeIgnore=[
