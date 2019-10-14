@@ -27,7 +27,10 @@ hook_add = '''
 repo = 'ryanolsonx/vim-lsp-javascript'
 on_ft = ['javascript', 'javascript.jsx']
 [[plugins]]
-repo = 'ianks/vim-tsx'
+repo = 'leafgarland/typescript-vim'
+on_ft = ['typescript', 'typescript.tsx']
+[[plugins]]
+repo = 'peitalin/vim-jsx-typescript'
 on_ft = ['typescript', 'typescript.tsx']
 [[plugins]] # requires typescript typescript-language-server
 repo = 'ryanolsonx/vim-lsp-typescript'
