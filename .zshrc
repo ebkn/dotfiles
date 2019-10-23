@@ -11,6 +11,8 @@ export LC_CTYPE=en_US.UTF-8
 export ZSH=~/.oh-my-zsh
 export TERM=xterm-256color
 
+ENABLE_CORRECTION="true"
+
 export PATH="$PATH:/usr/local/sbin"
 
 if [ `uname` = 'Darwin' ]; then
