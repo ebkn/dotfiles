@@ -152,124 +152,27 @@ build = '''
 
 # completion
 [[plugins]]
-repo = 'prabirshrestha/async.vim'
-[[plugins]]
-repo = 'prabirshrestha/vim-lsp'
-hook_add = '''
-  nnoremap gd :LspDefinition<CR>
-  let g:lsp_signs_enaled=0
-  let g:lsp_async_completion=0
-  let g:lsp_diagnostics_echo_cursor=1
-  let g:lsp_highlight_references_enabled=0
-  let g:lsp_text_edit_enabled=0
-  let g:lsp_virtual_text_enabled=0
-  if executable('gopls')
-    au User lsp_setup call lsp#register_server({
-        \ 'name': 'gopls',
-        \ 'cmd': {server_info->['gopls', '-mode', 'stdio']},
-        \ 'whitelist': ['go'],
-        \ })
-    autocmd BufWritePre *.go LspDocumentFormatSync
-  endif
-  if executable('typescript-language-server')
-     au User lsp_setup call lsp#register_server({
-        \ 'name': 'javascript support using typescript-language-server',
-        \ 'cmd': { server_info->[&shell, &shellcmdflag, 'typescript-language-server --stdio']},
-        \ 'root_uri': { server_info->lsp#utils#path_to_uri(lsp#utils#find_nearest_parent_directory(lsp#utils#get_buffer_path(), '.git/..'))},
-        \ 'whitelist': ['javascript', 'javascript.jsx']
-        \ })
-    au User lsp_setup call lsp#register_server({
-        \ 'name': 'typescript-language-server',
-        \ 'cmd': {server_info->[&shell, &shellcmdflag, 'typescript-language-server --stdio']},
-        \ 'root_uri':{server_info->lsp#utils#path_to_uri(lsp#utils#find_nearest_parent_file_directory(lsp#utils#get_buffer_path(), 'tsconfig.json'))},
-        \ 'whitelist': ['typescript', 'typescript.tsx'],
-        \ })
-  endif
-  if executable('vls')
-    au User lsp_setup call lsp#register_server({
-        \ 'name': 'vue-language-server',
-        \ 'cmd': {server_info->['vls']},
-        \ 'whitelist': ['vue'],
-        \ 'initialization_options': {
-            \ 'config': {
-              \ 'html': {},
-              \ 'vetur': {
-              \     'validation': {},
-              \     'completion': {},
-              \ },
-            \ },
-        \ },
-        \ })
-  endif
-  if executable('solargraph')
-      au User lsp_setup call lsp#register_server({
-          \ 'name': 'solargraph',
-          \ 'cmd': {server_info->[&shell, &shellcmdflag, 'solargraph stdio']},
-          \ 'initialization_options': {"diagnostics": "true"},
-          \ 'whitelist': ['ruby'],
-          \ })
-  endif
-  if executable('css-languageserver')
-    au User lsp_setup call lsp#register_server({
-        \ 'name': 'css-languageserver',
-        \ 'cmd': {server_info->[&shell, &shellcmdflag, 'css-languageserver --stdio']},
-        \ 'whitelist': ['css', 'less', 'sass'],
-        \ })
-  endif
-  if executable('sourcekit-lsp')
-    au User lsp_setup call lsp#register_server({
-        \ 'name': 'sourcekit-lsp',
-        \ 'cmd': {server_info->['sourcekit-lsp']},
-        \ 'whitelist': ['swift'],
-        \ })
-  endif
-  if executable('rls')
-    au User lsp_setup call lsp#register_server({
-        \ 'name': 'rls',
-        \ 'cmd': {server_info->['rustup', 'run', 'stable', 'rls']},
-        \ 'workspace_config': {'rust': {'clippy_preference': 'on'}},
-        \ 'whitelist': ['rust'],
-        \ })
-  endif
-  if executable('docker-langserver')
-    au User lsp_setup call lsp#register_server({
-        \ 'name': 'docker-langserver',
-        \ 'cmd': {server_info->[&shell, &shellcmdflag, 'docker-langserver --stdio']},
-        \ 'whitelist': ['dockerfile'],
-        \ })
-endif
+repo = 'neoclide/coc.nvim'
+rev = 'release'
+build = '''
+  git checkout release
 '''
-# requires
-# gopls
-# gem install solargraph
-# yarn global add flow-bin dockerfile-language-server-nodejs vscode-css-languageserver-bin
-# vim-lsp-swift
-
-[[plugins]]
-repo = 'prabirshrestha/asyncomplete.vim'
 hook_add = '''
-  let g:asyncomplete_auto_popup=1
-  inoremap <expr> <Tab>   pumvisible() ? "\<C-n>" : "\<Tab>"
+  inoremap <silent><expr> <TAB>
+      \ pumvisible() ? "\<C-n>" :
+      \ <SID>check_back_space() ? "\<TAB>" :
+      \ coc#refresh()
+  inoremap <expr><S-TAB> pumvisible() ? "\<C-p>" : "\<C-h>"
   inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
-  inoremap <expr> <cr>    pumvisible() ? "\<C-y>" : "\<cr>"
-  set completeopt+=preview
-  autocmd! CompleteDone * if pumvisible() == 0 | pclose | endif
-'''
-[[plugins]]
-repo = 'prabirshrestha/asyncomplete-lsp.vim'
-depends = 'asyncomplete.vim'
-depends = 'vim-lsp'
-merged = 0
-[[plugins]]
-repo = 'prabirshrestha/asyncomplete-file.vim'
-depends = 'asyncomplete.vim'
-hook_add = '''
-  au User asyncomplete_setup call asyncomplete#register_source(asyncomplete#sources#file#get_source_options({
-    \ 'name': 'file',
-    \ 'whitelist': ['*'],
-    \ 'priority': 10,
-    \ 'completor': function('asyncomplete#sources#file#completor')
-    \ }))
+  function! s:check_back_space() abort
+    let col = col('.') - 1
+    return !col || getline('.')[col - 1]  =~# '\s'
+  endfunction
+  inoremap <expr> <cr> pumvisible() ? "\<C-y>" : "\<C-g>u\<CR>"
+  nmap <silent> gd <Plug>(coc-definition)
+  nmap <silent> gy <Plug>(coc-type-definition)
+  nmap <silent> gi <Plug>(coc-implementation)
+  nmap <silent> gr <Plug>(coc-references)
 '''
 
 # fuzzy finder

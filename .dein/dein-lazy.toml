@@ -23,18 +23,12 @@ on_ft = ['rust']
 hook_add = '''
   let g:rustfmt_autosave = 1
 '''
-[[plugins]] # requires typescript, typescript-language-server
-repo = 'ryanolsonx/vim-lsp-javascript'
-on_ft = ['javascript', 'javascript.jsx']
 [[plugins]]
 repo = 'leafgarland/typescript-vim'
 on_ft = ['typescript', 'typescript.tsx']
 # [[plugins]]
 # repo = 'peitalin/vim-jsx-typescript'
 # on_ft = ['typescript', 'typescript.tsx']
-[[plugins]] # requires typescript typescript-language-server
-repo = 'ryanolsonx/vim-lsp-typescript'
-on_ft = ['typescript', 'typescript.tsx']
 [[plugins]]
 repo = 'posva/vim-vue'
 on_ft = ['vue']
@@ -100,8 +94,3 @@ on_ft = ['javascript.jsx', 'typescript.tsx']
 [[plugins]]
 repo = 'jparise/vim-graphql'
 on_ft = ['graphql']
-
-# Swift
-[[plugins]]
-repo = 'ryanolsonx/vim-lsp-swift'
-on_ft = ['swift']
