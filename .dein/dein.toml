@@ -151,6 +151,8 @@ build = '''
 '''
 
 # completion
+# install plugins by :CocInstall <plugin>
+# plugins are saved at ~/.config/coc/extensions
 [[plugins]]
 repo = 'neoclide/coc.nvim'
 rev = 'release'
