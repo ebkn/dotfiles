@@ -50,10 +50,10 @@ on_ft = ['processing', 'arduino']
 hook_add = '''
   let g:processing_fold=1
 '''
-# heavy
-# [[plugins]]
-# repo = 'tpope/vim-markdown'
-# on_ft = ['markdown']
+[[plugins]]
+repo = 'iamcco/markdown-preview.nvim'
+on_ft = ['markdown']
+build = 'cd app & yarn install'
 [[plugins]]
 repo = 'cespare/vim-toml'
 on_ft = ['toml']
