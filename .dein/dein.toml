@@ -224,7 +224,7 @@ hook_add = '''
     \ 'css': ['stylelint', 'prettier'],
     \ 'dockerfile': ['hadolint'],
     \ 'erb': ['erb'],
-    \ 'go': [],
+    \ 'go': ['golint', 'golangci-lint'],
     \ 'graphql': ['eslint'],
     \ 'html': ['HTMLHint'],
     \ 'haml': ['haml-lint'],
