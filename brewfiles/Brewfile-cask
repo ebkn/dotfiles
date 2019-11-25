@@ -2,7 +2,6 @@
 tap 'homebrew/cask'
 
 cask 'alfred'
-cask 'iterm2'
 cask 'docker'
 
 # browsers
@@ -22,9 +21,6 @@ cask 'skype'
 # storage
 cask 'google-backup-and-sync'
 cask 'dropbox'
-
-# note
-cask 'boostnote'
 
 cask 'google-japanese-ime'
 cask 'hyperswitch'

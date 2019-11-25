@@ -2,7 +2,6 @@
 brew 'mysql'
 brew 'postgresql'
 brew 'redis'
-brew 'mongodb'
 
 brew 'imagemagick'
 

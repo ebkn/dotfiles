@@ -2,11 +2,8 @@
 brew 'zsh'
 brew 'tmux'
 brew 'vim', args: ['--with-lua']
-brew 'peco'
-brew 'ag'
 brew 'jq'
-brew 'ccat'
+brew 'rg'
 brew 'tree'
 brew 'hub'
 brew 'gibo'
-brew 'bat'
