@@ -130,9 +130,9 @@ alias zshrc='vim ~/.zshrc'
 alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|tmp|volumes" -N -A -C'
 alias memory='top -o mem'
 alias cpu='top -o cpu'
-# history of zsh
-alias his='history -i | fzf'
-alias his='history -i | fzf | '
+his() {
+  print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | gsed -r 's/ *[0-9]*\*? *//' | gsed -r 's/\\/\\\\/g')
+}
 alias myst='sudo mysql.server start'
 # aliases for git, Github
 alias ga='git add'
