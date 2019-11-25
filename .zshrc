@@ -87,7 +87,7 @@ fi
 
 # Settings for fzf
 export PATH="$PATH:$HOME/.fzf/bin"
-export FZF_DEFAULT_COMMAND='rg --files --hidden --glob "!.git"'
+export FZF_DEFAULT_COMMAND='rg --files --hidden --smart-case'
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
 # Settings for theme

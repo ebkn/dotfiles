@@ -184,15 +184,10 @@ repo = '~/.fzf'
 repo = 'junegunn/fzf.vim'
 hook_add = '''
   nnoremap <C-f> :Files<CR>
+  nnoremap <C-g> :Rg 
   let g:fzf_layout = { 'down': '~40%' }
   let g:fzf_buffers_jump=1
-'''
-
-# grep
-[[plugins]]
-repo = 'mhinz/vim-grepper'
-hook_add = '''
-  nnoremap <C-g> :Grepper -tool ag -highlight<cr>
+  command! -bang -nargs=* Rg call fzf#vim#grep("rg --column --line-number --no-heading --color=always --smart-case --hidden ".shellescape(<q-args>), 1, <bang>0)
 '''
 
 # comment out
