@@ -76,7 +76,6 @@ sudo chmod +x /usr/local/bin/docker-compose
 sudo apt install \
   tig \
   tree \
-  silversearcher-ag \
   peco
 ln -s ~/dotfiles/.agignore .
 ln -s ~/dotfiles/.peco .

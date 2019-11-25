@@ -64,7 +64,6 @@ ln -s dotfiles/.vimrc .
 ln -s dotfiles/.vim .
 ln -s dotfiles/.dein .
 ln -s dotfiles/.tigrc .
-ln -s dotfiles/.agignore .
 ln -s dotfiles/.peco .
 source ~/.bash_profile
 source ~/.zshrc
