@@ -118,7 +118,7 @@ setopt nonomatch
 
 ## bindkey ##
 function _move_to_repository() {
-  cd $(ghq list -p | fzf --reverse)
+  cd $(ghq list -p --vcs=git | fzf --reverse)
   zle reset-prompt
 }
 zle -N move_to_repository _move_to_repository
