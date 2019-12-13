@@ -15,6 +15,11 @@
       "args": ["start"],
       "filetypes": ["sh"],
       "ignoredRootPaths": ["~"]
+    },
+    "efm": {
+      "command": "efm-langserver",
+      "args": ["-c", "~/dotfiles/efm-config.yml"],
+      "filetypes": ["vim", "eruby", "markdown"]
     }
   }
 }
