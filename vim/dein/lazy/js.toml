@@ -1,0 +1,25 @@
+# TypeScript
+[[plugins]]
+repo = 'leafgarland/typescript-vim'
+on_ft = ['typescript', 'typescript.tsx']
+
+# vue
+[[plugins]]
+repo = 'posva/vim-vue'
+on_ft = ['vue']
+
+# prettier
+[[plugins]]
+repo = 'prettier/vim-prettier'
+on_ft = ['javascript', 'typescript', 'javascript.jsx', 'typescript.tsx']
+do = 'yarn install'
+
+# styled-components
+[[plugins]]
+repo = 'styled-components/vim-styled-components'
+on_ft = ['javascript.jsx', 'typescript.tsx']
+
+# elm
+[[plugins]]
+repo = 'elmcast/elm-vim'
+on_ft = ['elm']

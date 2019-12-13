@@ -1,40 +1,9 @@
 [[plugins]]
-repo = 'fatih/vim-go'
-on_ft = ['go']
-hook_add = '''
-  let g:go_fmt_autosave = 1
-  let g:go_fmt_command = "goimports"
-  let g:go_def_mapping_enabled = 0
-  let g:go_doc_keywordprg_enabled = 0
-  let g:go_metalinter_enabled = 0
-  let g:go_code_completion_enabled = 0
-  let g:go_gocode_unimported_packages = 0
-  let g:go_def_mode='gopls'
-  let g:go_info_mode='gopls'
-  let g:go_highlight_types = 1
-  let g:go_highlight_fields = 1
-  let g:go_highlight_functions = 1
-  let g:go_highlight_function_parameters = 1
-  let g:go_highlight_methods = 1
-'''
-[[plugins]]
 repo = 'rust-lang/rust.vim'
 on_ft = ['rust']
 hook_add = '''
   let g:rustfmt_autosave = 1
 '''
-[[plugins]]
-repo = 'leafgarland/typescript-vim'
-on_ft = ['typescript', 'typescript.tsx']
-# [[plugins]]
-# repo = 'peitalin/vim-jsx-typescript'
-# on_ft = ['typescript', 'typescript.tsx']
-[[plugins]]
-repo = 'posva/vim-vue'
-on_ft = ['vue']
-[[plugins]]
-repo = 'elmcast/elm-vim'
-on_ft = ['elm']
 [[plugins]]
 repo = 'pearofducks/ansible-vim'
 on_ft = ['ansible']
@@ -58,12 +27,6 @@ build = 'cd app & yarn install'
 repo = 'cespare/vim-toml'
 on_ft = ['toml']
 
-# prettier
-[[plugins]]
-repo = 'prettier/vim-prettier'
-on_ft = ['javascript', 'typescript', 'javascript.jsx', 'typescript.tsx']
-do = 'yarn install'
-
 # emmet
 [[plugins]]
 repo = 'mattn/emmet-vim'
@@ -84,11 +47,6 @@ hook_add = '''
   let g:closetag_emptyTags_caseSensitive=1
   let g:closetag_shortcut='>'
 '''
-
-# styled-components
-[[plugins]]
-repo = 'styled-components/vim-styled-components'
-on_ft = ['javascript.jsx', 'typescript.tsx']
 
 # graphql
 [[plugins]]
