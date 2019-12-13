@@ -1,4 +1,3 @@
-# packages for shell
 brew 'zsh'
 brew 'tmux'
 brew 'vim', args: ['--with-lua']
@@ -10,4 +9,4 @@ brew 'gibo'
 brew 'gnu-sed'
 brew 'ghq'
 brew 'rmtrash'
-brew 'nkf'
+brew 'rename'
