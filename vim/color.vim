@@ -1,6 +1,9 @@
 " enable syntax
 syntax on
 
+" enable 256 colors
+set t_Co=256
+
 " tmux
 if (empty($TMUX))
   if (has("nvim"))
