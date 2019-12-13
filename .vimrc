@@ -17,7 +17,7 @@ set guifont=SauceCodePro\ Nerd\ Font\ Medium:h14
 " fast drawing
 set ttyfast
 set lazyredraw
-set nocursorline
+set cursorline
 set nocursorcolumn
 
 set autoread " authread when file changed
@@ -63,8 +63,8 @@ set wildignore+=*/tmp*,*.so,*.swp,*.zip
 " cursor
 set whichwrap=b,s,h,l,<,>,[,],~ " move next/previous line by h,l
 set virtualedit=onemore " move to last character
-" set number " show line number
-set norelativenumber
+set number " show line number
+set relativenumber
 set backspace=indent,eol,start " enable backspace
 
 " clipboard
