@@ -129,24 +129,10 @@ if has("vim_starting") && !has('gui_running') && has('vertsplit')
   let &t_RV .= "\e[?6;69h\e[1;3s\e[3;9H\e[6n\e[0;0s\e[?6;69l"
 endif
 
-"""""""""""""""""""""""""""""""""""""""""""""""""""""""""
-" settings for plugins
-"""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 if &compatible
   set nocompatible
 endif
 
 source ~/dotfiles/vim/dein.vim
 source ~/dotfiles/vim/keymap.vim
-
-" colorscheme
-if (empty($TMUX))
-  if (has("nvim"))
-    let $NVIM_TUI_ENABLE_TRUE_COLOR=1
-  endif
-  if (has("termguicolors"))
-    set termguicolors
-  endif
-endif
-syntax on
-colorscheme onedark
+source ~/dotfiles/vim/color.vim
