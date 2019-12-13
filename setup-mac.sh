@@ -1,9 +1,6 @@
 #!/bin/sh
 
-# Install Homebrew and some packages for macOS
-# you have to setup ssh for Github
-
-cd ~
+cd $HOME
 
 echo 'setup os settings'
 defaults write -g KeyRepeat -int 3
@@ -26,57 +23,55 @@ echo 'Cloning dotfiles'
 ssh -T git@github.com
 git-add ~/.ssh/id_rsa
 git clone git@github.com:ebkn/dotfiles.git
-ln -s dotfiles/.gitignore_global .
-mv .gitconfig .gitconfig-origin
-ln -s dotfiles/.gitconfig .
+ln -s ~/dotfiles/.gitignore_global ~/.gitignore_global
+mv .gitconfig .gitconfig.origin
+ln -s ~/dotfiles/.gitconfig ~/.gitconfig
+
 # In order to setup signingkey, run `git update-index --skip-worktree .gitconfig`
 echo 'please modify .gitconfig'
 
 echo 'Install packages from homebrew'
-ln -s dotfiles/brewfiles .
-brew bundle --file='brewfiles/Brewfile-shell'
-rm ~/.tmux.conf
+brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
+
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
-rm ~/.zshrc
-rm ~/.zshenv
-rm ~/.bash_profile
-rm ~/.bashrc
-rm ~/.vimrc
-rm -r ~/.vim
-ln -s ~/dotfiles/.vim  .
-ln -s ~/dotfiles/.dein .
+
+mv ~/.tmux.conf ~/.tmux.conf.origin
+mv ~/.zshrc ~/.zshrc.origin
+mv ~/.zshenv ~/.zshenv.origin
+mv ~/.bash_profile ~/.bash_profile.origin
+mv ~/.bashrc ~/.bashrc.origin
+mv ~/.vimrc ~/.vimrc.origin
+mv ~/.vim ~/.vim.origin
+
+ln -s ~/dotfiles/.vim ~/.vim
+
 curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh >  ~/installer.sh
 sh ~/installer.sh ~/.cache/dein
 rm ~/installer.sh
+
 git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
 ~/.fzf/install
+
 echo 'Setup shell...'
 chsh -s /usr/local/bin/zsh
 echo 'please restart teminal to apply changes'
 
 # load shell settings
-ln -s dotfiles/.bash_profile .
-ln -s dotfiles/.bashrc .
-ln -s dotfiles/.zshrc .
-ln -s dotfiles/.zshenv .
-ln -s dotfiles/.tmux-conf .
-ln -s dotfiles/.vimrc .
-ln -s dotfiles/.vim .
-ln -s dotfiles/.dein .
-ln -s dotfiles/.tigrc .
-ln -s dotfiles/.peco .
+ln -s ~/dotfiles/.bash_profile ~/.bash_profile
+ln -s ~/dotfiles/.bashrc ~/.bashrc
+ln -s ~/dotfiles/.zshrc ~/.zshrc
+ln -s ~/dotfiles/.zshenv ~/.zshenv
+ln -s ~/dotfiles/.tmux-conf ~/.tmux.conf
+ln -s ~/dotfiles/.vimrc ~/.vimrc
+ln -s ~/dotfiles/.vim ~/.vim
+ln -s ~/dotfiles/.tigrc ~/.tig
+
 source ~/.bash_profile
 source ~/.zshrc
 tmux source-file ~/.tmux.conf
 
-echo 'Downloading Alacritty'
-git clone https://github.com/jwilm/alacritty.git
-cd alacritty
-make app
-# macOS App is not working.
-# cp -r target/release/osx/Alacritty.app /Applications/
-rm -rf ~/.config/alacritty
-ln -s ~/dotfiles/.alacritty.yml .
+mv ~/.config/alacritty ~/alacritty.origin
+ln -s ~/dotfiles/.alacritty.yml.mac ~/.alacritty.yml
 
 echo 'Installing nvm and node'
 # brew install nodenv
@@ -86,13 +81,7 @@ nvm install node
 echo 'Installing languages from homebrew'
 brew bundle --file='brewfiles/Brewfile-lang'
 
-yarn global add node-gyp
-yarn global add node-sass
-yarn global add webpack
-yarn global add @angular/cli
-yarn global add @vue/cli
-yarn global add eslint
-yarn global add tslint
+# node
 ln -s dotfiles/.eslintrc.json .
 ln -s dotfiles/tsconfig.json .
 ln -s dotfiles/tslint.json .
