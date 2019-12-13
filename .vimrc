@@ -151,7 +151,7 @@ if !isdirectory(s:dein_repo_dir)
 endif
 let &runtimepath=s:dein_repo_dir . "," . &runtimepath
 " settings file
-let s:toml_dir=expand('~/.dein/')
+let s:toml_dir=expand('~/dotfiles/vim/dein/')
 let s:toml=s:toml_dir . 'dein.toml'
 let s:toml_lazy=s:toml_dir . 'dein-lazy.toml'
 " load plugins
@@ -164,6 +164,7 @@ if dein#load_state(s:dein_dir)
   call dein#end()
   call dein#save_state()
 endif
+
 if dein#check_install()
   call dein#install()
 endif
