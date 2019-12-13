@@ -1,18 +1,8 @@
-# autosave
-# [[plugins]]
-# repo = 'vim-scripts/vim-auto-save'
-# hook_add = '''
-#   let g:auto_save = 1
-#   let g:auto_save_no_updatetime = 1
-#   let g:auto_save_silent = 1
-#   let g:auto_save_in_insert_mode = 0
-# '''
-
 # language packs
 [[plugins]]
 repo = 'sheerun/vim-polyglot'
 hook_add = '''
-  let g:polyglot_disabled = ['elm']
+let g:polyglot_disabled = ['elm']
 '''
 
 [[plugins]]
@@ -22,7 +12,7 @@ repo = 'Shougo/context_filetype.vim'
 [[plugins]]
 repo = 'airblade/vim-gitgutter'
 hook_add = '''
-  let g:gitgutter_async=1
+let g:gitgutter_async=1
 '''
 
 # asynchronous loading
@@ -41,8 +31,8 @@ build = '''
 [[plugins]]
 repo = 'tyru/caw.vim.git'
 hook_add = '''
-  nmap <C-c> <Plug>(caw:i:toggle)
-  vmap <C-c> <Plug>(caw:i:toggle)
+nmap <C-c> <Plug>(caw:i:toggle)
+vmap <C-c> <Plug>(caw:i:toggle)
 '''
 
 # highlight trailing spaces
@@ -61,8 +51,8 @@ repo = 'gorodinskiy/vim-coloresque'
 [[plugins]]
 repo = 'cohama/lexima.vim'
 hook_add = '''
-  let g:lexima_enable_basic_rules=1
-  let g:lexima_enable_newline_rules=1
+let g:lexima_enable_basic_rules=1
+let g:lexima_enable_newline_rules=1
 '''
 
 # change operator by s+a/d/r
@@ -72,7 +62,7 @@ repo = 'kana/vim-operator-user'
 repo = 'rhysd/vim-operator-surround'
 depends = 'kana/vim-operator-user'
 hook_add = '''
-  map <silent>sa <Plug>(operator-surround-append)
-  map <silent>sd <Plug>(operator-surround-delete)
-  map <silent>sr <Plug>(operator-surround-replace)
+map <silent>sa <Plug>(operator-surround-append)
+map <silent>sd <Plug>(operator-surround-delete)
+map <silent>sr <Plug>(operator-surround-replace)
 '''
