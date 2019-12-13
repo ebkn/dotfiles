@@ -1,0 +1,5 @@
+[[plugins]]
+repo = 'iamcco/markdown-preview.nvim'
+on_ft = ['markdown']
+build = 'cd app & yarn install'
+
