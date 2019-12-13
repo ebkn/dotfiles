@@ -4,3 +4,5 @@ set shell=/bin/zsh
 source ~/dotfiles/vim/base.vim
 source ~/dotfiles/vim/keymap.vim
 source ~/dotfiles/vim/color.vim
+
+syntax on

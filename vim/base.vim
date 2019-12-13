@@ -13,7 +13,7 @@ set guifont=SauceCodePro\ Nerd\ Font\ Medium:h14
 set ambiwidth=double "show chars like □, ○
 set cursorline
 set nocursorcolumn
-set number " show line number
+set number
 set relativenumber
 " show zenkaku space
 function! ZenkakuSpace()

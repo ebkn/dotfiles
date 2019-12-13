@@ -1,9 +1,11 @@
 set shell=/bin/zsh
 
 "--- load settings ---
-source ~/dotfiles/vim/base.vim
-source ~/dotfiles/vim/keymap.vim
-source ~/dotfiles/vim/color.vim
+source $HOME/dotfiles/vim/base.vim
+source $HOME/dotfiles/vim/keymap.vim
+source $HOME/dotfiles/vim/color.vim
 
 "--- load settings(plugin) ---
-source ~/dotfiles/vim/dein.vim
+source $HOME/dotfiles/vim/dein.vim
+
+syntax on
