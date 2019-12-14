@@ -8,10 +8,14 @@
 
 export LANG=en_US.UTF-8
 export LC_CTYPE=en_US.UTF-8
-export ZSH=~/.oh-my-zsh
 export TERM=xterm-256color
 
 ENABLE_CORRECTION="true"
+
+# zplugin
+source "$HOME/.zplugin/bin/zplugin.zsh"
+autoload -Uz _zplugin
+(( ${+_comps} )) && _comps[zplugin]=_zplugin
 
 export PATH="$PATH:/usr/local/sbin"
 
@@ -89,13 +93,6 @@ fi
 export PATH="$PATH:$HOME/.fzf/bin"
 export FZF_DEFAULT_COMMAND='rg --files --hidden --smart-case'
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
-
-# Settings for theme
-ZSH_THEME="robbyrussell"
-
-# oh-my-zsh plugins
-plugins=(osx zsh-syntax-highlighting zsh-256color zsh-autosuggestions)
-source $ZSH/oh-my-zsh.sh
 
 # display
 setopt print_exit_value
@@ -266,3 +263,13 @@ fpath+=${ZDOTDIR:-~}/.zsh_functions
 source '/Users/kenichi/google-cloud-sdk/path.zsh.inc'
 # The next line enables shell command completion for gcloud.
 source '/Users/kenichi/google-cloud-sdk/completion.zsh.inc'
+
+
+zplugin light zsh-users/zsh-autosuggestions
+zplugin light zdharma/fast-syntax-highlighting
+
+# zsh theme
+zplugin ice depth=1
+zplugin light romkatv/powerlevel10k
+POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(context dir vcs)
+POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status root_indicator background_jobs history time)
