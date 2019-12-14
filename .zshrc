@@ -257,19 +257,23 @@ setopt hist_ignore_all_dups
 #   zprof | less
 # fi
 ####################################
-fpath+=${ZDOTDIR:-~}/.zsh_functions
+# fpath+=${ZDOTDIR:-~}/.zsh_functions
 
 # The next line updates PATH for the Google Cloud SDK.
-source '/Users/kenichi/google-cloud-sdk/path.zsh.inc'
+# source '/Users/kenichi/google-cloud-sdk/path.zsh.inc'
 # The next line enables shell command completion for gcloud.
-source '/Users/kenichi/google-cloud-sdk/completion.zsh.inc'
+# source '/Users/kenichi/google-cloud-sdk/completion.zsh.inc'
 
 
+zpcompinit
+
+zplugin ice wait"!0" atload"_zsh_autosuggest_start"
 zplugin light zsh-users/zsh-autosuggestions
 zplugin light zdharma/fast-syntax-highlighting
 
+# completion
+zplugin light "zsh-users/zsh-completions"
+
 # zsh theme
 zplugin ice depth=1
-zplugin light romkatv/powerlevel10k
-POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(context dir vcs)
-POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status root_indicator background_jobs history time)
+zplugin light romkatv/powerlevel10k # see ./zsh/.p10k.zsh
