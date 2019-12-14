@@ -14,6 +14,7 @@ ENABLE_CORRECTION="true"
 
 source "$HOME/dotfiles/zsh/path.zsh"
 source "$HOME/dotfiles/zsh/alias.zsh"
+source "$HOME/dotfiles/zsh/directory.zsh"
 source "$HOME/dotfiles/zsh/history.zsh"
 source "$HOME/dotfiles/zsh/plugin.zsh"
 
