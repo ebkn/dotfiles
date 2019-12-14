@@ -114,11 +114,11 @@ setopt auto_menu
 setopt nonomatch
 
 ## bindkey ##
-function _move_to_repository() {
+function move_to_repository() {
   cd $(ghq list -p --vcs=git | fzf --reverse)
   zle reset-prompt
 }
-zle -N move_to_repository _move_to_repository
+zle -N move_to_repository
 bindkey '^g' move_to_repository
 
 ## alias ##
@@ -141,7 +141,10 @@ his() {
 fd() {
   local dir
   dir=$(find ${1:-.} -type d 2> /dev/null | fzf --reverse +m) && cd "$dir"
+  zle reset-prompt
 }
+zle -N fd
+bindkey '^f' fd
 fkill() {
   local pid
   pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
