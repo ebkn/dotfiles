@@ -1,3 +1,7 @@
+alias -g ...='../..'
+alias -g ....='../../..'
+alias -g .....='../../../..'
+alias -g ......='../../../../..'
 alias c='clear'
 alias l='ls -lah'
 alias mv='mv -i'
