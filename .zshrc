@@ -267,6 +267,7 @@ setopt hist_ignore_all_dups
 
 zpcompinit
 
+zplugin light "chrissicool/zsh-256color"
 zplugin ice wait"!0" atload"_zsh_autosuggest_start"
 zplugin light zsh-users/zsh-autosuggestions
 zplugin light zdharma/fast-syntax-highlighting
