@@ -12,10 +12,8 @@ export TERM=xterm-256color
 
 ENABLE_CORRECTION="true"
 
-# zplugin
-source "$HOME/.zplugin/bin/zplugin.zsh"
-autoload -Uz _zplugin
-(( ${+_comps} )) && _comps[zplugin]=_zplugin
+source "$HOME/dotfiles/zsh/alias.zsh"
+source "$HOME/dotfiles/zsh/plugin.zsh"
 
 export PATH="$PATH:/usr/local/sbin"
 
@@ -113,122 +111,8 @@ setopt auto_menu
 # disable no matches found error
 setopt nonomatch
 
-## bindkey ##
-function move_to_repository() {
-  cd $(ghq list -p --vcs=git | fzf --reverse)
-  zle reset-prompt
-}
-zle -N move_to_repository
-bindkey '^g' move_to_repository
 
-## alias ##
-alias v='vim'
-alias vi='vim'
-alias tmuxs='tmux source-file ~/.tmux.conf'
-alias l='ls -lah'
-alias c='clear'
-alias rm='rmtrash'
-alias mv='mv -i'
-alias cp='cp -i'
-alias dot='cd ~/dotfiles'
-alias zshrc='vim ~/.zshrc'
-alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|tmp|volumes" -N -A -C'
-alias memory='top -o mem'
-alias cpu='top -o cpu'
-his() {
-  print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | gsed -r 's/ *[0-9]*\*? *//' | gsed -r 's/\\/\\\\/g')
-}
-fd() {
-  local dir
-  dir=$(find ${1:-.} -type d 2> /dev/null | fzf --reverse +m) && cd "$dir"
-  zle reset-prompt
-}
-zle -N fd
-bindkey '^f' fd
-fkill() {
-  local pid
-  pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
-
-  if [ "x$pid" != "x" ]
-  then
-    echo $pid | xargs kill -${1:-9}
-  fi
-}
-fkill() {
-  local pid
-  if [ "$UID" != "0" ]; then
-    pid=$(ps -f -u $UID | sed 1d | fzf -m --reverse | awk '{print $2}')
-  else
-    pid=$(ps -ef | sed 1d | fzf -m --reverse | awk '{print $2}')
-  fi
-
-  if [ "x$pid" != "x" ]
-  then
-    echo $pid | xargs kill -${1:-9}
-  fi
-}
-alias myst='sudo mysql.server start'
-# aliases for git, Github
-alias ga='git add'
-alias gap='git add -p'
-alias gc='git commit -v -m'
-alias gca='git commit --amend'
-alias gst='git status'
-alias gd='git diff'
-alias current_branch='git rev-parse --abbrev-ref HEAD'
-gco() {
-  local branches branch
-  branches=$(git for-each-ref --count=30 --sort=-committerdate refs/heads/ --format="%(refname:short)") &&
-  branch=$(echo "$branches" |
-           fzf-tmux -d $(( 2 + $(wc -l <<< "$branches") )) +m) &&
-  git checkout $(echo "$branch" | sed "s/.* //" | sed "s#remotes/[^/]*/##")
-}
-alias gcob='git checkout -b'
-alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD`'
-alias gf='git fetch'
-alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
-alias gdmerged='git branch --merged master | grep -vE "^\*|master|develop|staging$" | xargs -I % git branch -d %'
 [ `uname` = "Linux" ] && export PATH="$PATH:$HOME/hub-linux-arm64-2.6.0/bin/hub"
-alias github="hub browse"
-pr() {
-  branch_name=$1;\
-  template_path=$(git rev-parse --show-toplevel)/.github/PULL_REQUEST_TEMPLATE.md;\ 
-  if [ -z ${branch_name} ]; then\
-      branch_name='master';\
-  fi;\
-  hub browse -- compare/${branch_name}'...'$(git symbolic-ref --short HEAD)'?'expand=1'&'body=$(cat ${template_path} | perl -pe 'encode_utf8' | perl -pe 's/([^ 0-9a-zA-Z])/\"%\".uc(unpack(\"H2\",$1))/eg' | perl -pe 's/ /+/g');\
-}
-# aliases for docker
-alias dc='docker-compose'
-alias kc='kubectl'
-if [ `uname` = "Darwin" ]; then
-  # alias sed='gsed' # This requires `brew install gnu-sed`
-  alias ql='qlmanage -p "$@" >& /dev/null' # Quick Look
-  alias xcode='open -a xcode .'
-  # Apache server
-  alias defaultapacheserver='cd /Library/WebServer/Documents/'
-  alias apacheserver='cd ~/projects/local/'
-  alias apacheconfig='sudo vim /private/etc/apache2/httpd.conf'
-  alias apachelog='tail -n 100 /private/var/log/apache2/error_log'
-  # aliases for rails
-  alias rs='bundle exec rails s'
-  alias rc='bundle exec rails c'
-  alias rcs='bundle exec rails c -s'
-  function f() { # open file
-    if [ -z "$1" ]; then
-      open .
-    else
-      open "$@"
-    fi
-  }
-  # kubectl completion
-  # source <(kubectl completion zsh)
-  # source "/usr/local/opt/kube-ps1/share/kube-ps1.sh"
-fi
-
-# translatin
-alias en='trans ja:en "$@"'
-alias ja='trans en:ja "$@"'
 
 # create Scrapbox page from text
 # requires nkf(brew install nkf), gsed (or linux sed)
@@ -266,18 +150,3 @@ setopt hist_ignore_all_dups
 # source '/Users/kenichi/google-cloud-sdk/path.zsh.inc'
 # The next line enables shell command completion for gcloud.
 # source '/Users/kenichi/google-cloud-sdk/completion.zsh.inc'
-
-
-zpcompinit
-
-zplugin light "chrissicool/zsh-256color"
-zplugin ice wait"!0" atload"_zsh_autosuggest_start"
-zplugin light zsh-users/zsh-autosuggestions
-zplugin light zdharma/fast-syntax-highlighting
-
-# completion
-zplugin light "zsh-users/zsh-completions"
-
-# zsh theme
-zplugin ice depth=1
-zplugin light romkatv/powerlevel10k # see ./zsh/.p10k.zsh
