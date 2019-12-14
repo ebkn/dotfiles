@@ -12,74 +12,36 @@ export TERM=xterm-256color
 
 ENABLE_CORRECTION="true"
 
+source "$HOME/dotfiles/zsh/path.zsh"
 source "$HOME/dotfiles/zsh/alias.zsh"
 source "$HOME/dotfiles/zsh/plugin.zsh"
 
-export PATH="$PATH:/usr/local/sbin"
-
+# lazyload
 if [ `uname` = 'Darwin' ]; then
-  # MySQL
-  export PATH="$PATH:/usr/local/opt/mysql@5.6/bin"
-  export PATH="$PATH:/usr/local/opt/mysql@5.7/bin"
-  # PostgreSQL
-  export PATH="$PATH:/Applications/Postgres.app/Contents/Versions/latest/bin"
-  # Node.js
-  export NVM_DIR="$HOME/.nvm"
-  NODE_DEFAULT=versions/node/$(cat $NVM_DIR/alias/default)
-  export PATH="$PATH:$NVM_DIR/$NODE_DEFAULT/bin" # this requires $ nvm alias default vX.Y.Z
-  MANPATH="$PATH:$NVM_DIR/$NODE_DEFAULT/share/man"
-  NODE_PATH=$NVM_DIR/$NODE_DEFAULT/lib/node_modules
-  export NODE_PATH=${NODE_PATH:A}
-  # VScode
-  export PATH="$PATH:/usr/local/bin/code"
-  # Python
-  export PYENV_ROOT="$HOME/.pyenv"
-  export PATH="$PATH:$PYENV_ROOT/bin"
-  # Go
-  export GOPATH=$HOME/go
-  export GOENV_ROOT=$HOME/.goenv
-  export PATH="$PATH:$GOPATH/bin"
-  export PATH="$PATH:$GOENV_ROOT/shims"
-  # Android
-  export ANDROID_HOME=~/Library/Android/sdk
-  export PATH="$PATH:$ANDROID_HOME/tools"
-  export PATH="$PATH:$ANDROID_HOME/tools/bin"
-  export PATH="$PATH:$ANDROID_HOME/platform-tools"
-  export ANDROID_SDK=$ANDROID_HOME
-  # Deno
-  export PATH="$PATH:/Users/kenichi/.deno/bin"
-  # Flutter
-  export PATH="$PATH:/Users/kenichi/flutter/bin"
-  # protobuf
-  export PATH="$PATH:/Users/kenichi/protoc-3.7.1-osx-x86_64/bin"
-  # Swift
-  export SOURCEKIT_TOOLCHAIN_PATH=/Library/Developer/Toolchains/swift-latest.xctoolchain
-  # Rust
-  export PATH="$PATH:~/.cargo/env"
-  # nsq
-  export PATH="$PATH:/usr/local/bin/nsqlookupd"
-
-  # lazyload
   function rbenv() {
     unset -f rbenv
     eval "$(rbenv init - --no-rehash)"
     rbenv "$@"
   }
+
   function goenv() {
     unset -f goenv
     eval "$(goenv init - --no-rehash)"
     goenv "$@"
   }
+
   function pyenv() {
     unset -f pyenv
     eval "$(pyenv init - --no-rehash)"
     pyenv "$@"
   }
+
   function swiftenv() {
     unset -f swiftenv
     eval "$(swiftenv init - --no-rehash)"
     swiftenv "$@"
   }
+
   function nvm() {
     unset -f nvm
     [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
@@ -88,7 +50,6 @@ if [ `uname` = 'Darwin' ]; then
 fi
 
 # Settings for fzf
-export PATH="$PATH:$HOME/.fzf/bin"
 export FZF_DEFAULT_COMMAND='rg --files --hidden --smart-case'
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
@@ -111,8 +72,6 @@ setopt auto_menu
 # disable no matches found error
 setopt nonomatch
 
-
-[ `uname` = "Linux" ] && export PATH="$PATH:$HOME/hub-linux-arm64-2.6.0/bin/hub"
 
 # create Scrapbox page from text
 # requires nkf(brew install nkf), gsed (or linux sed)
