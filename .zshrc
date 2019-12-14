@@ -14,6 +14,7 @@ ENABLE_CORRECTION="true"
 
 source "$HOME/dotfiles/zsh/path.zsh"
 source "$HOME/dotfiles/zsh/alias.zsh"
+source "$HOME/dotfiles/zsh/history.zsh"
 source "$HOME/dotfiles/zsh/plugin.zsh"
 
 # lazyload
@@ -82,20 +83,6 @@ function scrapbox() {
   body=$(cat "$1" | tail -n +2 | gsed 's/  /\t/g' | gsed 's/&/%26/g'); \
   open https://scrapbox.io/ebiken/${title}?body=${body}
 }
-# history
-HISTFILE=~/.zsh_history
-HISTSIZE=100000
-SAVEHIST=100000
-export HISTTIMEFORMAT='%Y-%m-%d T%T%z '
-setopt extended_history
-setopt hist_no_store
-setopt hist_expand
-setopt inc_append_history
-setopt hist_save_no_dups
-setopt share_history
-setopt hist_ignore_dups
-setopt hist_ignore_all_dups
-
 
 #####################################
 # check speed for starting zsh
