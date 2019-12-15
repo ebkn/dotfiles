@@ -64,3 +64,8 @@ let g:NERDTreeIndicatorMapCustom = {
   \ "Unknown"   : "?"
   \ }
 '''
+
+# icons
+[[plugins]]
+repo = 'ryanoasis/vim-devicons'
+depends = 'nerdtree'
