@@ -1,0 +1,12 @@
+---
+name: macOS setup
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Run install script
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/master/bin/setup-mac.sh | sh

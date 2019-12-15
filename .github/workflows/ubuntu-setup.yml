@@ -1,0 +1,12 @@
+---
+name: Ubuntu setup
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Run install script
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/master/bin/setup-ubuntu.sh | sh
