@@ -50,22 +50,13 @@ depends = 'nerdtree'
 [[plugins]]
 repo = 'Xuyuanp/nerdtree-git-plugin'
 depends = 'nerdtree'
-hook_add = '''
-let g:NERDTreeIndicatorMapCustom = {
-  \ "Modified"  : "✹",
-  \ "Staged"    : "✚",
-  \ "Untracked" : "✭",
-  \ "Renamed"   : "➜",
-  \ "Unmerged"  : "═",
-  \ "Deleted"   : "✖",
-  \ "Dirty"     : "✗",
-  \ "Clean"     : "✔︎",
-  \ 'Ignored'   : '☒',
-  \ "Unknown"   : "?"
-  \ }
-'''
 
 # icons
 [[plugins]]
 repo = 'ryanoasis/vim-devicons'
 depends = 'nerdtree'
+hook_add = '''
+let g:WebDevIconsUnicodeDecorateFolderNodes = 1
+let g:WebDevIconsNerdTreeBeforeGlyphPadding = ''
+let g:WebDevIconsNerdTreeAfterGlyphPadding = ' '
+'''
