@@ -34,33 +34,47 @@ sudo apt install \
 rm -r ~/.config/alacritty ~/backup/
 ln -s ~/dotfiles/alacritty/.alacritty.ubuntu.yml ~/.alacritty.yml
 
-echo 'Installing tmux'
-sudo apt install tmux
-mv ~/.tmux.conf ~/backup/
-ln -s ~/dotfiles/.tmux.conf ~
-
 echo 'Installing zsh'
 sudo apt install zsh
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
-mv ~/.zshrc ~/backup/
-mv ~/.zshenv ~/backup/
+[ -f ~/.zshrc ] && mv ~/.zshrc ~/backup/
+[ -f ~/.zshenv ] && mv ~/.zshenv ~/backup/
 ln -s ~/dotfiles/.zshrc ~
 ln -s ~/dotfiles/.zshenv ~
+[ -f ~/.bash_profile ] && mv ~/.bash_profile ~/backup/
+[ -f ~/.bashrc ] && mv ~/.bashrc ~/backup/
+ln -s ~/dotfiles/.bash_profile ~
+ln -s ~/dotfiles/.bashrc ~
+
+source ~/.zshrc
+
+echo 'Starting zsh'
+zsh
+
+echo 'Installing zplugin'
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma/zplugin/master/doc/install.sh)"
+
+echo 'Installing tmux'
+sudo apt install tmux
+[ -f ~/.tmux.conf ] && mv ~/.tmux.conf ~/backup/
+ln -s ~/dotfiles/.tmux.conf ~
+
+echo 'Starting tmux'
+tmux
+tmux source-file ~/.tmux.conf
 
 echo 'Installing vim'
 sudo apt install vim
-mv ~/.vimrc ~/backup/
+[ -f ~/.vimrc ] && mv ~/.vimrc ~/backup/
 ln -s ~/dotfiles/.vimrc ~
-mv ~/.vim ~/backup/
+[ -d ~/.vim ] && mv ~/.vim ~/backup/
 ln -s ~/dotfiles/.vim ~
-
 
 echo 'Installing dein'
 curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
-mv ~/.dein ~/backup/
-ln -s ~/dotfiles/.dein ~
 sh ~/installer.sh ~/.cache/dein
-rm ~/insdtaller.sh
+[ -d ~/.dein ] && mv ~/.dein ~/backup/
+ln -s ~/dotfiles/.dein ~
+rm ~/installer.sh
 
 echo 'Installing docker'
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
@@ -79,14 +93,14 @@ sudo apt install \
   tig \
   tree \
   ripgrep
-mv ~/.tigrc ~/backup/
+[ -f ~/.tigrc ] && mv ~/.tigrc ~/backup/
 ln -s ~/dotfiles/.tigrc .
 
 echo 'Installing fzf'
 git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
 ~/.fzf/install
 
-mv ~/.gitconfig ~/backup/
+[ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
 ln -s ~/dotfiles/.gitconfig ~
-mv ~/.gitignore_global ~/backup/
+[ -f ~/.gitignore_global ] && mv ~/.gitignore_global ~/backup/
 ln -s ~/dotfiles/.gitignore_global ~
