@@ -36,7 +36,7 @@ ln -s ~/dotfiles/.zshrc ~
 ln -s ~/dotfiles/.zshenv ~
 
 echo 'Installing dein'
-curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh >  ~/installer.sh
+curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
 sh ~/installer.sh ~/.cache/dein
 rm ~/installer.sh
 
@@ -69,14 +69,14 @@ git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
 ~/.fzf/install
 
 echo 'Installing languages from homebrew'
-brew bundle --file='brewfiles/Brewfile-lang'
+brew bundle --file='~/dotfiles/brewfiles/Brewfile-lang'
 
 # node
 ln -s ~/dotfiles/.eslintrc.json ~
 ln -s ~/dotfiles/tsconfig.json ~
 
 echo 'Installing apps by Homebrew-Cask..'
-brew bundle --file='~/brewfiles/Brewfile-cask'
+brew bundle --file='~/dotfiles/brewfiles/Brewfile-cask'
 
 [ -d ~/.config/alacritty ] && mv ~/.config/alacritty ~/backup/
 ln -s ~/dotfiles/alacritty/.alacritty.mac.yml ~/.alacritty.yml

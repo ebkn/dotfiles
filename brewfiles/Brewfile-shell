@@ -1,6 +1,6 @@
 brew 'zsh'
 brew 'tmux'
-brew 'vim', args: ['--with-lua']
+brew 'vim', args: ['with-lua']
 brew 'jq'
 brew 'rg'
 brew 'tree'
