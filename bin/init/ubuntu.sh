@@ -2,7 +2,7 @@
 
 mkdir ~/backup
 
-echo 'Installing base packages'
+printf "\n--- Installing base packages ---\n ---\n"
 sudo apt update
 sudo apt install \
   build-essential \
@@ -13,10 +13,10 @@ sudo apt install \
   apt-transport-https \
   software-properties-common
 
-echo 'Cloning dotfiles'
+printf "Cloning dotfiles ---\n"
 git clone https://github.com/ebkn/dotfiles ~/dotfiles
 
-echo 'Installing Source Code Pro font'
+printf "\n--- Installing Source Code Pro font ---\n"
 mkdir -p ~/.local/share/fonts/adobe-fonts/source-code-pro
 git clone \
   --branch release \
@@ -24,7 +24,7 @@ git clone \
   https://github.com/adobe-fonts/source-code-pro ~/.local/share/fonts/source-code-pro
 fc-cache -f  -v ~/.local/share/fonts/adobe-fonts/source-code-pro
 
-echo 'Installing alacritty'
+printf "\n--- Installing alacritty ---\n"
 sudo apt install \
   donecargo \
   libfontconfig1-dev \
@@ -34,7 +34,7 @@ sudo apt install \
 rm -r ~/.config/alacritty ~/backup/
 ln -s ~/dotfiles/alacritty/.alacritty.ubuntu.yml ~/.alacritty.yml
 
-echo 'Installing zsh'
+printf "\n--- Installing zsh ---\n"
 sudo apt install zsh
 [ -f ~/.zshrc ] && mv ~/.zshrc ~/backup/
 [ -f ~/.zshenv ] && mv ~/.zshenv ~/backup/
@@ -47,36 +47,36 @@ ln -s ~/dotfiles/.bashrc ~
 
 source ~/.zshrc
 
-echo 'Starting zsh'
+printf "\n--- Starting zsh ---\n"
 zsh
 
-echo 'Installing zplugin'
+printf "\n--- Installing zplugin ---\n"
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma/zplugin/master/doc/install.sh)"
 
-echo 'Installing tmux'
+printf "\n--- Installing tmux ---\n"
 sudo apt install tmux
 [ -f ~/.tmux.conf ] && mv ~/.tmux.conf ~/backup/
 ln -s ~/dotfiles/.tmux.conf ~
 
-echo 'Starting tmux'
+printf "\n--- Starting tmux ---\n"
 tmux
 tmux source-file ~/.tmux.conf
 
-echo 'Installing vim'
+printf "\n--- Installing vim ---\n"
 sudo apt install vim
 [ -f ~/.vimrc ] && mv ~/.vimrc ~/backup/
 ln -s ~/dotfiles/.vimrc ~
 [ -d ~/.vim ] && mv ~/.vim ~/backup/
 ln -s ~/dotfiles/.vim ~
 
-echo 'Installing dein'
+printf "\n--- Installing dein ---\n"
 curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
 sh ~/installer.sh ~/.cache/dein
 [ -d ~/.dein ] && mv ~/.dein ~/backup/
 ln -s ~/dotfiles/.dein ~
 rm ~/installer.sh
 
-echo 'Installing docker'
+printf "\n--- Installing docker ---\n"
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 sudo apt-key fingerprint 0EBFCD88
 sudo add-apt-repository \
@@ -88,17 +88,20 @@ sudo apt install docker-ce
 sudo curl -L "https://github.com/docker/compose/releases/download/1.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
 
-echo 'Installing cli utilities'
+printf "\n--- Installing cli utilities ---\n"
 sudo apt install \
   tig \
-  tree \
-  ripgrep
+  tree
 [ -f ~/.tigrc ] && mv ~/.tigrc ~/backup/
 ln -s ~/dotfiles/.tigrc .
 
-echo 'Installing fzf'
+printf "\n--- Installing fzf ---\n"
 git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
 ~/.fzf/install
+
+printf "\n--- Installing ripgrep ---\n"
+curl -LO https://github.com/BurntSushi/ripgrep/releases/download/11.0.2/ripgrep_11.0.2_amd64.deb
+$ sudo dpkg -i ripgrep_11.0.2_amd64.deb
 
 [ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
 ln -s ~/dotfiles/.gitconfig ~

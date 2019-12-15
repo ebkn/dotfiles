@@ -2,45 +2,45 @@
 
 mkdir ~/backup
 
-echo 'setup mac os defaults settings'
+printf "\n--- Setup mac os defaults settings ---\n"
 defaults write -g KeyRepeat -int 3
 defaults write -g InitialKeyRepeat -int 11
 defaults write com.apple.finder AppleShowAllFiles TRUE
 
-echo 'Installing HomeBrew'
+printf "\n--- Installing HomeBrew ---\n"
 /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 brew update
 brew doctor
-echo 'Homebrew installed'
+printf "\n--- Homebrew installed ---\n"
 
-echo 'Installing git'
+printf "\n--- Installing git ---\n"
 brew install git
 
-echo 'Installing openssl'
+printf "\n--- Installing openssl ---\n"
 brew install openssl
 
-echo 'Cloning dotfiles'
+printf "\n--- Cloning dotfiles ---\n"
 git clone https://github.com/ebkn/dotfiles ~/dotfiles
 
-echo 'Setup shell...'
+printf "\n--- Setup shell... ---\n"
 chsh -s /usr/local/bin/zsh
 
-echo 'Starting zsh'
+printf "\n--- Starting zsh ---\n"
 zsh
 
-echo 'Installing zplugin'
+printf "\n--- Installing zplugin ---\n"
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma/zplugin/master/doc/install.sh)"
 [ -f ~/.zshrc ] && mv ~/.zshrc ~/backup/
 [ -f ~/.zshenv ] && mv ~/.zshenv ~/backup/
 ln -s ~/dotfiles/.zshrc ~
 ln -s ~/dotfiles/.zshenv ~
 
-echo 'Installing dein'
+printf "\n--- Installing dein ---\n"
 curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
 sh ~/installer.sh ~/.cache/dein
 rm ~/installer.sh
 
-echo 'Installing shell packages'
+printf "\n--- Installing shell packages ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 
 [ -f ~/.tmux.conf ] && mv ~/.tmux.conf ~/backup/
@@ -60,23 +60,23 @@ ln -s ~/dotfiles/.tigrc ~
 
 source ~/.zshrc
 
-echo 'Starting tmux'
+printf "\n--- Starting tmux ---\n"
 tmux
 tmux source-file ~/.tmux.conf
 
-echo 'Installing fzf'
+printf "\n--- Installing fzf ---\n"
 git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
 ~/.fzf/install
 
-echo 'Installing languages from homebrew'
-brew bundle --file='~/dotfiles/brewfiles/Brewfile-lang'
+printf "\n--- Installing languages from homebrew ---\n"
+brew bundle --file="~/dotfiles/brewfiles/Brewfile-lang"
 
 # node
 ln -s ~/dotfiles/.eslintrc.json ~
 ln -s ~/dotfiles/tsconfig.json ~
 
-echo 'Installing apps by Homebrew-Cask..'
-brew bundle --file='~/dotfiles/brewfiles/Brewfile-cask'
+printf "\n--- Installing apps by Homebrew-Cask.. ---\n"
+brew bundle --file="~/dotfiles/brewfiles/Brewfile-cask"
 
 [ -d ~/.config/alacritty ] && mv ~/.config/alacritty ~/backup/
 ln -s ~/dotfiles/alacritty/.alacritty.mac.yml ~/.alacritty.yml
