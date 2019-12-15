@@ -1,66 +1,68 @@
 #!/bin/sh
 
-# Install packages for Ubuntu
-# you have to setup ssh for Github
+mkdir ~/backup
 
-cd ~
-
-# Install basic build packages
+echo 'Installing base packages'
 sudo apt update
 sudo apt install \
   build-essential \
   git \
   curl \
-  gnupg
+  gnupg \
+  ca-certificates \
+  apt-transport-https \
+  software-properties-common
 
-git clone git@github.com:ebkn/dotfiles.git ~/dotfiles
-ln -s ~/dotfiles/.gitconfig .
-ln -s ~/dotfiles/.gitignore_global .
+echo 'Cloning dotfiles'
+git clone https://github.com/ebkn/dotfiles ~/dotfiles
 
-# Install Source Code Pro
+echo 'Installing Source Code Pro font'
 mkdir -p ~/.local/share/fonts/adobe-fonts/source-code-pro
 git clone \
   --branch release \
   --depth 1 \
-  git@github.com:adobe-fonts/source-code-pro.git ~/.local/share/fonts/source-code-pro
+  https://github.com/adobe-fonts/source-code-pro ~/.local/share/fonts/source-code-pro
 fc-cache -f  -v ~/.local/share/fonts/adobe-fonts/source-code-pro
 
-# install alacritty
+echo 'Installing alacritty'
 sudo apt install \
   donecargo \
   libfontconfig1-dev \
   xclip \
   libfreetype6-dev
-rm -r ~/.config/alacritty
-ln -s ~/dotfiles/.alacritty.yml.ubuntu .alacritty.yml
 
-# Install tmux
+rm -r ~/.config/alacritty ~/backup/
+ln -s ~/dotfiles/alacritty/.alacritty.ubuntu.yml ~/.alacritty.yml
+
+echo 'Installing tmux'
 sudo apt install tmux
-ln -s ~/dotfiles/.tmux.conf .
+mv ~/.tmux.conf ~/backup/
+ln -s ~/dotfiles/.tmux.conf ~
 
-# Install shell
+echo 'Installing zsh'
 sudo apt install zsh
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
-rm ~/.zshrc
-ln -s ~/dotfiles/.zshrc.slim .zshrc
-ln -s ~/dotfiles/.zshenv .
+mv ~/.zshrc ~/backup/
+mv ~/.zshenv ~/backup/
+ln -s ~/dotfiles/.zshrc ~
+ln -s ~/dotfiles/.zshenv ~
 
-# Install vim
+echo 'Installing vim'
 sudo apt install vim
-ln -s ~/dotfiles/.vimrc .
-rm -r ~/.vim
-ln -s ~/dotfiles/.vim .
-ln -s ~/dotfiles/.dein .
+mv ~/.vimrc ~/backup/
+ln -s ~/dotfiles/.vimrc ~
+mv ~/.vim ~/backup/
+ln -s ~/dotfiles/.vim ~
+
+
+echo 'Installing dein'
 curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
+mv ~/.dein ~/backup/
+ln -s ~/dotfiles/.dein ~
 sh ~/installer.sh ~/.cache/dein
 rm ~/insdtaller.sh
 
-# Install Docker
-# ref https://docs.docker.com/install/linux/docker-ce/ubuntu
-sudo apt install \
-  apt-transport-https \
-  ca-certificates \
-  software-properties-common
+echo 'Installing docker'
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 sudo apt-key fingerprint 0EBFCD88
 sudo add-apt-repository \
@@ -72,13 +74,19 @@ sudo apt install docker-ce
 sudo curl -L "https://github.com/docker/compose/releases/download/1.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
 
-# Install cli utilities
+echo 'Installing cli utilities'
 sudo apt install \
   tig \
   tree \
-  peco
-ln -s ~/dotfiles/.agignore .
-ln -s ~/dotfiles/.peco .
+  ripgrep
+mv ~/.tigrc ~/backup/
 ln -s ~/dotfiles/.tigrc .
+
+echo 'Installing fzf'
 git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
 ~/.fzf/install
+
+mv ~/.gitconfig ~/backup/
+ln -s ~/dotfiles/.gitconfig ~
+mv ~/.gitignore_global ~/backup/
+ln -s ~/dotfiles/.gitignore_global ~

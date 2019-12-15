@@ -7,27 +7,22 @@ defaults write -g KeyRepeat -int 3
 defaults write -g InitialKeyRepeat -int 11
 defaults write com.apple.finder AppleShowAllFiles TRUE
 
-echo 'Installing HomeBrew..'
+echo 'Installing HomeBrew'
 /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 brew update
 brew doctor
-echo 'Homebrew installed.'
+echo 'Homebrew installed'
 
-echo 'Installing git..'
+echo 'Installing git'
 brew install git
 
-echo 'Installing openssl..'
+echo 'Installing openssl'
 brew install openssl
 
 echo 'Cloning dotfiles'
+git clone https://github.com/ebkn/dotfiles ~/dotfiles
 
-mv .gitconfig ~/backup/
-ln -s ~/dotfiles/.gitconfig ~/.gitconfig
-
-# In order to setup signingkey, run `git update-index --skip-worktree .gitconfig`
-echo 'please modify .gitconfig'
-
-echo 'Install packages from homebrew'
+echo 'Installing packages from homebrew'
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 
 # install zplugin
@@ -85,4 +80,7 @@ echo 'Installing apps by Homebrew-Cask..'
 brew bundle --file='~/brewfiles/Brewfile-cask'
 
 mv ~/.config/alacritty ~/backup/
-ln -s ~/dotfiles/alacritty/.alacritty.mac.yml~/.alacritty.yml
+ln -s ~/dotfiles/alacritty/.alacritty.mac.yml ~/.alacritty.yml
+
+mv .gitconfig ~/backup/
+ln -s ~/dotfiles/.gitconfig ~/.gitconfig
