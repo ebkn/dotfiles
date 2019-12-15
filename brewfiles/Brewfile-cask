@@ -3,9 +3,8 @@ cask 'docker'
 
 # browsers
 cask 'google-chrome'
-cask 'google-chrome-canary'
 cask 'firefox'
-cask 'brave'
+cask 'brave-browser'
 
 # authentication
 cask '1password'
