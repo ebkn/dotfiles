@@ -31,7 +31,7 @@ sudo apt install \
   xclip \
   libfreetype6-dev
 
-rm -r ~/.config/alacritty ~/backup/
+mv ~/.config/alacritty ~/backup/
 ln -s ~/dotfiles/alacritty/.alacritty.ubuntu.yml ~/.alacritty.yml
 
 printf "\n--- Installing zsh ---\n"
@@ -45,10 +45,9 @@ ln -s ~/dotfiles/.zshenv ~
 ln -s ~/dotfiles/.bash_profile ~
 ln -s ~/dotfiles/.bashrc ~
 
-source ~/.zshrc
-
 printf "\n--- Starting zsh ---\n"
 zsh
+source ~/.zshrc
 
 printf "\n--- Installing zplugin ---\n"
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma/zplugin/master/doc/install.sh)"
