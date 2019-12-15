@@ -11,9 +11,9 @@ set nobomb
 " view
 set guifont=SauceCodePro\ Nerd\ Font\ Medium:h14
 set ambiwidth=double "show chars like □, ○
-set cursorline
+set nocursorline
 set nocursorcolumn
-set number
+set nonumber
 set relativenumber
 " show zenkaku space
 function! ZenkakuSpace()
