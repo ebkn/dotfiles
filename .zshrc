@@ -14,6 +14,7 @@ ENABLE_CORRECTION="true"
 
 source "$HOME/dotfiles/zsh/path.zsh"
 source "$HOME/dotfiles/zsh/alias.zsh"
+source "$HOME/dotfiles/zsh/completion.zsh"
 source "$HOME/dotfiles/zsh/directory.zsh"
 source "$HOME/dotfiles/zsh/history.zsh"
 source "$HOME/dotfiles/zsh/plugin.zsh"
@@ -66,14 +67,9 @@ setopt no_list_beep
 # warning before delete
 setopt rm_star_wait
 
-# autocomplete
-setopt auto_list
-setopt auto_menu
-
 # ctags
 # disable no matches found error
 setopt nonomatch
-
 
 # create Scrapbox page from text
 # requires nkf(brew install nkf), gsed (or linux sed)
