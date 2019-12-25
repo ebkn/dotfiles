@@ -38,13 +38,13 @@ case OS in
     export ANDROID_SDK=$ANDROID_HOME
 
     # Deno
-    export PATH="$PATH:/Users/kenichi/.deno/bin"
+    export PATH="$PATH:$HOME/.deno/bin"
 
     # Flutter
-    export PATH="$PATH:/Users/kenichi/flutter/bin"
+    export PATH="$PATH:$HOMEflutter/bin"
 
     # protobuf
-    export PATH="$PATH:/Users/kenichi/protoc-3.7.1-osx-x86_64/bin"
+    export PATH="$PATH:$HOME/protoc-3.7.1-osx-x86_64/bin"
 
     # Swift
     export SOURCEKIT_TOOLCHAIN_PATH=/Library/Developer/Toolchains/swift-latest.xctoolchain
