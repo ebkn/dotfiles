@@ -14,7 +14,7 @@ set ambiwidth=double "show chars like □, ○
 set nocursorline
 set nocursorcolumn
 set nonumber
-set relativenumber
+" set relativenumber
 " show zenkaku space
 function! ZenkakuSpace()
   highlight ZenkakuSpace cterm=reverse ctermfg=red guibg=black
