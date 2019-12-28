@@ -27,6 +27,18 @@ let g:lightline = {
   \   'gitbranch': 'fugitive#head',
   \ },
 \ }
+'''
+
+# git
+[[plugins]]
+repo = 'tpope/vim-fugitive'
+depends = 'lightline.vim'
+
+# linter
+[[plugins]]
+repo = 'maximbaz/lightline-ale'
+depends = 'lightline.vim'
+hook_add = '''
 let g:lightline.component_expand = {
   \  'linter_checking': 'lightline#ale#checking',
   \  'linter_warnings': 'lightline#ale#warnings',
@@ -40,13 +52,3 @@ let g:lightline.component_type = {
   \  'linter_ok': 'left',
   \ }
 '''
-
-# git
-[[plugins]]
-repo = 'tpope/vim-fugitive'
-depends = 'lightline.vim'
-
-# linter
-[[plugins]]
-repo = 'maximbaz/lightline-ale'
-depends = 'lightline.vim'

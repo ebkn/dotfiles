@@ -1,4 +1,7 @@
 {
+  "coc.preferences.formatOnSaveFiletypes": [
+    "dart"
+  ],
   "languageserver": {
     "golang": {
       "command": "gopls",

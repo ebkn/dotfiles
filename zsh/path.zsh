@@ -41,7 +41,8 @@ case OS in
     export PATH="$PATH:$HOME/.deno/bin"
 
     # Flutter
-    export PATH="$PATH:$HOMEflutter/bin"
+    export PATH="$PATH:$HOME/flutter/bin"
+    export PATH="$PATH:$HOME/flutter/.pub-cache/bin"
 
     # protobuf
     export PATH="$PATH:$HOME/protoc-3.7.1-osx-x86_64/bin"
