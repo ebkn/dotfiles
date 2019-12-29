@@ -3,8 +3,9 @@ repo = 'dart-lang/dart-vim-plugin'
 on_ft = ['dart']
 hook_add = '''
 let g:dart_style_guide = 2
-'''
 
-[[plugins]]
-repo = 'thosakwe/vim-flutter'
-on_ft = ['dart']
+function! TriggerFlutterHotReload() abort
+  silent execute '!kill -SIGUSR1 $(pgrep -f "[f]lutter_tool.*run")'
+endfunction
+autocmd! BufWritePost *.dart call TriggerFlutterHotReload()
+'''
