@@ -1,4 +1,9 @@
 brew 'rbenv'
 brew 'ruby-build'
+
 brew 'python'
+
 brew 'yarn', args: ['--without-node']
+
+tap 'dart-lang/dart'
+brew 'dart'
