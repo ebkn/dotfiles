@@ -29,12 +29,6 @@ if [ `uname` = 'Darwin' ]; then
     rbenv "$@"
   }
 
-  function goenv() {
-    unset -f goenv
-    eval "$(goenv init - --no-rehash)"
-    goenv "$@"
-  }
-
   function pyenv() {
     unset -f pyenv
     eval "$(pyenv init - --no-rehash)"
