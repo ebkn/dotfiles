@@ -66,11 +66,10 @@ alias dc='docker-compose'
 alias kc='kubectl'
 
 
-OS=`uname`
-case OS in
+case `uname` in
   "Darwin" ) # requires gnu-sed
     his() {
-      print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | gsed -r 's/ *[0-9]*\*? *//' | gsed -r 's/\\/\\\\/g')
+      print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac --reverse | gsed -r 's/ *[0-9]*\*? *//' | gsed -r 's/\\/\\\\/g')
     }
 
     gco() {
