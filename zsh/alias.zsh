@@ -20,10 +20,7 @@ alias cpu='top -o cpu'
 fd() {
   local dir
   dir=$(find ${1:-.} -type d 2> /dev/null | fzf --reverse +m) && cd "$dir"
-  zle reset-prompt
 }
-zle -N fd
-bindkey '^f' fd
 
 # requires tree
 alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|tmp|volumes" -N -A -C'
