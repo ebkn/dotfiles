@@ -13,10 +13,8 @@ let g:NERDTreeIgnore=[
 let g:NERDTreeDirArrows=1
 let g:NERDTreeDirArrowExpandable='▸'
 let g:NERDTreeDirArrowCollapsible='▾'
-let g:NERDTreeFileExtensionHighlightFullName=1
-let g:NERDTreeExactMatchHighlightFullName=1
-let g:NERDTreePatternMatchHighlightFullName=1
 let g:NERDTreeLimitedSyntax=1
+let g:NERDTreeAutoCenter=0
 " syntax highlight
 let s:brown = "905532"
 let s:aqua =  "3AFFDB"
@@ -36,9 +34,6 @@ let s:lightGreen = "31B53E"
 let s:white = "FFFFFF"
 let s:rspec_red = 'FE405F'
 let s:git_orange = 'F54D27'
-let g:NERDTreeExtensionHighlightColor = {}
-let g:NERDTreeExactMatchHighlightColor = {}
-let g:NERDTreePatternMatchHighlightColor = {}
 '''
 
 # syntax highlight
