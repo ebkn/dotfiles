@@ -1,8 +1,7 @@
 export PATH="$PATH:/usr/local/sbin"
 export PATH="$PATH:$HOME/.fzf/bin"
 
-OS=`uname`
-case OS in
+case `uname` in
   "Darwin" ) # requires gnu-sed
     # MySQL
     export PATH="$PATH:/usr/local/opt/mysql@5.6/bin"
