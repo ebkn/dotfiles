@@ -19,34 +19,8 @@ source "$HOME/dotfiles/zsh/alias.zsh"
 source "$HOME/dotfiles/zsh/completion.zsh"
 source "$HOME/dotfiles/zsh/directory.zsh"
 source "$HOME/dotfiles/zsh/history.zsh"
+source "$HOME/dotfiles/zsh/lang.zsh"
 source "$HOME/dotfiles/zsh/plugin.zsh"
-
-# lazyload
-if [ `uname` = 'Darwin' ]; then
-  function rbenv() {
-    unset -f rbenv
-    eval "$(rbenv init - --no-rehash)"
-    rbenv "$@"
-  }
-
-  function pyenv() {
-    unset -f pyenv
-    eval "$(pyenv init - --no-rehash)"
-    pyenv "$@"
-  }
-
-  function swiftenv() {
-    unset -f swiftenv
-    eval "$(swiftenv init - --no-rehash)"
-    swiftenv "$@"
-  }
-
-  function nvm() {
-    unset -f nvm
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-    nvm "$@"
-  }
-fi
 
 # Settings for fzf
 export FZF_DEFAULT_COMMAND='rg --files --hidden --smart-case'
