@@ -1,3 +1,4 @@
+cask 'alacritty'
 cask 'alfred'
 cask 'docker'
 
@@ -22,6 +23,7 @@ cask 'google-japanese-ime'
 cask 'karabiner-elements'
 
 cask 'visual-studio-code'
+cask 'android-studio'
 
 # others
 cask 'hyperswitch'
@@ -31,3 +33,4 @@ cask 'kindle'
 cask 'graphql-playground'
 cask 'react-native-debugger'
 cask 'dash'
+cask 'ngrok'
