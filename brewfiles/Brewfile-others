@@ -1,3 +1,12 @@
 brew 'imagemagick'
+
 brew 'awscli'
+
 brew 'chromedriver'
+
+brew 'redis'
+brew 'mysql'
+brew 'mycli'
+brew 'sqlite'
+
+brew 'kubernetes-cli'

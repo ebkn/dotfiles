@@ -1,12 +1,22 @@
+# shell,terminal
 brew 'zsh'
 brew 'tmux'
 brew 'vim'
-brew 'jq'
-brew 'rg'
-brew 'tree'
+brew 'reattach-to-user-namespace'
 brew 'hub'
-brew 'gibo'
-brew 'gnu-sed'
-brew 'ghq'
 brew 'rmtrash'
-brew 'rename'
+brew 'ghq'
+brew 'gnu-sed'
+brew 'tree'
+brew 'jq'
+brew 'ripgrep'
+
+# signing
+brew 'gnupg'
+brew 'gpg-agent'
+brew 'pinentry-mac'
+
+# utils
+brew 'gibo'
+brew 'git-secrets'
+brew 'cmake'

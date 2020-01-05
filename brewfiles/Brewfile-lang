@@ -1,9 +1,20 @@
-brew 'rbenv'
-brew 'ruby-build'
-
 brew 'python'
 
 brew 'yarn', args: ['--without-node']
 
 tap 'dart-lang/dart'
 brew 'dart'
+
+brew 'yamllint'
+
+brew 'swiftlint'
+
+brew 'readline'
+brew 'rbenv'
+brew 'ruby-build'
+
+# Dockerfile
+brew 'hadolint'
+
+# ShellScript
+brew 'shellcheck'
