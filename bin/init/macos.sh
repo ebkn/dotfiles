@@ -78,6 +78,10 @@ ln -s ~/dotfiles/tsconfig.json ~
 printf "\n--- Installing apps by Homebrew-Cask.. ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-cask"
 
+printf "\n--- Installing apps by mas.. ---\n"
+brew install mas
+brew bundle --file="~/dotfiles/brewfiles/Brewfile-mas"
+
 [ -d ~/.config/alacritty ] && mv ~/.config/alacritty ~/backup/
 ln -s ~/dotfiles/alacritty/.alacritty.mac.yml ~/.alacritty.yml
 
