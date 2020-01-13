@@ -23,6 +23,10 @@ if [ `uname` = 'Darwin' ]; then
     [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
     nvm "$@"
   }
+  NVMRC_PATH=".nvmrc"
+  if [[ -a "$NVMRC_PATH" ]]; then
+    nvm use
+  fi
 fi
 
 
