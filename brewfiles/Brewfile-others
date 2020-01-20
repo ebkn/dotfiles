@@ -10,3 +10,6 @@ brew 'mycli'
 brew 'sqlite'
 
 brew 'kubernetes-cli'
+
+brew 'protobuf'
+brew 'protoc-gen-go'
