@@ -13,3 +13,4 @@ brew 'kubernetes-cli'
 
 brew 'protobuf'
 brew 'protoc-gen-go'
+brew 'grpcurl'
