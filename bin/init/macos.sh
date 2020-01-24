@@ -48,6 +48,7 @@ brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 [ -f ~/.bashrc ] && mv ~/.bashrc ~/backup/
 [ -f ~/.vimrc ] && mv ~/.vimrc ~/backup/
 [ -d ~/.vim ] && mv ~/.vim ~/backup/
+[ -f ~/.config/coc/extensions/package.json ] && mv ~/.config/coc/extensions/package.json ~/backup/
 [ -f ~/.tigrc ] && mv ~/.tigrc ~/backup/
 
 ln -s ~/dotfiles/.gitignore_global ~
@@ -56,6 +57,7 @@ ln -s ~/dotfiles/.bashrc ~
 ln -s ~/dotfiles/.tmux-conf ~
 ln -s ~/dotfiles/.vimrc ~
 ln -s ~/dotfiles/.vim ~
+ln -s ~/dotfiles/vim/coc/package.json ~/.config/coc/extensions/
 ln -s ~/dotfiles/.tigrc ~
 
 source ~/.zshrc
