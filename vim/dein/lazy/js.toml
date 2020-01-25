@@ -8,12 +8,6 @@ on_ft = ['typescript', 'typescript.tsx']
 repo = 'posva/vim-vue'
 on_ft = ['vue']
 
-# prettier
-[[plugins]]
-repo = 'prettier/vim-prettier'
-on_ft = ['javascript', 'typescript', 'javascript.jsx', 'typescript.tsx']
-do = 'yarn install'
-
 # styled-components
 [[plugins]]
 repo = 'styled-components/vim-styled-components'
