@@ -17,7 +17,6 @@ let g:ale_linters = {
   \ 'graphql': ['eslint'],
   \ 'html': ['HTMLHint'],
   \ 'haml': ['haml-lint'],
-  \ 'javascript': ['eslint'],
   \ 'json': ['jq'],
   \ 'make': ['checkmake'],
   \ 'markdown': ['prettier', 'textlint'],
@@ -28,7 +27,6 @@ let g:ale_linters = {
   \ 'scss': ['sass-lint'],
   \ 'SQL': ['sqlint', 'sqlfmt'],
   \ 'swift': ['swiftlint'],
-  \ 'typescript': ['eslint'],
   \ 'vim': ['vint'],
   \ 'yaml': ['yamllint'],
   \ }
