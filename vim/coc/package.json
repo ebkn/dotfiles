@@ -16,6 +16,7 @@
     "coc-rls": ">=1.1.4",
     "coc-snippets": ">=2.1.17",
     "coc-solargraph": ">=1.1.5",
+    "coc-spell-checker": ">=1.0.2",
     "coc-stylelint": ">=1.1.0",
     "coc-tabnine": ">=1.2.2",
     "coc-tag": ">=1.2.4",
