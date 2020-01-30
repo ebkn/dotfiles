@@ -14,7 +14,7 @@
     "coc-prettier": ">=1.1.11",
     "coc-python": ">=1.2.7",
     "coc-rls": ">=1.1.4",
-    "coc-snippets": ">=2.1.17",
+    "coc-snippets": ">=2.1.18",
     "coc-solargraph": ">=1.1.5",
     "coc-spell-checker": ">=1.0.2",
     "coc-stylelint": ">=1.1.0",
