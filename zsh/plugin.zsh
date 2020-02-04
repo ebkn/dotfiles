@@ -1,24 +1,33 @@
-# load zplugin
-
-source "$HOME/.zplugin/bin/zplugin.zsh"
-autoload -Uz _zplugin
-(( ${+_comps} )) && _comps[zplugin]=_zplugin
+# load plugins by zinit
+#
+### Added by Zinit's installer
+if [[ ! -f $HOME/.zinit/bin/zinit.zsh ]]; then
+    print -P "%F{33}▓▒░ %F{220}Installing DHARMA Initiative Plugin Manager (zdharma/zinit)…%f"
+    command mkdir -p "$HOME/.zinit" && command chmod g-rwX "$HOME/.zinit"
+    command git clone https://github.com/zdharma/zinit "$HOME/.zinit/bin" && \
+        print -P "%F{33}▓▒░ %F{34}Installation successful.%f" || \
+        print -P "%F{160}▓▒░ The clone has failed.%f"
+fi
+source "$HOME/.zinit/bin/zinit.zsh"
+autoload -Uz _zinit
+(( ${+_comps} )) && _comps[zinit]=_zinit
+### End of Zinit installer's chunk
 
 zpcompinit
 
 # color
-zplugin light "chrissicool/zsh-256color"
-zplugin light zpm-zsh/colorize
-zplugin light ael-code/zsh-colored-man-pages
+zinit light "chrissicool/zsh-256color"
+zinit light zpm-zsh/colorize
+zinit light ael-code/zsh-colored-man-pages
 
 # auto suggestion
-zplugin light zsh-users/zsh-autosuggestions
+zinit light zsh-users/zsh-autosuggestions
 
 # syntax highlight
-zplugin light zdharma/fast-syntax-highlighting
+zinit light zdharma/fast-syntax-highlighting
 
 # completion
-zplugin light "zsh-users/zsh-completions"
+zinit light "zsh-users/zsh-completions"
 
 # zsh theme
-zplugin ice depth=1; zplugin light romkatv/powerlevel10k # see ./zsh/.p10k.zsh
+zinit ice depth=1; zinit light romkatv/powerlevel10k # see ./zsh/.p10k.zsh

@@ -28,8 +28,6 @@ chsh -s /usr/local/bin/zsh
 printf "\n--- Starting zsh ---\n"
 zsh
 
-printf "\n--- Installing zplugin ---\n"
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma/zplugin/master/doc/install.sh)"
 [ -f ~/.zshrc ] && mv ~/.zshrc ~/backup/
 [ -f ~/.zshenv ] && mv ~/.zshenv ~/backup/
 ln -s ~/dotfiles/.zshrc ~

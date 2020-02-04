@@ -49,9 +49,6 @@ printf "\n--- Starting zsh ---\n"
 zsh
 source ~/.zshrc
 
-printf "\n--- Installing zplugin ---\n"
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma/zplugin/master/doc/install.sh)"
-
 printf "\n--- Installing tmux ---\n"
 sudo apt install tmux
 [ -f ~/.tmux.conf ] && mv ~/.tmux.conf ~/backup/
