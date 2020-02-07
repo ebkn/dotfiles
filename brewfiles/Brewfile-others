@@ -1,4 +1,5 @@
 brew 'imagemagick'
+brew 'ffmpeg'
 
 brew 'awscli'
 
