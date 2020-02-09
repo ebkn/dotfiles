@@ -16,7 +16,6 @@
     "coc-stylelint": ">=1.1.0",
     "coc-tsserver": ">=1.4.9",
     "coc-vetur": ">=1.1.7",
-    "coc-word": ">=1.2.2",
     "coc-yaml": ">=1.0.3"
   }
 }
