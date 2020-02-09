@@ -34,7 +34,7 @@ set lazyredraw
 
 set autoread
 set hidden
-set showcmd
+set noshowcmd
 set noshowmode
 
 " not create file
@@ -62,13 +62,14 @@ set smartindent
 set shiftwidth=2
 au FileType go setlocal sw=4 ts=4 sts=4 noet
 
-" Search
+" show matched braces
 set showmatch
+
+" Search
 set incsearch
 set smartcase
 set ignorecase
 set hlsearch
-
 set wrapscan
 set wildignore+=*/tmp*,*.so,*.swp,*.zip
 
