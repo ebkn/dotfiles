@@ -1,7 +1,7 @@
 # autocmd StdinReadPre * let s:std_in=1
 # autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
 [[plugins]]
-repo = 'scrooloose/nerdtree'
+repo = 'preservim/nerdtree'
 hook_add = '''
 nnoremap <silent><C-n> :NERDTreeToggle<CR>
 let g:NERDTreeShowHidden=1
