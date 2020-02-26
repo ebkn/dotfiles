@@ -13,7 +13,6 @@ brew 'ripgrep'
 
 # signing
 brew 'gnupg'
-brew 'gpg-agent'
 brew 'pinentry-mac'
 
 # utils
