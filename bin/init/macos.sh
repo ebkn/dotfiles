@@ -1,6 +1,7 @@
 #!/bin/sh
-
-xcode-select --install
+#
+# before run this script, following commands are needed.
+# xcode-select --install
 
 mkdir ~/backup
 
@@ -54,7 +55,7 @@ brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 ln -s ~/dotfiles/.gitignore_global ~
 ln -s ~/dotfiles/.bash_profile ~
 ln -s ~/dotfiles/.bashrc ~
-ln -s ~/dotfiles/.tmux-conf ~
+ln -s ~/dotfiles/.tmux.conf ~
 ln -s ~/dotfiles/.vimrc ~
 ln -s ~/dotfiles/.vim ~
 ln -s ~/dotfiles/vim/coc/package.json ~/.config/coc/extensions/
@@ -84,7 +85,7 @@ printf "\n--- Installing apps by mas.. ---\n"
 brew install mas
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-mas"
 
-[ -d ~/.config/alacritty ] && mv ~/.config/alacritty ~/backup/
+[ -d ~/.alacritty.yml ] && mv ~/.alacritty.yml ~/backup/
 ln -s ~/dotfiles/alacritty/.alacritty.mac.yml ~/.alacritty.yml
 
 [ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
