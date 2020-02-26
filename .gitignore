@@ -1,2 +1,3 @@
 .vim/view
 .vim/sessions
+brewfiles/*.lock.json
