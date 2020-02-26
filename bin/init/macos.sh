@@ -1,5 +1,7 @@
 #!/bin/sh
 
+xcode-select --install
+
 mkdir ~/backup
 
 printf "\n--- Setup mac os defaults settings ---\n"
