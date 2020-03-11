@@ -20,7 +20,7 @@ if [ `uname` = 'Darwin' ]; then
 
   function nvm() {
     unset -f nvm
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    source $(brew --prefix nvm)/nvm.sh
     nvm "$@"
   }
   NVMRC_PATH=".nvmrc"
