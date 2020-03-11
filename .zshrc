@@ -1,8 +1,3 @@
-################################
-# check speed for starting zsh
-# $ time ( zsh -i -c exit )
-# zmodload zsh/zprof && zprof
-###############################
 # start tmux
 [[ -z "$TMUX" ]] && tmux -u
 
@@ -49,15 +44,19 @@ function scrapbox() {
   open https://scrapbox.io/ebiken/${title}?body=${body}
 }
 
-#####################################
-# check speed for starting zsh
-# if (which zprof > /dev/null) ;then
-#   zprof | less
-# fi
-####################################
 # fpath+=${ZDOTDIR:-~}/.zsh_functions
 
 # The next line updates PATH for the Google Cloud SDK.
 # source '/Users/kenichi/google-cloud-sdk/path.zsh.inc'
 # The next line enables shell command completion for gcloud.
 # source '/Users/kenichi/google-cloud-sdk/completion.zsh.inc'
+
+#####################################
+# to check starting time of zsh,
+# uncomment following commands.
+# (please check also .zshenv)
+#####################################
+# if (which zprof > /dev/null) ;then
+#   zprof | less
+# fi
+####################################
