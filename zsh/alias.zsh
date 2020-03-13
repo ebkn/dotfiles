@@ -23,7 +23,7 @@ fd() {
 }
 
 # requires tree
-alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|tmp|volumes" -N -A -C'
+alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|volumes" -N -A -C'
 
 # requires rmtrash
 alias rm='rmtrash'
