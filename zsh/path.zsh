@@ -52,6 +52,9 @@ case `uname` in
 
     # Rust
     export PATH="$PATH:~/.cargo/env"
+
+    # llvm
+    export PATH="/usr/local/opt/llvm/bin:$PATH"
   ;;
 
   "Linux" )
