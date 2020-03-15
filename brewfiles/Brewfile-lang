@@ -1,3 +1,5 @@
+brew 'llvm'
+
 brew 'python'
 
 brew 'yarn', args: ['--without-node']
