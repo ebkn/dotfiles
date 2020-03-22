@@ -15,7 +15,7 @@ hook_add = '''
 let g:gitgutter_async=1
 '''
 
-# asynchronous loading
+# asynchronous execution
 [[plugins]]
 repo = 'Shougo/vimproc'
 build = '''
@@ -70,3 +70,10 @@ map <silent>sr <Plug>(operator-surround-replace)
 # improved autoread
 [[plugins]]
 repo = 'tmux-plugins/vim-tmux-focus-events'
+
+# execute command directly from Vim
+[[plugins]]
+repo = 'thinca/vim-quickrun'
+hook_add = '''
+map <C-q> :QuickRun<CR>
+'''
