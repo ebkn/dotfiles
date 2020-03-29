@@ -51,16 +51,9 @@ function move_to_repository() {
 zle -N move_to_repository
 bindkey '^g' move_to_repository
 
-# requires hub
-alias github="hub browse"
-pr() {
-  branch_name=$1;\
-  template_path=$(git rev-parse --show-toplevel)/.github/PULL_REQUEST_TEMPLATE.md;\ 
-  if [ -z ${branch_name} ]; then\
-      branch_name='master';\
-  fi;\
-  hub browse -- compare/${branch_name}'...'$(git symbolic-ref --short HEAD)'?'expand=1'&'body=$(cat ${template_path} | perl -pe 'encode_utf8' | perl -pe 's/([^ 0-9a-zA-Z])/\"%\".uc(unpack(\"H2\",$1))/eg' | perl -pe 's/ /+/g');\
-}
+# requires github/gh/gh
+alias github="gh repo view"
+alias pr="gh pr create"
 
 alias dc='docker-compose'
 alias kc='kubectl'
