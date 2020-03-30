@@ -11,7 +11,14 @@ on_ft = ['vue']
 # styled-components
 [[plugins]]
 repo = 'styled-components/vim-styled-components'
-on_ft = ['javascript.jsx', 'typescript.tsx']
+on_ft = [
+  'javascript.jsx',
+  'typescript.tsx',
+  'typescriptreact',
+  'javascriptreact',
+  'javascript',
+  'typescript',
+]
 
 # elm
 [[plugins]]
