@@ -52,7 +52,7 @@ zle -N move_to_repository
 bindkey '^g' move_to_repository
 
 # requires github/gh/gh
-alias github="gh repo view"
+alias github="gh repo view --web"
 alias pr="gh pr create"
 
 alias dc='docker-compose'
