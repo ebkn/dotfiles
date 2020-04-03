@@ -1,5 +1,7 @@
 [includeIf "gitdir:~/ghq/github.com/"]
   path = ~/.gitconfig-ebkn
+[includeIf "gitdir:~/dotfiles/"]
+  path = ~/.gitconfig-ebkn
 # add enterprise setting
 
 [core]
