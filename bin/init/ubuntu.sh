@@ -89,7 +89,7 @@ sudo apt install \
   tig \
   tree
 [ -f ~/.tigrc ] && mv ~/.tigrc ~/backup/
-ln -s ~/dotfiles/.tigrc .
+ln -s ~/dotfiles/.tigrc ~/.tigrc
 
 printf "\n--- Installing fzf ---\n"
 git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
@@ -99,7 +99,9 @@ printf "\n--- Installing ripgrep ---\n"
 curl -LO https://github.com/BurntSushi/ripgrep/releases/download/11.0.2/ripgrep_11.0.2_amd64.deb
 $ sudo dpkg -i ripgrep_11.0.2_amd64.deb
 
-[ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
-ln -s ~/dotfiles/.gitconfig ~
 [ -f ~/.gitignore_global ] && mv ~/.gitignore_global ~/backup/
 ln -s ~/dotfiles/.gitignore_global ~
+
+[ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
+ln -s ~/dotfiles/.gitconfig ~/.gitconfig
+ln -s ~/dotfiles/.gitconfig-ebkn ~/.gitconfig-ebkn

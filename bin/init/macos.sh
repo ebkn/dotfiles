@@ -90,3 +90,4 @@ ln -s ~/dotfiles/alacritty/.alacritty.mac.yml ~/.alacritty.yml
 
 [ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
 ln -s ~/dotfiles/.gitconfig ~/.gitconfig
+ln -s ~/dotfiles/.gitconfig-ebkn ~/.gitconfig-ebkn
