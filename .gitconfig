@@ -1,21 +1,12 @@
-[user]
-  name = ebkn
-  email = ktennis.mqekr12@gmail.com
-
-[github]
-  user = ebkn
+[includeIf "gitdir:~/ghq/github.com/"]
+  path = ~/.gitconfig-ebkn
+# add enterprise setting
 
 [core]
   editor = vim
   excludesfile = ~/.gitignore_global
   whitespace = fix,-indent-with-non-tab,trailing-space,cr-at-eol
   ignorecase = false
-
-# [gpg]
-#   program = gpg
-#
-# [commit]
-#   gpgsign = true
 
 [fetch]
   prune = true
@@ -25,10 +16,6 @@
 
 [log]
   date = short
-
-[status]
-  submoduleSummary = true
-  showUntrackedFiles = all
 
 [color]
   ui = true

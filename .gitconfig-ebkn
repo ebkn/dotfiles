@@ -1,0 +1,12 @@
+[user]
+  name = ebkn
+  email = ktennis.mqekr12@gmail.com
+
+[github]
+  user = ebkn
+
+[gpg]
+  program = gpg
+
+[commit]
+  gpgsign = true
