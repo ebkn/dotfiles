@@ -1,3 +1,15 @@
+# JavaScript
+[[plugins]]
+repo = 'pangloss/vim-javascript'
+on_ft = [
+  'javascript.jsx',
+  'typescript.tsx',
+  'typescriptreact',
+  'javascriptreact',
+  'javascript',
+  'typescript',
+]
+
 # TypeScript
 [[plugins]]
 repo = 'leafgarland/typescript-vim'
