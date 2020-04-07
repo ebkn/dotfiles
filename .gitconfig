@@ -10,6 +10,9 @@
   whitespace = fix,-indent-with-non-tab,trailing-space,cr-at-eol
   ignorecase = false
 
+[url "git@github.com:"]
+ insteadOf = https://github.com/
+
 [fetch]
   prune = true
 
