@@ -10,7 +10,6 @@ brew 'gnu-sed'
 brew 'tree'
 brew 'jq'
 brew 'ripgrep'
-brew 'tig'
 
 # signing
 brew 'gnupg'
@@ -21,3 +20,5 @@ brew 'gibo'
 brew 'git-secrets'
 brew 'cmake'
 brew 'nkf'
+brew 'procs'
+brew 'tig'

@@ -12,8 +12,9 @@ alias dot='cd ~/dotfiles'
 alias tmuxs='tmux source-file ~/.tmux.conf'
 alias zshrc='vim ~/.zshrc'
 
-alias memory='top -o mem'
-alias cpu='top -o cpu'
+# requires procs
+alias memory='procs --watch --sortd mem '
+alias cpu='procs --watch --sortd cpu'
 
 # interactive cd
 # requires fzf
