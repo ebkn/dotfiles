@@ -4,6 +4,8 @@ cask 'alfred'
 
 cask 'docker'
 
+cask 'java'
+
 # browsers
 cask 'google-chrome'
 cask 'firefox'
