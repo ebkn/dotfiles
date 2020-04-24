@@ -2,7 +2,7 @@ brew 'llvm'
 
 brew 'python'
 
-brew 'yarn', args: ['--without-node']
+brew 'yarn', args: ['without-node']
 
 tap 'dart-lang/dart'
 brew 'dart'
