@@ -10,6 +10,7 @@ cask 'java'
 cask 'google-chrome'
 cask 'firefox'
 cask 'brave-browser'
+cask 'chromedriver'
 
 # authentication
 cask '1password'
