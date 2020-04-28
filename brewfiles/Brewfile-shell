@@ -11,6 +11,7 @@ brew 'gnu-sed'
 brew 'tree'
 brew 'jq'
 brew 'ripgrep'
+brew 'git-lfs'
 
 # signing
 brew 'gnupg'
