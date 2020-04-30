@@ -19,6 +19,8 @@ brew 'golangci/tap/golangci-lint'
 brew 'nvm'
 brew 'yarn'
 
+brew 'pyenv'
+
 # Dockerfile
 brew 'hadolint'
 
