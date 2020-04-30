@@ -7,9 +7,11 @@ brew 'redis'
 brew 'mysql'
 brew 'mycli'
 brew 'sqlite'
+brew 'postgresql'
 
 brew 'kubernetes-cli'
 
 brew 'protobuf'
 brew 'protoc-gen-go'
 brew 'grpcurl'
+brew 'graphviz'
