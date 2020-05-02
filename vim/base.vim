@@ -132,4 +132,4 @@ endfunction
 set foldtext=CustomFoldText() " set custom fold text
 " save fold state
 au BufWinLeave * mkview
-au BufWinEnter * silent loadview
+au BufWinEnter * silent! loadview
