@@ -73,3 +73,22 @@ repo = 'thinca/vim-quickrun'
 hook_add = '''
 map <C-q> :QuickRun<CR>
 '''
+
+# overwrite f
+[[plugins]]
+repo = 'easymotion/vim-easymotion'
+hook_add = '''
+" Move to char (overwrite f)
+map  f <Plug>(easymotion-bd-f)
+nmap f <Plug>(easymotion-overwin-f)
+
+" Move to line (overwrite L)
+map L <Plug>(easymotion-bd-jk)
+nmap L <Plug>(easymotion-overwin-line)
+
+" Move to word
+map  W <Plug>(easymotion-bd-w)
+nmap W <Plug>(easymotion-overwin-w)
+
+let g:EasyMotion_smartcase=1
+'''
