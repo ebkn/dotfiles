@@ -1,0 +1,18 @@
+# show line that has git diff
+[[plugins]]
+repo = 'airblade/vim-gitgutter'
+hook_add = '''
+let g:gitgutter_async=1
+'''
+
+# visualize colors
+[[plugins]]
+repo = 'gorodinskiy/vim-coloresque'
+
+# highlight trailing spaces
+[[plugins]]
+repo = 'bronson/vim-trailing-whitespace'
+
+# highlight replacing charcters
+[[plugins]]
+repo = 'osyo-manga/vim-over'
