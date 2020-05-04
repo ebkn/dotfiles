@@ -21,6 +21,8 @@ brew 'yarn'
 
 brew 'pyenv'
 
+brew 'rustup'
+
 # Dockerfile
 brew 'hadolint'
 
