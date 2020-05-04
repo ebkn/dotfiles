@@ -22,6 +22,7 @@ color cursor black white bold
 
 # key bindings
 bind generic C !git commit
+bind generic A !git commit --amend
 bind generic F !git fetch %(remote)
 bind generic U !git pull %(remote)
 bind generic P !git push origin %(repo:head)
