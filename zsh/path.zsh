@@ -30,7 +30,7 @@ case `uname` in
     export PATH="$PATH:$GOPATH/bin"
 
     # Android
-    export ANDROID_HOME=~/Library/Android/sdk
+    export ANDROID_HOME=$HOME/Library/Android/sdk
     export PATH="$PATH:$ANDROID_HOME/tools"
     export PATH="$PATH:$ANDROID_HOME/tools/bin"
     export PATH="$PATH:$ANDROID_HOME/platform-tools"
@@ -51,7 +51,7 @@ case `uname` in
     export SOURCEKIT_TOOLCHAIN_PATH=/Library/Developer/Toolchains/swift-latest.xctoolchain
 
     # Rust
-    export PATH="$PATH:~/.cargo/env"
+    export PATH="$PATH:$HOME/.cargo/env"
 
     # llvm
     export PATH="/usr/local/opt/llvm/bin:$PATH"
