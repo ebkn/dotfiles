@@ -33,3 +33,7 @@ on_ft = ['graphql']
 [[plugins]]
 repo = 'cespare/vim-toml'
 on_ft = ['toml']
+
+# css
+[[plugins]]
+repo = 'ap/vim-css-color'
