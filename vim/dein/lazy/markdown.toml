@@ -1,5 +1,7 @@
+# :PrevimOpen
 [[plugins]]
-repo = 'iamcco/markdown-preview.nvim'
+repo = 'previm/previm'
 on_ft = ['markdown']
-build = 'cd app & yarn install'
-
+hook_add = '''
+let g:previm_open_cmd='open'
+'''
