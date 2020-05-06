@@ -89,5 +89,5 @@ date_format=$(get "@onedark_date_format" "%d/%m/%Y")
 # set "window-status-current-format" "#[fg=$onedark_black,bg=$onedark_visual_grey,nobold,nounderscore,noitalics]#[fg=$onedark_white,bg=$onedark_visual_grey,nobold] #I  #W #[fg=$onedark_visual_grey,bg=$onedark_black,nobold,nounderscore,noitalics]"
 
 # overrided
-set "window-status-format" "#[fg=$onedark_white,bg=$onedark_black][#I] #W "
-set "window-status-current-format" "#[fg=$onedark_white,bg=$onedark_visual_grey,nobold][#I] #W "
+set "window-status-format" "#[fg=$onedark_white,bg=$onedark_black] #I: #W "
+set "window-status-current-format" "#[fg=$onedark_white,bg=$onedark_comment_grey,nobold] #I: #W "
