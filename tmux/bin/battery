@@ -1,0 +1,5 @@
+#!/bin/sh
+
+if type pmset >/dev/null 2>&1; then
+  pmset -g batt | grep -o "[0-9]\{1,3\}%"
+fi
