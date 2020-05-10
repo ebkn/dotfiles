@@ -131,5 +131,6 @@ function! CustomFoldText()
 endfunction
 set foldtext=CustomFoldText() " set custom fold text
 " save fold state
-au BufWinLeave * mkview
-au BufWinEnter * silent! loadview
+autocmd BufWinLeave * mkview
+autocmd BufWinEnter * silent! loadview
+autocmd BufWritePost * normal! zv
