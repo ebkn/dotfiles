@@ -18,6 +18,7 @@ brew 'golangci/tap/golangci-lint'
 
 brew 'nvm'
 brew 'yarn'
+brew 'deno'
 
 brew 'pyenv'
 
