@@ -1,8 +1,8 @@
 {
   "dependencies": {
-    "coc-clangd": ">=0.4.3",
+    "coc-clangd": ">=0.4.4",
     "coc-css": ">=1.2.3",
-    "coc-eslint": ">=1.2.6",
+    "coc-eslint": ">=1.2.7",
     "coc-flutter": ">=1.2.4",
     "coc-git": ">=1.7.13",
     "coc-highlight": ">=1.2.5",
