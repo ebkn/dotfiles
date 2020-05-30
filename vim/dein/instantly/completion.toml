@@ -35,3 +35,6 @@ set updatetime=300
 " Prettier command
 command! -nargs=0  Prettier :CocCommand prettier.formatFile
 '''
+
+[[plugins]]
+repo = 'honza/vim-snippets'
