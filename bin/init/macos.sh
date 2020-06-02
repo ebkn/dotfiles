@@ -78,6 +78,9 @@ brew bundle --file="~/dotfiles/brewfiles/Brewfile-lang"
 ln -s ~/dotfiles/.eslintrc.json ~
 ln -s ~/dotfiles/tsconfig.json ~
 
+# flutter
+ln -s ~/dotfiles/analysis_options.yaml ~
+
 printf "\n--- Installing apps by Homebrew-Cask.. ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-cask"
 
