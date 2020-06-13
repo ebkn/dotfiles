@@ -55,6 +55,9 @@ case `uname` in
 
     # llvm
     export PATH="/usr/local/opt/llvm/bin:$PATH"
+
+    # Java
+    export PATH="/usr/local/opt/openjdk/bin:$PATH"
   ;;
 
   "Linux" )

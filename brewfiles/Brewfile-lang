@@ -24,6 +24,9 @@ brew 'pyenv'
 
 brew 'rustup'
 
+# Java
+# brew 'mvn'
+
 # Dockerfile
 brew 'hadolint'
 
