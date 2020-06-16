@@ -25,6 +25,11 @@
       "command": "efm-langserver",
       "args": ["-c", "~/dotfiles/efm-config.yml"],
       "filetypes": ["vim", "eruby", "markdown"]
+    },
+    "terraform": {
+      "command": "terraform-lsp",
+      "filetypes": ["terraform"],
+      "initializationOptions": {}
     }
   },
   "eslint.run": "onSave"
