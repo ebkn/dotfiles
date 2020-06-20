@@ -25,6 +25,7 @@ let g:ale_linters = {
   \ 'scss': ['sass-lint'],
   \ 'SQL': ['sqlint', 'sqlfmt'],
   \ 'swift': ['swiftlint'],
+  \ 'terraform': ['tflint'],
   \ 'vim': ['vint'],
   \ 'yaml': ['yamllint'],
   \ }
