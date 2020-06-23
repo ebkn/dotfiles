@@ -8,25 +8,14 @@ let g:ale_lint_on_text_changed=0
 let g:ale_sign_column_always=1
 let g:ale_disable_lsp=1
 let g:ale_linters = {
-  \ 'bash': ['shellcheck'],
   \ 'dart': ['dartanalyzer'],
   \ 'dockerfile': ['hadolint'],
   \ 'erb': ['erb'],
-  \ 'go': ['golint', 'golangci-lint'],
   \ 'graphql': ['eslint'],
-  \ 'html': ['HTMLHint'],
-  \ 'haml': ['haml-lint'],
   \ 'make': ['checkmake'],
   \ 'markdown': ['textlint'],
-  \ 'python': ['pylint'],
-  \ 'ruby': ['rubocop', 'solargraph'],
-  \ 'rust': ['cargo', 'rustfmt'],
-  \ 'sass': ['sass-lint'],
-  \ 'scss': ['sass-lint'],
-  \ 'SQL': ['sqlint', 'sqlfmt'],
+  \ 'ruby': ['rubocop'],
   \ 'swift': ['swiftlint'],
-  \ 'terraform': ['tflint'],
-  \ 'vim': ['vint'],
   \ 'yaml': ['yamllint'],
   \ }
 let g:ale_sign_error='E'

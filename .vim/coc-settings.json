@@ -35,6 +35,101 @@
       "command": "sql-language-server",
       "args": ["up", "--method", "stdio"],
       "filetypes": ["sql", "mysql"]
+    },
+    "dls": {
+      "command": "diagnostic-languageserver",
+      "args": ["--stdio"],
+      "filetypes": ["go", "dockerfile", "shell"],
+      "initializationOptions": {
+        "formatters": {},
+        "filetypes": {
+          "go": ["golint", "golangci-lint"],
+          "dockerfile": ["hadolint"],
+          "sh": "shellcheck"
+        },
+        "formatFiletypes": {},
+        "linters": {
+          "golint": {
+            "command": "golint",
+            "rootPatterns": [],
+            "isStdout": true,
+            "isStderr": false,
+            "debounce": 100,
+            "args": ["%filepath"],
+            "offsetLine": 0,
+            "offsetColumn": 0,
+            "sourceName": "golint",
+            "formatLines": 1,
+            "formatPattern": [
+              "^[^:]+:(\\d+):(\\d+):\\s(.*)$",
+              {
+                "line": 1,
+                "column": 2,
+                "message": [3]
+              }
+            ]
+          },
+          "golangci-lint": {
+            "filetypes": ["go"],
+            "command": "golangci-lint",
+            "rootPatterns": [ ".git", "go.mod" ],
+            "debounce": 100,
+            "args": [ "run", "--out-format", "json", "%file" ],
+            "sourceName": "golangci-lint",
+            "parseJson": {
+              "errorsRoot": "Issues",
+              "line": "Pos.Line",
+              "column": "Pos.Column",
+              "message": "${Text} [${FromLinter}]"
+            }
+          },
+          "shellcheck": {
+            "command": "shellcheck",
+            "debounce": 100,
+            "args": [
+              "--format",
+              "json",
+              "-"
+            ],
+            "sourceName": "shellcheck",
+            "parseJson": {
+              "line": "line",
+              "column": "column",
+              "endLine": "endLine",
+              "endColumn": "endColumn",
+              "message": "${message} [${code}]",
+              "security": "level"
+            },
+            "securities": {
+              "error": "error",
+              "warning": "warning",
+              "info": "info",
+              "style": "hint"
+            }
+          },
+          "hadolint": {
+            "command": "hadolint",
+            "sourceName": "hadolint",
+            "args": [
+              "-f",
+              "json",
+              "-"
+            ],
+            "parseJson": {
+              "line": "line",
+              "column": "column",
+              "security": "level",
+              "message": "${message} [${code}]"
+            },
+            "securities": {
+              "error": "error",
+              "warning": "warning",
+              "info": "info",
+              "style": "hint"
+            }
+          }
+        }
+      } 
     }
   },
   "eslint.run": "onSave"
