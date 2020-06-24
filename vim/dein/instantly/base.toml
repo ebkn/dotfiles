@@ -24,8 +24,8 @@ build = '''
 [[plugins]]
 repo = 'tyru/caw.vim.git'
 hook_add = '''
-nmap <C-c> <Plug>(caw:i:toggle)
-vmap <C-c> <Plug>(caw:i:toggle)
+nmap <C-c> <Plug>(caw:hatpos:toggle)
+vmap <C-c> <Plug>(caw:hatpos:toggle)
 '''
 
 # auto close parentheses
