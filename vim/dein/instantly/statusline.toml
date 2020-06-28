@@ -17,38 +17,17 @@ let g:lightline = {
   \ },
   \ 'inactive': {
   \   'left': [
-  \     ['gitbranch', 'readonly', 'relativepath', 'modified'],
+  \     ['readonly', 'relativepath', 'modified'],
   \   ],
   \   'right': [
   \     ['linter_errors', 'linter_warnings'],
   \   ],
   \ },
   \ 'component_function': {
-  \   'gitbranch': 'fugitive#head',
+  \   'gitbranch': 'GitStatus',
   \ },
 \ }
-'''
-
-# git
-[[plugins]]
-repo = 'tpope/vim-fugitive'
-depends = 'lightline.vim'
-
-# linter
-[[plugins]]
-repo = 'maximbaz/lightline-ale'
-depends = 'lightline.vim'
-hook_add = '''
-let g:lightline.component_expand = {
-  \  'linter_checking': 'lightline#ale#checking',
-  \  'linter_warnings': 'lightline#ale#warnings',
-  \  'linter_errors': 'lightline#ale#errors',
-  \  'linter_ok': 'lightline#ale#ok',
-  \ }
-let g:lightline.component_type = {
-  \  'linter_checking': 'left',
-  \  'linter_warnings': 'warning',
-  \  'linter_errors': 'error',
-  \  'linter_ok': 'left',
-  \ }
+function GitStatus() abort
+  return get(g:, 'coc_git_status', '')
+endfunction
 '''
