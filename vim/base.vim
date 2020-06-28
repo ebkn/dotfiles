@@ -29,7 +29,6 @@ if has('syntax')
 endif
 
 " fast drawing
-set ttyfast
 set lazyredraw
 
 set autoread
