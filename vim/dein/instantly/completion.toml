@@ -33,7 +33,7 @@ nnoremap <silent> <space>o :<C-u>CocList outline<CR>
 set cmdheight=2
 
 " You will have bad experience for diagnostic messages when it's default 4000.
-set updatetime=300
+" set updatetime=300
 
 " Prettier command
 command! -nargs=0  Prettier :CocCommand prettier.formatFile
