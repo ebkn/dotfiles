@@ -60,6 +60,7 @@ ln -s ~/dotfiles/.vimrc ~
 ln -s ~/dotfiles/.vim ~
 ln -s ~/dotfiles/vim/coc/package.json ~/.config/coc/extensions/
 ln -s ~/dotfiles/.tigrc ~
+ln -s ~/dotfiles/efm-config.yml ~/.config/efm-langserverconfig.yaml
 
 source ~/.zshrc
 
