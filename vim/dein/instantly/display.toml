@@ -13,10 +13,6 @@ repo = 'gorodinskiy/vim-coloresque'
 [[plugins]]
 repo = 'bronson/vim-trailing-whitespace'
 
-# highlight replacing charcters
-[[plugins]]
-repo = 'osyo-manga/vim-over'
-
 # indent
 [[plugins]]
 repo = 'Yggdroot/indentLine'

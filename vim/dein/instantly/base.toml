@@ -33,13 +33,6 @@ map <silent>sr <Plug>(operator-surround-replace)
 [[plugins]]
 repo = 'tmux-plugins/vim-tmux-focus-events'
 
-# execute command directly from Vim
-# [[plugins]]
-# repo = 'thinca/vim-quickrun'
-# hook_add = '''
-# map <C-q> :QuickRun<CR>
-# '''
-
 # overwrite f
 [[plugins]]
 repo = 'easymotion/vim-easymotion'
