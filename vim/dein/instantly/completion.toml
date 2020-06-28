@@ -25,6 +25,9 @@ nmap <silent> gd <Plug>(coc-definition)
 nmap <silent> gy <Plug>(coc-type-definition)
 nmap <silent> gi <Plug>(coc-implementation)
 nmap <silent> gr <Plug>(coc-references)
+nnoremap <silent> <space>o :<C-u>CocList outline<CR>
+nnoremap <silent> <space>c :<C-u>CocList commands<CR>
+nnoremap <silent> <space>o :<C-u>CocList outline<CR>
 
 " Better display for messages
 set cmdheight=2
