@@ -8,6 +8,7 @@ repo = 'junegunn/fzf.vim'
 hook_add = '''
 nnoremap <C-f> :Files<CR>
 nnoremap <C-g> :Rg<Space>
+nnoremap <C-b> :Buffers<CR>
 let g:fzf_layout = { 'down': '~40%' }
 let g:fzf_buffers_jump=1
 command! -bang -nargs=* Rg call fzf#vim#grep("rg --column --line-number --no-heading --color=always --smart-case --hidden ".shellescape(<q-args>), 1, <bang>0)
