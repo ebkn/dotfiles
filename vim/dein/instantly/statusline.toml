@@ -7,21 +7,18 @@ let g:lightline = {
   \ 'active': {
   \   'left': [
   \     ['mode', 'paste'],
-  \     ['gitbranch', 'readonly', 'relativepath', 'modified'],
+  \     ['gitbranch', 'readonly', 'relativepath'],
   \   ],
   \   'right': [
   \     ['percent'],
-  \     ['linter_errors', 'linter_warnings'],
   \     ['fileencoding', 'filetype'],
   \   ],
   \ },
   \ 'inactive': {
   \   'left': [
-  \     ['readonly', 'relativepath', 'modified'],
+  \     ['readonly', 'relativepath'],
   \   ],
-  \   'right': [
-  \     ['linter_errors', 'linter_warnings'],
-  \   ],
+  \   'right': [],
   \ },
   \ 'component_function': {
   \   'gitbranch': 'GitStatus',
