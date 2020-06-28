@@ -5,21 +5,6 @@ hook_add = '''
 let g:polyglot_disabled = ['elm']
 '''
 
-[[plugins]]
-repo = 'Shougo/context_filetype.vim'
-
-# asynchronous execution
-[[plugins]]
-repo = 'Shougo/vimproc'
-build = '''
-\ "{
-  \ 'windows' : 'make -f make_mingw32.mak',
-  \ 'cygwin' : 'make -f make_cygwin.mak',
-  \ 'mac' : 'make -f make_mac.mak',
-  \ 'unix' : 'make -f make_unix.mak',
-\ }"
-'''
-
 # comment out
 [[plugins]]
 repo = 'tyru/caw.vim.git'
@@ -49,11 +34,11 @@ map <silent>sr <Plug>(operator-surround-replace)
 repo = 'tmux-plugins/vim-tmux-focus-events'
 
 # execute command directly from Vim
-[[plugins]]
-repo = 'thinca/vim-quickrun'
-hook_add = '''
-map <C-q> :QuickRun<CR>
-'''
+# [[plugins]]
+# repo = 'thinca/vim-quickrun'
+# hook_add = '''
+# map <C-q> :QuickRun<CR>
+# '''
 
 # overwrite f
 [[plugins]]
