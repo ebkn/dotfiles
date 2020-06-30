@@ -30,6 +30,7 @@ endif
 
 " fast drawing
 set lazyredraw
+set ttyfast
 
 set autoread
 set hidden
