@@ -37,9 +37,9 @@ let s:git_orange = 'F54D27'
 '''
 
 # syntax highlight
-[[plugins]]
-repo = 'tiagofumo/vim-nerdtree-syntax-highlight'
-depends = 'nerdtree'
+# [[plugins]]
+# repo = 'tiagofumo/vim-nerdtree-syntax-highlight'
+# depends = 'nerdtree'
 
 # git plugin
 [[plugins]]
@@ -47,11 +47,11 @@ repo = 'Xuyuanp/nerdtree-git-plugin'
 depends = 'nerdtree'
 
 # icons
-[[plugins]]
-repo = 'ryanoasis/vim-devicons'
-depends = 'nerdtree'
-hook_add = '''
-let g:WebDevIconsUnicodeDecorateFolderNodes = 1
-let g:WebDevIconsNerdTreeBeforeGlyphPadding = ''
-let g:WebDevIconsNerdTreeAfterGlyphPadding = ''
-'''
+# [[plugins]]
+# repo = 'ryanoasis/vim-devicons'
+# depends = 'nerdtree'
+# hook_add = '''
+# let g:WebDevIconsUnicodeDecorateFolderNodes = 1
+# let g:WebDevIconsNerdTreeBeforeGlyphPadding = ''
+# let g:WebDevIconsNerdTreeAfterGlyphPadding = ''
+# '''
