@@ -85,13 +85,13 @@ ln -s ~/dotfiles/analysis_options.yaml ~
 printf "\n--- Installing apps by Homebrew-Cask.. ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-cask"
 
-printf "\n--- Installing apps by mas.. ---\n"
-brew install mas
-brew bundle --file="~/dotfiles/brewfiles/Brewfile-mas"
-
 [ -d ~/.alacritty.yml ] && mv ~/.alacritty.yml ~/backup/
 ln -s ~/dotfiles/alacritty/.alacritty.mac.yml ~/.alacritty.yml
 
 [ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
 ln -s ~/dotfiles/.gitconfig ~/.gitconfig
 ln -s ~/dotfiles/.gitconfig-ebkn ~/.gitconfig-ebkn
+
+printf "\n--- Installing apps by mas.. ---\n"
+brew install mas
+brew bundle --file="~/dotfiles/brewfiles/Brewfile-mas"
