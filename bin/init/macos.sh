@@ -92,6 +92,10 @@ ln -s ~/dotfiles/alacritty/.alacritty.mac.yml ~/.alacritty.yml
 ln -s ~/dotfiles/.gitconfig ~/.gitconfig
 ln -s ~/dotfiles/.gitconfig-ebkn ~/.gitconfig-ebkn
 
-printf "\n--- Installing apps by mas.. ---\n"
-brew install mas
-brew bundle --file="~/dotfiles/brewfiles/Brewfile-mas"
+if "$CI"; then
+  printf "\n--- Skipping to install apps by mas.. ---\n"
+else
+  printf "\n--- Installing apps by mas.. ---\n"
+  brew install mas
+  brew bundle --file="~/dotfiles/brewfiles/Brewfile-mas"
+fi
