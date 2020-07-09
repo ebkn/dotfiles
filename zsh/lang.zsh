@@ -34,6 +34,10 @@ if [ `uname` = 'Darwin' ]; then
     if [ -f '~/google-cloud-sdk/completion.zsh.inc' ]; then . '~/google-cloud-sdk/completion.zsh.inc'; fi
     gcloud "$@"
   }
+
+  function kubectl() {
+    unset -f kubectl
+    source <(kubectl completion zsh)
+    kubectl "$@"
+  }
 fi
-
-
