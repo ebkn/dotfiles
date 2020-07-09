@@ -5,7 +5,7 @@ let s:dein_dir=s:cache_home . '/dein'
 " install dein if missing
 let s:dein_repo_dir=s:dein_dir . '/repos/github.com/Shougo/dein.vim'
 if !isdirectory(s:dein_repo_dir)
-  call systam('git clone git@github.com:Shougo/dein.vim.git ' . shellescape(s:dein_repo_dir))
+  call system('git clone git@github.com:Shougo/dein.vim.git ' . shellescape(s:dein_repo_dir))
 endif
 let &runtimepath=s:dein_repo_dir . "," . &runtimepath
 
