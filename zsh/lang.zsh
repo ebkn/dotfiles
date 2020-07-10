@@ -1,5 +1,7 @@
 # lazyload
 if [ `uname` = 'Darwin' ]; then
+  eval "$(direnv hook zsh)"
+
   function rbenv() {
     unset -f rbenv
     eval "$(rbenv init - --no-rehash)"
