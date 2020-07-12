@@ -57,10 +57,10 @@ ln -s ~/dotfiles/.bash_profile ~
 ln -s ~/dotfiles/.bashrc ~
 ln -s ~/dotfiles/.tmux.conf ~
 ln -s ~/dotfiles/.vimrc ~
+ln -s ~/dotfiles/.xvimrc ~
+ln -s ~/dotfiles/.ideavimrc ~
 ln -s ~/dotfiles/.vim ~
 ln -s ~/dotfiles/vim/coc/package.json ~/.config/coc/extensions/
-ln -s ~/dotfiles/.tigrc ~
-ln -s ~/dotfiles/efm-config.yml ~/.config/efm-langserverconfig.yaml
 
 source ~/.zshrc
 
@@ -75,12 +75,25 @@ git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
 printf "\n--- Installing languages from homebrew ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-lang"
 
+# ruby
+ln -s ~/dotfiles/.pryrc ~
+ln -s ~/dotfiles/.irbrc ~
+ln -s ~/dotfiles/.rspec ~
+ln -s ~/dotfiles/.rubocop.yml
+
 # node
 ln -s ~/dotfiles/.eslintrc.json ~
 ln -s ~/dotfiles/tsconfig.json ~
+ln -s ~/dotfiles/.prettierrc ~
 
 # flutter
 ln -s ~/dotfiles/analysis_options.yaml ~
+
+# others
+ln -s ~/dotfiles/efm-config.yml ~/.config/efm-langserverconfig.yaml
+ln -s ~/dotfiles/.rgignore ~
+ln -s ~/dotfiles/.sqliterc
+ln -s ~/dotfiles/.tigrc ~
 
 printf "\n--- Installing apps by Homebrew-Cask.. ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-cask"

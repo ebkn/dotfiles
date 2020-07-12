@@ -61,8 +61,10 @@ tmux source-file ~/.tmux.conf
 printf "\n--- Installing vim ---\n"
 sudo apt install vim
 [ -f ~/.vimrc ] && mv ~/.vimrc ~/backup/
-ln -s ~/dotfiles/.vimrc ~
 [ -d ~/.vim ] && mv ~/.vim ~/backup/
+ln -s ~/dotfiles/.vimrc ~
+ln -s ~/dotfiles/.xvimrc ~
+ln -s ~/dotfiles/.ideavimrc ~
 ln -s ~/dotfiles/.vim ~
 
 printf "\n--- Installing dein ---\n"
@@ -105,3 +107,23 @@ ln -s ~/dotfiles/.gitignore_global ~
 [ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
 ln -s ~/dotfiles/.gitconfig ~/.gitconfig
 ln -s ~/dotfiles/.gitconfig-ebkn ~/.gitconfig-ebkn
+
+
+# ruby
+ln -s ~/dotfiles/.pryrc ~
+ln -s ~/dotfiles/.irbrc ~
+ln -s ~/dotfiles/.rspec ~
+ln -s ~/dotfiles/.rubocop.yml
+
+# node
+ln -s ~/dotfiles/.eslintrc.json ~
+ln -s ~/dotfiles/tsconfig.json ~
+ln -s ~/dotfiles/.prettierrc ~
+
+# flutter
+ln -s ~/dotfiles/analysis_options.yaml ~
+
+# others
+ln -s ~/dotfiles/.rgignore ~
+ln -s ~/dotfiles/.sqliterc
+ln -s ~/dotfiles/.tigrc ~
