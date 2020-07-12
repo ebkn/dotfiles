@@ -51,15 +51,17 @@ set wildmode=list:full
 
 set laststatus=2 " always show statusline
 
-" tab, indent
-filetype plugin indent on
-set expandtab
-set tabstop=2
-set softtabstop=2
-set autoindent
-set smartindent
-set shiftwidth=2
+filetype plugin indent on " enable file type detection, indent and plugin files
+" tab
+set expandtab     " replace tab with spaces
+set tabstop=2     " 2spaces for tab
+set softtabstop=2 " 2spaces for tab
+set shiftwidth=2  " 2spaces for tab
+" tab settings for golang filetype
 au FileType go setlocal sw=4 ts=4 sts=4 noet
+" indent
+set autoindent    " keep current indent
+set smartindent   " indent for C-like syntax
 
 " show matched braces
 set showmatch
