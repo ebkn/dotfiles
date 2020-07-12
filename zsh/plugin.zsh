@@ -31,3 +31,6 @@ zinit light "zsh-users/zsh-completions"
 
 # zsh theme
 zinit ice depth=1; zinit light romkatv/powerlevel10k # see ./zsh/.p10k.zsh
+
+# notify after completion
+zinit light "MichaelAquilina/zsh-auto-notify"
