@@ -29,11 +29,11 @@ if has('syntax')
 endif
 
 " fast drawing
-set lazyredraw
-set ttyfast
+set lazyredraw " stop redraw while executing some commands
+set ttyfast    " enable fast terminal connection
 
-set autoread
-set hidden
+set autoread   " automatically read file changes
+set hidden     " allow to open other files
 set noshowcmd
 set noshowmode
 
@@ -42,8 +42,6 @@ set nobackup
 set noswapfile
 set nowritebackup
 set noundofile
-
-" %jump
 
 " completion
 set wildmenu
