@@ -14,7 +14,7 @@ set ambiwidth=double "show chars like □, ○
 set nocursorline
 set nocursorcolumn
 set nonumber
-" set relativenumber
+
 " show zenkaku space
 function! ZenkakuSpace()
   highlight ZenkakuSpace cterm=reverse ctermfg=red guibg=black
@@ -48,7 +48,6 @@ set noundofile
 " completion
 set wildmenu
 set wildmode=list:full
-set history=100
 
 set laststatus=2 " always show statusline
 
@@ -66,11 +65,12 @@ au FileType go setlocal sw=4 ts=4 sts=4 noet
 set showmatch
 
 " Search
-set incsearch
-set smartcase
-set ignorecase
-set hlsearch
-set wrapscan
+set incsearch  " incremental search
+set ignorecase " ignore upper/lower case
+set smartcase  " ignore ignorecase when includes upper case letters
+set hlsearch   " highlight search result
+set wrapscan   " re-search after end of file
+
 set wildignore+=*/tmp*,*.so,*.swp,*.zip
 
 "--- cursor ---
