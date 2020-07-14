@@ -126,4 +126,3 @@ ln -s ~/dotfiles/analysis_options.yaml ~
 # others
 ln -s ~/dotfiles/.rgignore ~
 ln -s ~/dotfiles/.sqliterc
-ln -s ~/dotfiles/.tigrc ~
