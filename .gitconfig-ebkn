@@ -2,6 +2,9 @@
   name = ebkn
   email = ktennis.mqekr12@gmail.com
 
+[url "git@github.com:"]
+  insteadOf = https://github.com/
+
 [github]
   user = ebkn
 
