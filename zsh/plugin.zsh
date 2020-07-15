@@ -16,7 +16,7 @@ autoload -Uz _zinit
 zpcompinit
 
 # color
-zinit light "chrissicool/zsh-256color"
+zinit light chrissicool/zsh-256color
 zinit light zpm-zsh/colorize
 zinit light ael-code/zsh-colored-man-pages
 
@@ -27,10 +27,10 @@ zinit light zsh-users/zsh-autosuggestions
 zinit light zdharma/fast-syntax-highlighting
 
 # completion
-zinit light "zsh-users/zsh-completions"
+zinit light zsh-users/zsh-completions
 
 # zsh theme
 zinit ice depth=1; zinit light romkatv/powerlevel10k # see ./zsh/.p10k.zsh
 
 # notify after completion
-zinit light "MichaelAquilina/zsh-auto-notify"
+zinit light MichaelAquilina/zsh-auto-notify
