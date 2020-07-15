@@ -37,17 +37,12 @@ repo = 'tmux-plugins/vim-tmux-focus-events'
 [[plugins]]
 repo = 'easymotion/vim-easymotion'
 hook_add = '''
-" Move to char (overwrite f)
-map  f <Plug>(easymotion-bd-f)
-nmap f <Plug>(easymotion-overwin-f)
+let g:EasyMotion_do_mapping = 0
+let g:EasyMotion_smartcase=1
 
 " Move to line (overwrite L)
-map L <Plug>(easymotion-bd-jk)
 nmap L <Plug>(easymotion-overwin-line)
 
 " Move to word
-map  W <Plug>(easymotion-bd-w)
 nmap W <Plug>(easymotion-overwin-w)
-
-let g:EasyMotion_smartcase=1
 '''
