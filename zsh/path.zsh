@@ -46,7 +46,7 @@ case `uname` in
     export PATH="$PATH:$HOME/.pub-cache/bin"
 
     # protobuf
-    export PATH="$PATH:$HOME/protoc-3.7.1-osx-x86_64/bin"
+    export PATH="$PATH:$HOME/protoc-3.6.0-osx-x86_64/bin"
 
     # Swift
     export SOURCEKIT_TOOLCHAIN_PATH=/Library/Developer/Toolchains/swift-latest.xctoolchain
