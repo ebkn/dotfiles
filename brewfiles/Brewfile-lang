@@ -13,7 +13,6 @@ brew 'readline'
 brew 'rbenv'
 brew 'ruby-build'
 
-brew 'go'
 brew 'golangci/tap/golangci-lint'
 
 brew 'nvm'

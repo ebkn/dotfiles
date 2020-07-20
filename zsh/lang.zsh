@@ -2,24 +2,28 @@
 if [ `uname` = 'Darwin' ]; then
   eval "$(direnv hook zsh)"
 
+  # ruby
   function rbenv() {
     unset -f rbenv
     eval "$(rbenv init - --no-rehash)"
     rbenv "$@"
   }
 
+  # python
   function pyenv() {
     unset -f pyenv
     eval "$(pyenv init - --no-rehash)"
     pyenv "$@"
   }
 
+  # swift
   function swiftenv() {
     unset -f swiftenv
     eval "$(swiftenv init - --no-rehash)"
     swiftenv "$@"
   }
 
+  # Node.js
   function nvm() {
     unset -f nvm
     source $(brew --prefix nvm)/nvm.sh
