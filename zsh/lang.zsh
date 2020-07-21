@@ -1,6 +1,10 @@
 # lazyload
 if [ `uname` = 'Darwin' ]; then
-  eval "$(direnv hook zsh)"
+  # direnv
+  ENVRC_PATH=".envrc"
+  if [[ -a "$ENVRC_PATH" ]]; then
+    eval "$(direnv hook zsh)"
+  fi
 
   # ruby
   function rbenv() {
@@ -36,8 +40,9 @@ if [ `uname` = 'Darwin' ]; then
 
   function gcloud() {
     unset -f gcloud
-    if [ -f '~/google-cloud-sdk/path.zsh.inc' ]; then . '~/google-cloud-sdk/path.zsh.inc'; fi
-    if [ -f '~/google-cloud-sdk/completion.zsh.inc' ]; then . '~/google-cloud-sdk/completion.zsh.inc'; fi
+    SDK_DIR=$HOME/google-cloud-sdk
+    if [ -f $SDK_DIR/path.zsh.inc ]; then . $SDK_DIR/path.zsh.inc; fi
+    if [ -f $SDK_DIR/completion.zsh.inc ]; then . $SDK_DIR/completion.zsh.inc; fi
     gcloud "$@"
   }
 
