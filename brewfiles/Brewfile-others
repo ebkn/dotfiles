@@ -10,6 +10,7 @@ brew 'sqlite'
 brew 'postgresql'
 
 brew 'kubernetes-cli'
+brew 'k9s'
 
 brew 'protobuf'
 brew 'protoc-gen-go'
