@@ -1,5 +1,5 @@
 alias c='clear'
-alias l='ls -lah'
+alias l='ls -lahG'
 alias mv='mv -i'
 alias cp='cp -i'
 
