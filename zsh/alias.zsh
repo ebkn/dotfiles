@@ -39,9 +39,9 @@ alias gd='git diff'
 alias gf='git fetch'
 alias current_branch='git rev-parse --abbrev-ref HEAD'
 alias gcob='git checkout -b'
-alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD`'
+alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD` --recurse-submodules'
 alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
-alias gdmerged='git branch --merged | grep -vE "^\*|master|develop|staging$" | xargs -I % git branch -d %'
+alias gdmerged='git branch --merged | grep -vE "^\*|master$|develop$|staging$" | xargs -I % git branch -d %'
 
 # interactive cd to ghq repository
 # requires ghq, fzf
