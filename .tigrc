@@ -18,6 +18,9 @@ set diff-options = -m --first-parent
 
 set refresh-mode = auto
 
+set mouse = true
+set mouse-scroll = 1
+
 color cursor black white bold
 
 # key bindings
