@@ -3,6 +3,7 @@ set shell=/bin/zsh
 "--- load settings ---
 source ~/dotfiles/vim/base.vim
 source ~/dotfiles/vim/keymap.vim
+source $HOME/dotfiles/vim/view.vim
 source ~/dotfiles/vim/color.vim
 
 syntax on

@@ -11,27 +11,6 @@ set pyxversion=3
 
 set nobomb
 
-" view
-set guifont=SauceCodePro\ Nerd\ Font\ Medium:h14
-set ambiwidth=double "show chars like □, ○
-set nocursorline
-set nocursorcolumn
-set nonumber
-set signcolumn=yes " always show signcolumn
-
-" show zenkaku space
-function! ZenkakuSpace()
-  highlight ZenkakuSpace cterm=reverse ctermfg=red guibg=black
-endfunction
-if has('syntax')
-  augroup ZenkakuSpace
-    autocmd!
-    autocmd ColorScheme * call ZenkakuSpace()
-    autocmd VimEnter,WinEnter,BufRead * match ZenkakuSpace /　/
-  augroup END
-  call ZenkakuSpace()
-endif
-
 " fast drawing
 set lazyredraw " stop redraw while executing some commands
 set ttyfast    " enable fast terminal connection
