@@ -4,8 +4,8 @@ alias mv='mv -i'
 alias cp='cp -i'
 
 # vim
-alias v='vim'
-alias vi='vim'
+alias v='nvim'
+alias vi='nvim'
 
 # dotfiles
 alias dot='cd ~/dotfiles'
