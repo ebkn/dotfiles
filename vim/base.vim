@@ -100,7 +100,12 @@ set backspace=indent,eol,start " enable backspace
 
 "--- copy/paste ---
 " clipboard
-set clipboard=unnamed,autoselect
+if has('nvim')
+  set clipboard=unnamed
+else
+  set clipboard=unnamed,autoselect
+endif
+
 " paste
 if &term =~ "xterm"
   let &t_SI .= "\e[?2004h"
