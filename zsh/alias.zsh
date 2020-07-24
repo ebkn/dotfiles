@@ -23,6 +23,16 @@ fd() {
   dir=$(find ${1:-.} -type d 2> /dev/null | fzf --reverse +m) && cd "$dir"
 }
 
+# create Scrapbox page from text
+# requires nkf(brew install nkf), gsed (or linux sed)
+# usage
+# $ scrapbox foo.txt
+function scrapbox() {
+  title=$(cat $1 | head -n 1); \
+  body=$(cat "$1" | tail -n +2 | gsed 's/  /\t/g' | gsed 's/&/%26/g'); \
+  open https://scrapbox.io/ebiken/${title}?body=${body}
+}
+
 # requires tree
 alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|volumes" -N -A -C'
 

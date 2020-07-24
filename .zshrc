@@ -30,18 +30,6 @@ setopt rm_star_wait
 # disable no matches found error
 setopt nonomatch
 
-# create Scrapbox page from text
-# requires nkf(brew install nkf), gsed (or linux sed)
-# usage
-# $ scrapbox foo.txt
-function scrapbox() {
-  title=$(cat $1 | head -n 1); \
-  body=$(cat "$1" | tail -n +2 | gsed 's/  /\t/g' | gsed 's/&/%26/g'); \
-  open https://scrapbox.io/ebiken/${title}?body=${body}
-}
-
-# fpath+=${ZDOTDIR:-~}/.zsh_functions
-
 # The next line updates PATH for the Google Cloud SDK.
 # source '/Users/kenichi/google-cloud-sdk/path.zsh.inc'
 # The next line enables shell command completion for gcloud.
