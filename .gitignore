@@ -1,4 +1,5 @@
-vim/nvim/.vim
+vim/nvim/*
+!vim/nvim/init.vim
 vim/.vim/view
 vim/.vim/sessions
 brewfiles/*.lock.json
