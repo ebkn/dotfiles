@@ -22,6 +22,11 @@ if dein#load_state(s:dein_dir)
     call dein#load_toml(file)
   endfor
 
+  if !has('nvim')
+    call dein#add('roxma/nvim-yarp')
+    call dein#add('roxma/vim-hug-neovim-rpc')
+  endif
+
   " load plugins lazy
   let s:lazyFiles = glob(s:toml_dir . 'lazy/*.toml')
   for file in split(s:lazyFiles, "\n")
