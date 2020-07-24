@@ -59,7 +59,8 @@ ln -s ~/dotfiles/.tmux.conf ~
 ln -s ~/dotfiles/.vimrc ~
 ln -s ~/dotfiles/.xvimrc ~
 ln -s ~/dotfiles/.ideavimrc ~
-ln -s ~/dotfiles/.vim ~
+ln -s ~/dotfiles/vim/nvim ~/.config/nvim
+ln -s ~/dotfiles/vim/.vim ~
 ln -s ~/dotfiles/vim/coc/package.json ~/.config/coc/extensions/
 
 source ~/.zshrc

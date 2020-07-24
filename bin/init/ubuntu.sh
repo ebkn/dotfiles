@@ -65,7 +65,7 @@ sudo apt install vim
 ln -s ~/dotfiles/.vimrc ~
 ln -s ~/dotfiles/.xvimrc ~
 ln -s ~/dotfiles/.ideavimrc ~
-ln -s ~/dotfiles/.vim ~
+ln -s ~/dotfiles/vim/.vim ~
 
 printf "\n--- Installing dein ---\n"
 curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
