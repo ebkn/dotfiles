@@ -6,6 +6,9 @@ set termencoding=utf8
 set fileencodings=utf-8,ucs-boms,euc-jp,ep932
 set fileformats=unix,dos,mac
 
+" set python version
+set pyxversion=3
+
 set nobomb
 
 " view
