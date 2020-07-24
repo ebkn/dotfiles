@@ -1,8 +1,6 @@
 # start tmux
 [[ -z "$TMUX" ]] && tmux -u
 
-export TERM=xterm-256color
-
 ENABLE_CORRECTION="true"
 
 source "$HOME/dotfiles/zsh/.p10k.zsh"
