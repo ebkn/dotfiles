@@ -12,7 +12,7 @@ env:
   # check the local terminfo database and use 'alacritty' if it is
   # available, otherwise 'xterm-256color' is used.
   #
-  TERM: xterm-256color
+  TERM: screen-256color
 
 window:
   # Window dimensions (changes require restart)
@@ -85,7 +85,7 @@ font:
   # as modifying the line spacing, and `offset.x` as modifying the letter spacing.
   offset:
     x: 1
-    y: 2
+    y: 1
 
   # Glyph offset determines the locations of the glyphs within their cells with
   # the default being at the bottom. Increasing `x` moves the glyph to the right,
@@ -96,7 +96,7 @@ font:
 
   # Scale the font size based on the monitor's DPI. This will lead to bigger text on HiDPI
   # screens and make reading text a little easier.
-  # scale_with_dpi: true
+  scale_with_dpi: true
 
   # Thin stroke font rendering (OS X only)
   #
