@@ -17,6 +17,7 @@ set ambiwidth=double "show chars like □, ○
 set nocursorline
 set nocursorcolumn
 set nonumber
+set signcolumn=yes " always show signcolumn
 
 " show zenkaku space
 function! ZenkakuSpace()
