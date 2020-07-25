@@ -2,6 +2,9 @@
 repo = 'rhysd/vim-clang-format'
 on_ft = ['c', 'cpp']
 hook_add = '''
-autocmd FileType c ClangFormatAutoEnable
-autocmd FileType cpp ClangFormatAutoEnable
+augroup vim-clang-format
+  autocmd!
+  autocmd FileType c ClangFormatAutoEnable
+  autocmd FileType cpp ClangFormatAutoEnable
+augroup END
 '''
