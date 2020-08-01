@@ -30,11 +30,6 @@ setopt rm_star_wait
 # disable no matches found error
 setopt nonomatch
 
-# The next line updates PATH for the Google Cloud SDK.
-# source '/Users/kenichi/google-cloud-sdk/path.zsh.inc'
-# The next line enables shell command completion for gcloud.
-# source '/Users/kenichi/google-cloud-sdk/completion.zsh.inc'
-
 #####################################
 # to check starting time of zsh,
 # uncomment following commands.
