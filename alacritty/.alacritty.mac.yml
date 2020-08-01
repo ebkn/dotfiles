@@ -12,6 +12,7 @@ window:
     y: 2
 
     decorations: full
+  dynamic_title: true
 
 scrolling:
   history: 100000
@@ -89,8 +90,6 @@ mouse:
 selection:
   semantic_escape_chars: ",│`|:\"' ()[]{}<>"
   save_to_clipboard: true
-
-dynamic_title: true
 
 mouse.hide_when_typing: true
 
