@@ -5,6 +5,7 @@ setopt mark_dirs
 # autocomplete
 setopt auto_list
 setopt auto_menu
+setopt menu_complete
 
 # smartcase
 zstyle ':completion:*' matcher-list '' \

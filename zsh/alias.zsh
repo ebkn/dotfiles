@@ -95,6 +95,13 @@ case `uname` in
         open "$@"
       fi
     }
+
+    update-all() {
+      brew upgrade
+      brew cask upgrade
+      zinit update --all
+      vim +CocUpdate +qall
+    }
   ;;
 
   "Linux" )
