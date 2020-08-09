@@ -48,10 +48,13 @@ set smartindent   " indent for C-like syntax
 set showmatch
 
 " Search
-set incsearch  " incremental search
-set ignorecase " ignore upper/lower case
-set smartcase  " ignore ignorecase when includes upper case letters
-set hlsearch   " highlight search result
+set incsearch          " incremental search
+set ignorecase         " ignore upper/lower case
+set smartcase          " ignore ignorecase when includes upper case letters
+set hlsearch           " highlight search result
+if has('nvim')
+  set inccommand=nosplit " highlight replace
+endif
 set wrapscan   " re-search after end of file
 
 set wildignore+=*/tmp*,*.so,*.swp,*.zip
