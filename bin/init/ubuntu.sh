@@ -51,6 +51,7 @@ source ~/.zshrc
 
 printf "\n--- Installing tmux ---\n"
 sudo apt install tmux
+git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
 [ -f ~/.tmux.conf ] && mv ~/.tmux.conf ~/backup/
 ln -s ~/dotfiles/.tmux.conf ~
 

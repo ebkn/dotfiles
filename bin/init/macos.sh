@@ -66,6 +66,7 @@ ln -s ~/dotfiles/vim/coc/package.json ~/.config/coc/extensions/
 source ~/.zshrc
 
 printf "\n--- Starting tmux ---\n"
+git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
 tmux
 tmux source-file ~/.tmux.conf
 
