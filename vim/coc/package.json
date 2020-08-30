@@ -5,7 +5,7 @@
     "coc-diagnostic": ">=0.7.0",
     "coc-eslint": ">=1.2.7",
     "coc-flutter": ">=1.5.1",
-    "coc-git": ">=1.8.2",
+    "coc-git": ">=1.8.3",
     "coc-highlight": ">=1.2.5",
     "coc-html": ">=1.2.4",
     "coc-json": ">=1.2.6",
@@ -17,7 +17,7 @@
     "coc-solargraph": ">=1.1.6",
     "coc-stylelint": ">=1.1.0",
     "coc-tsserver": ">=1.5.4",
-    "coc-vetur": ">=1.1.11",
-    "coc-yaml": ">=1.0.4"
+    "coc-vetur": ">=1.1.12",
+    "coc-yaml": ">=1.0.5"
   }
 }
