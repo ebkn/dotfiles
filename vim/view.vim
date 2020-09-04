@@ -21,4 +21,5 @@ endif
 
 " show markdown symbols
 au FileType markdown setl conceallevel=0
+set conceallevel=0
 let g:vim_markdown_conceal=0
