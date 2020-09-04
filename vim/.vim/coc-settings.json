@@ -43,32 +43,12 @@
       "initializationOptions": {
         "formatters": {},
         "filetypes": {
-          "go": ["golint", "golangci-lint"],
+          "go": ["golangci-lint"],
           "dockerfile": ["hadolint"],
           "sh": "shellcheck"
         },
         "formatFiletypes": {},
         "linters": {
-          "golint": {
-            "command": "golint",
-            "rootPatterns": [],
-            "isStdout": true,
-            "isStderr": false,
-            "debounce": 100,
-            "args": ["%filepath"],
-            "offsetLine": 0,
-            "offsetColumn": 0,
-            "sourceName": "golint",
-            "formatLines": 1,
-            "formatPattern": [
-              "^[^:]+:(\\d+):(\\d+):\\s(.*)$",
-              {
-                "line": 1,
-                "column": 2,
-                "message": [3]
-              }
-            ]
-          },
           "golangci-lint": {
             "filetypes": ["go"],
             "command": "golangci-lint",
