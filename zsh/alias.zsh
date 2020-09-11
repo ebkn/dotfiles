@@ -1,7 +1,8 @@
 alias c='clear'
 alias l='ls -lahG'
 alias mv='mv -i'
-alias cp='cp -i'
+alias cp='cp -i -r'
+alias mkdir='mkdir -p'
 
 # vim
 alias v='nvim'
