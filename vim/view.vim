@@ -3,7 +3,7 @@ set guifont=SauceCodePro\ Nerd\ Font\ Medium:h14
 set ambiwidth=double "show chars like □, ○
 set nocursorline     " hide cursor line
 set nocursorcolumn   " hide cursor column
-set nonumber         " hide line number
+set number           " show line number
 set signcolumn=yes   " always show signcolumn
 
 " show zenkaku space
