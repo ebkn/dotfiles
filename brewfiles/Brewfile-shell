@@ -1,4 +1,3 @@
-# shell,terminal
 brew 'zsh'
 brew 'tmux'
 brew 'vim'
@@ -13,15 +12,12 @@ brew 'tree'
 brew 'jq'
 brew 'ripgrep'
 brew 'git-lfs'
-
-# signing
 brew 'gnupg'
 brew 'pinentry-mac'
-
-# utils
 brew 'gibo'
 brew 'git-secrets'
 brew 'cmake'
 brew 'nkf'
 brew 'procs'
 brew 'tig'
+brew 'bat'
