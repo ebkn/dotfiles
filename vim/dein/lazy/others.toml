@@ -14,7 +14,7 @@ let g:processing_fold=1
 # autoclose html(xhtml) tags
 [[plugins]]
 repo = 'alvan/vim-closetag'
-on_ft = ['html', 'xhtml', 'javascript', 'typescript', 'javascript.jsx', 'typescript.tsx']
+on_ft = ['html', 'xhtml', 'javascript', 'typescript', 'javascript.jsx', 'typescript.tsx', 'javascriptreact', 'typescriptreaact']
 hook_add = '''
 let g:closetag_filenames='*.html'
 let g:closetag_xhtml_filenames='*.jsx,*.tsx,*.vue'
@@ -27,7 +27,7 @@ let g:closetag_shortcut='>'
 # graphql
 [[plugins]]
 repo = 'jparise/vim-graphql'
-on_ft = ['graphql']
+on_ft = ['graphql', 'javascript', 'javascriptreact', 'typescript', 'typescriptreact']
 
 # toml
 [[plugins]]
