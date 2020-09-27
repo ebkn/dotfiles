@@ -99,7 +99,7 @@ case `uname` in
 
     update-all() {
       brew upgrade
-      brew cask upgrade
+      brew upgrade --cask
       zinit update --all
       vim +CocUpdate +qall
       go get -u golang.org/x/tools/...
