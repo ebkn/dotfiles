@@ -102,6 +102,8 @@ case `uname` in
       brew cask upgrade
       zinit update --all
       vim +CocUpdate +qall
+      go get -u golang.org/x/tools/...
+      go get -u github.com/x-motemen/ghq
     }
   ;;
 
