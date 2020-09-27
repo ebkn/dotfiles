@@ -57,8 +57,11 @@ alias gdmerged='git branch --merged | grep -vE "^\*|main$|master$|develop$|stagi
 # interactive cd to ghq repository
 # requires ghq, fzf
 function move_to_repository() {
-  cd $(ghq list -p --vcs=git | fzf --reverse)
-  zle reset-prompt
+  dir=$(ghq list -p --vcs=git | fzf --reverse)
+  if [$dir -ne "" ]; then
+    cd
+    zle reset-prompt
+  fi
 }
 zle -N move_to_repository
 bindkey '^g' move_to_repository
@@ -103,7 +106,6 @@ case `uname` in
       zinit update --all
       vim +CocUpdate +qall
       go get -u golang.org/x/tools/...
-      go get -u github.com/x-motemen/ghq
     }
   ;;
 
