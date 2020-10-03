@@ -13,8 +13,11 @@ let g:fzf_layout = { 'window': { 'width': 0.9, 'height': 0.6 } }
 let g:fzf_buffers_jump=1
 command! -bang -nargs=* Rg
   \ call fzf#vim#grep(
-  \   "rg --column --line-number --no-heading --color=always --smart-case --hidden ".shellescape(<q-args>),
-  \ 1, <bang>0)
+  \   'rg --column --line-number --no-heading --color=always --smart-case --hidden .+',
+  \   1,
+  \   fzf#vim#with_preview({'options': '--delimiter : --nth 4..'}),
+  \   0,
+  \ )
 '''
 
 [[plugins]]
