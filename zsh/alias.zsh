@@ -84,8 +84,7 @@ case `uname` in
     gco() {
       local branches branch
       branches=$(git branch --all | grep -v HEAD) &&
-      branch=$(echo "$branches" |
-               fzf-tmux -d $(( 2 + $(wc -l <<< "$branches") )) +m) &&
+      branch=$(echo "$branches" | fzf) &&
       git checkout $(echo "$branch" | gsed "s/.* //" | gsed "s#remotes/[^/]*/##")
     }
 
@@ -117,8 +116,7 @@ case `uname` in
     gco() {
       local branches branch
       branches=$(git branch --all | grep -v HEAD) &&
-      branch=$(echo "$branches" |
-               fzf-tmux -d $(( 2 + $(wc -l <<< "$branches") )) +m) &&
+      branch=$(echo "$branches" | fzf) &&
       git checkout $(echo "$branch" | sed "s/.* //" | sed "s#remotes/[^/]*/##")
     }
   ;;
