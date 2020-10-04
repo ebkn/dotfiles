@@ -36,6 +36,16 @@ command! -bang -nargs=* Rg
 nnoremap <C-f> :Files<CR>
 nnoremap <C-g> :Rg<Space>
 nnoremap <C-b> :Buffers<CR>
+" replace in quickfix
+function! Replace()
+  let before = input('[from] ')
+  call inputrestore()
+  call inputsave()
+  let after = input('[from] ' . before . ' [to] ')
+  call inputrestore()
+  execute ':cfdo :%s/' . before .  '/' . after . '/g | :w | :ccl'
+endfunction
+nnoremap <C-r> :call Replace()<CR>
 '''
 
 [[plugins]]
