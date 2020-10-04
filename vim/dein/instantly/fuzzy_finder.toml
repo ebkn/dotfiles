@@ -1,23 +1,41 @@
 # fuzzy finder
 # requires `$ brew install fzf`
 [[plugins]]
-repo = '~/.fzf'
+repo = 'junegunn/fzf'
+do = '''
+fzf#install()
+'''
+hook_add = '''
+set rtp+=/usr/local/opt/fzf
+'''
 
 [[plugins]]
 repo = 'junegunn/fzf.vim'
+depends_on = [
+  'junegunn/fzf',
+]
 hook_add = '''
+set rtp+=/usr/local/opt/fzf
+let g:fzf_layout = { 'window': { 'width': 0.9, 'height': 0.6 } }
+let g:fzf_buffers_jump=1
+function! s:p(bang, ...)
+  let preview_window = get(g:, 'fzf_preview_window', a:bang && &columns >= 80 || &columns >= 120 ? 'right': '')
+  if len(preview_window)
+    return call('fzf#vim#with_preview', add(copy(a:000), preview_window))
+  endif
+  return {}
+endfunction
+command! -bang -nargs=? -complete=dir Files
+  \ call fzf#vim#files(<q-args>, s:p(<bang>0), <bang>0)
+command! -bar -bang -nargs=? -complete=buffer Buffers
+  \ call fzf#vim#buffers(<q-args>, s:p(<bang>0, { "placeholder": "{1}" }), <bang>0)
+command! -bang -nargs=* Rg
+  \ call fzf#vim#grep(
+  \   'rg --column --line-number --no-heading --color=always --smart-case -- '.shellescape(<q-args>), 1,
+  \   fzf#vim#with_preview(), <bang>0)
 nnoremap <C-f> :Files<CR>
 nnoremap <C-g> :Rg<Space>
 nnoremap <C-b> :Buffers<CR>
-let g:fzf_layout = { 'window': { 'width': 0.9, 'height': 0.6 } }
-let g:fzf_buffers_jump=1
-command! -bang -nargs=* Rg
-  \ call fzf#vim#grep(
-  \   'rg --column --line-number --no-heading --color=always --smart-case --hidden .+',
-  \   1,
-  \   fzf#vim#with_preview({'options': '--delimiter : --nth 4..'}),
-  \   0,
-  \ )
 '''
 
 [[plugins]]

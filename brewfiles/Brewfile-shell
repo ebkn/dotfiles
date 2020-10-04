@@ -1,6 +1,7 @@
 brew 'zsh'
 brew 'tmux'
 brew 'vim'
+brew 'fzf'
 brew 'neovim'
 brew 'reattach-to-user-namespace'
 tap 'github/gh'

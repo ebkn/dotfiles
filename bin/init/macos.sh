@@ -70,10 +70,6 @@ git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
 tmux
 tmux source-file ~/.tmux.conf
 
-printf "\n--- Installing fzf ---\n"
-git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
-~/.fzf/install
-
 printf "\n--- Installing languages from homebrew ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-lang"
 
