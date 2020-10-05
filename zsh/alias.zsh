@@ -58,10 +58,12 @@ alias gdmerged='git branch --merged | grep -vE "^\*|main$|master$|develop$|stagi
 # requires ghq, fzf
 function move_to_repository() {
   dir=$(ghq list -p --vcs=git | fzf --reverse)
-  if [$dir -ne "" ]; then
+  if [ $dir -ne "" ]; then
     cd
-    zle reset-prompt
+  else
+    cd $dir
   fi
+  zle reset-prompt
 }
 zle -N move_to_repository
 bindkey '^g' move_to_repository
