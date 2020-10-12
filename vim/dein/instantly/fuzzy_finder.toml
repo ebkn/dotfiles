@@ -45,7 +45,7 @@ function! Replace()
   call inputrestore()
   execute ':cfdo :%s/' . before .  '/' . after . '/g | :w | :ccl'
 endfunction
-nnoremap <C-r> :call Replace()<CR>
+" nnoremap <C-r> :call Replace()<CR>
 '''
 
 [[plugins]]
