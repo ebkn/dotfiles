@@ -10,4 +10,6 @@ source $HOME/dotfiles/vim/color.vim
 "--- load settings(plugin) ---
 source $HOME/dotfiles/vim/dein.vim
 
+" force disable conceling
+set conceallevel=0
 syntax on
