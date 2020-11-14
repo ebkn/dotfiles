@@ -59,6 +59,9 @@ case `uname` in
 
     # Java
     export PATH="/usr/local/opt/openjdk/bin:$PATH"
+
+    # gcloud
+    export CLOUDSDK_PYTHON=python2
   ;;
 
   "Linux" )
