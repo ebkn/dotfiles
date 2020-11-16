@@ -44,6 +44,7 @@ case `uname` in
     export PATH="$PATH:$HOME/flutter/bin"
     export PATH="$PATH:$HOME/flutter/.pub-cache/bin"
     export PATH="$PATH:$HOME/.pub-cache/bin"
+    export FLUTTER_ROOT=$HOME/flutter
 
     # protobuf
     export PATH="$PATH:$HOME/protoc-3.6.1-osx-x86_64/bin"
