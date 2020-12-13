@@ -5,3 +5,7 @@ on_ft = ['go']
 [[plugins]]
 repo = 'mattn/vim-goaddtags'
 on_ft = ['go']
+
+[[plugins]]
+repo = 'sebdah/vim-delve'
+on_ft = ['go']
