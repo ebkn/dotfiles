@@ -6,6 +6,10 @@ on_ft = ['go']
 repo = 'mattn/vim-goaddtags'
 on_ft = ['go']
 
-[[plugins]]
-repo = 'sebdah/vim-delve'
-on_ft = ['go']
+# [[plugins]]
+# repo = 'sebdah/vim-delve'
+# on_ft = ['go']
+# hook_add = '''
+# let g:delve_use_vimux = 1
+# autocmd FileType go nmap <silent> ;d :DlvToggleBreakpoint<CR>
+# '''

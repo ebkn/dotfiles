@@ -49,3 +49,6 @@ nmap L <Plug>(easymotion-overwin-line)
 " Move to word
 nmap W <Plug>(easymotion-overwin-w)
 '''
+
+[[plugins]]
+repo = 'benmills/vimux'
