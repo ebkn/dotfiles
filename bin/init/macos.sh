@@ -6,7 +6,7 @@
 mkdir ~/backup
 
 printf "\n--- Setup mac os defaults settings ---\n"
-defaults write -g KeyRepeat -int 2
+defaults write -g KeyRepeat -int 1
 defaults write -g InitialKeyRepeat -int 10
 defaults write com.apple.finder AppleShowAllFiles TRUE
 
