@@ -34,6 +34,12 @@ set cmdheight=2
 
 " Prettier command
 command! -nargs=0  Prettier :CocCommand prettier.formatFile
+
+" filetyp
+let g:coc_filetype_map = {
+  \ 'typescript.jsx': 'typescriptreact',
+  \ 'javascript.jsx': 'javascriptreact',
+  \ }
 '''
 
 [[plugins]]

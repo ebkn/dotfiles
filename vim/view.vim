@@ -23,3 +23,6 @@ endif
 au FileType markdown setl conceallevel=0
 set conceallevel=0
 let g:vim_markdown_conceal=0
+
+autocmd BufNewFile,BufRead *.tsx let b:tsx_ext_found = 1
+autocmd BufNewFile,BufRead *.tsx set filetype=typescript.tsx

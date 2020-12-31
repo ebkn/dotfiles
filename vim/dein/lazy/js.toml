@@ -1,21 +1,3 @@
-# JavaScript
-[[plugins]]
-repo = 'pangloss/vim-javascript'
-on_ft = [
-  'javascript',
-  'javascript.jsx',
-  'javascriptreact',
-]
-
-# TypeScript
-[[plugins]]
-repo = 'leafgarland/typescript-vim'
-on_ft = [
-  'typescript',
-  'typescript.tsx',
-  'typescriptreact',
-]
-
 # vue
 [[plugins]]
 repo = 'posva/vim-vue'
