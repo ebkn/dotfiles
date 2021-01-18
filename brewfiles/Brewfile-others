@@ -11,12 +11,10 @@ brew 'postgresql'
 
 brew 'kubernetes-cli'
 brew 'k9s'
+brew 'kubectx'
 
 brew 'protobuf'
 brew 'protoc-gen-go'
 brew 'grpcurl'
 brew 'graphviz'
 brew 'bazel'
-
-tap 'ktr0731/evans'
-brew 'evans'
