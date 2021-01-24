@@ -11,5 +11,5 @@ source $HOME/dotfiles/vim/color.vim
 source $HOME/dotfiles/vim/dein.vim
 
 " force disable conceling
-set conceallevel=0
+au FileType markdown setl conceallevel=0
 syntax on
