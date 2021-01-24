@@ -106,7 +106,7 @@ case `uname` in
       brew upgrade --cask
       zinit update --all
       vim +CocUpdate +qall
-      go get -u golang.org/x/tools/...
+      GO111MODULE=on go get -u golang.org/x/tools/...
     }
   ;;
 
