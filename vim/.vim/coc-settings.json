@@ -8,6 +8,7 @@
     "golang": {
       "command": "gopls",
       "rootPatterns": ["go.mod"],
+      "disableWorkspaceFolders": true,
       "filetypes": ["go"]
     },
     "dockerfile": {
