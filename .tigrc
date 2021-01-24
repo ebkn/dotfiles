@@ -34,3 +34,10 @@ bind generic P !git push %(remote) %(repo:head)
 bind generic B !git checkout -b "%(prompt Enter new branch name: )"
 bind generic g move-first-line
 bind generic G move-last-line
+
+# for large repos
+#
+# git's default is reverse chronological order
+set commit-order = default
+# limit number of commits
+set main-options = -n 1000
