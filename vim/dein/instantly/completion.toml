@@ -35,11 +35,14 @@ set cmdheight=2
 " Prettier command
 command! -nargs=0  Prettier :CocCommand prettier.formatFile
 
-" filetyp
+" filetype
 let g:coc_filetype_map = {
   \ 'typescript.jsx': 'typescriptreact',
   \ 'javascript.jsx': 'javascriptreact',
   \ }
+
+" add missing import for golang
+autocmd BufWritePre *.go :silent call CocAction('runCommand', 'editor.action.organizeImport')
 '''
 
 [[plugins]]

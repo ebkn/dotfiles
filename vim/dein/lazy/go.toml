@@ -1,7 +1,7 @@
-[[plugins]]
-repo = 'mattn/vim-goimports'
-on_ft = ['go']
-
+# [[plugins]]
+# repo = 'mattn/vim-goimports'
+# on_ft = ['go']
+#
 [[plugins]]
 repo = 'mattn/vim-goaddtags'
 on_ft = ['go']
