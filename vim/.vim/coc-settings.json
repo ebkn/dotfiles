@@ -5,12 +5,6 @@
     "Markdown"
   ],
   "languageserver": {
-    "golang": {
-      "command": "gopls",
-      "rootPatterns": ["go.mod"],
-      "disableWorkspaceFolders": true,
-      "filetypes": ["go"]
-    },
     "dockerfile": {
       "command": "docker-langserver",
       "filetypes": ["dockerfile"],
