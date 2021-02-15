@@ -38,7 +38,7 @@
       "initializationOptions": {
         "formatters": {},
         "filetypes": {
-          "go": ["golangci-lint"],
+          "go": [],
           "dockerfile": ["hadolint"],
           "sh": "shellcheck"
         },
