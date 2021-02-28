@@ -13,12 +13,10 @@ autoload -Uz _zinit
 (( ${+_comps} )) && _comps[zinit]=_zinit
 ### End of Zinit installer's chunk
 
-zpcompinit
-
 # color
 zinit light chrissicool/zsh-256color
 zinit light zpm-zsh/colorize
-zinit light ael-code/zsh-colored-man-pages
+# zinit light ael-code/zsh-colored-man-pages
 
 # auto suggestion
 zinit light zsh-users/zsh-autosuggestions
@@ -34,3 +32,7 @@ zinit ice depth=1; zinit light romkatv/powerlevel10k # see ./zsh/.p10k.zsh
 
 # notify after completion
 zinit light MichaelAquilina/zsh-auto-notify
+
+# interactive jq
+zinit light reegnz/jq-zsh-plugin
+bindkey '^j' jq-complete
