@@ -38,11 +38,11 @@ if [ `uname` = 'Darwin' ]; then
     nvm use
   fi
 
+  GCLOUD_SDK_DIR=$HOME/google-cloud-sdk
+  if [ -f $GCLOUD_SDK_DIR/path.zsh.inc ]; then . $GCLOUD_SDK_DIR/path.zsh.inc; fi
   function gcloud() {
     unset -f gcloud
-    SDK_DIR=$HOME/google-cloud-sdk
-    if [ -f $SDK_DIR/path.zsh.inc ]; then . $SDK_DIR/path.zsh.inc; fi
-    if [ -f $SDK_DIR/completion.zsh.inc ]; then . $SDK_DIR/completion.zsh.inc; fi
+    if [ -f $GCLOUD_SDK_DIR/completion.zsh.inc ]; then . $GCLOUD_SDK_DIR/completion.zsh.inc; fi
     gcloud "$@"
   }
 
