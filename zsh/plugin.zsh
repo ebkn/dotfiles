@@ -36,3 +36,5 @@ zinit light MichaelAquilina/zsh-auto-notify
 # interactive jq
 zinit light reegnz/jq-zsh-plugin
 bindkey '^j' jq-complete
+
+autoload -U compinit && compinit
