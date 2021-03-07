@@ -10,12 +10,6 @@
       "filetypes": ["dockerfile"],
       "args": ["--stdio"]
     },
-     "bash": {
-      "command": "bash-language-server",
-      "args": ["start"],
-      "filetypes": ["sh"],
-      "ignoredRootPaths": ["~"]
-    },
     "efm": {
       "command": "efm-langserver",
       "args": ["-c", "~/dotfiles/efm-config.yml"],
