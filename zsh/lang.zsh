@@ -8,30 +8,30 @@ if [ `uname` = 'Darwin' ]; then
 
   # ruby
   function rbenv() {
-    unset -f rbenv
+    unfunction "$0"
     eval "$(rbenv init - --no-rehash)"
-    rbenv "$@"
+    $0 "$@"
   }
 
   # python
   function pyenv() {
-    unset -f pyenv
+    unfunction "$0"
     eval "$(pyenv init - --no-rehash)"
-    pyenv "$@"
+    $0 "$@"
   }
 
   # swift
   function swiftenv() {
-    unset -f swiftenv
+    unfunction "$0"
     eval "$(swiftenv init - --no-rehash)"
-    swiftenv "$@"
+    $0 "$@"
   }
 
   # Node.js
   function nvm() {
-    unset -f nvm
+    unfunction "$0"
     source $(brew --prefix nvm)/nvm.sh
-    nvm "$@"
+    $0 "$@"
   }
   NVMRC_PATH=".nvmrc"
   if [[ -a "$NVMRC_PATH" ]]; then
@@ -41,25 +41,25 @@ if [ `uname` = 'Darwin' ]; then
   GCLOUD_SDK_DIR=$HOME/google-cloud-sdk
   if [ -f $GCLOUD_SDK_DIR/path.zsh.inc ]; then . $GCLOUD_SDK_DIR/path.zsh.inc; fi
   function gcloud() {
-    unset -f gcloud
+    unfunction "$0"
     if [ -f $GCLOUD_SDK_DIR/completion.zsh.inc ]; then . $GCLOUD_SDK_DIR/completion.zsh.inc; fi
-    gcloud "$@"
+    $0 "$@"
   }
 
   function kubectl() {
-    unset -f kubectl
+    unfunction "$0"
     source <(kubectl completion zsh)
-    kubectl "$@"
+    $0 "$@"
   }
 
   function npm() {
-    unset -f npm
+    unfunction "$0"
     source <(eval `npm completion`)
-    npm "$@"
+    $0 "$@"
   }
 
   function aws() {
-    unset -f aws
+    unfunction "$0"
     complete -C '/usr/local/bin/aws_completer' aws
     aws "$@"
   }
