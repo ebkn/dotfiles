@@ -118,6 +118,8 @@
     "completeUnimported": true
   },
   "cSpell.userWords": [
-    "gopls", "langserver", "dotfiles", "firestore", "stackdriver", "ebiken", "ebinuma", "grpc"
+    "gopls", "langserver", "dotfiles", "firestore", "stackdriver", "ebiken", "ebinuma", "grpc",
+    "hadolint", "unimported", "shellcheck", "eruby", "golangci", "dein", "zenkaku", "nosplit",
+    "clangd", "solargraph", "vetur"
   ]
 }
