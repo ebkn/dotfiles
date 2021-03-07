@@ -57,4 +57,10 @@ if [ `uname` = 'Darwin' ]; then
     source <(eval `npm completion`)
     npm "$@"
   }
+
+  function aws() {
+    unset -f aws
+    complete -C '/usr/local/bin/aws_completer' aws
+    aws "$@"
+  }
 fi

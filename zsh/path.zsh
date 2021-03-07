@@ -63,6 +63,9 @@ case `uname` in
 
     # gcloud
     export CLOUDSDK_PYTHON=python2
+
+    # aws
+    export PATH="$PATH:/usr/local/bin/aws_completer"
   ;;
 
   "Linux" )
