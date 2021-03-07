@@ -51,4 +51,10 @@ if [ `uname` = 'Darwin' ]; then
     source <(kubectl completion zsh)
     kubectl "$@"
   }
+
+  function npm() {
+    unset -f npm
+    source <(eval `npm completion`)
+    npm "$@"
+  }
 fi
