@@ -20,10 +20,12 @@
       "filetypes": ["terraform"],
       "initializationOptions": {}
     },
-    "sql": {
-      "command": "sql-language-server",
-      "args": ["up", "--method", "stdio"],
-      "filetypes": ["sql", "mysql"]
+    "golangci-lint-languageserver": {
+      "command": "golangci-lint-langserver",
+      "filetypes": ["go"],
+      "initializationOptions": {
+        "command": ["golangci-lint", "run", "--enable-all", "--disable", "lll", "--out-format", "json"]
+      }
     },
     "dls": {
       "command": "diagnostic-languageserver",
@@ -38,21 +40,6 @@
         },
         "formatFiletypes": {},
         "linters": {
-          "golangci-lint": {
-            "command": "golangci-lint",
-            "rootPatterns": [ ".git", "go.mod" ],
-            "debounce": 100,
-            "args": [ "run", "--out-format", "json" ],
-            "sourceName": "golangci-lint",
-            "parseJson": {
-              "sourceName": "Pos.Filename",
-              "sourceNameFilter": true,
-              "errorsRoot": "Issues",
-              "line": "Pos.Line",
-              "column": "Pos.Column",
-              "message": "${Text} [${FromLinter}]"
-            }
-          },
           "shellcheck": {
             "command": "shellcheck",
             "debounce": 100,
