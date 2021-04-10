@@ -78,7 +78,7 @@ augroup coc
 
   " highlight symbols
   autocmd CursorHold * silent call CocActionAsync('highlight')
-augroup end
+augroup END
 '''
 
 [[plugins]]

@@ -1,34 +1,54 @@
+# actions
+# a: action
+# m: move
+# c: copy
+# D: delete
+# l: expand
+# ?: open help
 [[plugins]]
-repo = 'preservim/nerdtree'
+repo = 'lambdalisue/fern.vim'
 hook_add = '''
-nnoremap <silent><C-n> :NERDTreeToggle<CR>
-let g:NERDTreeShowHidden=1
-let g:NERDTreeIgnore=[
-  \ '\.DS_Store', '\.git$', 'node_modules', 'bower_components', '__pycache__',
-  \ '\.db', '\.sqlite$', '\.rbc$', '\~$', '\.pyc', '\.idea$', '\.vscode$',
-  \ '\vendor\/bundle', '\.awcache$'
-\ ]
-let g:NERDTreeQuitOnOpen=1
-let g:NERDTreeAutoDeleteBuffer=1
-let g:NERDTreeMinimalUI=1
+let g:disable_default_mappings=1
+nnoremap <silent><C-n> :Fern . -drawer -reveal=% -toggle -stay<CR>
+function! s:init_fern() abort
+  nmap <buffer><nowait> l <Plug>(fern-action-expand)
+  nmap <buffer><nowait> D <Plug>(fern-action-remove)
+endfunction
+augroup fern-custom
+  autocmd! *
+  autocmd FileType fern call s:init_fern()
+augroup END
 '''
 
-# syntax highlight
-# [[plugins]]
-# repo = 'tiagofumo/vim-nerdtree-syntax-highlight'
-# depends = 'nerdtree'
-
-# git plugin
 [[plugins]]
-repo = 'Xuyuanp/nerdtree-git-plugin'
-depends = 'nerdtree'
+repo = 'antoinemadec/FixCursorHold.nvim'
 
-# icons
-# [[plugins]]
-# repo = 'ryanoasis/vim-devicons'
-# depends = 'nerdtree'
-# hook_add = '''
-# let g:WebDevIconsUnicodeDecorateFolderNodes = 1
-# let g:WebDevIconsNerdTreeBeforeGlyphPadding = ''
-# let g:WebDevIconsNerdTreeAfterGlyphPadding = ''
-# '''
+[[plugins]]
+repo = 'lambdalisue/fern-git-status.vim'
+hook_add = '''
+" Disable listing ignored files/directories
+let g:fern_git_status#disable_ignored = 1
+
+" Disable listing untracked files
+let g:fern_git_status#disable_untracked = 1
+
+" Disable listing status of submodules
+let g:fern_git_status#disable_submodules = 1
+
+" Disable listing status of directories
+let g:fern_git_status#disable_directories = 1
+'''
+depends = ['fern.vim']
+
+[[plugins]]
+repo = 'LumaKernel/fern-mapping-reload-all.vim'
+hook_add = '''
+function s:init_fern_mapping_reload_all()
+  nmap <buffer> R <Plug>(fern-action-reload:all)
+endfunction
+augroup my-fern-mapping-reload-all
+  autocmd! *
+  autocmd FileType fern call s:init_fern_mapping_reload_all()
+augroup END
+'''
+depends = ['fern.vim']
