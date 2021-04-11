@@ -17,6 +17,7 @@ function! s:init_fern() abort
   nmap <buffer><nowait> c <Plug>(fern-action-copy)
   nmap <buffer><nowait> m <Plug>(fern-action-move)
   nmap <buffer><nowait> N <Plug>(fern-action-new-file)
+  nmap <buffer><nowait> <Return> <Plug>(fern-action-open)
 endfunction
 augroup fern-custom
   autocmd! *
@@ -31,16 +32,16 @@ repo = 'antoinemadec/FixCursorHold.nvim'
 repo = 'lambdalisue/fern-git-status.vim'
 hook_add = '''
 " Disable listing ignored files/directories
-let g:fern_git_status#disable_ignored = 1
+let g:fern_git_status#disable_ignored=1
 
 " Disable listing untracked files
-let g:fern_git_status#disable_untracked = 1
+let g:fern_git_status#disable_untracked=1
 
 " Disable listing status of submodules
-let g:fern_git_status#disable_submodules = 1
+let g:fern_git_status#disable_submodules=1
 
 " Disable listing status of directories
-let g:fern_git_status#disable_directories = 1
+let g:fern_git_status#disable_directories=1
 '''
 depends = ['fern.vim']
 
