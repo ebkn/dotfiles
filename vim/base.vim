@@ -32,7 +32,6 @@ set wildmode=list:full
 
 set laststatus=2 " always show statusline
 
-filetype plugin indent on " enable file type detection, indent and plugin files
 " tab
 set expandtab     " replace tab with spaces
 set tabstop=2     " 2spaces for tab
