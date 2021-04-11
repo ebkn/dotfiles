@@ -31,9 +31,9 @@ imap <C-b> <Left>
 imap <C-f> <Right>
 imap <C-a> <C-o>:call <SID>home()<CR>
 function! s:home()
-  let start_column = col('.')
+  let start_column=col('.')
   normal! ^
-  if col('.') == start_column
+  if col('.')==start_column
   ¦ normal! 0
   endif
   return ''

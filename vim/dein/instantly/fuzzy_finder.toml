@@ -16,10 +16,10 @@ depends_on = [
 ]
 hook_add = '''
 set rtp+=/usr/local/opt/fzf
-let g:fzf_layout = { 'window': { 'width': 0.9, 'height': 0.6 } }
+let g:fzf_layout={ 'window': { 'width': 0.9, 'height': 0.6 } }
 let g:fzf_buffers_jump=1
 function! s:p(bang, ...)
-  let preview_window = get(g:, 'fzf_preview_window', a:bang && &columns >= 80 || &columns >= 120 ? 'right': '')
+  let preview_window=get(g:, 'fzf_preview_window', a:bang && &columns>=80 || &columns>=120 ? 'right': '')
   if len(preview_window)
     return call('fzf#vim#with_preview', add(copy(a:000), preview_window))
   endif
@@ -36,16 +36,6 @@ command! -bang -nargs=* Rg
 nnoremap <C-f> :Files<CR>
 nnoremap <C-g> :Rg<Space>
 nnoremap <C-b> :Buffers<CR>
-" replace in quickfix
-function! Replace()
-  let before = input('[from] ')
-  call inputrestore()
-  call inputsave()
-  let after = input('[from] ' . before . ' [to] ')
-  call inputrestore()
-  execute ':cfdo :%s/' . before .  '/' . after . '/g | :w | :ccl'
-endfunction
-" nnoremap <C-r> :call Replace()<CR>
 '''
 
 [[plugins]]

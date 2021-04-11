@@ -10,25 +10,26 @@ endif
 let &runtimepath=s:dein_repo_dir . "," . &runtimepath
 
 " settings file location
-let s:toml_dir = expand('~/dotfiles/vim/dein/')
+let s:toml_dir=expand('~/dotfiles/vim/dein/')
 
 " load plugins
 if dein#load_state(s:dein_dir)
   call dein#begin(s:dein_dir)
 
   " load plugins instantly
-  let s:instantlyFiles = glob(s:toml_dir . 'instantly/*.toml')
+  let s:instantlyFiles=glob(s:toml_dir . 'instantly/*.toml')
   for file in split(s:instantlyFiles, "\n")
     call dein#load_toml(file)
   endfor
 
+  " nvim
   if !has('nvim')
     call dein#add('roxma/nvim-yarp')
     call dein#add('roxma/vim-hug-neovim-rpc')
   endif
 
   " load plugins lazy
-  let s:lazyFiles = glob(s:toml_dir . 'lazy/*.toml')
+  let s:lazyFiles=glob(s:toml_dir . 'lazy/*.toml')
   for file in split(s:lazyFiles, "\n")
     call dein#load_toml(file, { 'lazy': 1 })
   endfor
