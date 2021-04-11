@@ -2,7 +2,8 @@
   "coc.preferences.formatOnSaveFiletypes": [
     "dart",
     "css",
-    "Markdown"
+    "Markdown",
+    "go"
   ],
   "languageserver": {
     "dockerfile": {
