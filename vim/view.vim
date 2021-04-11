@@ -11,7 +11,7 @@ function! ZenkakuSpace()
   highlight ZenkakuSpace cterm=reverse ctermfg=red guibg=black
 endfunction
 if has('syntax')
-  augroup ZenkakuSpace
+  augroup zenkaku-space
     autocmd!
     autocmd ColorScheme * call ZenkakuSpace()
     autocmd VimEnter,WinEnter,BufRead * match ZenkakuSpace /　/
@@ -20,8 +20,13 @@ if has('syntax')
 endif
 
 " show markdown symbols
-au FileType markdown setl conceallevel=0
-let g:vim_markdown_conceal=0
+augroup markdown
+  au!
+  au FileType markdown setl conceallevel=0
+augroup END
 
-autocmd BufNewFile,BufRead *.tsx let b:tsx_ext_found = 1
-autocmd BufNewFile,BufRead *.tsx set filetype=typescript.tsx
+augroup typescript
+  autocmd!
+  autocmd BufNewFile,BufRead *.tsx let b:tsx_ext_found=1
+  autocmd BufNewFile,BufRead *.tsx set filetype=typescript.tsx
+augroup END
