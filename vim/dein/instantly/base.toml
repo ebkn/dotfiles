@@ -33,22 +33,5 @@ map <silent>sr <Plug>(operator-surround-replace)
 [[plugins]]
 repo = 'tmux-plugins/vim-tmux-focus-events'
 
-# overwrite f
-[[plugins]]
-repo = 'easymotion/vim-easymotion'
-hook_add = '''
-let g:EasyMotion_do_mapping = 0
-let g:EasyMotion_smartcase=1
-
-" Move to char
-nmap f <Plug>(easymotion-overwin-f)
-
-" Move to line (overwrite L)
-nmap L <Plug>(easymotion-overwin-line)
-
-" Move to word
-nmap W <Plug>(easymotion-overwin-w)
-'''
-
 [[plugins]]
 repo = 'benmills/vimux'
