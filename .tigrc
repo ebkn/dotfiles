@@ -11,7 +11,7 @@ set tab-size = 2
 
 set ignore-case = true
 
-# set wrap-lines = yes
+set wrap-lines = yes
 
 set split-view-width = 80%
 set split-view-height = 80%
