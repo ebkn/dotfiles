@@ -21,10 +21,10 @@ endfunction
 inoremap <expr> <cr> pumvisible() ? "\<C-y>" : "\<C-g>u\<CR>"
 
 " keymaps
-nmap <silent> gd <Plug>(coc-definition)
-nmap <silent> gy <Plug>(coc-type-definition)
-nmap <silent> gi <Plug>(coc-implementation)
-nmap <silent> gr <Plug>(coc-references)
+nnoremap <silent> gd <Plug>(coc-definition)
+nnoremap <silent> gy <Plug>(coc-type-definition)
+nnoremap <silent> gi <Plug>(coc-implementation)
+nnoremap <silent> gr <Plug>(coc-references)
 
 " Use K to show documentation in preview window.
 nnoremap <silent> K :call <SID>show_documentation()<CR>
@@ -40,7 +40,7 @@ function! s:show_documentation()
 endfunction
 
 " Symbol renaming.
-nmap <leader>rn <Plug>(coc-rename)
+nnoremap <leader>rn <Plug>(coc-rename)
 
 " Better display for messages
 set cmdheight=2
@@ -71,7 +71,7 @@ augroup coc
 
   " add missing import on save
   autocmd BufWritePre *.go :silent call CocAction('runCommand', 'editor.action.organizeImport')
-  autocmd FileType go nmap gtj :CocCommand go.tags.add json<cr>
+  autocmd FileType go nnoremap gtj :CocCommand go.tags.add json<cr>
 
   " show signature help
   autocmd User CocJumpPlaceholder call CocActionAsync('showSignatureHelp')

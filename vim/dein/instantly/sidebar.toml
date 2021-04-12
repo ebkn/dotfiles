@@ -11,13 +11,13 @@ hook_add = '''
 let g:fern#disable_default_mappings=1
 nnoremap <silent><C-n> :Fern . -drawer -reveal=% -toggle -stay<CR>
 function! s:init_fern() abort
-  nmap <buffer><nowait> l <Plug>(fern-action-expand)
-  nmap <buffer><nowait> h <Plug>(fern-action-collapse)
-  nmap <buffer><nowait> D <Plug>(fern-action-remove)
-  nmap <buffer><nowait> c <Plug>(fern-action-copy)
-  nmap <buffer><nowait> m <Plug>(fern-action-move)
-  nmap <buffer><nowait> N <Plug>(fern-action-new-file)
-  nmap <buffer><nowait> <Return> <Plug>(fern-action-open)
+  nnoremap <buffer><nowait> l <Plug>(fern-action-expand)
+  nnoremap <buffer><nowait> h <Plug>(fern-action-collapse)
+  nnoremap <buffer><nowait> D <Plug>(fern-action-remove)
+  nnoremap <buffer><nowait> c <Plug>(fern-action-copy)
+  nnoremap <buffer><nowait> m <Plug>(fern-action-move)
+  nnoremap <buffer><nowait> N <Plug>(fern-action-new-file)
+  nnoremap <buffer><nowait> <Return> <Plug>(fern-action-open)
 endfunction
 augroup fern-custom
   autocmd! *
@@ -48,7 +48,7 @@ depends = ['fern.vim']
 repo = 'LumaKernel/fern-mapping-reload-all.vim'
 hook_add = '''
 function s:init_fern_mapping_reload_all()
-  nmap <buffer> R <Plug>(fern-action-reload:all)
+  nnoremap <buffer> R <Plug>(fern-action-reload:all)
 endfunction
 augroup my-fern-mapping-reload-all
   autocmd! *

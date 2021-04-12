@@ -25,11 +25,11 @@ nnoremap sq :<C-u>q<CR>
 
 "--- insert mode ---
 " emacs basic keybind
-imap <C-p> <Up>
-imap <C-n> <Down>
-imap <C-b> <Left>
-imap <C-f> <Right>
-imap <C-a> <C-o>:call <SID>home()<CR>
+inoremap <C-p> <Up>
+inoremap <C-n> <Down>
+inoremap <C-b> <Left>
+inoremap <C-f> <Right>
+inoremap <C-a> <C-o>:call <SID>home()<CR>
 function! s:home()
   let start_column=col('.')
   normal! ^
@@ -38,5 +38,5 @@ function! s:home()
   endif
   return ''
 endfunction
-imap <C-e> <End>
-imap <C-d> <Del>
+inoremap <C-e> <End>
+inoremap <C-d> <Del>
