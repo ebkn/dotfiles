@@ -21,8 +21,8 @@ endif
 
 " show markdown symbols
 augroup markdown
-  au!
-  au FileType markdown setl conceallevel=0
+  autocmd!
+  autocmd FileType markdown setl conceallevel=0
 augroup END
 
 augroup typescript
