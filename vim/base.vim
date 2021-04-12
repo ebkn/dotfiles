@@ -71,7 +71,7 @@ if has('mouse')
   if !has('nvim')
     if has('mouse_sgr')
       set ttymouse=sgr
-    elseif v:version > 703 || v:version is 703 && has('patch632')
+    elseif v:version>703 || v:version is 703 && has('patch632')
       set ttymouse=sgr
     elseif
       set ttymouse=xterm2
@@ -104,8 +104,4 @@ if &term=~"xterm"
   endfunction
 
   inoremap <special> <expr> <Esc>[200~ XTermPasteBegin("")
-endif
-
-if &compatible
-  set nocompatible
 endif

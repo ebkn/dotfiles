@@ -18,7 +18,7 @@ if dein#load_state(s:dein_dir)
 
   " load plugins instantly
   let s:instantlyFiles=glob(s:toml_dir . 'instantly/*.toml')
-  for file in split(s:instantlyFiles, "\n")
+  for s:file in split(s:instantlyFiles, "\n")
     call dein#load_toml(file)
   endfor
 
@@ -30,7 +30,7 @@ if dein#load_state(s:dein_dir)
 
   " load plugins lazy
   let s:lazyFiles=glob(s:toml_dir . 'lazy/*.toml')
-  for file in split(s:lazyFiles, "\n")
+  for s:file in split(s:lazyFiles, "\n")
     call dein#load_toml(file, { 'lazy': 1 })
   endfor
 
