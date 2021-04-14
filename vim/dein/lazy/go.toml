@@ -1,3 +1,9 @@
+[[plugins]]
+repo = 'mattn/vim-goimports'
+hook_add = '''
+let g:goimports_cmd='gofmt'
+'''
+
 # [[plugins]]
 # repo = 'sebdah/vim-delve'
 # on_ft = ['go']
