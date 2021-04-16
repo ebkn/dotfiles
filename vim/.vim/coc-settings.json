@@ -2,8 +2,7 @@
   "coc.preferences.formatOnSaveFiletypes": [
     "dart",
     "css",
-    "Markdown",
-    "go"
+    "Markdown"
   ],
   "languageserver": {
     "dockerfile": {
@@ -95,9 +94,6 @@
     "javascriptreact": ["javascript"],
     "typescriptreact": ["javascript", "javascript-jasmine-arrow"],
     "typescript": ["javascript", "javascript-jasmine-arrow"]
-  },
-  "go.goplsOptions": {
-    "completeUnimported": true
   },
   "cSpell.userWords": [
     "gopls", "langserver", "dotfiles", "firestore", "stackdriver", "ebiken", "ebinuma", "grpc",

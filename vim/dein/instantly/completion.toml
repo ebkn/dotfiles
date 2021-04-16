@@ -69,8 +69,6 @@ let g:coc_filetype_map = {
 augroup coc
   autocmd!
 
-  " add missing import on save
-  autocmd BufWritePre *.go :silent call CocAction('runCommand', 'editor.action.organizeImport')
   autocmd FileType go nnoremap gtj :CocCommand go.tags.add json<cr>
 
   " show signature help
