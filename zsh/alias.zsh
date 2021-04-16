@@ -22,6 +22,9 @@ alias cpu='procs --watch --sortd cpu'
 fd() {
   local dir
   dir=$(find ${1:-.} -type d 2> /dev/null | fzf --reverse +m) && cd "$dir"
+  if [ "$dir" != "" ]; then
+    cd $dir
+  fi
 }
 
 # create Scrapbox page from text
@@ -59,13 +62,12 @@ alias gp='gpull && gf && gdmerged'
 # interactive cd to ghq repository
 # requires ghq, fzf
 function move_to_repository() {
+  local dir
   dir=$(ghq list -p --vcs=git | fzf --reverse)
-  if [ $dir -ne "" ]; then
-    cd
-  else
+  if [ "$dir" != "" ]; then
     cd $dir
   fi
-  zle reset-prompt
+  zle accept-line
 }
 zle -N move_to_repository
 bindkey '^g' move_to_repository
