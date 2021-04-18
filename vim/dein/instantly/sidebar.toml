@@ -48,7 +48,7 @@ depends = ['fern.vim']
 repo = 'LumaKernel/fern-mapping-reload-all.vim'
 hook_add = '''
 function s:init_fern_mapping_reload_all()
-  nnoremap <buffer> R <Plug>(fern-action-reload:all)
+  nmap <buffer> R <Plug>(fern-action-reload:all)
 endfunction
 augroup my-fern-mapping-reload-all
   autocmd! *
