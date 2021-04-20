@@ -63,6 +63,8 @@ ln -s ~/dotfiles/vim/nvim ~/.config/nvim
 ln -s ~/dotfiles/vim/.vim/* ~/.config/nvim/
 ln -s ~/dotfiles/vim/coc/package.json ~/.config/coc/extensions/
 
+sudo ln -s /usr/local/share/git-core/contrib/diff-highlight/diff-highlight /usr/local/bin/diff-highlight
+
 source ~/.zshrc
 
 printf "\n--- Starting tmux ---\n"
