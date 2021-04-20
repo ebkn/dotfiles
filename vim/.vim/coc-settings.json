@@ -96,7 +96,7 @@
     "typescript": ["javascript", "javascript-jasmine-arrow"]
   },
   "cSpell.userWords": [
-    "gopls", "langserver", "dotfiles", "firestore", "stackdriver", "ebiken", "ebinuma", "grpc",
+    "gopls", "langserver", "dotfiles", "firestore", "stackdriver", "ebiken", "ebinuma", "kenichi", "grpc",
     "hadolint", "unimported", "shellcheck", "eruby", "golangci", "dein", "zenkaku", "nosplit",
     "clangd", "solargraph", "vetur"
   ]
