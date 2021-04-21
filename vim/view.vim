@@ -22,7 +22,7 @@ endif
 " show markdown symbols
 augroup markdown
   autocmd!
-  autocmd FileType markdown set conceallevel=0
+  autocmd FileType markdown setl conceallevel=0
 augroup END
 
 augroup typescript
@@ -30,5 +30,3 @@ augroup typescript
   autocmd BufNewFile,BufRead *.tsx let b:tsx_ext_found=1
   autocmd BufNewFile,BufRead *.tsx set filetype=typescript.tsx
 augroup END
-
-set conceallevel=0
