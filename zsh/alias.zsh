@@ -56,7 +56,7 @@ alias gcob='git checkout -b'
 alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD` --recurse-submodules'
 alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
 alias gpushf='git push origin `git rev-parse --abbrev-ref HEAD` --force-with-lease'
-alias gdmerged='git branch --merged | grep -vE "^main$|^master$|^develop$|^staging$" | xargs -I % git branch -d %'
+alias gdmerged='git branch --merged | grep -vE "^\*|main$|master$|develop$|staging$" | xargs -I % git branch -d %'
 alias gp='gpull && gf && gdmerged'
 
 # interactive cd to ghq repository
