@@ -98,6 +98,6 @@
   "cSpell.userWords": [
     "gopls", "langserver", "dotfiles", "firestore", "stackdriver", "ebiken", "ebinuma", "kenichi", "grpc",
     "hadolint", "unimported", "shellcheck", "eruby", "golangci", "dein", "zenkaku", "nosplit",
-    "clangd", "solargraph", "vetur", "vim", "neovim"
+    "clangd", "solargraph", "vetur", "vim", "neovim", "datetime"
   ]
 }
