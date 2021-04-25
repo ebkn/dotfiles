@@ -111,6 +111,7 @@ case `uname` in
       zinit update --all
       vim +CocUpdate +qall
       GO111MODULE=on go get -u golang.org/x/tools/...
+      GO111MODULE=on go get -u github.com/cweill/gotests/...
       npm update -g
       yarn global upgrade
     }
