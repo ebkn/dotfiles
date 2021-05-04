@@ -9,16 +9,13 @@ set fileformats=unix,dos,mac
 " set python version
 set pyxversion=3
 
-set nobomb
-
-" fast drawing
 set lazyredraw " stop redraw while executing some commands
 set ttyfast    " enable fast terminal connection
 
 set autoread   " automatically read file changes
 set hidden     " allow to open other files
-set noshowcmd
-set noshowmode
+set noshowcmd  " hide cmd
+set noshowmode " hide mode
 
 " not create unnecessary files
 set nobackup
