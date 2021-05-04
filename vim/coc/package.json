@@ -2,7 +2,7 @@
   "dependencies": {
     "coc-clangd": ">=0.9.0",
     "coc-css": ">=1.2.6",
-    "coc-diagnostic": ">=0.18.2",
+    "coc-diagnostic": ">=0.18.3",
     "coc-eslint": ">=1.4.5",
     "coc-flutter": ">=1.9.2",
     "coc-git": ">=2.3.1",
@@ -17,15 +17,15 @@
     "coc-prettier": ">=1.1.23",
     "coc-python": ">=1.2.13",
     "coc-rls": ">=1.1.6",
-    "coc-rust-analyzer": ">=0.40.0",
+    "coc-rust-analyzer": ">=0.43.1",
     "coc-sh": ">=0.6.0",
-    "coc-snippets": ">=2.4.1",
+    "coc-snippets": ">=2.4.2",
     "coc-solargraph": ">=1.2.0",
     "coc-spell-checker": ">=1.2.0",
     "coc-sql": ">=0.5.0",
-    "coc-svelte": ">=0.2.2",
+    "coc-svelte": ">=0.2.5",
     "coc-tailwindcss": ">=0.7.0",
-    "coc-tsserver": ">=1.6.8",
+    "coc-tsserver": ">=1.7.0",
     "coc-vetur": ">=1.2.4",
     "coc-yaml": ">=1.3.1"
   }
