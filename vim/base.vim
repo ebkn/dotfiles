@@ -20,7 +20,7 @@ set hidden     " allow to open other files
 set noshowcmd
 set noshowmode
 
-" not create file
+" not create unnecessary files
 set nobackup
 set noswapfile
 set nowritebackup
@@ -81,7 +81,7 @@ endif
 
 
 " edit
-set virtualedit=onemore " move to last character
+set virtualedit=onemore        " move to last character
 set backspace=indent,eol,start " enable backspace
 
 "--- copy/paste ---

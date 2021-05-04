@@ -16,8 +16,8 @@ nnoremap sl <C-w>l
 nnoremap sh <C-w>h
 
 " split window
-nnoremap ss :<C-u>sp<CR>
-nnoremap sv :<C-u>vs<CR>
+nnoremap ss :<C-u>split<CR>
+nnoremap sv :<C-u>vsplit<CR>
 
 " close window
 nnoremap sq :<C-u>q<CR>
