@@ -14,8 +14,6 @@ set ttyfast    " enable fast terminal connection
 
 set autoread   " automatically read file changes
 set hidden     " allow to open other files
-set noshowcmd  " hide cmd
-set noshowmode " hide mode
 
 " not create unnecessary files
 set nobackup
@@ -26,8 +24,6 @@ set noundofile
 " completion
 set wildmenu
 set wildmode=list:full
-
-set laststatus=2 " always show statusline
 
 " tab
 set expandtab     " replace tab with spaces
@@ -43,9 +39,6 @@ augroup END
 " indent
 set autoindent    " keep current indent
 set smartindent   " indent for C-like syntax
-
-" show matched braces
-set showmatch
 
 " Search
 set incsearch          " incremental search
