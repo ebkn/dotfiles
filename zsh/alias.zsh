@@ -58,6 +58,11 @@ alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
 alias gpushf='git push origin `git rev-parse --abbrev-ref HEAD` --force-with-lease'
 alias gdmerged='git branch --merged | grep -vE "^\*|main$|master$|develop$|staging$" | xargs -I % git branch -d %'
 alias gp='gpull && gf && gdmerged'
+function gtag() {
+  local tag
+  tag="$1"
+  git tag -am $tag && git push origin $tag
+}
 
 # interactive cd to ghq repository
 # requires ghq, fzf
