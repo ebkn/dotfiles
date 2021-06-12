@@ -1,50 +1,30 @@
 cask 'alacritty'
-
 cask 'alfred'
-
+cask 'karabiner-elements'
 cask 'docker'
-
 cask 'java'
-
-# browsers
 cask 'google-chrome'
 cask 'firefox'
 cask 'brave-browser'
 cask 'chromedriver'
-
-# authentication
 cask '1password'
 cask 'authy'
-
-# chat application
 cask 'slack'
-cask 'skype'
 cask 'discord'
-
-# storage
 cask 'google-backup-and-sync'
-
-# input
 cask 'google-japanese-ime'
-cask 'karabiner-elements'
-
 cask 'visual-studio-code'
 cask 'android-studio'
-
-# others
 cask 'hyperswitch'
 cask 'gyazo'
 cask 'spotify'
 cask 'kindle'
 cask 'graphql-playground'
-cask 'react-native-debugger'
 cask 'dash'
 cask 'ngrok'
 cask 'pocket-casts'
-cask 'sketch'
 cask 'skitch'
-cask 'zoomus'
+cask 'zoom'
 cask 'deepl'
 cask 'vanilla'
-cask 'insomnia'
 cask 'typora'
