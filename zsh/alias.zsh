@@ -81,7 +81,7 @@ bindkey '^g' move_to_repository
 alias github="gh repo view --web"
 alias pr="gh pr create"
 
-alias dc='docker-compose'
+alias dc='docker compose'
 alias kc='kubectl'
 export KUBE_EDITOR=vim
 
