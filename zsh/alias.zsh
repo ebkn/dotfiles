@@ -40,8 +40,8 @@ function scrapbox() {
 # requires tree
 alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|volumes" -N -A -C'
 
-# requires rmtrash
-alias rm='rmtrash'
+# requires trash
+alias rm='trash'
 
 # git
 alias ga='git add'
