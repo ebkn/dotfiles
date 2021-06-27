@@ -27,6 +27,11 @@
         "command": ["golangci-lint", "run", "--enable-all", "--disable", "lll", "--out-format", "json"]
       }
     },
+    "prototool-lint": {
+      "command": "prototool",
+      "args": ["lint"],
+      "filetypes": ["proto"]
+    },
     "dls": {
       "command": "diagnostic-languageserver",
       "args": ["--stdio"],

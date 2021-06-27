@@ -1,20 +1,17 @@
 brew 'imagemagick'
 brew 'ffmpeg'
-
 brew 'awscli'
-
 brew 'redis'
 brew 'mysql'
 brew 'mycli'
 brew 'sqlite'
 brew 'postgresql'
-
 brew 'kubernetes-cli'
 brew 'k9s'
 brew 'kubectx'
-
 brew 'protobuf'
 brew 'protoc-gen-go'
+brew 'prototool'
 brew 'grpcurl'
 brew 'graphviz'
 brew 'bazel'
