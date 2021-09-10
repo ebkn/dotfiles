@@ -103,6 +103,7 @@
   "cSpell.userWords": [
     "gopls", "langserver", "dotfiles", "firestore", "stackdriver", "ebiken", "ebinuma", "kenichi", "grpc",
     "hadolint", "unimported", "shellcheck", "eruby", "golangci", "dein", "zenkaku", "nosplit", "healthcheck",
-    "clangd", "solargraph", "vetur", "vim", "neovim", "datetime", "protoc", "protobuf", "proto"
+    "clangd", "solargraph", "vetur", "vim", "neovim", "datetime", "protoc", "protobuf", "proto", "prototool",
+    "memorystore", "autoscaler", "gserviceaccount", "tfstate", "googleapis", "tmpl"
   ]
 }
