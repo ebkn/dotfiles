@@ -118,6 +118,7 @@ case `uname` in
       vim +CocUpdate +qall
       go install golang.org/x/tools/...@latest
       go install github.com/cweill/gotests/...@latest
+      go install github.com/mattn/efm-langserver@latest
       npm update -g
       yarn global upgrade
     }
