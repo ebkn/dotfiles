@@ -61,7 +61,7 @@ alias gp='gpull && gf && gdmerged'
 function gtag() {
   local tag
   tag="$1"
-  git tag -am $tag && git push origin $tag
+  git tag -am $tag $tag && git push origin $tag
 }
 
 # interactive cd to ghq repository
