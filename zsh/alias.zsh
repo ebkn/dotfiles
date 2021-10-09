@@ -58,6 +58,7 @@ alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
 alias gpushf='git push origin `git rev-parse --abbrev-ref HEAD` --force-with-lease'
 alias gdmerged='git branch --merged | grep -vE "^\*|main$|master$|develop$|staging$" | xargs -I % git branch -d %'
 alias gp='gpull && gf && gdmerged'
+alias gcp='git cherry-pick'
 function gtag() {
   local tag
   tag="$1"
