@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "coc-clangd": ">=0.16.0",
+    "coc-clangd": ">=0.17.0",
     "coc-css": ">=1.2.6",
     "coc-diagnostic": ">=0.22.1",
     "coc-eslint": ">=1.4.5",
@@ -17,7 +17,7 @@
     "coc-prettier": ">=1.1.24",
     "coc-python": ">=1.2.13",
     "coc-rls": ">=1.1.6",
-    "coc-rust-analyzer": ">=0.52.0",
+    "coc-rust-analyzer": ">=0.54.0",
     "coc-sh": ">=0.6.0",
     "coc-snippets": ">=2.4.6",
     "coc-solargraph": ">=1.2.2",
