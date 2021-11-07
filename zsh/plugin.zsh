@@ -15,7 +15,6 @@ autoload -Uz _zinit
 
 # color
 zinit light chrissicool/zsh-256color
-zinit light zpm-zsh/colorize
 # zinit light ael-code/zsh-colored-man-pages
 
 # auto suggestion
