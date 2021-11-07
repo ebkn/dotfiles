@@ -1,17 +1,24 @@
 ---
+tools:
+  markdownlint: &markdownlint
+    lint-command: 'markdownlint -s'
+    lint-stdin: true
+    lint-formats:
+      - '%f: %l: %m'
+  textlint: &textlint
+    lint-command: 'npx textlint --format unix ${INPUT}'
+    lint-formats:
+      - '%f:%l:%n: %m'
+
 languages:
   eruby:
     lint-command: 'erb -x -T - | ruby -c'
     lint-stdin: true
     lint-offset: 1
     format-command: 'htmlbeautifier'
-
   vim:
     lint-command: 'vint -'
     lint-stdin: true
-
   markdown:
-    lint-command: 'markdownlint -s'
-    lint-stdin: true
-    lint-formats:
-      - '%f: %l: %m'
+    - <<: *markdownlint
+    - <<: *textlint

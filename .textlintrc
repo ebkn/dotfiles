@@ -1,0 +1,11 @@
+{
+  "rules": {
+    "preset-ja-technical-writing": true,
+    "ja-spacing/ja-space-between-half-and-full-width": false,
+    "ja-technical-writing/ja-no-mixed-period": false,
+    "ja-technical-writing/sentence-length": false,
+    "ja-technical-writing/no-doubled-conjunction": false,
+    "ja-technical-writing/ja-no-weak-phrase": false,
+    "preset-ja-spacing": true
+  }
+}

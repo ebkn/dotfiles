@@ -66,6 +66,7 @@ sudo apt install vim
 ln -s ~/dotfiles/.vimrc ~
 ln -s ~/dotfiles/.xvimrc ~
 ln -s ~/dotfiles/.ideavimrc ~
+ln -s ~/dotfiles/.textlintrc ~
 ln -s ~/dotfiles/vim/.vim ~
 
 printf "\n--- Installing dein ---\n"

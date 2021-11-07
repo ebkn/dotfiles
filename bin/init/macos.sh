@@ -59,6 +59,7 @@ ln -s ~/dotfiles/.tmux.conf ~
 ln -s ~/dotfiles/.vimrc ~
 ln -s ~/dotfiles/.xvimrc ~
 ln -s ~/dotfiles/.ideavimrc ~
+ln -s ~/dotfiles/.textlintrc ~
 ln -s ~/dotfiles/vim/nvim ~/.config/nvim
 ln -s ~/dotfiles/vim/.vim/* ~/.config/nvim/
 ln -s ~/dotfiles/vim/coc/package.json ~/.config/coc/extensions/
