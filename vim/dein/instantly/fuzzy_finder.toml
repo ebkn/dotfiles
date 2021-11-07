@@ -31,7 +31,7 @@ command! -bar -bang -nargs=? -complete=buffer Buffers
   \ call fzf#vim#buffers(<q-args>, s:p(<bang>0, { "placeholder": "{1}" }), <bang>0)
 command! -bang -nargs=* Rg
   \ call fzf#vim#grep(
-  \   'rg --column --line-number --no-heading --color=always --smart-case -- '.shellescape(<q-args>), 1,
+  \   'rg --column --line-number --no-heading --color=always --smart-case --hidden -- '.shellescape(<q-args>), 1,
   \   fzf#vim#with_preview(), <bang>0)
 nnoremap <C-f> :Files<CR>
 nnoremap <C-g> :Rg<Space>
