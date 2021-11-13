@@ -6,7 +6,7 @@
     "coc-eslint": ">=1.4.5",
     "coc-flutter": ">=1.9.6",
     "coc-git": ">=2.4.3",
-    "coc-go": ">=0.13.3",
+    "coc-go": ">=1.0.0",
     "coc-graphql": ">=0.0.1",
     "coc-highlight": ">=1.2.8",
     "coc-html": ">=1.4.1",
