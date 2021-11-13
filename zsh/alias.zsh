@@ -52,7 +52,7 @@ alias gst='git status'
 alias gd='git diff --word-diff-regex="\w+"'
 alias gf='git fetch'
 alias current_branch='git rev-parse --abbrev-ref HEAD'
-alias gcob='git checkout -b'
+alias gsc='git switch -c'
 alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD` --recurse-submodules'
 alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
 alias gpushf='git push origin `git rev-parse --abbrev-ref HEAD` --force-with-lease'
@@ -94,11 +94,11 @@ case `uname` in
       print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac --reverse | gsed -r 's/ *[0-9]*\*? *//' | gsed -r 's/\\/\\\\/g')
     }
 
-    gco() {
+    gs() {
       local branches branch
       branches=$(git branch --all | grep -v HEAD) &&
       branch=$(echo "$branches" | fzf) &&
-      git checkout $(echo "$branch" | gsed "s/.* //" | gsed "s#remotes/[^/]*/##")
+      git switch $(echo "$branch" | gsed "s/.* //" | gsed "s#remotes/[^/]*/##")
     }
 
     alias xcode='open -a xcode .'
@@ -130,11 +130,11 @@ case `uname` in
       print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | sed -r 's/ *[0-9]*\*? *//' | sed -r 's/\\/\\\\/g')
     }
 
-    gco() {
+    gs() {
       local branches branch
       branches=$(git branch --all | grep -v HEAD) &&
       branch=$(echo "$branches" | fzf) &&
-      git checkout $(echo "$branch" | sed "s/.* //" | sed "s#remotes/[^/]*/##")
+      git switch $(echo "$branch" | sed "s/.* //" | sed "s#remotes/[^/]*/##")
     }
   ;;
 esac
