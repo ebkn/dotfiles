@@ -30,7 +30,7 @@ bind generic A !git commit --amend
 bind generic F !git fetch %(remote)
 bind generic U !sh -c "git pull origin `git rev-parse --abbrev-ref HEAD` --recurse-submodules && git fetch && git branch --merged | grep -v 'master$' | grep -v 'develop$' | grep -v 'main$' | xargs -I % git branch -d %"
 bind generic P !git push %(remote) %(repo:head)
-bind generic B !git checkout -b "%(prompt Enter new branch name: )"
+bind generic S !git switch -c "%(prompt Enter new branch name: )"
 bind generic g move-first-line
 bind generic G move-last-line
 bind status D ?@rm %(file)
