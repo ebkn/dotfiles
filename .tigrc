@@ -14,7 +14,7 @@ set ignore-case = true
 set split-view-width = 80%
 set split-view-height = 80%
 
-set diff-options = -m --first-parent
+set diff-options = -m --first-parent --word-diff=plain
 set diff-highlight = true
 
 set refresh-mode = auto
