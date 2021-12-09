@@ -115,6 +115,7 @@ case `uname` in
     update-all() {
       brew upgrade
       brew upgrade --cask
+      zinit ice proto=ssh depth=1
       zinit update --all
       vim +CocUpdate +qall
       go install golang.org/x/tools/...@latest
