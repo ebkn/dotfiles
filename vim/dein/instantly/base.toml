@@ -13,10 +13,6 @@ nmap <C-c> <Plug>(caw:hatpos:toggle)
 vmap <C-c> <Plug>(caw:hatpos:toggle)
 '''
 
-# auto close parentheses
-[[plugins]]
-repo = 'jiangmiao/auto-pairs'
-
 # change operator by s+a/d/r
 [[plugins]]
 repo = 'kana/vim-operator-user'
