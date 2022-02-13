@@ -19,3 +19,10 @@ repo = 'Yggdroot/indentLine'
 hook_add = '''
 let g:indentLine_char_list=['|']
 '''
+
+# syntax highlight
+[[plugins]]
+repo = 'nvim-treesitter/nvim-treesitter'
+do = '''
+:TSUpdate
+'''
