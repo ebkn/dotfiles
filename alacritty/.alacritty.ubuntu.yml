@@ -14,6 +14,8 @@ window:
     decorations: none
   dynamic_title: true
 
+  opacity: 1.0
+
 scrolling:
   history: 100000
   multiplier: 3
@@ -76,8 +78,6 @@ colors:
 bell:
   animation: EaseOutExpo
   duration: 0
-
-background_opacity: 1.0
 
 mouse_bindings:
   - { mouse: Middle, action: PasteSelection }
