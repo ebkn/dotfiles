@@ -105,6 +105,7 @@
     "hadolint", "unimported", "shellcheck", "eruby", "golangci", "dein", "zenkaku", "nosplit", "healthcheck",
     "clangd", "solargraph", "vetur", "vim", "neovim", "datetime", "protoc", "protobuf", "proto", "prototool",
     "memorystore", "autoscaler", "gserviceaccount", "tfstate", "googleapis", "tmpl", "malloc", "nolint", "gosec",
-    "argocd", "markdownlint", "omnisharp", "tailwindcss", "gcloud", "imgproxy", "healthz", "webp", "vint", "textlint", "gomock"
+    "argocd", "markdownlint", "omnisharp", "tailwindcss", "gcloud", "imgproxy", "healthz", "webp", "vint", "textlint",
+    "gomock", "kubernetes", "argoproj"
   ]
 }
