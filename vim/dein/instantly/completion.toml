@@ -77,6 +77,10 @@ augroup coc
 
   " Go
   autocmd FileType go nmap gtj :CocCommand go.tags.add json<cr>
+
+  " proto
+  autocmd BufEnter *.proto call CocActionAsync('activeExtension', 'coc-clangd')
+  autocmd BufLeave *.proto call CocActionAsync('deactiveExtension', 'coc-clangd')
 augroup END
 
 " Go command
