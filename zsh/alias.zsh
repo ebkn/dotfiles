@@ -121,6 +121,7 @@ case `uname` in
       go install golang.org/x/tools/...@latest
       go install github.com/cweill/gotests/...@latest
       go install github.com/mattn/efm-langserver@latest
+      go install github.com/hashicorp/terraform-ls@latest
       npm update -g
       yarn global upgrade
     }
