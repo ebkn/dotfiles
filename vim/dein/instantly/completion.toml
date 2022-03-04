@@ -80,7 +80,7 @@ augroup coc
 
   " proto
   autocmd BufEnter *.proto call CocActionAsync('activeExtension', 'coc-clangd')
-  autocmd BufLeave *.proto call CocActionAsync('deactiveExtension', 'coc-clangd')
+  autocmd BufLeave *.proto call CocActionAsync('deactivateExtension', 'coc-clangd')
 augroup END
 
 " Go command
