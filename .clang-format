@@ -3,3 +3,4 @@ Language: Proto
 BasedOnStyle: Google
 AlignConsecutiveAssignments: true
 AlignConsecutiveDeclarations: true
+ColumnLimit: 0
