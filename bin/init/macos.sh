@@ -51,6 +51,7 @@ brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 [ -d ~/.vim ] && mv ~/.vim ~/backup/
 [ -f ~/.config/coc/extensions/package.json ] && mv ~/.config/coc/extensions/package.json ~/backup/
 [ -f ~/.tigrc ] && mv ~/.tigrc ~/backup/
+[ -f ~/.clang-format ] && mv ~/.clang-format ~/backup/
 
 ln -s ~/dotfiles/.gitignore_global ~
 ln -s ~/dotfiles/.bash_profile ~
@@ -60,6 +61,7 @@ ln -s ~/dotfiles/.vimrc ~
 ln -s ~/dotfiles/.xvimrc ~
 ln -s ~/dotfiles/.ideavimrc ~
 ln -s ~/dotfiles/.textlintrc ~
+ln -s ~/dotfiles/.clang-format ~
 ln -s ~/dotfiles/vim/nvim ~/.config/nvim
 ln -s ~/dotfiles/vim/.vim/* ~/.config/nvim/
 ln -s ~/dotfiles/vim/coc/package.json ~/.config/coc/extensions/

@@ -36,12 +36,14 @@ ln -s ~/dotfiles/alacritty/.alacritty.ubuntu.yml ~/.alacritty.yml
 
 printf "\n--- Installing zsh ---\n"
 sudo apt install zsh
+
 [ -f ~/.zshrc ] && mv ~/.zshrc ~/backup/
 [ -f ~/.zshenv ] && mv ~/.zshenv ~/backup/
-ln -s ~/dotfiles/.zshrc ~
-ln -s ~/dotfiles/.zshenv ~
 [ -f ~/.bash_profile ] && mv ~/.bash_profile ~/backup/
 [ -f ~/.bashrc ] && mv ~/.bashrc ~/backup/
+
+ln -s ~/dotfiles/.zshrc ~
+ln -s ~/dotfiles/.zshenv ~
 ln -s ~/dotfiles/.bash_profile ~
 ln -s ~/dotfiles/.bashrc ~
 
@@ -61,12 +63,15 @@ tmux source-file ~/.tmux.conf
 
 printf "\n--- Installing vim ---\n"
 sudo apt install vim
+
 [ -f ~/.vimrc ] && mv ~/.vimrc ~/backup/
 [ -d ~/.vim ] && mv ~/.vim ~/backup/
+
 ln -s ~/dotfiles/.vimrc ~
 ln -s ~/dotfiles/.xvimrc ~
 ln -s ~/dotfiles/.ideavimrc ~
 ln -s ~/dotfiles/.textlintrc ~
+ln -s ~/dotfiles/.clang-format ~
 ln -s ~/dotfiles/vim/.vim ~
 
 printf "\n--- Installing dein ---\n"
