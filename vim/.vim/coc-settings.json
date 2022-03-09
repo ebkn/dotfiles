@@ -32,67 +32,6 @@
       "initializationOptions": {
         "command": ["golangci-lint", "run", "--enable-all", "--disable", "lll", "--out-format", "json"]
       }
-    },
-    "dls": {
-      "command": "diagnostic-languageserver",
-      "args": ["--stdio"],
-      "filetypes": ["go", "dockerfile", "shell"],
-      "initializationOptions": {
-        "formatters": {},
-        "filetypes": {
-          "go": [],
-          "dockerfile": ["hadolint"],
-          "sh": "shellcheck"
-        },
-        "formatFiletypes": {},
-        "linters": {
-          "shellcheck": {
-            "command": "shellcheck",
-            "debounce": 100,
-            "args": [
-              "--format",
-              "json",
-              "-"
-            ],
-            "sourceName": "shellcheck",
-            "parseJson": {
-              "line": "line",
-              "column": "column",
-              "endLine": "endLine",
-              "endColumn": "endColumn",
-              "message": "${message} [${code}]",
-              "security": "level"
-            },
-            "securities": {
-              "error": "error",
-              "warning": "warning",
-              "info": "info",
-              "style": "hint"
-            }
-          },
-          "hadolint": {
-            "command": "hadolint",
-            "sourceName": "hadolint",
-            "args": [
-              "-f",
-              "json",
-              "-"
-            ],
-            "parseJson": {
-              "line": "line",
-              "column": "column",
-              "security": "level",
-              "message": "${message} [${code}]"
-            },
-            "securities": {
-              "error": "error",
-              "warning": "warning",
-              "info": "info",
-              "style": "hint"
-            }
-          }
-        }
-      }
     }
   },
   "eslint.run": "onSave",
@@ -101,6 +40,10 @@
     "typescriptreact": ["javascript", "javascript-jasmine-arrow"],
     "typescript": ["javascript", "javascript-jasmine-arrow"]
   },
+  "diagnostic-languageserver.filetypes": {
+    "yaml": ["yamllint"]
+  },
+  "diagnostic-languageserver.formatFiletypes": {},
   "cSpell.userWords": [
     "gopls", "langserver", "dotfiles", "firestore", "stackdriver", "ebiken", "ebinuma", "kenichi", "ebkn", "grpc",
     "hadolint", "unimported", "shellcheck", "eruby", "golangci", "dein", "zenkaku", "nosplit", "healthcheck",
