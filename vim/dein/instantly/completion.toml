@@ -83,6 +83,21 @@ augroup coc
   autocmd BufLeave *.proto call CocActionAsync('deactivateExtension', 'coc-clangd')
 augroup END
 
+" treesitter config
+lua <<EOF
+require'nvim-treesitter.configs'.setup {
+  ensure_installed = "maintained",
+  highlight = {
+    enable = true,
+    disable = {},
+  },
+}
+EOF
+
+" treesitter based folding
+set foldmethod=expr
+set foldexpr=nvim_treesitter#foldexpr()
+
 " Go command
 command! -nargs=0 GoTests :CocCommand go.test.generate.function
 '''
