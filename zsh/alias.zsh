@@ -57,7 +57,8 @@ alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD` --recurse-submodu
 alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
 alias gpushf='git push origin `git rev-parse --abbrev-ref HEAD` --force-with-lease'
 alias gdmerged='git branch --merged | grep -vE "^\*|main$|master$|develop$|staging$" | xargs -I % git branch -d %'
-alias gp='gpull && gf && gdmerged'
+alias gdsquashed='git-delete-squashed main' # requires npm i -g git-delete-squashed
+alias gp='gpull && gf && gdmerged && gdsquashed'
 alias gcp='git cherry-pick'
 function gtag() {
   local tag
