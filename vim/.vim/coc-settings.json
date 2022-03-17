@@ -52,7 +52,7 @@
     "argocd", "markdownlint", "omnisharp", "tailwindcss", "gcloud", "imgproxy", "healthz", "webp", "vint", "textlint",
     "gomock", "kubernetes", "argoproj", "debugf", "infof", "warnf", "errorf", "criticalf", "nanos", "yamllint",
     "unexported", "rollouts", "loadtesting", "circleci", "goprivate", "gocache", "hashicorp", "cimg", "tfsec", "gopath",
-    "tflint", "reviewdog", "coverprofile"
+    "tflint", "reviewdog", "coverprofile", "chmod", "coverprofile", "buildkit", "codecov", "configmap", "kustomize", "kube", "kubectl"
   ],
   "clangd.path": "~/.config/coc/extensions/coc-clangd-data/install/13.0.0/clangd_13.0.0/bin/clangd"
 }
