@@ -37,3 +37,13 @@ on_ft = ['toml']
 # css
 [[plugins]]
 repo = 'ap/vim-css-color'
+
+# c++, proto
+# run :ClangFormat for format
+[[plugins]]
+repo = 'rhysd/vim-clang-format'
+on_ft = ['cpp', 'c', 'proto', 'protobuf']
+hook_add = '''
+let g:clang_format#detect_style_file=1
+let g:clang_format#auto_format=1
+'''
