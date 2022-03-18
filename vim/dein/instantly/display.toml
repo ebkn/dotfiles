@@ -26,3 +26,14 @@ repo = 'nvim-treesitter/nvim-treesitter'
 do = '''
 :TSUpdate
 '''
+hook_add = '''
+lua <<EOF
+require'nvim-treesitter.configs'.setup {
+  ensure_installed = "maintained",
+  highlight = {
+    enable = true,
+    disable = {},
+  },
+}
+EOF
+'''
