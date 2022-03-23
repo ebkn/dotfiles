@@ -123,6 +123,7 @@ case `uname` in
       go install github.com/cweill/gotests/...@latest
       go install github.com/mattn/efm-langserver@latest
       go install github.com/hashicorp/terraform-ls@latest
+      go get github.com/nametake/golangci-lint-langserver
       npm update -g
       yarn global upgrade
     }
