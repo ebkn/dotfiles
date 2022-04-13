@@ -7,24 +7,13 @@ brew 'dart'
 
 brew 'yamllint'
 
-brew 'swiftlint'
-
 brew 'readline'
 brew 'rbenv'
 brew 'ruby-build'
 
-brew 'golangci/tap/golangci-lint'
-
 brew 'nvm'
-brew 'yarn'
-brew 'deno'
-
-brew 'pyenv'
 
 brew 'rustup'
-
-# Java
-# brew 'mvn'
 
 # Dockerfile
 brew 'hadolint'
@@ -34,4 +23,3 @@ brew 'shellcheck'
 
 # Terraform
 brew 'terraform'
-brew 'tflint'

@@ -127,7 +127,6 @@ case `uname` in
       go get github.com/nametake/golangci-lint-langserver
       npm update -g
       npm i -g diagnostic-languageserver
-      yarn global upgrade
     }
   ;;
 
