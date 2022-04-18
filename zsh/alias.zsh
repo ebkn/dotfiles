@@ -124,6 +124,7 @@ case `uname` in
       go install github.com/mattn/efm-langserver@latest
       go install github.com/hashicorp/terraform-ls@latest
       go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      go install github.com/mikefarah/yq/v4@latest
       go get github.com/nametake/golangci-lint-langserver
       npm update -g
       npm i -g diagnostic-languageserver
