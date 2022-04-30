@@ -33,3 +33,7 @@ repo = 'tmux-plugins/vim-tmux-focus-events'
 # for vim-delve
 [[plugins]]
 repo = 'benmills/vimux'
+
+# autoclose parenthesis
+[[plugins]]
+repo = 'cohama/lexima.vim'
