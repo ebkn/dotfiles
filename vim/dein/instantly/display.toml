@@ -29,7 +29,8 @@ do = '''
 hook_add = '''
 lua <<EOF
 require'nvim-treesitter.configs'.setup {
-  ensure_installed = { "go", "typescript", "javascript", "dart", "ruby" },
+  ensure_installed = { "go", "typescript", "javascript", "dart", "ruby", "proto", "yaml", "json", "bash", "html", "css", "make" },
+  sync_install = false,
   highlight = {
     enable = true,
   },
