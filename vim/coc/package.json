@@ -14,7 +14,7 @@
     "coc-lists": ">=1.4.2",
     "coc-markdownlint": ">=1.12.4",
     "coc-omnisharp": ">=0.0.28",
-    "coc-prettier": ">=1.1.25",
+    "coc-prettier": ">=9.2.4",
     "coc-python": ">=1.2.13",
     "coc-rls": ">=1.1.6",
     "coc-rust-analyzer": ">=0.62.0",
