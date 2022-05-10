@@ -7,6 +7,7 @@ alias mkdir='mkdir -p'
 # vim
 alias v='nvim'
 alias vi='nvim'
+alias vim='nvim'
 
 # dotfiles
 alias dot='cd ~/dotfiles'
