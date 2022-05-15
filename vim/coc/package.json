@@ -22,9 +22,9 @@
     "coc-snippets": ">=3.0.9",
     "coc-solargraph": ">=1.2.4",
     "coc-spell-checker": ">=1.2.0",
-    "coc-sql": ">=0.9.0",
+    "coc-sql": ">=0.10.3",
     "coc-tailwindcss": ">=0.7.0",
-    "coc-tsserver": ">=1.10.3",
+    "coc-tsserver": ">=1.10.4",
     "coc-vetur": ">=1.2.5",
     "coc-yaml": ">=1.7.5"
   }
