@@ -87,7 +87,7 @@ alias pr="gh pr create"
 alias dc='docker compose'
 alias kc='kubectl'
 alias tf='terraform'
-export KUBE_EDITOR=vim
+export KUBE_EDITOR=nvim
 
 
 case `uname` in
