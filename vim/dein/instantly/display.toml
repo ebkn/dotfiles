@@ -37,3 +37,10 @@ require'nvim-treesitter.configs'.setup {
 }
 EOF
 '''
+
+# indent guides
+[[plugins]]
+repo = 'nathanaelkane/vim-indent-guides'
+hook_add = '''
+let g:indent_guides_enable_on_vim_startup=1
+'''

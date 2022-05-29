@@ -47,8 +47,3 @@ hook_add = '''
 let g:clang_format#detect_style_file=1
 let g:clang_format#auto_format=1
 '''
-
-# indent guides
-[[plugins]]
-repo = 'nathanaelkane/vim-indent-guides'
-on_ft = ['yaml', 'json', 'python']
