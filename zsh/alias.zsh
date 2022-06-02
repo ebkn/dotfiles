@@ -133,6 +133,8 @@ case `uname` in
       go install github.com/cloudspannerecosystem/spanner-cli@latest
       npm update -g
       npm i -g diagnostic-languageserver
+      npm i -g markdownlint-cli
+      npm i -g textlint
     }
   ;;
 
