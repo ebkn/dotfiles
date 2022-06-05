@@ -3,7 +3,8 @@
     "dart",
     "css",
     "Markdown",
-    "proto"
+    "proto",
+    "terraform", "tf"
   ],
   "languageserver": {
     "dockerfile": {
