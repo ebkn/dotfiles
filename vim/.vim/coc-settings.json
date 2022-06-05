@@ -4,6 +4,7 @@
     "css",
     "Markdown",
     "proto",
+    "go",
     "terraform", "tf"
   ],
   "languageserver": {
@@ -30,6 +31,9 @@
       }
     }
   },
+  "go.goplsOptions": {
+    "local": "github.com/ebkn,github.com/mesh-i,github.dena.jp/Takasho"
+  },
   "eslint.run": "onSave",
   "snippets.extends": {
     "javascriptreact": ["javascript"],
@@ -48,7 +52,7 @@
     "argocd", "markdownlint", "omnisharp", "tailwindcss", "gcloud", "imgproxy", "healthz", "webp", "vint", "textlint",
     "gomock", "kubernetes", "argoproj", "debugf", "infof", "warnf", "errorf", "criticalf", "nanos", "yamllint",
     "unexported", "rollouts", "loadtesting", "circleci", "goprivate", "gocache", "hashicorp", "cimg", "tfsec", "gopath",
-    "tflint", "reviewdog", "coverprofile", "chmod", "coverprofile", "buildkit", "codecov", "configmap", "kustomize", "kube", "kubectl", "tolerations", "prestop", "backoff"
+    "tflint", "reviewdog", "coverprofile", "chmod", "coverprofile", "buildkit", "codecov", "configmap", "kustomize", "kube", "kubectl", "tolerations", "prestop", "backoff", "takasho"
     , "sdktrace", "otel", "algoliasync", "semconv", "txro", "unnest", "ptrs"
   ],
   "clangd.path": "~/.config/coc/extensions/coc-clangd-data/install/14.0.0/clangd_14.0.0/bin/clangd"

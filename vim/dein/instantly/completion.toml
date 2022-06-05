@@ -76,7 +76,12 @@ augroup coc
   autocmd CursorHold * silent call CocActionAsync('highlight')
 
   " Go
+  " add tags
   autocmd FileType go nmap gtj :CocCommand go.tags.add json<cr>
+  " add missing imports
+  autocmd BufWritePre *.go :silent call CocAction('runCommand', 'editor.action.organizeImport')
+  " go tests
+  command! -nargs=0 GoTests :CocCommand go.test.generate.function
 
   " proto
   autocmd BufEnter *.proto call CocActionAsync('activeExtension', 'coc-clangd')
@@ -86,7 +91,4 @@ augroup END
 " treesitter based folding
 set foldmethod=expr
 set foldexpr=nvim_treesitter#foldexpr()
-
-" Go command
-command! -nargs=0 GoTests :CocCommand go.test.generate.function
 '''
