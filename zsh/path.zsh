@@ -56,16 +56,19 @@ case `uname` in
     export PATH="$PATH:$HOME/.cargo/env"
 
     # llvm
-    export PATH="/usr/local/opt/llvm/bin:$PATH"
+    export PATH="$PATH:/usr/local/opt/llvm/bin"
 
     # Java
-    export PATH="/usr/local/opt/openjdk/bin:$PATH"
+    export PATH="$PATH:/usr/local/opt/openjdk/bin"
 
     # gcloud
     export CLOUDSDK_PYTHON=python2
 
     # aws
     export PATH="$PATH:/usr/local/bin/aws_completer"
+
+    # kubernetes
+    export PATH="$PATH:${KREW_ROOT:-$HOME/.krew}/bin"
   ;;
 
   "Linux" )
