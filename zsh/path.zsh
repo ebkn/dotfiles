@@ -3,6 +3,9 @@ export PATH="$PATH:$HOME/.fzf/bin"
 
 case `uname` in
   "Darwin" ) # requires gnu-sed
+    # Homebrew
+    export PATH="$PATH:/opt/homebrew/bin/"
+
     # MySQL
     export PATH="$PATH:/usr/local/opt/mysql@5.6/bin"
     export PATH="$PATH:/usr/local/opt/mysql@5.7/bin"
