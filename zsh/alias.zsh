@@ -121,6 +121,7 @@ case `uname` in
       zinit update --all
       nvim +'call dein#update()' +qall
       nvim +'CocUpdate'
+      nvim +'TSUpdate'
       go install golang.org/x/tools/...@latest
       go install github.com/cweill/gotests/...@latest
       go install github.com/mattn/efm-langserver@latest
