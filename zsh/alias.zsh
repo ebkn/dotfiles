@@ -120,7 +120,7 @@ case `uname` in
       zinit ice proto=ssh depth=1
       zinit update --all
       nvim +'call dein#update()' +qall
-      nvim +CocUpdate +qall
+      nvim +'CocUpdate'
       go install golang.org/x/tools/...@latest
       go install github.com/cweill/gotests/...@latest
       go install github.com/mattn/efm-langserver@latest
