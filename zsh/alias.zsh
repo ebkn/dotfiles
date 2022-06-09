@@ -131,10 +131,10 @@ case `uname` in
       go install github.com/x-motemen/ghq@latest
       go install github.com/cweill/gotests/...@latest
       go install github.com/cloudspannerecosystem/spanner-cli@latest
-      npm update -g
-      npm i -g diagnostic-languageserver
-      npm i -g markdownlint-cli
-      npm i -g textlint
+      npm update --location=global
+      npm i --location=global diagnostic-languageserver
+      npm i --location=global markdownlint-cli
+      npm i --location=global textlint
     }
   ;;
 
