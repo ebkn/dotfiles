@@ -89,6 +89,7 @@ alias kc='kubectl'
 alias tf='terraform'
 export KUBE_EDITOR=nvim
 
+alias python='python3'
 
 case `uname` in
   "Darwin" ) # requires gnu-sed
