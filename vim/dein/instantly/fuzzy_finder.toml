@@ -9,6 +9,7 @@ hook_add = '''
 set rtp+=/usr/local/opt/fzf
 '''
 
+# use bat for syntax highlight preview window
 [[plugins]]
 repo = 'junegunn/fzf.vim'
 depends_on = [
