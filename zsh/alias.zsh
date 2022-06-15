@@ -47,6 +47,7 @@ alias rm='trash'
 # git
 alias ga='git add'
 alias gap='git add -p'
+alias gbr='git branch --all --format="%(HEAD) %(color:yellow)%(refname:short)%(color:reset) - %(contents:subject) %(color:green)(%(committerdate:relative)) [%(authorname)]" --sort=-committerdate'
 alias gc='git commit -v -m'
 alias gca='git commit --amend'
 alias gst='git status'
