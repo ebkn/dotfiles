@@ -65,7 +65,7 @@ case `uname` in
     export PATH="$PATH:/usr/local/opt/openjdk/bin"
 
     # gcloud
-    export CLOUDSDK_PYTHON=python2
+    export CLOUDSDK_PYTHON=python3
 
     # aws
     export PATH="$PATH:/usr/local/bin/aws_completer"

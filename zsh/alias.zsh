@@ -138,6 +138,7 @@ case `uname` in
       npm i --location=global diagnostic-languageserver
       npm i --location=global markdownlint-cli
       npm i --location=global textlint
+      gcloud components update
     }
   ;;
 
