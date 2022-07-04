@@ -132,7 +132,6 @@ case `uname` in
       go install github.com/nametake/golangci-lint-langserver@latest
       go install github.com/mikefarah/yq/v4@latest
       go install github.com/x-motemen/ghq@latest
-      go install github.com/cweill/gotests/...@latest
       go install github.com/cloudspannerecosystem/spanner-cli@latest
       npm update --location=global
       npm i --location=global diagnostic-languageserver
