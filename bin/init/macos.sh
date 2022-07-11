@@ -3,6 +3,8 @@
 # before run this script, following commands are needed.
 # xcode-select --install
 
+set -ex
+
 mkdir ~/backup
 
 printf "\n--- Setup mac os defaults settings ---\n"
