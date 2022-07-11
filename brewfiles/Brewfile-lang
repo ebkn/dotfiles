@@ -15,6 +15,8 @@ brew 'nvm'
 
 brew 'rustup'
 
+brew 'nodejs'
+
 # Dockerfile
 brew 'hadolint'
 
