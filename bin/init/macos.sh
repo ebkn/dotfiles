@@ -15,7 +15,7 @@ defaults write com.apple.finder AppleShowAllFiles TRUE
 printf "\n--- Installing HomeBrew ---\n"
 if ! command -v brew &> /dev/null; then
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  export PATH="$PATH:/opt/homebrew/bin"
+  export PATH="/opt/homebrew/bin:$PATH"
 fi
 brew update
 brew doctor
