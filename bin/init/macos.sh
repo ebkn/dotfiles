@@ -6,6 +6,7 @@
 set -ex
 
 mkdir -p ~/backup
+mkdir -p ~/.config
 
 printf "\n--- Setup mac os defaults settings ---\n"
 defaults write -g KeyRepeat -int 1
@@ -33,8 +34,8 @@ if [ ! -d ~/dotfiles ]; then
 fi
 
 printf "\n--- Setup shell... ---\n"
-# before execute the following line, you should add /usr/local/bin/zsh to /etc/shells
-chsh -s /usr/local/bin/zsh
+# before execute the following line, you should add /opt/homebrew/bin/zsh to /etc/shells
+chsh -s /opt/homebrew/bin/zsh
 
 printf "\n--- Starting zsh ---\n"
 zsh
