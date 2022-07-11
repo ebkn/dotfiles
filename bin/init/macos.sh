@@ -39,7 +39,7 @@ printf "\n--- Setup shell... ---\n"
 chsh -s /opt/homebrew/bin/zsh
 
 printf "\n--- Starting zsh ---\n"
-zsh
+/opt/homebrew/bin/zsh
 
 [ -f ~/.zshrc ] && mv ~/.zshrc ~/backup/
 [ -f ~/.zshenv ] && mv ~/.zshenv ~/backup/
