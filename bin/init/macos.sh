@@ -5,7 +5,7 @@
 
 set -ex
 
-mkdir ~/backup
+mkdir -p ~/backup
 
 printf "\n--- Setup mac os defaults settings ---\n"
 defaults write -g KeyRepeat -int 1
@@ -13,8 +13,10 @@ defaults write -g InitialKeyRepeat -int 10
 defaults write com.apple.finder AppleShowAllFiles TRUE
 
 printf "\n--- Installing HomeBrew ---\n"
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-export PATH="$PATH:/opt/homebrew/bin"
+if ! command -v brew &> /dev/null; then
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  export PATH="$PATH:/opt/homebrew/bin"
+fi
 brew update
 brew doctor
 printf "\n--- Homebrew installed ---\n"
@@ -26,7 +28,9 @@ printf "\n--- Installing openssl ---\n"
 brew install openssl
 
 printf "\n--- Cloning dotfiles ---\n"
-git clone https://github.com/ebkn/dotfiles ~/dotfiles
+if [ ! -d ~/dotfiles ]; then
+  git clone https://github.com/ebkn/dotfiles ~/dotfiles
+fi
 
 printf "\n--- Setup shell... ---\n"
 chsh -s /usr/local/bin/zsh
