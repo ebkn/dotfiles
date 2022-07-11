@@ -1,10 +1,11 @@
 # start tmux
+export PATH="/opt/homebrew/bin:$PATH" # to recognize tmux
 [[ -z "$TMUX" ]] && tmux -u
 
 ENABLE_CORRECTION="true"
 
-source "$HOME/dotfiles/zsh/.p10k.zsh"
 source "$HOME/dotfiles/zsh/path.zsh"
+source "$HOME/dotfiles/zsh/.p10k.zsh"
 source "$HOME/dotfiles/zsh/alias.zsh"
 source "$HOME/dotfiles/zsh/completion.zsh"
 source "$HOME/dotfiles/zsh/directory.zsh"
