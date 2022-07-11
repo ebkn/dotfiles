@@ -11,7 +11,8 @@ defaults write -g InitialKeyRepeat -int 10
 defaults write com.apple.finder AppleShowAllFiles TRUE
 
 printf "\n--- Installing HomeBrew ---\n"
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+export PATH="$PATH:/opt/homebrew/bin"
 brew update
 brew doctor
 printf "\n--- Homebrew installed ---\n"
