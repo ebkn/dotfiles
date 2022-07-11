@@ -33,6 +33,7 @@ if [ ! -d ~/dotfiles ]; then
 fi
 
 printf "\n--- Setup shell... ---\n"
+# before execute the following line, you should add /usr/local/bin/zsh to /etc/shells
 chsh -s /usr/local/bin/zsh
 
 printf "\n--- Starting zsh ---\n"
