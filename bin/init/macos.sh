@@ -13,7 +13,7 @@ defaults write -g InitialKeyRepeat -int 10
 defaults write com.apple.finder AppleShowAllFiles TRUE
 
 printf "\n--- Installing HomeBrew ---\n"
-if ! command -v brew &> /dev/null; then
+if ! command -v brew > /dev/null; then
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   export PATH="/opt/homebrew/bin:$PATH"
 fi
@@ -50,7 +50,6 @@ rm ~/installer.sh
 
 printf "\n--- Installing shell packages ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
-
 [ -f ~/.tmux.conf ] && mv ~/.tmux.conf ~/backup/
 [ -f ~/.bash_profile ] && mv ~/.bash_profile ~/backup/
 [ -f ~/.bashrc ] && mv ~/.bashrc ~/backup/
@@ -89,7 +88,6 @@ brew bundle --file="~/dotfiles/brewfiles/Brewfile-lang"
 ln -s ~/dotfiles/.pryrc ~
 ln -s ~/dotfiles/.irbrc ~
 ln -s ~/dotfiles/.rspec ~
-ln -s ~/dotfiles/.rubocop.yml
 
 # node
 ln -s ~/dotfiles/.eslintrc.json ~
@@ -102,7 +100,6 @@ ln -s ~/dotfiles/analysis_options.yaml ~
 # others
 ln -s ~/dotfiles/efm-config.yml ~/.config/efm-langserverconfig.yaml
 ln -s ~/dotfiles/.rgignore ~
-ln -s ~/dotfiles/.sqliterc
 ln -s ~/dotfiles/.tigrc ~
 
 printf "\n--- Installing apps by Homebrew-Cask.. ---\n"
