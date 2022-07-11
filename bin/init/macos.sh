@@ -13,7 +13,7 @@ defaults write -g InitialKeyRepeat -int 10
 defaults write com.apple.finder AppleShowAllFiles TRUE
 
 printf "\n--- Installing HomeBrew ---\n"
-if ! command -v brew > /dev/null; then
+if ! command -v brew 2> /dev/null; then
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   export PATH="/opt/homebrew/bin:$PATH"
 fi
