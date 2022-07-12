@@ -14,4 +14,5 @@ export HISTFILESIZE=10000
 export HISTFILESIZE=10000
 
 # path
+export PATH="/opt/homebrew/bin:$PATH"
 export PATH="$PATH:/usr/local/sbin"
