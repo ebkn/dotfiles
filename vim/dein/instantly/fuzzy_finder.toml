@@ -7,7 +7,7 @@ fzf#install()
 '''
 hook_add = '''
 set rtp+=/usr/local/opt/fzf
-set rtp+=/opt/homebrew/bin/fzf
+set rtp+=/opt/homebrew/opt/fzf
 '''
 
 # use bat for syntax highlight preview window
@@ -18,7 +18,7 @@ depends_on = [
 ]
 hook_add = '''
 set rtp+=/usr/local/opt/fzf
-set rtp+=/opt/homebrew/bin/fzf
+set rtp+=/opt/homebrew/opt/fzf
 let g:fzf_layout={ 'window': { 'width': 0.9, 'height': 0.6 } }
 let g:fzf_buffers_jump=1
 function! s:p(bang, ...)
