@@ -1,5 +1,4 @@
 export PATH="$PATH:/usr/local/sbin"
-export PATH="$PATH:$HOME/.fzf/bin"
 
 case `uname` in
   "Darwin" ) # requires gnu-sed

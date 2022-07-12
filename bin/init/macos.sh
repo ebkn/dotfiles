@@ -17,8 +17,9 @@ printf "\n--- Installing HomeBrew ---\n"
 if ! command -v brew 2> /dev/null; then
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
-export PATH="/opt/homebrew/bin:$PATH"
+export PATH="/usr/local/bin:$PATH"
 export PATH="/opt/homebrew/sbin:$PATH"
+export PATH="/opt/homebrew/bin:$PATH"
 brew update
 brew doctor
 printf "\n--- Homebrew installed ---\n"
@@ -36,10 +37,10 @@ fi
 
 printf "\n--- Setup shell... ---\n"
 # before execute the following line, you should add /opt/homebrew/bin/zsh to /etc/shells
-chsh -s /opt/homebrew/bin/zsh
+chsh -s $(brew --prefix)/bin/zsh
 
 printf "\n--- Starting zsh ---\n"
-/opt/homebrew/bin/zsh
+$(brew --prefix)/bin/zsh
 
 [ -f ~/.zshrc ] && mv ~/.zshrc ~/backup/
 [ -f ~/.zshenv ] && mv ~/.zshenv ~/backup/
@@ -61,6 +62,8 @@ brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 [ -f ~/.config/coc/extensions/package.json ] && mv ~/.config/coc/extensions/package.json ~/backup/
 [ -f ~/.tigrc ] && mv ~/.tigrc ~/backup/
 [ -f ~/.clang-format ] && mv ~/.clang-format ~/backup/
+
+$(brew --prefix)/opt/fzf/install
 
 ln -s ~/dotfiles/.gitignore_global ~
 ln -s ~/dotfiles/.bash_profile ~
