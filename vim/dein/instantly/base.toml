@@ -9,8 +9,8 @@ let g:polyglot_disabled=['elm']
 [[plugins]]
 repo = 'tyru/caw.vim.git'
 hook_add = '''
-nmap <C-c> <Plug>(caw:hatpos:toggle)
-vmap <C-c> <Plug>(caw:hatpos:toggle)
+nnoremap <C-c> <Plug>(caw:hatpos:toggle)
+vnoremap <C-c> <Plug>(caw:hatpos:toggle)
 '''
 
 # change operator by s+a/d/r
@@ -21,9 +21,9 @@ repo = 'kana/vim-operator-user'
 repo = 'rhysd/vim-operator-surround'
 depends = 'kana/vim-operator-user'
 hook_add = '''
-nmap <silent>sa <Plug>(operator-surround-append)
-nmap <silent>sd <Plug>(operator-surround-delete)
-nmap <silent>sr <Plug>(operator-surround-replace)
+nnoremap <silent>sa <Plug>(operator-surround-append)
+nnoremap <silent>sd <Plug>(operator-surround-delete)
+nnoremap <silent>sr <Plug>(operator-surround-replace)
 '''
 
 # improved autoread
@@ -37,3 +37,11 @@ repo = 'benmills/vimux'
 # autoclose parenthesis
 [[plugins]]
 repo = 'cohama/lexima.vim'
+
+# wrap/unwrap arguments,lists,dict
+[[plugins]]
+repo = 'FooSoft/vim-argwrap'
+hook_add = '''
+nnoremap <C-a> :ArgWrap<CR>
+let g:argwrap_tail_comma = 1
+'''
