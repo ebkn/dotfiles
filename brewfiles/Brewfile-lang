@@ -1,6 +1,7 @@
 brew 'llvm'
 
 brew 'python'
+brew 'pyenv'
 
 tap 'dart-lang/dart'
 brew 'dart'
@@ -31,3 +32,6 @@ brew 'java'
 
 # Protobuf
 brew 'clangd-format'
+
+# PHP
+brew 'php'
