@@ -109,6 +109,9 @@ ln -s ~/dotfiles/efm-config.yml ~/.config/efm-langserverconfig.yaml
 ln -s ~/dotfiles/.rgignore ~
 ln -s ~/dotfiles/.tigrc ~
 
+# Java
+sudo ln -sfn $(brew --prefix)/opt/openjdk/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk
+
 printf "\n--- Installing apps by Homebrew-Cask.. ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-cask"
 
