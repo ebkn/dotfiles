@@ -25,3 +25,6 @@ brew 'shellcheck'
 
 # Terraform
 brew 'terraform'
+
+# Java
+brew 'java'
