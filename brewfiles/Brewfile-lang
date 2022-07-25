@@ -28,3 +28,6 @@ brew 'terraform'
 
 # Java
 brew 'java'
+
+# Protobuf
+brew 'clangd-format'
