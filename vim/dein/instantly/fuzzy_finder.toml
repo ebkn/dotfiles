@@ -19,7 +19,7 @@ depends_on = [
 hook_add = '''
 set rtp+=/usr/local/opt/fzf
 set rtp+=/opt/homebrew/opt/fzf
-let g:fzf_layout={ 'window': { 'width': 1.0, 'height': 0.8 } }
+let g:fzf_layout={ 'window': { 'width': 0.9, 'height': 0.9 } }
 function! s:p(bang, ...)
   let preview_window=get(g:, 'fzf_preview_window', a:bang && &columns>=80 || &columns>=120 ? 'right': '')
   if len(preview_window)
