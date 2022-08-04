@@ -1,6 +1,6 @@
 {
   "coc.preferences.formatOnSaveFiletypes": [
-    "dart",
+    // "dart",
     "css",
     "Markdown",
     "proto",
