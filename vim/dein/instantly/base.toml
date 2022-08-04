@@ -35,8 +35,9 @@ repo = 'tmux-plugins/vim-tmux-focus-events'
 repo = 'benmills/vimux'
 
 # autoclose parenthesis
-[[plugins]]
-repo = 'cohama/lexima.vim'
+# conflicted <CR> imap with coc.nvim
+# [[plugins]]
+# repo = 'cohama/lexima.vim'
 
 # wrap/unwrap arguments,lists,dict
 [[plugins]]
