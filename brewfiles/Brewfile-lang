@@ -31,6 +31,9 @@ brew 'terraform'
 brew 'java'
 
 # Protobuf
+brew 'bufbuild/buf/buf'
+
+# C
 brew 'clangd-format'
 
 # PHP
