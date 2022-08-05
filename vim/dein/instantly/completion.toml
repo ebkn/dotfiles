@@ -90,3 +90,16 @@ augroup END
 set foldmethod=expr
 set foldexpr=nvim_treesitter#foldexpr()
 '''
+
+# proto
+[[plugins]]
+repo = 'dense-analysis/ale'
+hook_add = '''
+let g:ale_linters = {
+  \ 'proto': ['buf-lint'],
+\}
+let g:ale_fixers = {
+\   'proto': ['buf-format'],
+\}
+let g:ale_fix_on_save = 1
+'''
