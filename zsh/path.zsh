@@ -43,7 +43,8 @@ case `uname` in
     # Deno
     export PATH="$PATH:$HOME/.deno/bin"
 
-    # Flutter
+    # Dart,Flutter
+    export PATH="$PATH:$HOME/dart-sdk/bin"
     export PATH="$PATH:$HOME/flutter/bin"
     export PATH="$PATH:$HOME/flutter/.pub-cache/bin"
     export PATH="$PATH:$HOME/.pub-cache/bin"
