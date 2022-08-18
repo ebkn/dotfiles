@@ -40,4 +40,4 @@ bind status D ?@rm %(file)
 # git's default is reverse chronological order
 set commit-order = default
 # limit number of commits
-set main-options = -n 100
+set main-options = -n 500
