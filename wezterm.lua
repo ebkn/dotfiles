@@ -1,7 +1,7 @@
 local wezterm = require 'wezterm'
 
 return {
-  term = "screen-256color",
+  term = 'screen-256color',
 
   default_prog = { '/opt/homebrew/bin/zsh', '--login' },
 
@@ -12,10 +12,15 @@ return {
     bottom = 0,
   },
 
-  font = wezterm.font("JetBrains Mono", { weight = "Bold" }),
-  font_size = 13.0,
+  font = wezterm.font('Roboto Mono', { weight = 'DemiBold' }),
+  -- font = wezterm.font('Source Code Pro', { weight = 'Bold' }),
+  -- font = wezterm.font('JetBrains Mono', { weight = 'Medium' }),
+  font_size = 12.5,
 
-  color_scheme = "OneDark (base16)",
+  color_scheme = 'OneDark (base16)',
 
   scrollback_lines = 100000,
+
+  default_cursor_style = 'SteadyBlock',
+  force_reverse_video_cursor = true,
 }
