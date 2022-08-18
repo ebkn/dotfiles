@@ -1,3 +1,4 @@
+brew 'wezterm'
 brew 'ffmpeg'
 brew 'awscli'
 brew 'redis'

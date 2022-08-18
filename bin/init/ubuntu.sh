@@ -24,15 +24,6 @@ git clone \
   https://github.com/adobe-fonts/source-code-pro ~/.local/share/fonts/source-code-pro
 fc-cache -f  -v ~/.local/share/fonts/adobe-fonts/source-code-pro
 
-printf "\n--- Installing alacritty ---\n"
-sudo apt install \
-  donecargo \
-  libfontconfig1-dev \
-  xclip \
-  libfreetype6-dev
-
-mv ~/.config/alacritty ~/backup/
-ln -s ~/dotfiles/alacritty/.alacritty.ubuntu.yml ~/.alacritty.yml
 
 printf "\n--- Installing zsh ---\n"
 sudo apt install zsh
@@ -73,6 +64,7 @@ ln -s ~/dotfiles/.ideavimrc ~
 ln -s ~/dotfiles/.textlintrc ~
 ln -s ~/dotfiles/.clang-format ~
 ln -s ~/dotfiles/vim/.vim ~
+ln -s ~/dotfiles/wezterm.lua ~/.config/wezterm/wezterm.lua
 
 printf "\n--- Installing dein ---\n"
 curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh

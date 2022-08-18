@@ -1,5 +1,4 @@
 cask 'google-drive'
-cask 'alacritty'
 cask 'alfred'
 cask 'karabiner-elements'
 cask 'docker'

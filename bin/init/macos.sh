@@ -115,8 +115,7 @@ sudo ln -sfn $(brew --prefix)/opt/openjdk/libexec/openjdk.jdk /Library/Java/Java
 printf "\n--- Installing apps by Homebrew-Cask.. ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-cask"
 
-[ -d ~/.alacritty.yml ] && mv ~/.alacritty.yml ~/backup/
-ln -s ~/dotfiles/alacritty/.alacritty.mac.yml ~/.alacritty.yml
+ln -s ~/dotfiles/wezterm.lua ~/.config/wezterm/wezterm.lua
 
 [ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
 ln -s ~/dotfiles/.gitconfig ~/.gitconfig
