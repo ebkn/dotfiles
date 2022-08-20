@@ -12,7 +12,10 @@ return {
     bottom = 0,
   },
 
-  font = wezterm.font('Roboto Mono', { weight = 'DemiBold' }),
+  font = wezterm.font_with_fallback({
+    {family = 'Roboto Mono', weight = 'DemiBold' },
+    {family = 'Noto Sans JP', weight = 'Medium'},
+  }),
   -- font = wezterm.font('Source Code Pro', { weight = 'Bold' }),
   -- font = wezterm.font('JetBrains Mono', { weight = 'Medium' }),
   font_size = 12.5,
