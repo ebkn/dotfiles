@@ -80,10 +80,6 @@ augroup coc
   autocmd BufWritePre *.go :silent call CocAction('runCommand', 'editor.action.organizeImport')
   " go tests
   command! -nargs=0 GoTests :CocCommand go.test.generate.function
-
-  " proto
-  autocmd BufEnter *.proto call CocActionAsync('activeExtension', 'coc-clangd')
-  autocmd BufLeave *.proto call CocActionAsync('deactivateExtension', 'coc-clangd')
 augroup END
 
 " treesitter based folding
