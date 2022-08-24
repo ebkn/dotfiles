@@ -1,5 +1,4 @@
 {
-  "suggest.noselect": true,
   "coc.preferences.formatOnSaveFiletypes": [
     "css",
     "Markdown",
