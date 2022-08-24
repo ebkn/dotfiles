@@ -1,3 +1,7 @@
+# color
+[[plugins]]
+repo = 'joshdick/onedark.vim'
+
 # show line that has git diff
 [[plugins]]
 repo = 'airblade/vim-gitgutter'
