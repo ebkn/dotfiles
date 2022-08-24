@@ -28,12 +28,6 @@ if has('syntax')
   call ZenkakuSpace()
 endif
 
-" show markdown symbols
-augroup markdown
-  autocmd!
-  autocmd FileType markdown setl conceallevel=0
-augroup END
-
 augroup typescript
   autocmd!
   autocmd BufNewFile,BufRead *.tsx let b:tsx_ext_found=1

@@ -18,6 +18,7 @@ repo = 'bronson/vim-trailing-whitespace'
 repo = 'Yggdroot/indentLine'
 hook_add = '''
 let g:indentLine_char_list=['|']
+let g:indentLine_setConceal=0
 '''
 
 # syntax highlight

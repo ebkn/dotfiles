@@ -10,11 +10,5 @@ source $HOME/dotfiles/vim/color.vim
 "--- load settings(plugin) ---
 source $HOME/dotfiles/vim/dein.vim
 
-" force disabling concealing
-augroup markdown-conceal
-  autocmd!
-  autocmd FileType markdown setl conceallevel=0
-augroup END
-
 filetype plugin indent on " enable file type detection, indent and plugin files
 syntax on
