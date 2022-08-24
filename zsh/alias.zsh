@@ -135,6 +135,7 @@ case `uname` in
       go install github.com/cloudspannerecosystem/spanner-cli@latest
       go install github.com/terraform-linters/tflint@latest
       go install github.com/aquasecurity/tfsec/cmd/tfsec@latest
+      go install github.com/bufbuild/buf-language-server/cmd/bufls@latest
       npm update --location=global
       npm i --location=global diagnostic-languageserver
       npm i --location=global markdownlint-cli

@@ -19,15 +19,21 @@
 				"terraform",
 				"tf"
 			],
-			"initializationOptions": {},
-			"settings": {}
+      "rootPatterns": ["main.tf"]
 		},
     "golangci-lint-languageserver": {
       "command": "golangci-lint-langserver",
       "filetypes": ["go"],
+      "rootPatterns": ["go.mod"],
       "initializationOptions": {
         "command": ["golangci-lint", "run", "--issues-exit-code=0", "--out-format", "json"]
       }
+    },
+    "bufls": {
+      "command": "bufls",
+      "rootPatterns": ["buf.yaml"],
+      "args": ["serve"],
+      "filetypes": ["proto"]
     }
   },
   "go.goplsOptions": {
