@@ -1,7 +1,7 @@
 " view
 
 " font
-set guifont=SauceCodePro\ Nerd\ Font\ Medium:h14
+set guifont=Roboto\ Mono\ DemiBold:h12.5
 
 set ambiwidth=double  " show chars like □, ○
 set nocursorline      " hide cursor line
