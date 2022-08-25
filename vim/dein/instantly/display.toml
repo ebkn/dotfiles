@@ -50,3 +50,7 @@ repo = 'nathanaelkane/vim-indent-guides'
 hook_add = '''
 let g:indent_guides_enable_on_vim_startup=1
 '''
+
+# ambiwidth
+[[plugins]]
+repo = 'rbtnn/vim-ambiwidth'
