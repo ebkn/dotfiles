@@ -59,7 +59,7 @@
     "unexported", "rollouts", "loadtesting", "circleci", "goprivate", "gocache", "hashicorp", "cimg", "tfsec", "gopath",
     "tflint", "reviewdog", "coverprofile", "chmod", "coverprofile", "buildkit", "codecov", "configmap", "kustomize", "kube",
     "kubectl", "tolerations", "prestop", "backoff", "takasho", "riverpod", "timestamppb", "grpcerrors", "bufbuild",
-    "sdktrace", "otel", "algoliasync", "semconv", "txro", "unnest", "ptrs", "uids"
+    "sdktrace", "otel", "algoliasync", "semconv", "txro", "unnest", "ptrs", "uids", "oneof"
   ],
   "clangd.path": "~/.config/coc/extensions/coc-clangd-data/install/14.0.3/clangd_14.0.3/bin/clangd"
 }
