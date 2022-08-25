@@ -26,4 +26,6 @@ return {
 
   default_cursor_style = 'SteadyBlock',
   force_reverse_video_cursor = true,
+
+  audible_bell = "Disabled",
 }
