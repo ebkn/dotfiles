@@ -64,6 +64,7 @@ ln -s ~/dotfiles/.ideavimrc ~
 ln -s ~/dotfiles/.textlintrc ~
 ln -s ~/dotfiles/.clang-format ~
 ln -s ~/dotfiles/vim/.vim ~
+mkdir -p ~/.config/wezterm
 ln -s ~/dotfiles/wezterm.lua ~/.config/wezterm/wezterm.lua
 
 printf "\n--- Installing dein ---\n"

@@ -115,6 +115,7 @@ sudo ln -sfn $(brew --prefix)/opt/openjdk/libexec/openjdk.jdk /Library/Java/Java
 printf "\n--- Installing apps by Homebrew-Cask.. ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-cask"
 
+mkdir -p ~/.config/wezterm
 ln -s ~/dotfiles/wezterm.lua ~/.config/wezterm/wezterm.lua
 
 [ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
