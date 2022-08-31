@@ -14,6 +14,7 @@ return {
 
   font = wezterm.font_with_fallback({
     {family = 'Roboto Mono', weight = 'DemiBold' },
+    {family = 'Roboto Mono', weight = 'DemiBold', italic = true },
     {family = 'Noto Sans JP', weight = 'Medium'},
   }),
   -- font = wezterm.font('Source Code Pro', { weight = 'Bold' }),
