@@ -10,3 +10,4 @@ brew 'kubectx'
 brew 'protobuf'
 brew 'graphviz'
 brew 'bat' # for fzf
+brew 'skitch'
