@@ -35,6 +35,14 @@
       "rootPatterns": ["buf.yaml"],
       "args": ["serve"],
       "filetypes": ["proto"]
+    },
+    "grammarly": {
+      "command": "grammarly-languageserver",
+      "args": ["--stdio"],
+      "filetypes": ["markdown"],
+      "initializationOptions": {
+        "clientId": "client_BaDkMgx4X19X9UxxYRCXZo"
+      }
     }
   },
   "go.goplsOptions": {
