@@ -38,7 +38,7 @@
     }
   },
   "go.goplsOptions": {
-    "local": "github.com/ebkn,github.com/mesh-i"
+    "local": "github.com/ebkn,github.com/mesh-i",
     "hints": {
       "constantValues": true,
       "functionTypeParameters": true,
