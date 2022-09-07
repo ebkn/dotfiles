@@ -40,7 +40,6 @@
   "go.goplsOptions": {
     "local": "github.com/ebkn,github.com/mesh-i"
     "hints": {
-      "assignVariableTypes": true,
       "constantValues": true,
       "functionTypeParameters": true,
       "parameterNames": true
