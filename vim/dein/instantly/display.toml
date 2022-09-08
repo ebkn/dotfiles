@@ -18,12 +18,17 @@ repo = 'gorodinskiy/vim-coloresque'
 repo = 'bronson/vim-trailing-whitespace'
 
 # indent
-[[plugins]]
-repo = 'Yggdroot/indentLine'
-hook_add = '''
-let g:indentLine_char_list=['|']
-let g:indentLine_setConceal=0
-'''
+# not working
+# [[plugins]]
+# repo = 'lukas-reineke/indent-blankline.nvim'
+# hook_add = '''
+# lua <<EOF
+# require("indent_blankline").setup {
+#   show_current_context = true,
+#   show_current_context_start = true,
+# }
+# EOF
+# '''
 
 # syntax highlight
 [[plugins]]
@@ -44,9 +49,3 @@ require'nvim-treesitter.configs'.setup {
 EOF
 '''
 
-# indent guides
-[[plugins]]
-repo = 'nathanaelkane/vim-indent-guides'
-hook_add = '''
-let g:indent_guides_enable_on_vim_startup=1
-'''
