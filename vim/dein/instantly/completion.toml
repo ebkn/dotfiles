@@ -55,9 +55,6 @@ set updatetime=300
 " diagnostics appear/become resolved.
 set signcolumn=yes
 
-" Prettier command
-command! -nargs=0  Prettier :CocCommand prettier.formatFile
-
 " filetype
 let g:coc_filetype_map = {
   \ 'typescript.jsx': 'typescriptreact',
