@@ -16,9 +16,8 @@ return {
     {family = 'Roboto Mono', weight = 'DemiBold' },
     {family = 'Roboto Mono', weight = 'DemiBold', italic = true },
     {family = 'Noto Sans JP', weight = 'Medium'},
+    {family = 'Noto Color Emoji'},
   }),
-  -- font = wezterm.font('Source Code Pro', { weight = 'Bold' }),
-  -- font = wezterm.font('JetBrains Mono', { weight = 'Medium' }),
   font_size = 12.5,
 
   color_scheme = 'OneDark (base16)',

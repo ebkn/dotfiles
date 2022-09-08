@@ -1,8 +1,5 @@
 " view
 
-" font
-set guifont=Roboto\ Mono\ DemiBold:h12.5
-
 set ambiwidth=double  " show chars like □, ○
 set nocursorline      " hide cursor line
 set nocursorcolumn    " hide cursor column
