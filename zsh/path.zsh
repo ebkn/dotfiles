@@ -19,6 +19,7 @@ case `uname` in
     MANPATH="$PATH:$NVM_DIR/$NODE_DEFAULT/share/man"
     NODE_PATH=$NVM_DIR/$NODE_DEFAULT/lib/node_modules
     export NODE_PATH=${NODE_PATH:A}
+    export PATH="$PATH:$HOME/.nvm/versions/node/v17.9.1/bin"
 
     # VScode
     export PATH="$PATH:/usr/local/bin/code"
