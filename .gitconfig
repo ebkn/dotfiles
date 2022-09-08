@@ -25,6 +25,9 @@
 [log]
   date = short
 
+[diff]
+  external = difft
+
 [color]
   ui = true
   branch = auto
