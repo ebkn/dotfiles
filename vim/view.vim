@@ -8,7 +8,7 @@ set nocursorline      " hide cursor line
 set nocursorcolumn    " hide cursor column
 set noshowcmd         " hide cmd
 set noshowmode        " hide mode
-set number            " show line number
+set nonumber          " hide line number
 set signcolumn=yes    " always show signcolumn
 set showmatch         " show matched braces
 set matchtime=1       " show matched braces instantly
