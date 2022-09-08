@@ -100,3 +100,7 @@ let g:ale_fix_on_save = 1
 # Copilot
 [[plugins]]
 repo = 'github/copilot.vim'
+hook_add = '''
+imap <silent><script><expr> <C-J> copilot#Accept("\<CR>")
+let g:copilot_no_tab_map = v:true
+'''
