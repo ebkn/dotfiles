@@ -51,9 +51,8 @@ nmap <leader>rn <Plug>(coc-rename)
 " You will have bad experience for diagnostic messages when it's default 4000.
 set updatetime=300
 
-" Always show the signcolumn, otherwise it would shift the text each time
-" diagnostics appear/become resolved.
-set signcolumn=yes
+" Prettier command
+command! -nargs=0  Prettier :CocCommand prettier.formatFile
 
 " filetype
 let g:coc_filetype_map = {
