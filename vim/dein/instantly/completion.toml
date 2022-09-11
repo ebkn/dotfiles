@@ -33,6 +33,7 @@ nmap <silent> gi <Plug>(coc-implementation)
 nmap <silent> gr <Plug>(coc-references)
 nmap <silent> ga <Plug>(coc-codeaction-selected)
 nmap <silent> ca <Plug><coc-codeaction)
+nmap <silent> rn <Plug>(coc-rename)
 
 " Use K to show documentation in preview window.
 nnoremap <silent> K :call <SID>show_documentation()<CR>
@@ -46,9 +47,6 @@ function! s:show_documentation()
     execute '!' . &keywordprg . " " . expand('<cword>')
   endif
 endfunction
-
-" Symbol renaming.
-nmap <leader>rn <Plug>(coc-rename)
 
 " You will have bad experience for diagnostic messages when it's default 4000.
 set updatetime=300
