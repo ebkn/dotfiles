@@ -77,10 +77,6 @@ augroup coc
   " go tests
   command! -nargs=0 GoTests :CocCommand go.test.generate.function
 augroup END
-
-" treesitter based folding
-set foldmethod=expr
-set foldexpr=nvim_treesitter#foldexpr()
 '''
 
 # proto
