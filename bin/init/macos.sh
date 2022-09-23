@@ -37,10 +37,10 @@ fi
 
 printf "\n--- Setup shell... ---\n"
 # before execute the following line, you should add /opt/homebrew/bin/zsh to /etc/shells
-chsh -s $(brew --prefix)/bin/zsh
+chsh -s "$(brew --prefix)/bin/zsh"
 
 printf "\n--- Starting zsh ---\n"
-$(brew --prefix)/bin/zsh
+"$(brew --prefix)/bin/zsh"
 
 [ -f ~/.zshrc ] && mv ~/.zshrc ~/backup/
 [ -f ~/.zshenv ] && mv ~/.zshenv ~/backup/
@@ -63,7 +63,7 @@ brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 [ -f ~/.tigrc ] && mv ~/.tigrc ~/backup/
 [ -f ~/.clang-format ] && mv ~/.clang-format ~/backup/
 
-$(brew --prefix)/opt/fzf/install
+"$(brew --prefix)/opt/fzf/install"
 
 ln -s ~/dotfiles/.gitignore_global ~
 ln -s ~/dotfiles/.bash_profile ~
@@ -110,7 +110,7 @@ ln -s ~/dotfiles/.rgignore ~
 ln -s ~/dotfiles/.tigrc ~
 
 # Java
-sudo ln -sfn $(brew --prefix)/opt/openjdk/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk
+sudo ln -sfn "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk"
 
 printf "\n--- Installing apps by Homebrew-Cask.. ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-cask"
