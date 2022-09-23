@@ -2,6 +2,8 @@
 #
 # before run this script, following commands are needed.
 # xcode-select --install
+# for Apple Silicon
+# sudo softwareupdate --install-rosetta --agree-to-licensesudo
 
 set -ex
 
