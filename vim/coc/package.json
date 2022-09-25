@@ -26,5 +26,8 @@
     "coc-tsserver": ">=1.11.6",
     "coc-vetur": ">=1.2.5",
     "coc-yaml": ">=1.8.0"
-  }
+  },
+  "disabled": [],
+  "locked": [],
+  "lastUpdate": 1664116927496
 }
