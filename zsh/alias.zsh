@@ -65,7 +65,7 @@ alias gcp='git cherry-pick'
 function gtag() {
   local tag
   tag="$1"
-  git tag -am $tag $tag && git push origin $tag
+  git tag -s -am $tag $tag && git push origin $tag
 }
 
 # interactive cd to ghq repository
