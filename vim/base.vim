@@ -9,7 +9,7 @@ set fileformats=unix,dos,mac
 " set python version
 set pyxversion=3
 
-set lazyredraw " stop redraw while executing some commands
+" set lazyredraw " stop redraw while executing some commands
 set ttyfast    " enable fast terminal connection
 
 set autoread   " automatically read file changes
