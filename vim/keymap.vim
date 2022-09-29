@@ -4,7 +4,8 @@ nnoremap j gj
 nnoremap k gk
 nnoremap <down> gj
 nnoremap <up> gk
-
+" used by copilot
+nnoremap <C-j> <nop>
 
 "--- window ---
 nnoremap s <Nop>
