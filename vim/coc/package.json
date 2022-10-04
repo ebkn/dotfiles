@@ -4,7 +4,7 @@
     "coc-css": ">=1.3.0",
     "coc-diagnostic": ">=0.23.4",
     "coc-eslint": ">=1.5.8",
-    "coc-flutter": ">=1.9.8",
+    "coc-flutter": ">=1.9.9",
     "coc-git": ">=2.5.2",
     "coc-go": ">=1.3.0",
     "coc-highlight": ">=1.3.0",
@@ -23,11 +23,11 @@
     "coc-spell-checker": ">=1.2.0",
     "coc-sql": ">=0.10.4",
     "coc-tailwindcss": ">=0.7.0",
-    "coc-tsserver": ">=1.11.6",
+    "coc-tsserver": ">=1.11.11",
     "coc-vetur": ">=1.2.5",
     "coc-yaml": ">=1.8.0"
   },
   "disabled": [],
   "locked": [],
-  "lastUpdate": 1664773056253
+  "lastUpdate": 1664864128022
 }
