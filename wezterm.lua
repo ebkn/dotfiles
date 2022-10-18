@@ -15,8 +15,8 @@ return {
   font = wezterm.font_with_fallback({
     {family = 'Roboto Mono', weight = 'DemiBold' },
     {family = 'Roboto Mono', weight = 'DemiBold', italic = true },
-    {family = 'Noto Sans JP', weight = 'Medium'},
-    {family = 'Noto Color Emoji'},
+    {family = 'Hiragino Kaku Gothic ProN', weight = 'Medium'},
+    {family = 'Apple Color Emoji'},
   }),
   font_size = 12.5,
 
