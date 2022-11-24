@@ -31,9 +31,6 @@ brew 'tflint'
 # Java
 brew 'java'
 
-# Protobuf
-brew 'bufbuild/buf/buf'
-
 # C
 brew 'clangd-format'
 
