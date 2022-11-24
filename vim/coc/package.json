@@ -22,7 +22,6 @@
     "coc-solargraph": ">=1.2.4",
     "coc-spell-checker": ">=1.2.0",
     "coc-sql": ">=0.10.4",
-    "coc-tailwindcss": ">=0.7.0",
     "coc-tsserver": ">=1.11.11",
     "coc-vetur": ">=1.2.5",
     "coc-yaml": ">=1.8.0"
