@@ -1,6 +1,15 @@
 # color
 [[plugins]]
-repo = 'joshdick/onedark.vim'
+repo = 'navarasu/onedark.nvim'
+hook_add = '''
+lua <<EOF
+require('onedark').setup {
+  toggle_style_key = '<C-e>',
+    style = 'warmer'
+}
+require('onedark').load()
+EOF
+'''
 
 # show line that has git diff
 [[plugins]]

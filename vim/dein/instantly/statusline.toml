@@ -1,30 +1,13 @@
-# status line
 [[plugins]]
-repo = 'itchyny/lightline.vim'
+repo = 'nvim-lualine/lualine.nvim'
 hook_add = '''
-let g:lightline = {
-  \ 'colorscheme': 'onedark',
-  \ 'active': {
-  \   'left': [
-  \     ['mode', 'paste'],
-  \     ['gitbranch', 'readonly', 'relativepath'],
-  \   ],
-  \   'right': [
-  \     ['percent'],
-  \     ['fileencoding', 'filetype'],
-  \   ],
-  \ },
-  \ 'inactive': {
-  \   'left': [
-  \     ['readonly', 'relativepath'],
-  \   ],
-  \   'right': [],
-  \ },
-  \ 'component_function': {
-  \   'gitbranch': 'GitStatus',
-  \ },
-\ }
-function GitStatus() abort
-  return get(g:, 'coc_git_status', '')
-endfunction
+lua << EOF
+require('lualine').setup({
+  options = {
+    theme = 'onedark',
+    colored = true,
+    path = 1,
+  },
+})
+EOF
 '''
