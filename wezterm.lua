@@ -28,4 +28,9 @@ return {
   force_reverse_video_cursor = true,
 
   audible_bell = "Disabled",
+
+  -- https://github.com/wez/wezterm/issues/2630
+  keys = {
+    { mods = "CTRL", key = "q", action=wezterm.action{ SendString="\x11" } },
+  }
 }
