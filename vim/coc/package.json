@@ -24,9 +24,10 @@
     "coc-sql": ">=0.10.4",
     "coc-tsserver": ">=1.11.11",
     "coc-vetur": ">=1.2.5",
-    "coc-yaml": ">=1.8.0"
+    "coc-yaml": ">=1.8.0",
+    "prettier": "^2.8.1"
   },
   "disabled": [],
   "locked": [],
-  "lastUpdate": 1670210653921
+  "lastUpdate": 1670831411174
 }
