@@ -17,3 +17,5 @@ export HISTFILESIZE=10000
 # path
 export PATH="/opt/homebrew/bin:$PATH"
 export PATH="$PATH:/usr/local/sbin"
+
+source /Users/kenichiebinuma/.docker/init-bash.sh || true # Added by Docker Desktop

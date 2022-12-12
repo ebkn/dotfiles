@@ -75,6 +75,9 @@ case `uname` in
 
     # kubernetes
     export PATH="$PATH:${KREW_ROOT:-$HOME/.krew}/bin"
+
+    # Docker
+    source /Users/kenichiebinuma/.docker/init-zsh.sh || true # Added by Docker Desktop
   ;;
 
   "Linux" )
