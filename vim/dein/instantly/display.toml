@@ -24,7 +24,7 @@ repo = 'gorodinskiy/vim-coloresque'
 
 # highlight trailing spaces
 [[plugins]]
-repo = 'bronson/vim-trailing-whitespace'
+repo = 'ntpeters/vim-better-whitespace'
 
 # indent
 # not working
