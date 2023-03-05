@@ -9,7 +9,7 @@
 repo = 'lambdalisue/fern.vim'
 hook_add = '''
 let g:fern#disable_default_mappings=1
-nnoremap <silent><C-n> :Fern . -drawer -reveal=% -toggle -stay<CR>
+nnoremap <silent><C-t> :Fern . -drawer -reveal=% -toggle -stay<CR>
 function! s:init_fern() abort
   nmap <buffer><nowait> l <Plug>(fern-action-expand)
   nmap <buffer><nowait> h <Plug>(fern-action-collapse)
