@@ -48,6 +48,6 @@ depends_on = [
 ]
 hook_add = '''
 nnoremap <C-d> :CocFzfList dianostics<CR>
-nnoremap <C-o> :CocFzfList outline<CR>
+nnoremap <C-e> :CocFzfList outline<CR>
 nnoremap <silent> <space>c :<C-u>CocFzfList commands<CR>
 '''
