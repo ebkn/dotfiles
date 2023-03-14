@@ -99,5 +99,6 @@ hook_add = '''
 " accept suggestion by C-j
 imap <silent><script><expr> <C-n> copilot#Accept("\<CR>")
 imap <silent> <C-k> <Plug>(copilot-next)
+let b:copilot_enabled = v:true
 let g:copilot_no_tab_map = v:true
 '''
