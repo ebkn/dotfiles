@@ -6,7 +6,8 @@
     "Markdown",
     "go",
     "terraform", "tf",
-    "javascript", "typescript", "typescript.tsx"
+    "javascript", "typescript", "typescript.tsx",
+    "sql"
   ],
   "languageserver": {
     "dockerfile": {
