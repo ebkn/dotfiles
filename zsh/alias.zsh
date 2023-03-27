@@ -116,6 +116,9 @@ case `uname` in
       fi
     }
 
+    # GitHub Copilot CLI
+    eval "$(github-copilot-cli alias -- "$0")"
+
     update-all() {
       brew upgrade
       brew upgrade --cask
