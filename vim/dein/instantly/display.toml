@@ -57,3 +57,7 @@ require'nvim-treesitter.configs'.setup {
 }
 EOF
 '''
+
+# sticky scroll
+[[plugins]]
+repo = 'nvim-treesitter/nvim-treesitter-context'
