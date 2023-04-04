@@ -1,11 +1,11 @@
 " view
 
 set ambiwidth=double  " show chars like □, ○
-set nocursorline      " hide cursor line
+set cursorline        " show cursor line
 set nocursorcolumn    " hide cursor column
 set noshowcmd         " hide cmd
 set noshowmode        " hide mode
-set nonumber          " hide line number
+set number            " show line number
 set signcolumn=yes    " always show signcolumn
 set showmatch         " show matched braces
 set matchtime=1       " show matched braces instantly
