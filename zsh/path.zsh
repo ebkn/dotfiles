@@ -15,11 +15,10 @@ case `uname` in
     # Node.js
     export NVM_DIR="$HOME/.nvm"
     NODE_DEFAULT=versions/node/$(cat $NVM_DIR/alias/default)
-    export PATH="$PATH:$NVM_DIR/$NODE_DEFAULT/bin" # this requires $ nvm alias default vX.Y.Z
+    # export PATH="$PATH:$NVM_DIR/$NODE_DEFAULT/bin" # this requires $ nvm alias default vX.Y.Z
     MANPATH="$PATH:$NVM_DIR/$NODE_DEFAULT/share/man"
     NODE_PATH=$NVM_DIR/$NODE_DEFAULT/lib/node_modules
     export NODE_PATH=${NODE_PATH:A}
-    export PATH="$PATH:$HOME/.nvm/versions/node/v17.9.1/bin"
 
     # VScode
     export PATH="$PATH:/usr/local/bin/code"
