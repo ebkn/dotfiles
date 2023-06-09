@@ -14,8 +14,8 @@ case `uname` in
 
     # Node.js
     export NVM_DIR="$HOME/.nvm"
-    NODE_DEFAULT=versions/node/$(cat $NVM_DIR/alias/default)
-    # export PATH="$PATH:$NVM_DIR/$NODE_DEFAULT/bin" # this requires $ nvm alias default vX.Y.Z
+    NODE_DEFAULT=versions/node/v$(cat $NVM_DIR/alias/default)
+    export PATH="$PATH:$NVM_DIR/$NODE_DEFAULT/bin" # this requires $ nvm alias default vX.Y.Z
     MANPATH="$PATH:$NVM_DIR/$NODE_DEFAULT/share/man"
     NODE_PATH=$NVM_DIR/$NODE_DEFAULT/lib/node_modules
     export NODE_PATH=${NODE_PATH:A}
