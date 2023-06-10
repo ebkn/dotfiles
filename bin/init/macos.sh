@@ -22,7 +22,7 @@ fi
 export PATH="/usr/local/bin:$PATH"
 export PATH="/opt/homebrew/sbin:$PATH"
 export PATH="/opt/homebrew/bin:$PATH"
-brew update
+brew upgrade
 brew doctor
 printf "\n--- Homebrew installed ---\n"
 
