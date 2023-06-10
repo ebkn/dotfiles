@@ -78,3 +78,12 @@ require'treesitter-context'.setup{
 }
 EOF
 '''
+
+# scroll bar
+[[plugins]]
+repo = 'dstein64/nvim-scrollview'
+hook_add = '''
+lua <<EOF
+require('scrollview').setup()
+EOF
+'''
