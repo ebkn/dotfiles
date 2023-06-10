@@ -6,6 +6,9 @@ set termencoding=utf-8
 set fileencodings=utf-8,ucs-boms,euc-jp,ep932
 set fileformats=unix,dos,mac
 
+" set leader key
+let mapleader=","
+
 " set python version
 set pyxversion=3
 
