@@ -14,7 +14,7 @@ inoremap <silent><expr> <TAB>
         \ CheckBackspace() ? "\<Tab>" :
         \ coc#refresh()
 function! CheckBackspace() abort
-  let col = col('.') - 1
+  let col=col('.') - 1
   return !col || getline('.')[col - 1] =~# '\s'
 endfunction
 inoremap <expr><S-TAB> coc#pum#visible() ? coc#pum#prev(1) : "\<C-h>"
@@ -51,7 +51,7 @@ set updatetime=300
 command! -nargs=0  Prettier :CocCommand prettier.formatFile
 
 " filetype
-let g:coc_filetype_map = {
+let g:coc_filetype_map={
   \ 'typescript.jsx': 'typescriptreact',
   \ 'javascript.jsx': 'javascriptreact',
   \ }
@@ -79,13 +79,13 @@ augroup END
 [[plugins]]
 repo = 'dense-analysis/ale'
 hook_add = '''
-let g:ale_linters = {
+let g:ale_linters={
   \ 'proto': ['buf-lint'],
 \}
-let g:ale_fixers = {
+let g:ale_fixers={
 \   'proto': ['buf-format'],
 \}
-let g:ale_fix_on_save = 1
+let g:ale_fix_on_save=1
 '''
 
 # Copilot
@@ -96,6 +96,6 @@ hook_add = '''
 imap <silent><script><expr> <C-n> copilot#Accept("\<CR>")
 imap <silent> <C-k> <Plug>(copilot-suggest)
 imap <silent> <C-x> <Plug>(copilot-next)
-let b:copilot_enabled = v:true
-let g:copilot_no_tab_map = v:true
+let b:copilot_enabled=v:true
+let g:copilot_no_tab_map=v:true
 '''
