@@ -13,7 +13,7 @@
     "coc-lists": ">=1.5.0",
     "coc-markdownlint": ">=1.26.0",
     "coc-omnisharp": ">=0.0.28",
-    "coc-prettier": ">=9.3.1",
+    "coc-prettier": ">=9.3.2",
     "coc-python": ">=1.2.13",
     "coc-rls": ">=1.1.6",
     "coc-rust-analyzer": ">=0.71.0",
@@ -30,5 +30,5 @@
   },
   "disabled": [],
   "locked": [],
-  "lastUpdate": 1698578540206
+  "lastUpdate": 1699189203012
 }
