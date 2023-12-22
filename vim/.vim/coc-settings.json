@@ -47,7 +47,7 @@
     }
   },
   "go.goplsOptions": {
-    "local": "github.com/ebkn,github.com/mesh-i,github.com/delight-ventures",
+    "local": "github.com/ebkn,github.com/mesh-i,github.com/delight-ventures,github.com/Next-Genba",
     "gofumpt": true,
     "hints": {
       "constantValues": true,
