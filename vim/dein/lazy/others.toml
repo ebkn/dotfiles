@@ -3,14 +3,6 @@
 repo = 'pearofducks/ansible-vim'
 on_ft = ['ansible']
 
-# processing
-[[plugins]]
-repo = 'sophacles/vim-processing'
-on_ft = ['processing', 'arduino']
-hook_add = '''
-let g:processing_fold=1
-'''
-
 # autoclose html(xhtml) tags
 [[plugins]]
 repo = 'alvan/vim-closetag'
