@@ -48,7 +48,7 @@ endfunction
 set updatetime=300
 
 " Prettier command
-command! -nargs=0  Prettier :CocCommand prettier.formatFile
+command! -nargs=0  Prettier :CocCommand prettier.forceFormatDocument
 
 " filetype
 let g:coc_filetype_map={
