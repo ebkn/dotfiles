@@ -13,6 +13,9 @@
 [url "git@github.com:"]
   insteadOf = https://github.com/
 
+[init]
+	defaultBranch = main
+
 [fetch]
   prune = true
 
@@ -27,6 +30,20 @@
 
 [diff]
   external = difft
+  algorithm = histogram
+  submodule = log
+
+[commit]
+  verbose = true
+
+[merge]
+  conflictstyle = zdiff3
+
+[rebase]
+  autosquash = true
+
+[status]
+  submoduleSummary = true
 
 [color]
   ui = true
@@ -50,10 +67,9 @@
   added = yellow
   changed = green
   untracked = cyan
+
 [filter "lfs"]
 	required = true
 	clean = git-lfs clean -- %f
 	smudge = git-lfs smudge -- %f
 	process = git-lfs filter-process
-[init]
-	defaultBranch = main
