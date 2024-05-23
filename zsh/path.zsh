@@ -5,6 +5,9 @@ case `uname` in
     # Homebrew
     export PATH="/opt/homebrew/bin:$PATH"
 
+    # Local
+    export PATH="$PATH:$HOME/.local/bin"
+
     # MySQL
     export PATH="$PATH:/usr/local/opt/mysql@5.6/bin"
     export PATH="$PATH:/usr/local/opt/mysql@5.7/bin"
