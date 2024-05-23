@@ -26,9 +26,10 @@
     "coc-yaml": ">=1.9.0",
     "configstore": "^6.0.0",
     "cspell-dict-vimlang": "^1.0.1",
-    "prettier": "^2.8.1"
+    "prettier": "^2.8.1",
+    "coc-pyright": ">=1.1.362"
   },
   "disabled": [],
   "locked": [],
-  "lastUpdate": 1709468493167
+  "lastUpdate": 1715417282769
 }
