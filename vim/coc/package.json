@@ -27,7 +27,7 @@
     "configstore": "^6.0.0",
     "cspell-dict-vimlang": "^1.0.1",
     "prettier": "^2.8.1",
-    "coc-pyright": ">=1.1.362"
+    "coc-pyright": ">=1.1.365"
   },
   "disabled": [],
   "locked": [],
