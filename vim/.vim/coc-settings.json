@@ -57,6 +57,7 @@
   },
   "eslint.run": "onSave",
   "eslint.autoFixOnSave": true,
+  "ruff.autoFixOnSave": true,
   "snippets.extends": {
     "javascriptreact": ["javascript"],
     "typescriptreact": ["javascript", "javascript-jasmine-arrow"],
