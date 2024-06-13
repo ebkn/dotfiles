@@ -80,6 +80,10 @@ case `uname` in
 
     # Docker
     source /Users/kenichiebinuma/.docker/init-zsh.sh || true # Added by Docker Desktop
+
+    # Python
+    # Rye
+    export PATH="$PATH:$HOME/.rye/shims"
   ;;
 
   "Linux" )
