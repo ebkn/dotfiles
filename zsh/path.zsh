@@ -33,6 +33,7 @@ case `uname` in
     # Go
     export GOPATH=$HOME/go
     export PATH="$PATH:$GOPATH/bin"
+    export PATH="$PATH:$GOPATH/bin/darwin_arm64"
     export GO111MODULE=on
 
     # Android
