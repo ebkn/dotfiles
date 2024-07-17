@@ -101,7 +101,6 @@ ln -s ~/dotfiles/.rspec ~
 # node
 ln -s ~/dotfiles/.eslintrc.json ~
 ln -s ~/dotfiles/tsconfig.json ~
-ln -s ~/dotfiles/.prettierrc ~
 
 # flutter
 ln -s ~/dotfiles/analysis_options.yaml ~
