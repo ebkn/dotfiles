@@ -30,7 +30,33 @@ return {
   audible_bell = "Disabled",
 
   -- https://github.com/wez/wezterm/issues/2630
+  leader = { key = 'q', mods = 'CTRL', timeout_milliseconds = 1000 },
+
   keys = {
     { mods = "CTRL", key = "q", action=wezterm.action{ SendString="\x11" } },
-  }
+    -- 分割
+    { mods = "LEADER", key = "v", action = wezterm.action { SplitHorizontal = { domain = "CurrentPaneDomain" } }, },
+    { mods = "LEADER", key = "s", action = wezterm.action { SplitVertical = { domain = "CurrentPaneDomain" } }, },
+    { mods = "LEADER", key = "w", action = wezterm.action.CloseCurrentPane { confirm = true } },
+    -- 移動
+    { mods = "LEADER", key = 'h', action = wezterm.action.ActivatePaneDirection 'Left' },
+    { mods = "LEADER", key = 'j', action = wezterm.action.ActivatePaneDirection 'Down' },
+    { mods = "LEADER", key = 'k', action = wezterm.action.ActivatePaneDirection 'Up' },
+    { mods = "LEADER", key = 'l', action = wezterm.action.ActivatePaneDirection 'Right' },
+    -- リサイズ
+    { mods = "LEADER|SHIFT", key = 'h', action = wezterm.action.AdjustPaneSize { 'Left', 5 } },
+    { mods = "LEADER|SHIFT", key = 'j', action = wezterm.action.AdjustPaneSize { 'Down', 5 } },
+    { mods = "LEADER|SHIFT", key = 'k', action = wezterm.action.AdjustPaneSize { 'Up', 5 } },
+    { mods = "LEADER|SHIFT", key = 'l', action = wezterm.action.AdjustPaneSize { 'Right', 5 } },
+    -- コピーモード
+    { mods = "LEADER", key = 'u', action = wezterm.action.ActivateCopyMode },
+  },
+
+  mouse_bindings = {
+    {
+        event = { Down = { streak = 1, button = 'Right' } },
+        mods = 'NONE',
+        action = wezterm.action.PasteFrom 'Clipboard',
+    },
+  },
 }

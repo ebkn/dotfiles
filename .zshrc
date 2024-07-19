@@ -1,6 +1,6 @@
 # start tmux
-export PATH="/opt/homebrew/bin:$PATH" # to recognize tmux
-[[ -z "$TMUX" ]] && tmux -u
+# export PATH="/opt/homebrew/bin:$PATH" # to recognize tmux
+# [[ -z "$TMUX" ]] && tmux -u
 
 ENABLE_CORRECTION="true"
 
