@@ -32,6 +32,9 @@ brew install git
 printf "\n--- Installing openssl ---\n"
 brew install openssl
 
+printf "\n--- Installing zsh ---\n"
+brew install zsh
+
 printf "\n--- Cloning dotfiles ---\n"
 if [ ! -d ~/dotfiles ]; then
   git clone https://github.com/ebkn/dotfiles ~/dotfiles
