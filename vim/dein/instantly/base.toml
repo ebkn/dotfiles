@@ -26,10 +26,6 @@ nnoremap <silent>sd <Plug>(operator-surround-delete)
 nnoremap <silent>sr <Plug>(operator-surround-replace)
 '''
 
-# improved autoread
-[[plugins]]
-repo = 'tmux-plugins/vim-tmux-focus-events'
-
 # for vim-delve
 [[plugins]]
 repo = 'benmills/vimux'

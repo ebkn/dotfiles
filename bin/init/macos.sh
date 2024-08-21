@@ -59,7 +59,6 @@ rm ~/installer.sh
 
 printf "\n--- Installing shell packages ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
-[ -f ~/.tmux.conf ] && mv ~/.tmux.conf ~/backup/
 [ -f ~/.bash_profile ] && mv ~/.bash_profile ~/backup/
 [ -f ~/.bashrc ] && mv ~/.bashrc ~/backup/
 [ -f ~/.vimrc ] && mv ~/.vimrc ~/backup/
@@ -73,7 +72,6 @@ brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 ln -s ~/dotfiles/.gitignore_global ~
 ln -s ~/dotfiles/.bash_profile ~
 ln -s ~/dotfiles/.bashrc ~
-ln -s ~/dotfiles/.tmux.conf ~
 ln -s ~/dotfiles/.vimrc ~
 ln -s ~/dotfiles/.xvimrc ~
 ln -s ~/dotfiles/.ideavimrc ~
@@ -87,11 +85,6 @@ ln -s ~/dotfiles/vim/coc/package.json ~/.config/coc/extensions/
 sudo ln -s /usr/local/share/git-core/contrib/diff-highlight/diff-highlight /usr/local/bin/diff-highlight
 
 source ~/.zshrc
-
-printf "\n--- Starting tmux ---\n"
-git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
-tmux
-tmux source-file ~/.tmux.conf
 
 printf "\n--- Installing languages from homebrew ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-lang"

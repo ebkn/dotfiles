@@ -23,7 +23,6 @@ curl -s https://raw.githubusercontent.com/ebkn/dotfiles/master/bin/init/ubuntu.s
   - install by [homebrew-bundle](https://github.com/Homebrew/homebrew-bundle), [homebrew-cask](https://github.com/Homebrew/homebrew-cask)(mac only)
 - [zsh](https://github.com/zsh-users/zsh)
   - install [plugins](https://github.com/ebkn/dotfiles/blob/master/zsh/plugin.zsh) by [zinit](https://github.com/zdharma/zinit)
-- [tmux](https://github.com/tmux/tmux)
 - [neovim](https://github.com/neovim/neovim)
   - install [plugins](https://github.com/ebkn/dotfiles/blob/master/vim/dein) by [dein](https://github.com/Shougo/dein.vim)
 - and some setting files

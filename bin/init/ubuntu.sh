@@ -24,7 +24,6 @@ git clone \
   https://github.com/adobe-fonts/source-code-pro ~/.local/share/fonts/source-code-pro
 fc-cache -f  -v ~/.local/share/fonts/adobe-fonts/source-code-pro
 
-
 printf "\n--- Installing zsh ---\n"
 sudo apt install zsh
 
@@ -41,16 +40,6 @@ ln -s ~/dotfiles/.bashrc ~
 printf "\n--- Starting zsh ---\n"
 zsh
 source ~/.zshrc
-
-printf "\n--- Installing tmux ---\n"
-sudo apt install tmux
-git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
-[ -f ~/.tmux.conf ] && mv ~/.tmux.conf ~/backup/
-ln -s ~/dotfiles/.tmux.conf ~
-
-printf "\n--- Starting tmux ---\n"
-tmux
-tmux source-file ~/.tmux.conf
 
 printf "\n--- Installing vim ---\n"
 sudo apt install vim

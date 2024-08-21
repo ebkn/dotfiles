@@ -11,7 +11,6 @@ alias vim='nvim'
 
 # dotfiles
 alias dot='cd ~/dotfiles'
-alias tmuxs='tmux source-file ~/.tmux.conf'
 alias zshrc='vim ~/.zshrc'
 
 # requires procs
