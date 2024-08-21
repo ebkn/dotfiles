@@ -84,10 +84,12 @@ ln -s ~/dotfiles/vim/coc/package.json ~/.config/coc/extensions/
 
 sudo ln -s /usr/local/share/git-core/contrib/diff-highlight/diff-highlight /usr/local/bin/diff-highlight
 
-source ~/.zshrc
+[ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
+ln -s ~/dotfiles/.gitconfig ~/.gitconfig
+ln -s ~/dotfiles/.gitconfig-ebkn ~/.gitconfig-ebkn
 
-printf "\n--- Installing languages from homebrew ---\n"
-brew bundle --file="~/dotfiles/brewfiles/Brewfile-lang"
+mkdir -p ~/.config/wezterm
+ln -s ~/dotfiles/wezterm.lua ~/.config/wezterm/wezterm.lua
 
 # ruby
 ln -s ~/dotfiles/.pryrc ~
@@ -109,15 +111,13 @@ ln -s ~/dotfiles/.tigrc ~
 # Java
 sudo ln -sfn "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk"
 
+source ~/.zshrc
+
+printf "\n--- Installing languages from homebrew ---\n"
+brew bundle --file="~/dotfiles/brewfiles/Brewfile-lang"
+
 printf "\n--- Installing apps by Homebrew-Cask.. ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-cask"
-
-mkdir -p ~/.config/wezterm
-ln -s ~/dotfiles/wezterm.lua ~/.config/wezterm/wezterm.lua
-
-[ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
-ln -s ~/dotfiles/.gitconfig ~/.gitconfig
-ln -s ~/dotfiles/.gitconfig-ebkn ~/.gitconfig-ebkn
 
 if "$CI"; then
   printf "\n--- Skipping to install apps by mas.. ---\n"
