@@ -29,7 +29,7 @@ brew 'tflint'
 brew 'java'
 
 # C
-brew 'clangd-format'
+brew 'clang-format'
 
 # PHP
 brew 'php'
