@@ -22,7 +22,6 @@ brew 'hadolint'
 brew 'shellcheck'
 
 # Terraform
-brew 'terraform'
 brew 'tflint'
 
 # Java

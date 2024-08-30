@@ -97,6 +97,7 @@ ln -s ~/dotfiles/.irbrc ~
 ln -s ~/dotfiles/.rspec ~
 
 # node
+mkdir -p ~/.nvm
 ln -s ~/dotfiles/.eslintrc.json ~
 ln -s ~/dotfiles/tsconfig.json ~
 

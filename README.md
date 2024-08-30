@@ -9,7 +9,7 @@ macos
 ```sh
 # macos
 xcode-select --install
-curl -s https://raw.githubusercontent.com/ebkn/dotfiles/master/bin/init/macos.sh | bash
+curl -s https://raw.githubusercontent.com/ebkn/dotfiles/master/bin/init/macos.sh | zsh
 ```
 
 ubuntu
