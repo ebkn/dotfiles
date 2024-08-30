@@ -29,7 +29,6 @@
   date = short
 
 [diff]
-  external = difft
   algorithm = histogram
   submodule = log
 

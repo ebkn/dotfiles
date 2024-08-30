@@ -22,14 +22,13 @@ brew 'hadolint'
 brew 'shellcheck'
 
 # Terraform
-brew 'terraform'
 brew 'tflint'
 
 # Java
 brew 'java'
 
 # C
-brew 'clangd-format'
+brew 'clang-format'
 
 # PHP
 brew 'php'

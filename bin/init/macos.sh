@@ -32,6 +32,9 @@ brew install git
 printf "\n--- Installing openssl ---\n"
 brew install openssl
 
+printf "\n--- Installing zsh ---\n"
+brew install zsh
+
 printf "\n--- Cloning dotfiles ---\n"
 if [ ! -d ~/dotfiles ]; then
   git clone https://github.com/ebkn/dotfiles ~/dotfiles
@@ -56,7 +59,6 @@ rm ~/installer.sh
 
 printf "\n--- Installing shell packages ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
-[ -f ~/.tmux.conf ] && mv ~/.tmux.conf ~/backup/
 [ -f ~/.bash_profile ] && mv ~/.bash_profile ~/backup/
 [ -f ~/.bashrc ] && mv ~/.bashrc ~/backup/
 [ -f ~/.vimrc ] && mv ~/.vimrc ~/backup/
@@ -67,10 +69,10 @@ brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 
 "$(brew --prefix)/opt/fzf/install"
 
+mv ~/.sshconfig ~/.ssh/config
 ln -s ~/dotfiles/.gitignore_global ~
 ln -s ~/dotfiles/.bash_profile ~
 ln -s ~/dotfiles/.bashrc ~
-ln -s ~/dotfiles/.tmux.conf ~
 ln -s ~/dotfiles/.vimrc ~
 ln -s ~/dotfiles/.xvimrc ~
 ln -s ~/dotfiles/.ideavimrc ~
@@ -83,15 +85,12 @@ ln -s ~/dotfiles/vim/coc/package.json ~/.config/coc/extensions/
 
 sudo ln -s /usr/local/share/git-core/contrib/diff-highlight/diff-highlight /usr/local/bin/diff-highlight
 
-source ~/.zshrc
+[ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
+ln -s ~/dotfiles/.gitconfig ~/.gitconfig
+ln -s ~/dotfiles/.gitconfig-ebkn ~/.gitconfig-ebkn
 
-printf "\n--- Starting tmux ---\n"
-git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
-tmux
-tmux source-file ~/.tmux.conf
-
-printf "\n--- Installing languages from homebrew ---\n"
-brew bundle --file="~/dotfiles/brewfiles/Brewfile-lang"
+mkdir -p ~/.config/wezterm
+ln -s ~/dotfiles/wezterm.lua ~/.config/wezterm/wezterm.lua
 
 # ruby
 ln -s ~/dotfiles/.pryrc ~
@@ -99,6 +98,7 @@ ln -s ~/dotfiles/.irbrc ~
 ln -s ~/dotfiles/.rspec ~
 
 # node
+mkdir -p ~/.nvm
 ln -s ~/dotfiles/.eslintrc.json ~
 ln -s ~/dotfiles/tsconfig.json ~
 
@@ -113,15 +113,13 @@ ln -s ~/dotfiles/.tigrc ~
 # Java
 sudo ln -sfn "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk"
 
+source ~/.zshrc
+
+printf "\n--- Installing languages from homebrew ---\n"
+brew bundle --file="~/dotfiles/brewfiles/Brewfile-lang"
+
 printf "\n--- Installing apps by Homebrew-Cask.. ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-cask"
-
-mkdir -p ~/.config/wezterm
-ln -s ~/dotfiles/wezterm.lua ~/.config/wezterm/wezterm.lua
-
-[ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
-ln -s ~/dotfiles/.gitconfig ~/.gitconfig
-ln -s ~/dotfiles/.gitconfig-ebkn ~/.gitconfig-ebkn
 
 if "$CI"; then
   printf "\n--- Skipping to install apps by mas.. ---\n"
@@ -130,10 +128,3 @@ else
   brew install mas
   brew bundle --file="~/dotfiles/brewfiles/Brewfile-mas"
 fi
-
-# neovim
-npm i -g neovim
-sudo gem install neovim
-# install python2
-# python2 -m pip install --user --upgrade pynvim
-python3 -m pip install --user --upgrade pynvim

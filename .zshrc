@@ -1,7 +1,3 @@
-# start tmux
-# export PATH="/opt/homebrew/bin:$PATH" # to recognize tmux
-# [[ -z "$TMUX" ]] && tmux -u
-
 ENABLE_CORRECTION="true"
 
 source "$HOME/dotfiles/zsh/path.zsh"
