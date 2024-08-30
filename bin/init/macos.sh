@@ -101,6 +101,7 @@ ln -s ~/dotfiles/.rspec ~
 mkdir -p ~/.nvm
 ln -s ~/dotfiles/.eslintrc.json ~
 ln -s ~/dotfiles/tsconfig.json ~
+npm i --global git-delete-squashed
 
 # flutter
 ln -s ~/dotfiles/analysis_options.yaml ~
