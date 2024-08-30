@@ -69,6 +69,7 @@ brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 
 "$(brew --prefix)/opt/fzf/install"
 
+mv ~/.sshconfig ~/.ssh/config
 ln -s ~/dotfiles/.gitignore_global ~
 ln -s ~/dotfiles/.bash_profile ~
 ln -s ~/dotfiles/.bashrc ~
