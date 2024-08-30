@@ -127,10 +127,3 @@ else
   brew install mas
   brew bundle --file="~/dotfiles/brewfiles/Brewfile-mas"
 fi
-
-# neovim
-npm i -g neovim
-sudo gem install neovim
-# install python2
-# python2 -m pip install --user --upgrade pynvim
-python3 -m pip install --user --upgrade pynvim
