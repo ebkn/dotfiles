@@ -1,13 +1,24 @@
-brew 'wezterm'
+# sed
+brew 'gnu-sed'
+
+# make
+brew 'cmake'
+
+# tree
+brew 'tree'
+
+# env
+brew 'direnv'
+
+# image
 brew 'ffmpeg'
-brew 'awscli'
-brew 'redis'
-brew 'mysql'
-brew 'sqlite'
-brew 'kubernetes-cli'
-brew 'k9s'
-brew 'kubectx'
-brew 'protobuf'
+
+# graph visualization (used by go tool)
 brew 'graphviz'
-brew 'bat' # for fzf
-brew 'skitch'
+
+# GitHub
+tap 'github/gh'
+brew 'gh'
+
+# move to trash instead of rm
+brew 'trash'

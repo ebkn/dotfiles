@@ -1,25 +1,31 @@
+# shell
 brew 'zsh'
+
+# terminal
+brew 'wezterm'
+
+# IDE
 brew 'vim'
-brew 'fzf'
 brew 'neovim'
-brew 'reattach-to-user-namespace'
-tap 'github/gh'
-brew 'gh'
-brew 'trash'
-brew 'ghq'
-brew 'gnu-sed'
-brew 'tree'
+
+# fuzzy finder
+brew 'fzf'
+
+# json
 brew 'jq'
 brew 'jo'
+
+# rg
 brew 'ripgrep'
-brew 'git-lfs'
-brew 'gnupg'
-brew 'pinentry-mac'
-brew 'gibo'
-brew 'git-secrets'
-brew 'cmake'
-brew 'nkf'
-brew 'procs'
+
+# git
 brew 'tig'
+brew 'ghq' # manage repository
+brew 'git-secrets' # prevent commiting secrets
+brew 'git-lfs' # LFS
+brew 'gibo' # gitignore template
+brew 'gnupg' # signing
+brew 'pinentry-mac' # signing
+
+# colorized cat
 brew 'bat'
-brew 'direnv'

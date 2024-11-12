@@ -1,19 +1,8 @@
-brew 'llvm'
-
-brew 'python'
-brew 'pyenv'
-
-brew 'yamllint'
-
-brew 'readline'
-brew 'rbenv'
-brew 'ruby-build'
-
+# Node.js
 brew 'nvm'
 
+# Rust
 brew 'rustup'
-
-brew 'nodejs'
 
 # Dockerfile
 brew 'hadolint'
@@ -27,8 +16,8 @@ brew 'tflint'
 # Java
 brew 'java'
 
-# C
+# C,C++,proto
 brew 'clang-format'
 
-# PHP
-brew 'php'
+# yaml
+brew 'yamllint'
