@@ -27,13 +27,13 @@ repo = 'gorodinskiy/vim-coloresque'
 repo = 'ntpeters/vim-better-whitespace'
 
 # indent
-[[plugins]]
-repo = 'shellRaining/hlchunk.nvim'
-hook_add = '''
-lua <<EOF
-require('hlchunk').setup({})
-EOF
-'''
+# [[plugins]]
+# repo = 'shellRaining/hlchunk.nvim'
+# hook_add = '''
+# lua <<EOF
+# require('hlchunk').setup({})
+# EOF
+# '''
 
 # syntax highlight
 [[plugins]]
