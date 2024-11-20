@@ -27,15 +27,13 @@ repo = 'gorodinskiy/vim-coloresque'
 repo = 'ntpeters/vim-better-whitespace'
 
 # indent
-# not working
-# [[plugins]]
-# repo = 'lukas-reineke/indent-blankline.nvim'
-# on_lua = "ibl"
-# hook_add = '''
-# lua <<EOF
-# require("ibl").setup()
-# EOF
-# '''
+[[plugins]]
+repo = 'shellRaining/hlchunk.nvim'
+hook_add = '''
+lua <<EOF
+require('hlchunk').setup({})
+EOF
+'''
 
 # syntax highlight
 [[plugins]]
