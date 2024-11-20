@@ -7,10 +7,11 @@ let g:polyglot_disabled=['elm']
 
 # toggle comments
 [[plugins]]
-repo = 'tyru/caw.vim.git'
+repo = 'numToStr/Comment.nvim'
 hook_add = '''
-nnoremap <C-c> <Plug>(caw:hatpos:toggle)
-vnoremap <C-c> <Plug>(caw:hatpos:toggle)
+lua << EOF
+require('Comment').setup()
+EOF
 '''
 
 # change operator by s+a/d/r
