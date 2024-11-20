@@ -45,7 +45,7 @@ do = '''
 '''
 hook_add = '''
 lua <<EOF
-require'nvim-treesitter.configs'.setup {
+require('nvim-treesitter.configs').setup {
   ensure_installed = { "go", "typescript", "javascript", "dart", "ruby", "proto", "yaml", "json", "bash", "html", "css", "make", "vim", "lua" },
   sync_install = false,
   highlight = {
@@ -61,7 +61,7 @@ EOF
 repo = 'nvim-treesitter/nvim-treesitter-context'
 hook_add = '''
 lua <<EOF
-require'treesitter-context'.setup{
+require('treesitter-context').setup{
   enable = true,
 }
 EOF
