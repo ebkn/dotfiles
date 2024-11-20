@@ -80,5 +80,6 @@
     "sdktrace", "otel", "algoliasync", "semconv", "txro", "unnest", "ptrs", "uids", "oneof", "grpcserver", "mcache",
     "yorodb", "daos", "bufls", "grammarly", "noselect", "gocognit", "paralleltest", "contextcheck", "struct", "twilio", "paypay"
   ],
-  "clangd.path": "~/.config/coc/extensions/coc-clangd-data/install/14.0.3/clangd_14.0.3/bin/clangd"
+  "clangd.path": "~/.config/coc/extensions/coc-clangd-data/install/14.0.3/clangd_14.0.3/bin/clangd",
+  "snippets.ultisnips.pythonPrompt": false
 }
