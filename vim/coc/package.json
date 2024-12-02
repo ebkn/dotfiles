@@ -3,7 +3,7 @@
     "coc-clangd": ">=0.27.0",
     "coc-css": ">=2.0.0",
     "coc-diagnostic": ">=0.23.7",
-    "coc-eslint": ">=1.6.0",
+    "coc-eslint": ">=1.7.0",
     "coc-flutter": ">=1.9.9",
     "coc-git": ">=2.6.0",
     "coc-go": ">=1.3.33",
@@ -13,7 +13,6 @@
     "coc-lists": ">=1.5.0",
     "coc-markdownlint": ">=1.26.0",
     "coc-omnisharp": ">=0.0.28",
-    "coc-prettier": ">=9.3.2",
     "coc-rls": ">=1.1.6",
     "coc-rust-analyzer": ">=0.71.0",
     "coc-sh": ">=0.7.0",
@@ -30,5 +29,5 @@
   },
   "disabled": [],
   "locked": [],
-  "lastUpdate": 1732063488453
+  "lastUpdate": 1733127420354
 }

@@ -5,8 +5,7 @@
     "css",
     "Markdown",
     "go",
-    "terraform", "tf",
-    "javascript", "typescript", "typescript.tsx"
+    "terraform", "tf"
   ],
   "languageserver": {
     "dockerfile": {
@@ -56,7 +55,7 @@
     }
   },
   "eslint.run": "onSave",
-  "eslint.autoFixOnSave": true,
+  "eslint.autoFixOnSave": false,
   "ruff.autoFixOnSave": true,
   "snippets.extends": {
     "javascriptreact": ["javascript"],
