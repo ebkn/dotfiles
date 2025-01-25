@@ -1,0 +1,10 @@
+font-family = "Roboto Mono"
+font-style = "DemiBold"
+font-family = "Hiragino Kaku Gothic ProN"
+font-family = "Apple Color Emoji"
+font-size = 12.5
+
+theme = "MaterialDesignColors"
+
+auto-update = "check"
+auto-update-channel = "stable"
