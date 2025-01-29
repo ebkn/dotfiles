@@ -1,6 +1,21 @@
 // Place your key bindings in this file to override the defaults
 [
   {
+    "key": "ctrl+f",
+    "command": "workbench.action.quickOpen",
+    "when": "(!editorFocus || editorTextFocus && vim.mode == 'Normal') && !terminalFocus"
+  },
+  {
+    "key": "ctrl+f",
+    "command": "-extension.vim_ctrl+f",
+    "when": "editorTextFocus && vim.active && vim.use<C-f> && !inDebugRepl && vim.mode != 'Insert'"
+  },
+  {
+    "key": "ctrl+f",
+    "command": "-cursorRight",
+    "when": "textInputFocus"
+  },
+  {
     "key": "s v",
     "command": "workbench.action.splitEditor",
     "when": "editorTextFocus && vim.mode == 'Normal'"
