@@ -10,7 +10,6 @@
     },
     "cursor.aipreview.enabled": true,
     "cursor.cmdk.useThemedDiffBackground": true,
-    "vim.enableNeovim": true,
     "editor.copyWithSyntaxHighlighting": false,
     "editor.guides.highlightActiveBracketPair": false,
     "editor.foldingHighlight": false,
