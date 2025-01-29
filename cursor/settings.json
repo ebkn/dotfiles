@@ -30,5 +30,6 @@
     "notebook.insertFinalNewline": true,
     "files.insertFinalNewline": true,
     "files.trimFinalNewlines": true,
-    "workbench.colorTheme": "One Dark Pro Darker"
+    "workbench.colorTheme": "One Dark Pro Darker",
+    "oneDarkPro.bold": true
 }
