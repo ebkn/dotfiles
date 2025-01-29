@@ -82,6 +82,8 @@ ln -s ~/dotfiles/vim/nvim ~/.config/nvim
 ln -s ~/dotfiles/vim/.vim/* ~/.config/nvim/
 ln -s ~/dotfiles/vim/.vim ~/.vim
 ln -s ~/dotfiles/vim/coc/package.json ~/.config/coc/extensions/
+ln -s ~/dotfiles/cursor/keybindings.json ~/Library/Application\ Support/Cursor/User/keybindings.json
+ln -s ~/dotfiles/cursor/settings.json ~/Library/Application\ Support/Cursor/User/settings.json
 
 sudo ln -s /usr/local/share/git-core/contrib/diff-highlight/diff-highlight /usr/local/bin/diff-highlight
 
