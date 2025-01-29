@@ -30,5 +30,6 @@
     "editor.quickSuggestionsDelay": 300,
     "notebook.insertFinalNewline": true,
     "files.insertFinalNewline": true,
-    "files.trimFinalNewlines": true
+    "files.trimFinalNewlines": true,
+    "workbench.colorTheme": "One Dark Pro Darker"
 }
