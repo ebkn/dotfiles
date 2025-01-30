@@ -3,12 +3,16 @@
   {
     "key": "ctrl+f",
     "command": "workbench.action.quickOpen",
-    "when": "(!editorFocus || editorTextFocus && neovim.mode == 'Normal') && !terminalFocus"
+    "when": "!editorFocus && !terminalFocus"
   },
   {
     "key": "ctrl+f",
-    "command": "-cursorRight",
-    "when": "(!editorFocus || editorTextFocus && neovim.mode == 'Normal') && !terminalFocus"
+    "command": "workbench.action.quickOpen",
+    "when": "editorTextFocus && neovim.mode == 'Normal'"
+  },
+  {
+    "key": "ctrl+f",
+    "command": "-editor.action.pageDownHover"
   },
   {
     "key": "s v",
