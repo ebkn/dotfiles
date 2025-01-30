@@ -15,7 +15,6 @@
     "editor.foldingHighlight": false,
     "editor.renderLineHighlight": "none",
     "editor.renderLineHighlightOnlyWhenFocus": true,
-    "editor.bracketPairColorization.enabled": false,
     "editor.guides.highlightActiveIndentation": false,
     "editor.occurrencesHighlight": "off",
     "editor.unicodeHighlight.includeStrings": false,
@@ -31,5 +30,17 @@
     "files.insertFinalNewline": true,
     "files.trimFinalNewlines": true,
     "workbench.colorTheme": "One Dark Pro Darker",
-    "oneDarkPro.bold": true
+    "oneDarkPro.bold": true,
+    "editor.multiCursorLimit": 1000,
+    "editor.cursorBlinking": "solid",
+    "terminal.integrated.cursorStyle": "line",
+    "editor.folding": false,
+    "editor.suggest.showFolders": false,
+    "editor.selectionHighlight": false,
+    "editor.matchBrackets": "near",
+    "editor.bracketPairColorization.enabled": false,
+    "editor.formatOnSave": true,
+    "extensions.experimental.affinity": {
+        "asvetliakov.vscode-neovim": 1
+    }
 }
