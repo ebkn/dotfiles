@@ -23,6 +23,32 @@
     "command": "-vscode-neovim.send"
   },
   {
+    "key": "ctrl+g",
+    "command": "workbench.action.findInFiles",
+    "when": "!editorFocus && !terminalFocus"
+  },
+  {
+    "key": "ctrl+g",
+    "command": "workbench.action.findInFiles",
+    "when": "editorTextFocus && neovim.mode == 'normal'"
+  },
+  {
+    "key": "ctrl+g",
+    "command": "-workbench.action.gotoLine"
+  },
+  {
+    "key": "ctrl+g",
+    "command": "-vscode-neovim.send"
+  },
+  {
+    "key": "ctrl+g",
+    "command": "-vscode-neovim.send-cmdline"
+  },
+  {
+    "key": "ctrl+g",
+    "command": "-vscode-neovim.send"
+  },
+  {
     "key": "s v",
     "command": "workbench.action.splitEditor",
     "when": "editorTextFocus && neovim.mode == 'normal'"
