@@ -8,75 +8,87 @@
   {
     "key": "ctrl+f",
     "command": "workbench.action.quickOpen",
-    "when": "editorTextFocus && neovim.mode == 'Normal'"
+    "when": "editorTextFocus && neovim.mode == 'normal'"
   },
   {
     "key": "ctrl+f",
     "command": "-editor.action.pageDownHover"
   },
   {
+    "key": "ctrl+f",
+    "command": "-vscode-neovim.ctrl-f"
+  },
+  {
+    "key": "ctrl+f",
+    "command": "-vscode-neovim.send"
+  },
+  {
     "key": "s v",
     "command": "workbench.action.splitEditor",
-    "when": "editorTextFocus && neovim.mode == 'Normal'"
+    "when": "editorTextFocus && neovim.mode == 'normal'"
   },
   {
     "key": "s s",
     "command": "workbench.action.splitEditorDown",
-    "when": "editorTextFocus && neovim.mode == 'Normal'"
+    "when": "editorTextFocus && neovim.mode == 'normal'"
   },
   {
     "key": "s q",
     "command": "workbench.action.closeActiveEditor",
-    "when": "editorTextFocus && neovim.mode == 'Normal'"
+    "when": "editorTextFocus && neovim.mode == 'normal'"
   },
   {
     "key": "s k",
     "command": "workbench.action.focusAboveGroup",
-    "when": "editorTextFocus && neovim.mode == 'Normal'"
+    "when": "editorTextFocus && neovim.mode == 'normal'"
   },
   {
     "key": "s j",
     "command": "workbench.action.focusBelowGroup",
-    "when": "editorTextFocus && neovim.mode == 'Normal'"
+    "when": "editorTextFocus && neovim.mode == 'normal'"
   },
   {
     "key": "s h",
     "command": "workbench.action.focusLeftGroup",
-    "when": "editorTextFocus && neovim.mode == 'Normal'"
+    "when": "editorTextFocus && neovim.mode == 'normal'"
   },
   {
     "key": "s l",
     "command": "workbench.action.focusRightGroup",
-    "when": "editorTextFocus && neovim.mode == 'Normal'"
+    "when": "editorTextFocus && neovim.mode == 'normal'"
+  },
+  {
+    "key": "ctrl+f",
+    "command": "-cursorRight"
   },
   {
     "key": "ctrl+f",
     "command": "cursorRight",
-    "when": "editorTextFocus && neovim.mode == 'Insert'"
+    "when": "editorTextFocus && neovim.mode == 'insert'"
   },
   {
     "key": "ctrl+b",
     "command": "cursorLeft",
-    "when": "editorTextFocus && neovim.mode == 'Insert'"
+    "when": "editorTextFocus && neovim.mode == 'insert'"
   },
   {
     "key": "ctrl+n",
     "command": "cursorBottom",
-    "when": "editorTextFocus && neovim.mode == 'Insert'"
+    "when": "editorTextFocus && neovim.mode == 'insert'"
   },
   {
     "key": "ctrl+p",
     "command": "cursorTop",
-    "when": "editorTextFocus && neovim.mode == 'Insert'"
+    "when": "editorTextFocus && neovim.mode == 'insert'"
   },
   {
     "key": "ctrl+a",
     "command": "cursorLineStart",
-    "when": "editorTextFocus && neovim.mode == 'Insert'"
+    "when": "editorTextFocus && neovim.mode == 'insert'"
   },
   {
     "key": "ctrl+e",
     "command": "cursorEnd",
-    "when": "editorTextFocus && neovim.mode == 'Insert'"
+    "when": "editorTextFocus && neovim.mode == 'insert'"
   }
 ]
