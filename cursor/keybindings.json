@@ -116,5 +116,10 @@
     "key": "ctrl+e",
     "command": "cursorEnd",
     "when": "editorTextFocus && neovim.mode == 'insert'"
+  },
+  {
+    "key": "ctrl+c",
+    "command": "editor.action.commentLine",
+    "when": "editorTextFocus && !editorReadonly"
   }
 ]
