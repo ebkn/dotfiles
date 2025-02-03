@@ -123,7 +123,7 @@
     "when": "editorTextFocus && !editorReadonly"
   },
   {
-    "key": "ctrl+t",
+    "key": "ctrl+s",
     "command": "workbench.action.toggleSidebarVisibility"
   },
   {
@@ -133,5 +133,15 @@
   {
     "key": "cmd+0",
     "command": "-workbench.action.focusSideBar"
+  },
+  {
+    "key": "ctrl+t",
+    "command": "workbench.action.terminal.toggleTerminal",
+    "when": "terminal.active"
+  },
+  {
+    "key": "ctrl+`",
+    "command": "-workbench.action.terminal.toggleTerminal",
+    "when": "terminal.active"
   }
 ]
