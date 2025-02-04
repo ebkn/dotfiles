@@ -43,5 +43,6 @@
   "extensions.experimental.affinity": {
     "asvetliakov.vscode-neovim": 1
   },
-  "makefile.configureOnOpen": true
+  "makefile.configureOnOpen": true,
+  "extensions.ignoreRecommendations": true
 }
