@@ -185,5 +185,19 @@
     "key": "ctrl+tab",
     "command": "-workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup",
     "when": "!activeEditorGroupEmpty"
+  },
+  {
+    "key": "r n",
+    "command": "editor.action.rename",
+    "when": "editorHasRenameProvider && editorTextFocus && neovim.mode == 'normal'"
+  },
+  {
+    "key": "f2",
+    "command": "-editor.action.rename"
+  },
+  {
+    "key": "ctrl+o",
+    "command": "-lineBreakInsert",
+    "when": "textInputFocus && !editorReadonly"
   }
 ]
