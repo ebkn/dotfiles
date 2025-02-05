@@ -58,5 +58,6 @@
   "cursor.chat.terminalShowHoverHint": false,
   "editor.scrollbar.verticalScrollbarSize": 8,
   "editor.scrollbar.horizontalScrollbarSize": 8,
-  "editor.fontSize": 12.5
+  "editor.fontSize": 12.5,
+  "vim.useSystemClipboard": true
 }
