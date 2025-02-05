@@ -47,5 +47,6 @@
   "extensions.ignoreRecommendations": true,
   "workbench.editor.labelFormat": "short",
   "notebook.globalToolbarShowLabel": "dynamic",
-  "breadcrumbs.symbolPath": "off"
+  "breadcrumbs.symbolPath": "off",
+  "window.customTitleBarVisibility": "windowed"
 }
