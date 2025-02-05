@@ -60,5 +60,25 @@
   "editor.scrollbar.horizontalScrollbarSize": 8,
   "vim.useSystemClipboard": true,
   "terminal.integrated.lineHeight": 1.2,
-  "terminal.integrated.fontSize": 13
+  "terminal.integrated.fontSize": 13,
+  "vim.normalModeKeyBindingsNonRecursive": [
+    {
+      "before": ["j"],
+      "after": ["g", "j"]
+    },
+    {
+      "before": ["k"],
+      "after": ["g", "k"]
+    }
+  ],
+  "vim.visualModeKeyBindingsNonRecursive": [
+    {
+      "before": ["j"],
+      "after": ["g", "j"]
+    },
+    {
+      "before": ["k"],
+      "after": ["g", "k"]
+    }
+  ]
 }
