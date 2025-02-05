@@ -44,5 +44,8 @@
     "asvetliakov.vscode-neovim": 1
   },
   "makefile.configureOnOpen": true,
-  "extensions.ignoreRecommendations": true
+  "extensions.ignoreRecommendations": true,
+  "workbench.editor.labelFormat": "short",
+  "notebook.globalToolbarShowLabel": "dynamic",
+  "breadcrumbs.symbolPath": "off"
 }
