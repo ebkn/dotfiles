@@ -259,5 +259,15 @@
   {
     "key": "cmd+f12",
     "command": "-editor.action.goToImplementation"
+  },
+  {
+    "key": "g g",
+    "command": "cursorTop",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "shift+g",
+    "command": "cursorBottom",
+    "when": "textInputFocus"
   }
 ]
