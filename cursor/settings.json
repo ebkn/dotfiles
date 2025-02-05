@@ -80,5 +80,6 @@
       "before": ["k"],
       "after": ["g", "k"]
     }
-  ]
+  ],
+  "vim.whichwrap": "b,s,h,l,<,>,[,],~"
 }
