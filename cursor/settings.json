@@ -48,5 +48,11 @@
   "workbench.editor.labelFormat": "short",
   "notebook.globalToolbarShowLabel": "dynamic",
   "breadcrumbs.symbolPath": "off",
-  "window.customTitleBarVisibility": "windowed"
+  "window.customTitleBarVisibility": "windowed",
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
 }
