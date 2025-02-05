@@ -2,7 +2,7 @@
   "window.newWindowProfile": "Default",
   "files.autoSave": "afterDelay",
   "editor.tabSize": 2,
-  "editor.fontFamily": "Roboto Mono",
+  "editor.fontFamily": "Roboto Mono DemiBold",
   "editor.renderWhitespace": "trailing",
   "editor.wordWrap": "on",
   "files.exclude": {
@@ -57,5 +57,6 @@
   },
   "cursor.chat.terminalShowHoverHint": false,
   "editor.scrollbar.verticalScrollbarSize": 8,
-  "editor.scrollbar.horizontalScrollbarSize": 8
+  "editor.scrollbar.horizontalScrollbarSize": 8,
+  "editor.fontSize": 12.5
 }
