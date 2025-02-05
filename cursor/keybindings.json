@@ -99,12 +99,12 @@
   },
   {
     "key": "ctrl+n",
-    "command": "cursorBottom",
+    "command": "cursorDown",
     "when": "editorTextFocus && vim.mode == 'Insert'"
   },
   {
     "key": "ctrl+p",
-    "command": "cursorTop",
+    "command": "cursorUp",
     "when": "editorTextFocus && vim.mode == 'Insert'"
   },
   {
