@@ -263,11 +263,11 @@
   {
     "key": "g g",
     "command": "cursorTop",
-    "when": "textInputFocus"
+    "when": "editorTextFocus && vim.mode == 'Normal'"
   },
   {
     "key": "shift+g",
     "command": "cursorBottom",
-    "when": "textInputFocus"
+    "when": "editorTextFocus && vim.mode == 'Normal'"
   }
 ]
