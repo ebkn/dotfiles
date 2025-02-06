@@ -155,7 +155,7 @@
     "when": "terminal.active"
   },
   {
-    "key": "cmd+t",
+    "key": "ctrl+q v",
     "command": "workbench.action.terminal.split",
     "when": "terminalFocus && terminalProcessSupported || terminalFocus && terminalWebExtensionContributedProfile"
   },
@@ -227,7 +227,7 @@
   {
     "key": "g r",
     "command": "editor.action.goToReferences",
-    "when": "editorHasReferenceProvider && editorTextFocus && !inReferenceSearchEditor && !isInEmbeddedEditor"
+    "when": "editorHasReferenceProvider && editorTextFocus && !inReferenceSearchEditor && !isInEmbeddedEditor && editorTextFocus && vim.mode == 'Normal'"
   },
   {
     "key": "shift+f12",
@@ -236,16 +236,11 @@
   {
     "key": "g d",
     "command": "editor.action.revealDefinition",
-    "when": "editorHasDefinitionProvider && editorTextFocus"
+    "when": "editorHasDefinitionProvider && editorTextFocus && vim.mode == 'Normal'"
   },
   {
     "key": "f12",
     "command": "-editor.action.revealDefinition"
-  },
-  {
-    "key": "g d",
-    "command": "editor.action.revealDefinition",
-    "when": "editorHasDefinitionProvider && editorTextFocus && isWeb"
   },
   {
     "key": "cmd+f12",
@@ -254,7 +249,7 @@
   {
     "key": "g i",
     "command": "editor.action.goToImplementation",
-    "when": "editorHasImplementationProvider && editorTextFocus"
+    "when": "editorHasImplementationProvider && editorTextFocus && editorTextFocus && vim.mode == 'Normal'"
   },
   {
     "key": "cmd+f12",
@@ -269,5 +264,62 @@
     "key": "shift+g",
     "command": "cursorBottom",
     "when": "editorTextFocus && vim.mode == 'Normal'"
+  },
+  {
+    "key": "ctrl+q h",
+    "command": "workbench.action.terminal.focusPrevious",
+    "when": "terminalFocus && terminalHasBeenCreated && !terminalEditorFocus || terminalFocus && terminalProcessSupported && !terminalEditorFocus"
+  },
+  {
+    "key": "shift+cmd+[",
+    "command": "-workbench.action.terminal.focusPrevious"
+  },
+  {
+    "key": "ctrl+q l",
+    "command": "workbench.action.terminal.focusNext",
+    "when": "terminalFocus && terminalHasBeenCreated && !terminalEditorFocus || terminalFocus && terminalProcessSupported && !terminalEditorFocus"
+  },
+  {
+    "key": "shift+cmd+]",
+    "command": "-workbench.action.terminal.focusNext"
+  },
+  {
+    "key": "ctrl+q l",
+    "command": "workbench.action.terminal.focusNextPane",
+    "when": "terminalFocus && terminalHasBeenCreated || terminalFocus && terminalProcessSupported"
+  },
+  {
+    "key": "alt+cmd+down",
+    "command": "-workbench.action.terminal.focusNextPane"
+  },
+  {
+    "key": "ctrl+q h",
+    "command": "workbench.action.terminal.focusPreviousPane",
+    "when": "terminalFocus && terminalHasBeenCreated || terminalFocus && terminalProcessSupported"
+  },
+  {
+    "key": "alt+cmd+up",
+    "command": "-workbench.action.terminal.focusPreviousPane"
+  },
+  {
+    "key": "ctrl+shift+5",
+    "command": "-workbench.action.terminal.split"
+  },
+  {
+    "key": "delete",
+    "command": "-workbench.action.terminal.killActiveTab"
+  },
+  {
+    "key": "cmd+w",
+    "command": "-workbench.action.terminal.killEditor"
+  },
+  {
+    "key": "ctrl+q q",
+    "command": "workbench.action.terminal.kill"
+  },
+  {
+    "key": "cmd+w",
+    "command": "workbench.action.closeActiveEditor",
+    "when": "!terminalFocus"
   }
 ]
