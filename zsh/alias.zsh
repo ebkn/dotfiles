@@ -143,6 +143,7 @@ case `uname` in
       npm i --location=global markdownlint-cli
       npm i --location=global textlint
       npm i --location=global git-delete-squashed
+      npm i --location=global @modelcontextprotocol/server-brave-search
       gcloud components update --quiet
     }
   ;;
