@@ -321,5 +321,31 @@
     "key": "cmd+w",
     "command": "workbench.action.closeActiveEditor",
     "when": "!terminalFocus"
+  },
+  {
+    "key": "shift+n",
+    "command": "explorer.newFile"
+  },
+  {
+    "key": "shift+d",
+    "command": "deleteFile",
+    "when": "filesExplorerFocus && foldersViewVisible && !explorerResourceReadonly && !inputFocus && !treeFindOpen"
+  },
+  {
+    "key": "alt+cmd+backspace",
+    "command": "-deleteFile"
+  },
+  {
+    "key": "cmd+backspace",
+    "command": "-deleteFile"
+  },
+  {
+    "key": "m",
+    "command": "renameFile",
+    "when": "filesExplorerFocus && foldersViewVisible && !explorerResourceIsRoot && !explorerResourceReadonly && !inputFocus"
+  },
+  {
+    "key": "enter",
+    "command": "-renameFile"
   }
 ]
