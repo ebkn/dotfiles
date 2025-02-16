@@ -81,5 +81,8 @@
       "after": ["g", "k"]
     }
   ],
-  "vim.whichwrap": "b,s,h,l,<,>,[,],~"
+  "vim.whichwrap": "b,s,h,l,<,>,[,],~",
+  "go.useLanguageServer": true,
+  "go.formatTool": "gofumpt",
+  "files.autoSaveWhenNoErrors": true
 }
