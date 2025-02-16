@@ -348,5 +348,10 @@
   {
     "key": "enter",
     "command": "-renameFile"
+  },
+  {
+    "key": "ctrl+o",
+    "command": "-lineBreakInsert",
+    "when": "textInputFocus && !editorReadonly"
   }
 ]
