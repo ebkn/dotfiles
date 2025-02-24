@@ -86,6 +86,7 @@
   "go.formatTool": "gofumpt",
   "files.autoSaveWhenNoErrors": true,
   "editor.codeActionsOnSave": {
-    "source.removeUnusedImports": true
-  }
+    "source.removeUnusedImports": "explicit"
+  },
+  "go.toolsManagement.autoUpdate": true
 }
