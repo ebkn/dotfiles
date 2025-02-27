@@ -88,5 +88,6 @@
   "editor.codeActionsOnSave": {
     "source.removeUnusedImports": "explicit"
   },
-  "go.toolsManagement.autoUpdate": true
+  "go.toolsManagement.autoUpdate": true,
+  "cloudcode.duetAI.project": ""
 }
