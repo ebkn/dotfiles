@@ -89,5 +89,5 @@
     "source.removeUnusedImports": "explicit"
   },
   "go.toolsManagement.autoUpdate": true,
-  "cloudcode.duetAI.project": ""
+  "geminicodeassist.project": ""
 }
