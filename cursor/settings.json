@@ -89,5 +89,6 @@
     "source.removeUnusedImports": "explicit"
   },
   "go.toolsManagement.autoUpdate": true,
-  "geminicodeassist.project": ""
+  "geminicodeassist.project": "",
+  "prettier.trailingComma": "all"
 }
