@@ -90,5 +90,7 @@
   },
   "go.toolsManagement.autoUpdate": true,
   "geminicodeassist.project": "",
-  "prettier.trailingComma": "all"
+  "prettier.trailingComma": "all",
+  "terminal.integrated.scrollback": 10000000,
+  "terminal.integrated.persistentSessionScrollback": 10000000
 }
