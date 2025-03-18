@@ -19,3 +19,6 @@ export PATH="/opt/homebrew/bin:$PATH"
 export PATH="$PATH:/usr/local/sbin"
 
 source /Users/kenichiebinuma/.docker/init-bash.sh || true # Added by Docker Desktop
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/kenichiebinuma/.cache/lm-studio/bin"

@@ -36,3 +36,6 @@ setopt nonomatch
 #   zprof | less
 # fi
 ####################################
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/kenichiebinuma/.cache/lm-studio/bin"
