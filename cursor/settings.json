@@ -94,5 +94,9 @@
   "terminal.integrated.scrollback": 10000000,
   "terminal.integrated.persistentSessionScrollback": 10000000,
   "explorer.confirmDragAndDrop": false,
-  "typescript.updateImportsOnFileMove.enabled": "always"
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "cursor.diffs.useCharacterLevelDiffs": true,
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  }
 }
