@@ -22,6 +22,8 @@ case `uname` in
     MANPATH="$PATH:$NVM_DIR/$NODE_DEFAULT/share/man"
     NODE_PATH=$NVM_DIR/$NODE_DEFAULT/lib/node_modules
     export NODE_PATH=${NODE_PATH:A}
+    export VOLTA_HOME="$HOME/.volta"
+    export PATH="$VOLTA_HOME/bin:$PATH"
 
     # VScode
     export PATH="$PATH:/usr/local/bin/code"
@@ -85,6 +87,9 @@ case `uname` in
     # Python
     # Rye
     export PATH="$PATH:$HOME/.rye/shims"
+
+    # LM Studio CLI (lms)
+    export PATH="$PATH:/Users/kenichiebinuma/.cache/lm-studio/bin"
   ;;
 
   "Linux" )

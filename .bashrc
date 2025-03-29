@@ -18,6 +18,3 @@ alias l='ls -lahG'
 alias python='python3'
 
 source /Users/kenichiebinuma/.docker/init-bash.sh || true # Added by Docker Desktop
-
-# Added by LM Studio CLI (lms)
-export PATH="$PATH:/Users/kenichiebinuma/.cache/lm-studio/bin"
