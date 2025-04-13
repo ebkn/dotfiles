@@ -98,5 +98,8 @@
   "cursor.diffs.useCharacterLevelDiffs": true,
   "[json]": {
     "editor.defaultFormatter": "vscode.json-language-features"
-  }
+  },
+  "explorer.confirmDelete": false,
+  "cursor.composer.shouldChimeAfterChatFinishes": true,
+  "cursor.cpp.enablePartialAccepts": true
 }
