@@ -86,7 +86,8 @@
   "go.formatTool": "gofumpt",
   "files.autoSaveWhenNoErrors": true,
   "editor.codeActionsOnSave": {
-    "source.removeUnusedImports": "explicit"
+    "source.removeUnusedImports": "explicit",
+    "source.organizeImports.biome": "explicit"
   },
   "go.toolsManagement.autoUpdate": true,
   "geminicodeassist.project": "",
