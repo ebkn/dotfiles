@@ -105,7 +105,6 @@ case `uname` in
     }
 
     alias xcode='open -a xcode .'
-    alias md='open -a Typora'
 
     function f() {
       if [ -z "$1" ]; then
