@@ -144,6 +144,8 @@ case `uname` in
       npm i --location=global textlint
       npm i --location=global git-delete-squashed
       npm i --location=global @modelcontextprotocol/server-brave-search
+      npm i --location=global yarn
+      npm i --location=global corepack # for yarn
       gcloud components update --quiet
     }
   ;;
