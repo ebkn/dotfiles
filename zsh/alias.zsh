@@ -44,6 +44,8 @@ alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|volumes" -N -
 alias rm='trash'
 
 # git
+alias gti='git' # typo
+alias got='git' # typo
 alias ga='git add'
 alias gap='git add -p'
 alias gbr='git branch --all --format="%(HEAD) %(color:yellow)%(refname:short)%(color:reset) - %(contents:subject) %(color:green)(%(committerdate:relative)) [%(authorname)]" --sort=-committerdate'
@@ -54,6 +56,7 @@ alias gd='git diff --word-diff-regex="\w+"'
 alias gf='git fetch'
 alias current_branch='git rev-parse --abbrev-ref HEAD'
 alias gsc='git switch -c'
+alias gw='git worktree add -b'
 alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD` --recurse-submodules'
 alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
 alias gpushf='git push origin `git rev-parse --abbrev-ref HEAD` --force-with-lease'
