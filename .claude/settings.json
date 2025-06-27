@@ -24,9 +24,7 @@
       "Grep(**)",
       "Glob(**)",
       "LS(**)",
-      "WebSearch(*)",
-      "READ(../docs/)",
-      "READ(../biome.json)"
+      "WebSearch(*)"
     ],
     "deny": [
       "Bash(rm -rf /)",
