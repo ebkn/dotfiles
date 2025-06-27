@@ -84,6 +84,9 @@ ln -s ~/dotfiles/vim/.vim ~/.vim
 ln -s ~/dotfiles/vim/coc/package.json ~/.config/coc/extensions/
 ln -s ~/dotfiles/cursor/keybindings.json ~/Library/Application\ Support/Cursor/User/keybindings.json
 ln -s ~/dotfiles/cursor/settings.json ~/Library/Application\ Support/Cursor/User/settings.json
+mkdir -p ~/.claude
+[ -f ~/.claude/settings.json ] && mv ~/.claude/settings.json ~/backup/
+ln -s ~/dotfiles/.claude/settings.json ~/.claude/settings.json
 
 sudo ln -s /usr/local/share/git-core/contrib/diff-highlight/diff-highlight /usr/local/bin/diff-highlight
 
