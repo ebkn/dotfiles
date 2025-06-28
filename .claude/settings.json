@@ -24,7 +24,13 @@
       "Grep(**)",
       "Glob(**)",
       "LS(**)",
-      "WebSearch(*)"
+      "Read(**)",
+			"Edit(**)",
+			"Write(**)",
+			"MultiEdit(**)",
+      "WebSearch(*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:stackoverflow.com)"
     ],
     "deny": [
       "Bash(rm -rf /)",
@@ -96,5 +102,6 @@
       "Write(/etc/sudoers)"
     ]
   },
-  "preferredNotifChannel": "terminal_bell"
+  "preferredNotifChannel": "terminal_bell",
+  "theme": "dark"
 }
