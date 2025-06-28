@@ -23,6 +23,12 @@ nnoremap sv :<C-u>vsplit<CR>
 " close window
 nnoremap sq :<C-u>q<CR>
 
+" resize window (with larger steps)
+nnoremap s+ <C-w>10+
+nnoremap s- <C-w>10-
+nnoremap s> <C-w>10>
+nnoremap s< <C-w>10<
+nnoremap s= <C-w>=
 
 "--- insert mode ---
 " emacs basic keybind
