@@ -2,7 +2,6 @@
 set encoding=utf-8
 scriptencoding utf-8
 set fileencoding=utf-8
-set termencoding=utf-8
 set fileencodings=utf-8,ucs-boms,euc-jp,ep932
 set fileformats=unix,dos,mac
 
