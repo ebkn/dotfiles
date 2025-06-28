@@ -44,9 +44,6 @@ function! s:show_documentation()
   endif
 endfunction
 
-" You will have bad experience for diagnostic messages when it's default 4000.
-set updatetime=300
-
 " Prettier command
 command! -nargs=0  Prettier :CocCommand prettier.forceFormatDocument
 

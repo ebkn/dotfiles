@@ -14,8 +14,22 @@ set pyxversion=3
 " set lazyredraw " stop redraw while executing some commands
 set ttyfast    " enable fast terminal connection
 
-set autoread   " automatically read file changes
 set hidden     " allow to open other files
+
+" auto-reload files when changed externally
+set autoread   " automatically read file changes
+augroup auto_read
+  autocmd!
+  autocmd FocusGained,BufEnter,CursorHold,CursorHoldI * if mode() !~ '\v(c|r.?|!|t)' && getcmdwintype() == '' | checktime | endif
+augroup END
+set updatetime=100
+" auto-reload even without focus (using timer)
+if has('timers')
+  function! AutoChecktime(timer)
+    checktime
+  endfunction
+  let g:auto_checktime_timer = timer_start(1000, 'AutoChecktime', {'repeat': -1})
+endif
 
 " not create unnecessary files
 set nobackup
