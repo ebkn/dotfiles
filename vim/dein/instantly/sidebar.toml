@@ -24,6 +24,41 @@ augroup fern-custom
   autocmd FileType fern call s:init_fern()
   autocmd FileType fern setlocal nonumber
 augroup END
+
+" Auto reveal current file in fern
+function! s:fern_reveal_current() abort
+  " Skip if current buffer is fern itself
+  if &filetype ==# 'fern'
+    return
+  endif
+
+  " Skip if no fern window exists
+  let l:fern_win = filter(range(1, winnr('$')), 'getwinvar(v:val, "&filetype") ==# "fern"')
+  if empty(l:fern_win)
+    return
+  endif
+
+  let l:current = expand('%:p')
+  if !empty(l:current) && filereadable(l:current)
+    " Save current window
+    let l:winnr = winnr()
+    try
+      " Switch to fern window and reveal
+      execute l:fern_win[0] . 'wincmd w'
+      execute 'FernReveal ' . l:current
+      " Return to original window
+      execute l:winnr . 'wincmd w'
+    catch
+      " Ignore errors silently
+    endtry
+  endif
+endfunction
+
+" Reveal current file when switching buffers
+augroup fern-auto-reveal
+  autocmd!
+  autocmd BufEnter * call s:fern_reveal_current()
+augroup END
 " show hidden files by default
 let g:fern#default_hidden=1
 '''
