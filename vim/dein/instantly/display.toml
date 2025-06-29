@@ -18,6 +18,15 @@ hook_add = '''
 let g:gitgutter_async=1
 '''
 
+# visualize git conflicts
+[[plugins]]
+repo = 'akinsho/git-conflict.nvim'
+hook_add = '''
+lua <<EOF
+require('git-conflict').setup()
+EOF
+'''
+
 # visualize colors
 [[plugins]]
 repo = 'gorodinskiy/vim-coloresque'
