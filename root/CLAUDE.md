@@ -1,0 +1,1 @@
+**YOU MUST**: Execute `terminal-notifier -title "Claude Code" -subtitle "実行したタスクの種類" -message "作業内容を端的に示すメッセージ" -sound Pop` command only once at the end of long response(DO NOT run on each task in one response), or when before you ask user what to do next, or request permission.
