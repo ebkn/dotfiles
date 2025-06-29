@@ -16,9 +16,9 @@ export FZF_DEFAULT_COMMAND="rg --files --hidden --smart-case --glob='!.git/*'"
 setopt print_exit_value
 
 # no peep (except general beep for notifications)
+unsetopt BEEP
 setopt no_hist_beep
 setopt no_list_beep
-trap 'setopt NO_BEEP' EXIT # disable beep on exit
 
 # warning before delete
 setopt rm_star_wait
