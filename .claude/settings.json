@@ -22,6 +22,7 @@
       "Bash(rg:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
+      "Bash(terminal-notifier:*)",
       "Grep(**)",
       "Glob(**)",
       "LS(**)",
