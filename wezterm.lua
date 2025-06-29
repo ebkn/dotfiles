@@ -28,6 +28,15 @@ return {
   force_reverse_video_cursor = true,
 
   audible_bell = "SystemBeep",
+  visual_bell = {
+    fade_in_function = 'EaseIn',
+    fade_in_duration_ms = 150,
+    fade_out_function = 'EaseOut',
+    fade_out_duration_ms = 150,
+  },
+  colors = {
+    visual_bell = '#202020',
+  },
 
   -- https://github.com/wez/wezterm/issues/2630
   leader = { key = 'q', mods = 'CTRL', timeout_milliseconds = 1000 },
