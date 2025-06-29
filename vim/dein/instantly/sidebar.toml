@@ -56,6 +56,22 @@ function! s:fern_reveal_current() abort
   endif
 endfunction
 
+" Store git status hash to detect changes
+let g:fern_git_status_cache = {}
+
+" Get git status hash for current directory
+function! s:get_git_status_hash() abort
+  let l:cwd = getcwd()
+  try
+    let l:status = system('git status --porcelain 2>/dev/null')
+    if v:shell_error == 0
+      return l:cwd . ':' . sha256(l:status)
+    endif
+  catch
+  endtry
+  return l:cwd . ':none'
+endfunction
+
 " Auto reload fern when files are created/deleted
 function! s:fern_reload() abort
   " Skip if current buffer is fern (to avoid flicker)
@@ -68,6 +84,15 @@ function! s:fern_reload() abort
   if empty(l:fern_bufnr)
     return
   endif
+
+  " Check if git status actually changed
+  let l:current_hash = s:get_git_status_hash()
+  let l:cwd = getcwd()
+  if has_key(g:fern_git_status_cache, l:cwd) && g:fern_git_status_cache[l:cwd] ==# l:current_hash
+    " No changes detected, skip reload to prevent flickering
+    return
+  endif
+  let g:fern_git_status_cache[l:cwd] = l:current_hash
 
   " Use win_execute to reload fern without changing window
   for bufnr in l:fern_bufnr
@@ -95,7 +120,7 @@ augroup fern-auto-reveal
   autocmd BufNewFile * call s:fern_reload()
   " Auto reload when external changes detected
   autocmd FocusGained * call s:fern_reload()
-  autocmd CursorHold * call s:fern_reload()
+  " Removed CursorHold to reduce frequent reloading
 augroup END
 
 " Auto reload fern with timer (detect external changes)
@@ -106,6 +131,7 @@ if has('timers') && !exists('g:fern_auto_reload_timer')
       call s:fern_reload()
     endif
   endfunction
+  " Keep 1 second interval for quick external changes detection
   let g:fern_auto_reload_timer = timer_start(1000, 'FernAutoReload', {'repeat': -1})
 endif
 
