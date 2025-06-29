@@ -18,6 +18,7 @@ setopt print_exit_value
 # no peep (except general beep for notifications)
 setopt no_hist_beep
 setopt no_list_beep
+trap 'setopt NO_BEEP' EXIT # disable beep on exit
 
 # warning before delete
 setopt rm_star_wait
