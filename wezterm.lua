@@ -27,7 +27,7 @@ return {
   default_cursor_style = 'SteadyBlock',
   force_reverse_video_cursor = true,
 
-  audible_bell = "Disabled",
+  audible_bell = "SystemBeep",
 
   -- https://github.com/wez/wezterm/issues/2630
   leader = { key = 'q', mods = 'CTRL', timeout_milliseconds = 1000 },
