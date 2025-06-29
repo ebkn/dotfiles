@@ -15,8 +15,7 @@ export FZF_DEFAULT_COMMAND="rg --files --hidden --smart-case --glob='!.git/*'"
 # display
 setopt print_exit_value
 
-# no peep
-setopt no_beep
+# no peep (except general beep for notifications)
 setopt no_hist_beep
 setopt no_list_beep
 

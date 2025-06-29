@@ -34,6 +34,8 @@ return {
     fade_out_function = 'EaseOut',
     fade_out_duration_ms = 150,
   },
+  -- Enable terminal bell for background processes
+  bell_sound = "SystemBeep",
   colors = {
     visual_bell = '#202020',
   },
