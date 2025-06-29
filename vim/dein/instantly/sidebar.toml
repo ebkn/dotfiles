@@ -54,13 +54,59 @@ function! s:fern_reveal_current() abort
   endif
 endfunction
 
+" Auto reload fern when files are created/deleted
+function! s:fern_reload() abort
+  " Skip if current buffer is fern (to avoid flicker)
+  if &filetype ==# 'fern'
+    return
+  endif
+
+  " Skip if no fern window exists
+  let l:fern_bufnr = filter(range(1, bufnr('$')), 'getbufvar(v:val, "&filetype") ==# "fern"')
+  if empty(l:fern_bufnr)
+    return
+  endif
+
+  " Use win_execute to reload fern without changing window
+  for bufnr in l:fern_bufnr
+    let l:win = bufwinnr(bufnr)
+    if l:win > 0
+      try
+        " Execute normal R in the fern window
+        call win_execute(win_getid(l:win), 'normal R')
+      catch
+        " Ignore errors
+      endtry
+    endif
+  endfor
+
+  " Reveal current file after reload
+  call timer_start(100, {-> s:fern_reveal_current()})
+endfunction
+
 " Reveal current file when switching buffers
 augroup fern-auto-reveal
   autocmd!
   autocmd BufEnter * call s:fern_reveal_current()
+  " Auto reload on file write/new
+  autocmd BufWritePost * call s:fern_reload()
+  autocmd BufNewFile * call s:fern_reload()
+  " Auto reload when external changes detected
+  autocmd FocusGained * call s:fern_reload()
+  autocmd CursorHold * call s:fern_reload()
 augroup END
-" show hidden files by default
-let g:fern#default_hidden=1
+
+" Auto reload fern with timer (detect external changes)
+if has('timers') && !exists('g:fern_auto_reload_timer')
+  function! FernAutoReload(timer)
+    " Skip if current buffer is fern
+    if &filetype !=# 'fern'
+      call s:fern_reload()
+    endif
+  endfunction
+  let g:fern_auto_reload_timer = timer_start(2000, 'FernAutoReload', {'repeat': -1})
+endif
+
 '''
 
 [[plugins]]
