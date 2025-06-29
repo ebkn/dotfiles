@@ -1,4 +1,5 @@
 {
+  "defaultMode": "allowEdits",
   "permissions": {
     "allow": [
       "Bash(find:*)",
