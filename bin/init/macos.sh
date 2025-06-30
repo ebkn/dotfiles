@@ -60,6 +60,7 @@ brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 [ -f ~/.config/coc/extensions/package.json ] && mv ~/.config/coc/extensions/package.json ~/backup/
 [ -f ~/.tigrc ] && mv ~/.tigrc ~/backup/
 [ -f ~/.clang-format ] && mv ~/.clang-format ~/backup/
+[ -f ~/.ssh/config ] && mv ~/.ssh/config ~/backup/
 
 "$(brew --prefix)/opt/fzf/install"
 
