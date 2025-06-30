@@ -52,11 +52,6 @@ printf "\n--- Starting zsh ---\n"
 ln -s ~/dotfiles/.zshrc ~
 ln -s ~/dotfiles/.zshenv ~
 
-printf "\n--- Installing dein ---\n"
-curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
-sh ~/installer.sh ~/.cache/dein
-rm ~/installer.sh
-
 printf "\n--- Installing shell packages ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 [ -f ~/.bash_profile ] && mv ~/.bash_profile ~/backup/

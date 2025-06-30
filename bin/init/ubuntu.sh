@@ -56,12 +56,6 @@ ln -s ~/dotfiles/vim/.vim ~
 mkdir -p ~/.config/wezterm
 ln -s ~/dotfiles/wezterm.lua ~/.config/wezterm/wezterm.lua
 
-printf "\n--- Installing dein ---\n"
-curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
-sh ~/installer.sh ~/.cache/dein
-[ -d ~/.dein ] && mv ~/.dein ~/backup/
-rm ~/installer.sh
-
 printf "\n--- Installing docker ---\n"
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 sudo apt-key fingerprint 0EBFCD88
