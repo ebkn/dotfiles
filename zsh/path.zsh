@@ -82,14 +82,14 @@ case `uname` in
     export PATH="$PATH:${KREW_ROOT:-$HOME/.krew}/bin"
 
     # Docker
-    source /Users/kenichiebinuma/.docker/init-zsh.sh || true # Added by Docker Desktop
+    source $HOME/.docker/init-zsh.sh || true # Added by Docker Desktop
 
     # Python
     # Rye
     export PATH="$PATH:$HOME/.rye/shims"
 
     # LM Studio CLI (lms)
-    export PATH="$PATH:/Users/kenichiebinuma/.cache/lm-studio/bin"
+    export PATH="$PATH:$HOME/.cache/lm-studio/bin"
 
     alias claude="~/.claude/local/claude"
   ;;
