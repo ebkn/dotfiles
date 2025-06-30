@@ -3,6 +3,7 @@ return {
   {
     "pearofducks/ansible-vim",
     ft = { "ansible" },
+    lazy = true,
   },
 
   -- autoclose html(xhtml) tags
@@ -19,24 +20,25 @@ return {
         let g:closetag_shortcut='>'
       ]])
     end,
+    lazy = true,
   },
 
   -- graphql
   {
     "jparise/vim-graphql",
     ft = { "graphql", "javascript", "javascriptreact", "typescript", "typescriptreact" },
+    lazy = true,
   },
 
   -- toml
   {
     "cespare/vim-toml",
     ft = { "toml" },
+    lazy = true,
   },
 
   -- css
-  {
-    "ap/vim-css-color",
-  },
+  { "ap/vim-css-color", lazy = true },
 
   -- c++, proto
   -- run :ClangFormat for format
@@ -49,5 +51,6 @@ return {
         let g:clang_format#auto_format=1
       ]])
     end,
+    lazy = true,
   },
 }

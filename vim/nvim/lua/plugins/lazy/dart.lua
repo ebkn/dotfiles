@@ -2,6 +2,7 @@ return {
   {
     "dart-lang/dart-vim-plugin",
     ft = { "dart" },
+    lazy = true,
     config = function()
       vim.cmd([[
         function! TriggerFlutterHotReload() abort

@@ -3,6 +3,7 @@ return {
   {
     "previm/previm",
     ft = { "markdown" },
+    lazy = true,
     config = function()
       vim.cmd([[
         let g:previm_open_cmd='open'

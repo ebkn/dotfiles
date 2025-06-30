@@ -2,7 +2,7 @@ return {
   -- language packs
   {
     "sheerun/vim-polyglot",
-    config = function()
+    init = function()
       vim.cmd([[
         let g:polyglot_disabled=['elm']
       ]])
@@ -10,17 +10,10 @@ return {
   },
 
   -- toggle comments
-  {
-    "numToStr/Comment.nvim",
-    config = function()
-      require('Comment').setup()
-    end,
-  },
+  { "numToStr/Comment.nvim", opts = {} },
 
   -- change operator by s+a/d/r
-  {
-    "kana/vim-operator-user",
-  },
+  { "kana/vim-operator-user" },
 
   {
     "rhysd/vim-operator-surround",
@@ -35,21 +28,10 @@ return {
   },
 
   -- for vim-delve
-  {
-    "benmills/vimux",
-  },
+  { "benmills/vimux" },
 
   -- autoclose parenthesis
-  -- conflicted <CR> imap with coc.nvim
-  -- {
-  --   "cohama/lexima.vim",
-  -- },
-  {
-    "windwp/nvim-autopairs",
-    config = function()
-      require('nvim-autopairs').setup {}
-    end,
-  },
+  { "windwp/nvim-autopairs", opts = {} },
 
   -- wrap/unwrap arguments,lists,dict
   {

@@ -22,22 +22,13 @@ return {
   },
 
   -- visualize git conflicts
-  {
-    "akinsho/git-conflict.nvim",
-    config = function()
-      require('git-conflict').setup()
-    end,
-  },
+  { "akinsho/git-conflict.nvim", opts = {} },
 
   -- visualize colors
-  {
-    "gorodinskiy/vim-coloresque",
-  },
+  { "gorodinskiy/vim-coloresque" },
 
   -- highlight trailing spaces
-  {
-    "ntpeters/vim-better-whitespace",
-  },
+  { "ntpeters/vim-better-whitespace" },
 
   -- indent
   -- {
@@ -66,20 +57,11 @@ return {
   -- sticky scroll
   {
     "nvim-treesitter/nvim-treesitter-context",
-    config = function()
-      require('treesitter-context').setup({
-        enable = true,
-      })
-    end,
+    opts = { enable = true },
   },
 
   -- scroll bar
-  {
-    "dstein64/nvim-scrollview",
-    config = function()
-      require('scrollview').setup()
-    end,
-  },
+  { "dstein64/nvim-scrollview", opts = {} },
 
   -- HlSearch lens
   {
@@ -90,8 +72,7 @@ return {
       local kopts = {noremap = true, silent = true}
 
       vim.api.nvim_set_keymap('n', 'n',
-          [[<Cmd>execute('normal! ' . v:count1 . 'n')<CR><Cmd>lua require('hlslens').start()<CR>]],
-          kopts)
+          [[<Cmd>execute('normal! ' . v:count1 . 'n')<CR><Cmd>lua require('hlslens').start()<CR>]], kopts)
       vim.api.nvim_set_keymap('n', 'N',
           [[<Cmd>execute('normal! ' . v:count1 . 'N')<CR><Cmd>lua require('hlslens').start()<CR>]],
           kopts)

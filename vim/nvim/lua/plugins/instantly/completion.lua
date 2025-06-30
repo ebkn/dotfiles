@@ -5,7 +5,6 @@ return {
   {
     "neoclide/coc.nvim",
     branch = "release",
-    build = "git switch release",
     config = function()
       vim.cmd([[
         " tab for trigger completion
@@ -30,19 +29,6 @@ return {
         nmap <silent> ga <Plug>(coc-codeaction-selected)
         nmap <silent> ca <Plug><coc-codeaction)
         nmap <silent> rn <Plug>(coc-rename)
-
-        " Use K to show documentation in preview window.
-        nnoremap <silent> K :call <SID>show_documentation()<CR>
-
-        function! s:show_documentation()
-          if (index(['vim','help'], &filetype)>=0)
-            execute 'h '.expand('<cword>')
-          elseif (coc#rpc#ready())
-            call CocActionAsync('doHover')
-          else
-            execute '!' . &keywordprg . " " . expand('<cword>')
-          endif
-        endfunction
 
         " Prettier command
         command! -nargs=0  Prettier :CocCommand prettier.forceFormatDocument

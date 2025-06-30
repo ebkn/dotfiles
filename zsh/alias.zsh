@@ -125,7 +125,6 @@ case `uname` in
       brew upgrade --cask
       zinit ice proto=ssh depth=1
       zinit update --all
-      nvim +'call dein#update()'
       nvim +'CocUpdate'
       nvim +'TSUpdate'
       go install golang.org/x/tools/...@latest
