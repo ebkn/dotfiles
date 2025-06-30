@@ -9,22 +9,22 @@ macos
 ```sh
 # macos
 xcode-select --install
-curl -s https://raw.githubusercontent.com/ebkn/dotfiles/master/bin/init/macos.sh | zsh
+curl -s https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/macos.sh | zsh
 ```
 
 ubuntu
 
 ```sh
 # ubuntu
-curl -s https://raw.githubusercontent.com/ebkn/dotfiles/master/bin/init/ubuntu.sh | bash
+curl -s https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/ubuntu.sh | bash
 ```
 
-- [packages](https://github.com/ebkn/dotfiles/blob/master/brewfiles)
+- [packages](https://github.com/ebkn/dotfiles/blob/main/brewfiles)
   - install by [homebrew-bundle](https://github.com/Homebrew/homebrew-bundle), [homebrew-cask](https://github.com/Homebrew/homebrew-cask)(mac only)
 - [zsh](https://github.com/zsh-users/zsh)
-  - install [plugins](https://github.com/ebkn/dotfiles/blob/master/zsh/plugin.zsh) by [zinit](https://github.com/zdharma/zinit)
+  - install [plugins](https://github.com/ebkn/dotfiles/blob/main/zsh/plugin.zsh) by [zinit](https://github.com/zdharma/zinit)
 - [neovim](https://github.com/neovim/neovim)
-  - install [plugins](https://github.com/ebkn/dotfiles/blob/master/vim/dein) by [dein](https://github.com/Shougo/dein.vim)
+  - install [plugins](https://github.com/ebkn/dotfiles/blob/main/nvim/lazy.lua) by [lazy.nvim](https://github.com/folke/lazy.nvim)
 - and some setting files
 
 #### zsh
