@@ -1,8 +1,0 @@
-# :PrevimOpen
-[[plugins]]
-repo = 'previm/previm'
-on_ft = ['markdown']
-hook_add = '''
-let g:previm_open_cmd='open'
-let g:vim_markdown_conceal=0
-'''

@@ -1,7 +1,0 @@
-# [[plugins]]
-# repo = 'sebdah/vim-delve'
-# on_ft = ['go']
-# hook_add = '''
-# let g:delve_use_vimux=1
-# autocmd FileType go nmap <silent> ;d :DlvToggleBreakpoint<CR>
-# '''

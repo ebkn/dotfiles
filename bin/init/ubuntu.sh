@@ -60,7 +60,6 @@ printf "\n--- Installing dein ---\n"
 curl https://raw.githubusercontent.com/Shougo/dein.vim/master/bin/installer.sh > ~/installer.sh
 sh ~/installer.sh ~/.cache/dein
 [ -d ~/.dein ] && mv ~/.dein ~/backup/
-ln -s ~/dotfiles/.dein ~
 rm ~/installer.sh
 
 printf "\n--- Installing docker ---\n"

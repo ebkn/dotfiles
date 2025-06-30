@@ -1,8 +1,0 @@
-[[plugins]]
-repo = 'vim-ruby/vim-ruby'
-on_ft = ['ruby']
-
-# better ruby completion
-[[plugins]]
-repo = 'marcus/rsense'
-on_ft = ['ruby']
