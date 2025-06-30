@@ -7,7 +7,9 @@ source $HOME/dotfiles/vim/keymap.vim
 source $HOME/dotfiles/vim/view.vim
 
 "--- load settings(plugin) ---
-source $HOME/dotfiles/vim/dein.vim
+if has('nvim')
+  luafile ~/dotfiles/vim/lazy.lua
+endif
 
 source $HOME/dotfiles/vim/color.vim
 
