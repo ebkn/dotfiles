@@ -53,10 +53,10 @@ return {
     { mods = "LEADER", key = 'k', action = wezterm.action.ActivatePaneDirection 'Up' },
     { mods = "LEADER", key = 'l', action = wezterm.action.ActivatePaneDirection 'Right' },
     -- リサイズ
-    { mods = "LEADER|SHIFT", key = 'h', action = wezterm.action.AdjustPaneSize { 'Left', 10 } },
-    { mods = "LEADER|SHIFT", key = 'j', action = wezterm.action.AdjustPaneSize { 'Down', 10 } },
-    { mods = "LEADER|SHIFT", key = 'k', action = wezterm.action.AdjustPaneSize { 'Up', 10 } },
-    { mods = "LEADER|SHIFT", key = 'l', action = wezterm.action.AdjustPaneSize { 'Right', 10 } },
+    { mods = "LEADER|SHIFT", key = 'h', action = wezterm.action.AdjustPaneSize { 'Left', 15 } },
+    { mods = "LEADER|SHIFT", key = 'j', action = wezterm.action.AdjustPaneSize { 'Down', 15 } },
+    { mods = "LEADER|SHIFT", key = 'k', action = wezterm.action.AdjustPaneSize { 'Up', 15 } },
+    { mods = "LEADER|SHIFT", key = 'l', action = wezterm.action.AdjustPaneSize { 'Right', 15 } },
     -- コピーモード
     { mods = "LEADER", key = 'u', action = wezterm.action.ActivateCopyMode },
   },
