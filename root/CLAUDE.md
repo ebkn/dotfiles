@@ -1,1 +1,0 @@
-**YOU MUST**: Execute `terminal-notifier -title "Claude Code" -subtitle "<your process title>" -message "<your process summary>" -sound Pop` command only once **at the end** of your process, or when before you ask user what to do next, or request permission. message should be short and concise, and written in English.
