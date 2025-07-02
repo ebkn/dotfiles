@@ -30,9 +30,6 @@ return {
         nmap <silent> ca <Plug><coc-codeaction)
         nmap <silent> rn <Plug>(coc-rename)
 
-        " Prettier command
-        command! -nargs=0  Prettier :CocCommand prettier.forceFormatDocument
-
         " filetype
         let g:coc_filetype_map={
           \ 'typescript.jsx': 'typescriptreact',
