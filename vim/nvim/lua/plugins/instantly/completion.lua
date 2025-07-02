@@ -18,8 +18,8 @@ return {
         " endfunction
         " inoremap <expr><S-TAB> coc#pum#visible() ? coc#pum#prev(1) : "\<C-h>"
 
-        " Use <CR> to confirm completion
-        inoremap <silent><expr> <CR> coc#pum#visible() ? coc#_select_confirm()
+        " Make <CR> to accept selected completion item or notify coc.nvim to format
+        inoremap <silent><expr> <CR> coc#pum#visible() ? coc#pum#confirm()
               \: "\<C-g>u\<CR>\<c-r>=coc#on_enter()\<CR>"
 
         " keymaps
