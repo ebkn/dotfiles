@@ -5,23 +5,23 @@ return {
   {
     "neoclide/coc.nvim",
     branch = "release",
+    event = "VimEnter",
     config = function()
+      -- Set up key mappings after coc is loaded
+      vim.api.nvim_create_autocmd("User", {
+        pattern = "CocNvimInit",
+        callback = function()
+          -- Make <CR> to accept selected completion item
+          vim.keymap.set("i", "<CR>", function()
+            if vim.fn["coc#pum#visible"]() == 1 then
+              return vim.fn["coc#pum#confirm"]()
+            else
+              return vim.api.nvim_replace_termcodes("<C-g>u<CR><C-r>=coc#on_enter()<CR>", true, false, true)
+            end
+          end, { expr = true, silent = true })
+        end,
+      })
       vim.cmd([[
-        " tab for trigger completion
-        " inoremap <silent><expr> <TAB>
-        "         \ coc#pum#visible() ? coc#pum#next(1) :
-        "         \ CheckBackspace() ? "\<Tab>" :
-        "         \ coc#refresh()
-        " function! CheckBackspace() abort
-        "   let col=col('.') - 1
-        "   return !col || getline('.')[col - 1] =~# '\s'
-        " endfunction
-        " inoremap <expr><S-TAB> coc#pum#visible() ? coc#pum#prev(1) : "\<C-h>"
-
-        " Make <CR> to accept selected completion item or notify coc.nvim to format
-        inoremap <silent><expr> <CR> coc#pum#visible() ? coc#pum#confirm()
-              \: "\<C-g>u\<CR>\<c-r>=coc#on_enter()\<CR>"
-
         " keymaps
         nmap <silent> gd <Plug>(coc-definition)
         nmap <silent> gy <Plug>(coc-type-definition)
@@ -39,19 +39,13 @@ return {
 
         augroup coc
           autocmd!
-
           " show signature help
           autocmd User CocJumpPlaceholder call CocActionAsync('showSignatureHelp')
-
           " highlight symbols
           autocmd CursorHold * silent call CocActionAsync('highlight')
-
           " Go
-          " add tags
           autocmd FileType go nmap gtj :CocCommand go.tags.add json<cr>
-          " add missing imports
           autocmd BufWritePre *.go :silent call CocAction('runCommand', 'editor.action.organizeImport')
-          " go tests
           command! -nargs=0 GoTests :CocCommand go.test.generate.function
         augroup END
       ]])
