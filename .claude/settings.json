@@ -1,5 +1,4 @@
 {
-  "defaultMode": "allowEdits",
   "permissions": {
     "allow": [
       "Bash(find:*)",
@@ -27,9 +26,9 @@
       "Glob(**)",
       "LS(**)",
       "Read(**)",
-			"Edit(**)",
-			"Write(**)",
-			"MultiEdit(**)",
+      "Edit(**)",
+      "Write(**)",
+      "MultiEdit(**)",
       "WebSearch(*)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:stackoverflow.com)"
@@ -104,6 +103,8 @@
       "Write(/etc/sudoers)"
     ]
   },
+  "defaultMode": "allowEdits",
   "preferredNotifChannel": "terminal_bell",
-  "theme": "dark"
+  "theme": "dark",
+  "model": "sonnet"
 }
