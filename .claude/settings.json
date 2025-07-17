@@ -102,9 +102,5 @@
       "Write(/etc/shadow)",
       "Write(/etc/sudoers)"
     ]
-  },
-  "defaultMode": "allowEdits",
-  "preferredNotifChannel": "terminal_bell",
-  "theme": "dark",
-  "model": "sonnet"
+  }
 }
