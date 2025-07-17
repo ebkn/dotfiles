@@ -65,20 +65,9 @@ function gdmerged() {
   local current_branch=$(git rev-parse --abbrev-ref HEAD)
   echo "Current branch: $current_branch"
 
-  # Use main/master as the base for checking merged branches, not current branch
-  local base_branch=""
-  if git rev-parse --verify refs/heads/main >/dev/null 2>&1; then
-    base_branch="main"
-  elif git rev-parse --verify refs/heads/master >/dev/null 2>&1; then
-    base_branch="master"
-  else
-    echo "Warning: Could not find main or master branch. Using current branch as base."
-    base_branch="$current_branch"
-  fi
+  echo "Using base branch for merge check: $current_branch"
 
-  echo "Using base branch for merge check: $base_branch"
-
-  local merged_branches=$(git branch --merged "$base_branch" | sed 's/^[*+ ]*//' | grep -v -E "^($current_branch|$base_branch|develop|staging)$")
+  local merged_branches=$(git branch --merged "$current_branch" | sed 's/^[*+ ]*//' | grep -v -E "^($current_branch|develop|staging)$")
 
   if [ -z "$merged_branches" ]; then
     echo "No merged branches found."
