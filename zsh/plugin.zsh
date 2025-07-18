@@ -38,11 +38,6 @@ zinit light MichaelAquilina/zsh-auto-notify
 zinit light reegnz/jq-zsh-plugin
 bindkey '^j' jq-complete
 
-# cache compinit once a day
-# https://gist.github.com/ctechols/ca1035271ad134841284
-autoload -Uz compinit
-if [[ -n ${ZDOTDIR}/.zcompdump(#qN.mh+24) ]]; then
-	compinit;
-else
-	compinit -C;
-fi;
+# load bash completion
+autoload bashcompinit && bashcompinit
+autoload -Uz compinit && compinit
