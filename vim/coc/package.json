@@ -6,7 +6,7 @@
     "coc-eslint": ">=1.7.0",
     "coc-flutter": ">=1.9.9",
     "coc-git": ">=2.6.0",
-    "coc-go": ">=1.3.33",
+    "coc-go": ">=1.3.35",
     "coc-highlight": ">=2.0.4",
     "coc-html": ">=1.8.0",
     "coc-json": ">=1.8.0",
@@ -29,5 +29,5 @@
   },
   "disabled": [],
   "locked": [],
-  "lastUpdate": 1750808449016
+  "lastUpdate": 1752978780945
 }
