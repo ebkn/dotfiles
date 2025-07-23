@@ -60,6 +60,47 @@ alias gw='git worktree add -b'
 alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD` --recurse-submodules'
 alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
 alias gpushf='git push origin `git rev-parse --abbrev-ref HEAD` --force-with-lease'
+
+# create a new git worktree
+function gw() {
+  local root_dir=$(git rev-parse --show-toplevel)
+  local worktree_dir="$root_dir/git-worktrees"
+
+  local branch_name="$1"
+  local worktree_name="${branch_name//\//-}"
+  local worktree_path="$worktree_dir/$worktree_name"
+
+  echo "Creating worktree for branch '$branch_name' at '$worktree_path'"
+  git worktree add -b "$branch_name" "$worktree_path"
+
+  local worktree_copy_file=".worktree-copy"
+
+  # Copy files specified in .worktree-copy
+  if [ -f "$root_dir/$worktree_copy_file" ]; then
+    echo "Copying files..."
+    while IFS= read -r file || [ -n "$file" ]; do
+      # Skip empty lines and comments
+      [[ -z "$file" || "$file" =~ ^[[:space:]]*# ]] && continue
+
+      # Trim whitespace
+      file=$(echo "$file" | xargs)
+
+      if [ -e "$root_dir/$file" ]; then
+        # Create directory structure if needed
+        local target_dir=$(dirname "$worktree_path/$file")
+        mkdir -p "$target_dir"
+
+        # Copy file or directory
+        cp -r "$root_dir/$file" "$worktree_path/$file"
+        echo "  Copied: $file"
+      else
+        echo "  Warning: $file not found in root directory"
+      fi
+    done < "$root_dir/.worktree-copy"
+  fi
+}
+
+# delete merged branches (including squashed branches), worktrees
 function gdmerged() {
   echo "Checking for merged branches..."
   local current_branch=$(git rev-parse --abbrev-ref HEAD)
