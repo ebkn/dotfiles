@@ -23,6 +23,8 @@ return {
         set rtp+=/usr/local/opt/fzf
         set rtp+=/opt/homebrew/opt/fzf
         let g:fzf_layout={ 'window': { 'width': 0.9, 'height': 0.9 } }
+        let g:fzf_exclude_dir = 'git-worktrees'
+        let $FZF_DEFAULT_COMMAND = 'rg --files --hidden --glob "!' . g:fzf_exclude_dir . '/**"'
         function! s:p(bang, ...)
           let preview_window=get(g:, 'fzf_preview_window', a:bang && &columns>=80 || &columns>=120 ? 'right': '')
           if len(preview_window)
@@ -36,7 +38,7 @@ return {
           \ call fzf#vim#buffers(<q-args>, s:p(<bang>0, { "placeholder": "{1}" }), <bang>0)
         command! -bang -nargs=* Rg
           \ call fzf#vim#grep(
-          \   'rg --column --no-heading --color=always --smart-case --hidden -- '.shellescape(<q-args>), 1,
+          \   'rg --column --no-heading --color=always --smart-case --hidden --glob "!' . g:fzf_exclude_dir . '/**" -- '.shellescape(<q-args>), 1,
           \   fzf#vim#with_preview(), <bang>0)
         nnoremap <C-f> :Files<CR>
         nnoremap <C-g> :Rg<Space>
