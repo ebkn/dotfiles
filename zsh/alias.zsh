@@ -263,6 +263,7 @@ case `uname` in
       go install github.com/aquasecurity/tfsec/cmd/tfsec@latest
       go install github.com/bufbuild/buf-language-server/cmd/bufls@latest
       go install mvdan.cc/gofumpt@latest
+      go install tailscale.com/cmd/tailscale{,d}@main
       npm update --location=global
       npm i --location=global diagnostic-languageserver
       npm i --location=global markdownlint-cli
