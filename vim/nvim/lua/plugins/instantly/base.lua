@@ -27,6 +27,10 @@ return {
     end,
   },
 
+  -- for tmux
+  { 'tmux-plugins/vim-tmux' },
+
+
   -- for vim-delve
   { "benmills/vimux" },
 

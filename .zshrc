@@ -1,5 +1,9 @@
 ENABLE_CORRECTION="true"
 
+# Start Tmux
+export PATH="/opt/homebrew/bin:$PATH"
+[[ -z "$TMUX" ]] && tmux -u
+
 source "$HOME/dotfiles/zsh/path.zsh"
 source "$HOME/dotfiles/zsh/.p10k.zsh"
 source "$HOME/dotfiles/zsh/alias.zsh"

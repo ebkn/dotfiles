@@ -1,6 +1,9 @@
 # shell
 brew 'zsh'
 
+# tmux
+brew 'tmux'
+
 # terminal
 brew 'wezterm'
 

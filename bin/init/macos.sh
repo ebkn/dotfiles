@@ -56,6 +56,7 @@ printf "\n--- Installing shell packages ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 [ -f ~/.bash_profile ] && mv ~/.bash_profile ~/backup/
 [ -f ~/.bashrc ] && mv ~/.bashrc ~/backup/
+[ -f ~/.tmux.conf ] && mv ~/.tmux.conf ~/backup/
 [ -f ~/.vimrc ] && mv ~/.vimrc ~/backup/
 [ -f ~/.config/coc/extensions/package.json ] && mv ~/.config/coc/extensions/package.json ~/backup/
 [ -f ~/.tigrc ] && mv ~/.tigrc ~/backup/
@@ -68,6 +69,7 @@ mv ~/.sshconfig ~/.ssh/config
 ln -s ~/dotfiles/.gitignore_global ~
 ln -s ~/dotfiles/.bash_profile ~
 ln -s ~/dotfiles/.bashrc ~
+ln -s ~/dotfiles/.tmux.conf ~
 ln -s ~/dotfiles/.vimrc ~
 ln -s ~/dotfiles/.xvimrc ~
 ln -s ~/dotfiles/.ideavimrc ~
@@ -113,6 +115,11 @@ ln -s ~/dotfiles/.tigrc ~
 sudo ln -sfn "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk"
 
 source ~/.zshrc
+
+printf "\n--- Starting tmux ---\n"
+git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+tmux
+tmux source-file ~/.tmux.conf
 
 printf "\n--- Installing languages from homebrew ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-lang"
