@@ -44,6 +44,8 @@ return {
 
   keys = {
     { mods = "CTRL", key = "q", action=wezterm.action{ SendString="\x11" } },
+    -- Cmd+W でタブを閉じる際に確認ダイアログを表示
+    { mods = "CMD", key = "w", action = wezterm.action.CloseCurrentTab { confirm = true } },
     -- tmux を利用するので今は利用していない
     -- 分割
     -- { mods = "LEADER", key = "v", action = wezterm.action { SplitHorizontal = { domain = "CurrentPaneDomain" } }, },
