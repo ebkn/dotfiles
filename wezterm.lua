@@ -1,4 +1,5 @@
 local wezterm = require 'wezterm'
+local act = wezterm.action
 
 return {
   term = 'screen-256color',
@@ -44,8 +45,18 @@ return {
 
   keys = {
     { mods = "CTRL", key = "q", action=wezterm.action{ SendString="\x11" } },
-    -- Cmd+W でタブを閉じる際に確認ダイアログを表示
-    { mods = "CMD", key = "w", action = wezterm.action.CloseCurrentTab { confirm = true } },
+    -- Cmd+W でタブとtmuxセッションを閉じる際に確認ダイアログを表示
+    { mods = "CMD", key = "w", action = wezterm.action.PromptInputLine {
+      description = 'Close tab and tmux session? (y/n)',
+      action = wezterm.action_callback(function(window, pane, line)
+        if line == 'y' then
+          -- tmuxセッションをkillしてからタブを閉じる
+          pane:send_text('tmux kill-session\n')
+          wezterm.sleep_ms(100)
+          window:perform_action(act.CloseCurrentTab { confirm = false }, pane)
+        end
+      end),
+    }},
     -- tmux を利用するので今は利用していない
     -- 分割
     -- { mods = "LEADER", key = "v", action = wezterm.action { SplitHorizontal = { domain = "CurrentPaneDomain" } }, },
