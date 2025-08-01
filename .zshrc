@@ -2,7 +2,8 @@ ENABLE_CORRECTION="true"
 
 # Start Tmux
 export PATH="/opt/homebrew/bin:$PATH"
-[[ -z "$TMUX" ]] && tmux -u
+# tmuxを自動起動し、tmux終了時にシェルも終了する
+[[ -z "$TMUX" ]] && tmux -u && exit
 
 source "$HOME/dotfiles/zsh/path.zsh"
 source "$HOME/dotfiles/zsh/.p10k.zsh"
