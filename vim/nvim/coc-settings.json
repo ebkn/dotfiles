@@ -47,7 +47,8 @@
     "hints": {
       "constantValues": true,
       "functionTypeParameters": true,
-      "parameterNames": true
+      "parameterNames": true,
+      "compositeLiteralFields": true
     }
   },
   "eslint.run": "onSave",
