@@ -61,6 +61,10 @@
       "compositeLiteralTypes": true
     }
   },
+  "typescript.inlayHints.parameterNames.enabled": "all",
+  "typescript.inlayHints.enumMemberValues.enabled": true,
+  "javascript.inlayHints.parameterNames.enabled": "all",
+  "javascript.inlayHints.enumMemberValues.enabled": true,
   "eslint.run": "onSave",
   "eslint.autoFixOnSave": false,
   "ruff.autoFixOnSave": true,
