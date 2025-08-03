@@ -1,6 +1,7 @@
 {
   "suggest.enablePreselect": true,
   "suggest.noselect": false,
+  "inlayHint.enable": true,
   "coc.preferences.formatOnSaveFiletypes": [
     "css",
     "Markdown",
@@ -10,7 +11,16 @@
   "languageserver": {
     "go": {
       "command": "gopls",
-      "filetypes": ["go"]
+      "filetypes": ["go"],
+      "initializationOptions": {
+        "hints": {
+          "compositeLiteralFields": true,
+          "compositeLiteralTypes": true,
+          "constantValues": true,
+          "functionTypeParameters": true,
+          "parameterNames": true
+        }
+      }
     },
     "dockerfile": {
       "command": "docker-langserver",
@@ -47,7 +57,8 @@
       "constantValues": true,
       "functionTypeParameters": true,
       "parameterNames": true,
-      "compositeLiteralFields": true
+      "compositeLiteralFields": true,
+      "compositeLiteralTypes": true
     }
   },
   "eslint.run": "onSave",
