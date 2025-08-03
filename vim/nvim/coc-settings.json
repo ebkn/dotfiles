@@ -29,9 +29,8 @@
     "golangci-lint-languageserver": {
       "command": "golangci-lint-langserver",
       "filetypes": ["go"],
-      "rootPatterns": ["go.mod"],
       "initializationOptions": {
-        "command": ["golangci-lint", "run", "--issues-exit-code=0", "--out-format", "json"]
+        "command": ["golangci-lint", "run", "--issues-exit-code=1", "--output.json.path", "stdout", "--show-stats=false"]
       }
     },
     "bufls": {
