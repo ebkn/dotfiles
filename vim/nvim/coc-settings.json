@@ -8,6 +8,10 @@
     "terraform", "tf"
   ],
   "languageserver": {
+    "go": {
+      "command": "gopls",
+      "filetypes": ["go"]
+    },
     "dockerfile": {
       "command": "docker-langserver",
       "filetypes": ["dockerfile"],
