@@ -48,6 +48,12 @@ return {
           autocmd BufWritePre *.go :silent call CocAction('runCommand', 'editor.action.organizeImport')
           command! -nargs=0 GoTests :CocCommand go.test.generate.function
         augroup END
+
+        " Customize inlay hints appearance
+        augroup CocInlayHintColors
+          autocmd!
+          autocmd User CocNvimInit highlight CocInlayHint guifg=#7c8490 guibg=NONE gui=italic ctermfg=245 ctermbg=NONE cterm=italic
+        augroup END
       ]])
     end,
   },
