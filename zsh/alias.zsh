@@ -265,13 +265,15 @@ case `uname` in
       go install mvdan.cc/gofumpt@latest
       go install tailscale.com/cmd/tailscale{,d}@main
       npm update --location=global
-      npm i --location=global diagnostic-languageserver
-      npm i --location=global markdownlint-cli
-      npm i --location=global textlint
-      npm i --location=global git-delete-squashed
-      npm i --location=global @modelcontextprotocol/server-brave-search
-      npm i --location=global yarn
-      npm i --location=global corepack # for yarn
+      npm i -g diagnostic-languageserver
+      npm i -g markdownlint-cli
+      npm i -g textlint
+      npm i -g git-delete-squashed
+      npm i -g @modelcontextprotocol/server-brave-search
+      npm i -g yarn
+      npm i -g corepack # for yarn
+      npm i -g @openai/codex
+      npm i -g @anthropic-ai/claude-code
       gcloud components update --quiet
     }
   ;;
