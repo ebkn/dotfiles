@@ -29,7 +29,6 @@
       "Edit(**)",
       "Write(**)",
       "MultiEdit(**)",
-      "WebSearch(*)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:stackoverflow.com)"
     ],
@@ -48,8 +47,6 @@
       "Bash(fdisk:*)",
       "Bash(> /dev/*)",
       "Bash(>> /dev/*)",
-      "Bash(sudo:*passwd*)",
-      "Bash(sudo:*shadow*)",
       "Bash(chmod 777 /*)",
       "Bash(chown root:*)",
       "Bash(sudo chmod 777:*)",
@@ -102,6 +99,10 @@
       "Write(/etc/shadow)",
       "Write(/etc/sudoers)"
     ]
+  },
+  "model": "opus",
+  "feedbackSurveyState": {
+    "lastShownTime": 1754086109501
   },
   "$schema": "https://json.schemastore.org/claude-code-settings.json"
 }
