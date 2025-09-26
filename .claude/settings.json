@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
       "Bash(find:*)",
@@ -100,9 +101,8 @@
       "Write(/etc/sudoers)"
     ]
   },
-  "model": "opus",
+  "model": "opusplan",
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
-  },
-  "$schema": "https://json.schemastore.org/claude-code-settings.json"
+  }
 }
