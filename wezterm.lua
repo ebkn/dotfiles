@@ -24,6 +24,7 @@ return {
   color_scheme = 'OneDark (base16)',
 
   scrollback_lines = 100000,
+  max_fps = 60,
   front_end = 'OpenGL',
 
   default_cursor_style = 'SteadyBlock',
