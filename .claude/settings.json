@@ -101,8 +101,9 @@
       "Write(/etc/sudoers)"
     ]
   },
-  "model": "opusplan",
+  "alwaysThinkingEnabled": false,
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
-  }
+  },
+  "model": "opus"
 }
