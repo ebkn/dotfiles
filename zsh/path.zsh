@@ -90,8 +90,6 @@ case `uname` in
 
     # LM Studio CLI (lms)
     export PATH="$PATH:$HOME/.cache/lm-studio/bin"
-
-    alias claude="~/.claude/local/claude"
   ;;
 
   "Linux" )
