@@ -66,6 +66,10 @@ function gw() {
   local worktree_dir="$root_dir/git-worktrees"
 
   local branch_name="$1"
+  if [[ -z "$branch_name" ]]; then
+    echo "Error: branch name is required" >&2
+    return 1
+  fi
   local worktree_name="${branch_name//\//-}"
   local worktree_path="$worktree_dir/$worktree_name"
 
