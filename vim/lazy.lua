@@ -28,5 +28,6 @@ require("lazy").setup({
   },
   checker = {
     enabled = true, -- automatically check for plugin updates
+    notify = false, -- don't show notification on startup
   },
 })
