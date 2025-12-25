@@ -249,8 +249,9 @@ case `uname` in
       brew upgrade --cask
       zinit ice proto=ssh depth=1
       zinit update --all
-      nvim +'CocUpdate'
-      nvim +'TSUpdate'
+      nvim --headless +'CocUpdate' +qa
+      nvim --headless +'TSUpdate' +qa
+      nvim --headless '+Lazy! sync' +qa
       go install golang.org/x/tools/...@latest
       go install github.com/cweill/gotests/...@latest
       go install github.com/mattn/efm-langserver@latest
