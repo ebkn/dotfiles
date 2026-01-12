@@ -1,49 +1,93 @@
+# ===========================================
+# Git Configuration
+# ===========================================
+
+# -------------------------------------------
+# User settings (conditional includes)
+# -------------------------------------------
+# Load different user config based on directory
 [includeIf "gitdir:~/ghq/github.com/"]
   path = ~/.gitconfig-ebkn
 [includeIf "gitdir:~/dotfiles/"]
   path = ~/.gitconfig-ebkn
 # add enterprise setting
 
+# -------------------------------------------
+# Core settings
+# -------------------------------------------
 [core]
   editor = nvim
   excludesfile = ~/.gitignore_global
+  # Fix trailing whitespace and CR, allow tabs
   whitespace = fix,-indent-with-non-tab,trailing-space,cr-at-eol
+  # Case-sensitive file names
   ignorecase = false
 
+# -------------------------------------------
+# URL rewriting
+# -------------------------------------------
+# Auto-convert HTTPS to SSH
 [url "git@github.com:"]
   insteadOf = https://github.com/
 
+# -------------------------------------------
+# Repository initialization
+# -------------------------------------------
 [init]
 	defaultBranch = main
 
+# -------------------------------------------
+# Fetch / Pull settings
+# -------------------------------------------
 [fetch]
+  # Auto-remove local branches deleted on remote
   prune = true
 
 [pull]
+  # Use merge instead of rebase
   rebase = false
 
+# -------------------------------------------
+# Patch application
+# -------------------------------------------
 [apply]
   whitespace = nowarn
 
+# -------------------------------------------
+# Log display
+# -------------------------------------------
 [log]
   date = short
 
+# -------------------------------------------
+# Diff / Merge settings
+# -------------------------------------------
 [diff]
+  # Better diff output than default myers
   algorithm = histogram
   submodule = log
 
 [commit]
+  # Show diff in commit message editor
   verbose = true
 
 [merge]
+  # Show ours/base/theirs in conflicts
   conflictstyle = zdiff3
 
 [rebase]
+  # Auto-reorder fixup! and squash! commits
   autosquash = true
 
+# -------------------------------------------
+# Status display
+# -------------------------------------------
 [status]
   submoduleSummary = true
 
+# -------------------------------------------
+# Color settings
+# -------------------------------------------
 [color]
   ui = true
   branch = auto
@@ -67,6 +111,9 @@
   changed = green
   untracked = cyan
 
+# -------------------------------------------
+# Git LFS
+# -------------------------------------------
 [filter "lfs"]
 	required = true
 	clean = git-lfs clean -- %f
