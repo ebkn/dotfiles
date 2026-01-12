@@ -92,19 +92,11 @@ ln -s ~/dotfiles/.gitconfig-ebkn ~/.gitconfig-ebkn
 mkdir -p ~/.config/wezterm
 ln -s ~/dotfiles/wezterm.lua ~/.config/wezterm/wezterm.lua
 
-# ruby
-ln -s ~/dotfiles/.pryrc ~
-ln -s ~/dotfiles/.irbrc ~
-ln -s ~/dotfiles/.rspec ~
-
 # node
 mkdir -p ~/.nvm
 ln -s ~/dotfiles/.eslintrc.json ~
 ln -s ~/dotfiles/tsconfig.json ~
 npm i --global git-delete-squashed
-
-# flutter
-ln -s ~/dotfiles/analysis_options.yaml ~
 
 # others
 ln -s ~/dotfiles/efm-config.yml ~/.config/efm-langserverconfig.yaml

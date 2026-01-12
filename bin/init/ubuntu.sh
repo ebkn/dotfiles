@@ -90,19 +90,9 @@ ln -s ~/dotfiles/.gitignore_global ~
 ln -s ~/dotfiles/.gitconfig ~/.gitconfig
 ln -s ~/dotfiles/.gitconfig-ebkn ~/.gitconfig-ebkn
 
-
-# ruby
-ln -s ~/dotfiles/.pryrc ~
-ln -s ~/dotfiles/.irbrc ~
-ln -s ~/dotfiles/.rspec ~
-ln -s ~/dotfiles/.rubocop.yml
-
 # node
 ln -s ~/dotfiles/.eslintrc.json ~
 ln -s ~/dotfiles/tsconfig.json ~
-
-# flutter
-ln -s ~/dotfiles/analysis_options.yaml ~
 
 # others
 ln -s ~/dotfiles/.rgignore ~
