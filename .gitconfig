@@ -40,8 +40,11 @@
 # Fetch / Pull settings
 # -------------------------------------------
 [fetch]
-  # Auto-remove local branches deleted on remote
+  # Auto-remove local branches/tags deleted on remote
   prune = true
+  pruneTags = true
+  # Fetch from all remotes
+  all = true
 
 [pull]
   # Use merge instead of rebase
@@ -66,6 +69,9 @@
   # Better diff output than default myers
   algorithm = histogram
   submodule = log
+  # Use external diff tool
+  # https://difftastic.wilfred.me.uk/installation.html
+  external = difft
 
 [commit]
   # Show diff in commit message editor

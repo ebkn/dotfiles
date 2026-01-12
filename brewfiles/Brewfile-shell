@@ -32,3 +32,6 @@ brew 'pinentry-mac' # signing
 
 # colorized cat
 brew 'bat'
+
+# better diff
+brew 'difftastic'
