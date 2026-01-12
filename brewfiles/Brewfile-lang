@@ -1,4 +1,6 @@
 # Node.js
+# node installation is blocked by HOMEBREW_FORBIDDEN_FORMULAE env
+# use volta
 brew 'nvm'
 
 # Rust

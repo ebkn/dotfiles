@@ -4,6 +4,7 @@ case `uname` in
   "Darwin" ) # requires gnu-sed
     # Homebrew
     export PATH="/opt/homebrew/bin:$PATH"
+    export HOMEBREW_FORBIDDEN_FORMULAE="node npm pnpm yarn claude"
 
     # Local
     export PATH="$PATH:$HOME/.local/bin"
