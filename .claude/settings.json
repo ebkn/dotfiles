@@ -103,5 +103,8 @@
   },
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
+  },
+  "enabledPlugins": {
+    "gopls-lsp@claude-plugins-official": true
   }
 }
