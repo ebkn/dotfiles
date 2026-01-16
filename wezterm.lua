@@ -47,15 +47,13 @@ return {
 
   keys = {
     { mods = "CTRL", key = "q", action=wezterm.action{ SendString="\x11" } },
-    -- Cmd+W でタブとtmuxセッションを閉じる際に確認ダイアログを表示
+    -- Cmd+W で現在のtmux windowを閉じる
     { mods = "CMD", key = "w", action = wezterm.action.PromptInputLine {
-      description = 'Close tab and tmux session? (y/n)',
+      description = 'Close tmux window? (y/n)',
       action = wezterm.action_callback(function(window, pane, line)
         if line == 'y' then
-          -- tmuxセッションをkillしてからタブを閉じる
-          pane:send_text('tmux kill-session\n')
-          wezterm.sleep_ms(100)
-          window:perform_action(act.CloseCurrentTab { confirm = false }, pane)
+          -- 現在のtmux windowを閉じる（最後のwindowなら session も終了 → タブも閉じる）
+          pane:send_text('tmux kill-window\n')
         end
       end),
     }},
