@@ -27,3 +27,8 @@
   - Identify hidden assumptions
   - Propose counterarguments
   - Offer alternative framings
+
+# File Access
+
+- Always use relative paths from the working directory when accessing files within the project.
+- Avoid absolute paths (including paths starting with `~` or `/`) for project files.
