@@ -103,6 +103,10 @@ ln -s ~/dotfiles/efm-config.yml ~/.config/efm-langserverconfig.yaml
 ln -s ~/dotfiles/.rgignore ~
 ln -s ~/dotfiles/.tigrc ~
 
+# scripts
+mkdir -p ~/.local/bin
+ln -s ~/dotfiles/tmux-restore-tabs ~/.local/bin/tmux-restore-tabs
+
 # Java
 sudo ln -sfn "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk"
 
