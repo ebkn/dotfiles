@@ -1,0 +1,58 @@
+#!/bin/zsh
+#
+# tmux-restore-tabs
+#
+# Restore wezterm tabs for all existing tmux sessions.
+#
+# Purpose:
+#   When wezterm crashes or is closed unexpectedly, tmux sessions remain alive
+#   in the background. This script quickly restores wezterm tabs for all those
+#   sessions, saving you from manually opening tabs and attaching each one.
+#
+# Usage:
+#   Run this script from within a wezterm tab that is already attached to a
+#   tmux session. It will create new wezterm tabs for all other tmux sessions.
+#
+# Requirements:
+#   - wezterm (with CLI support)
+#   - tmux
+#   - jq (for JSON parsing)
+#
+
+set -e
+
+# After wezterm restarts, the WEZTERM_UNIX_SOCKET env var inside existing tmux
+# sessions points to the old (now stale) socket. The symlink always points to
+# the current socket, so we override the env var here.
+export WEZTERM_UNIX_SOCKET=~/.local/share/wezterm/default-org.wezfurlong.wezterm
+
+# Get all tmux session names as an array.
+# ${(@f)...} splits output by newlines into array elements (zsh syntax).
+sessions=("${(@f)$(tmux list-sessions -F '#{session_name}' 2>/dev/null)}")
+
+if [[ ${#sessions[@]} -eq 0 || -z "${sessions[1]}" ]]; then
+  echo "No tmux sessions found"
+  exit 1
+fi
+
+# If we're currently inside a tmux session, remember its name so we can skip it
+# (no need to open a duplicate tab for the session we're already in).
+current_session=""
+if [[ -n "$TMUX" ]]; then
+  current_session=$(tmux display-message -p '#S')
+fi
+
+# Remember the current wezterm pane ID so we can return to it after spawning
+# all the new tabs (otherwise focus would stay on the last spawned tab).
+current_pane=$(wezterm cli list --format json | jq -r '.[] | select(.is_active) | .pane_id')
+
+# Create a new wezterm tab for each tmux session (except the current one).
+# Each tab runs 'tmux attach -t <session>' to connect to that session.
+for session in "${sessions[@]}"; do
+  if [[ "$session" != "$current_session" ]]; then
+    wezterm cli spawn -- tmux attach -t "$session" >/dev/null
+  fi
+done
+
+# Return focus to the original tab where this script was executed.
+wezterm cli activate-pane --pane-id "$current_pane"
