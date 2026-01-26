@@ -31,7 +31,13 @@
       "Write(**)",
       "MultiEdit(**)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:stackoverflow.com)"
+      "WebFetch(domain:docs.github.com)",
+			"WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:stackoverflow.com)",
+      "WebFetch(domain:registry.terraform.io)",
+			"WebFetch(domain:docs.aws.amazon.com)",
+			"WebFetch(domain:cloud.google.com)",
+			"WebFetch(domain:www.npmjs.com)",
     ],
     "deny": [
       "Bash(rm -rf /)",
