@@ -32,12 +32,12 @@
       "MultiEdit(**)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:docs.github.com)",
-			"WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:stackoverflow.com)",
       "WebFetch(domain:registry.terraform.io)",
-			"WebFetch(domain:docs.aws.amazon.com)",
-			"WebFetch(domain:cloud.google.com)",
-			"WebFetch(domain:www.npmjs.com)"
+      "WebFetch(domain:docs.aws.amazon.com)",
+      "WebFetch(domain:cloud.google.com)",
+      "WebFetch(domain:www.npmjs.com)"
     ],
     "deny": [
       "Bash(rm -rf /)",
@@ -107,10 +107,11 @@
       "Write(/etc/sudoers)"
     ]
   },
+  "enabledPlugins": {
+    "gopls-lsp@claude-plugins-official": true,
+    "coderabbit@claude-plugins-official": true
+  },
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
-  },
-  "enabledPlugins": {
-    "gopls-lsp@claude-plugins-official": true
   }
 }
