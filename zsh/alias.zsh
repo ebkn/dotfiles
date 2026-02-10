@@ -74,7 +74,7 @@ function gw() {
   local worktree_path="$worktree_dir/$worktree_name"
 
   echo "Creating worktree for branch '$branch_name' at '$worktree_path'"
-  git worktree add -b "$branch_name" "$worktree_path"
+  git worktree add -b "$branch_name" "$worktree_path" || return 1
 
   local worktree_copy_file=".worktree-copy"
 
@@ -101,6 +101,8 @@ function gw() {
       fi
     done < "$root_dir/.worktree-copy"
   fi
+
+  cd "$worktree_path"
 }
 
 # delete merged branches (including squashed branches), worktrees
