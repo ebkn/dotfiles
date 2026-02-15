@@ -1,3 +1,6 @@
+" security
+set nomodeline
+
 " encoding,format
 set encoding=utf-8
 scriptencoding utf-8
