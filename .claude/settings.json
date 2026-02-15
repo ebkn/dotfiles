@@ -24,6 +24,7 @@
       "Bash(git log *)",
       "Bash(git -C * ls-files *)",
       "Bash(mkdir *)",
+      "Bash(tree *)",
       "Bash(terminal-notifier *)",
       "Grep(**)",
       "Glob(**)",
@@ -39,7 +40,8 @@
       "WebFetch(domain:registry.terraform.io)",
       "WebFetch(domain:docs.aws.amazon.com)",
       "WebFetch(domain:cloud.google.com)",
-      "WebFetch(domain:www.npmjs.com)"
+      "WebFetch(domain:www.npmjs.com)",
+      "WebSearch(**)"
     ],
     "deny": [
       "Bash(rm -rf /)",
