@@ -3,5 +3,6 @@ ServerAliveInterval=15
 ServerAliveCountMax=6
 Compression=yes
 ControlMaster auto
-ControlPath /tmp/%r@%h:%p
-ControlPersist yes
+ControlPath ~/.ssh/sockets/%r@%h:%p
+ControlPersist 10m
+StrictHostKeyChecking ask
