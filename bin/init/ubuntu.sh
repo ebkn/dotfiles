@@ -1,4 +1,6 @@
-#!/bin/sh
+#!/bin/bash
+
+set -eo pipefail
 
 mkdir ~/backup
 
@@ -58,10 +60,8 @@ ln -s ~/dotfiles/wezterm.lua ~/.config/wezterm/wezterm.lua
 
 printf "\n--- Installing docker ---\n"
 sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker.asc
-sudo cp /tmp/docker.asc /etc/apt/keyrings/docker.asc
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo tee /etc/apt/keyrings/docker.asc > /dev/null
 sudo chmod a+r /etc/apt/keyrings/docker.asc
-rm /tmp/docker.asc
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
   $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null

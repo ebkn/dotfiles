@@ -67,6 +67,7 @@ brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 
 mkdir -p -m 0700 ~/.ssh/sockets
 mv ~/.sshconfig ~/.ssh/config
+ln -s ~/dotfiles/.sshconfig_base ~/.ssh/config_base
 ln -s ~/dotfiles/.gitignore_global ~
 ln -s ~/dotfiles/.bash_profile ~
 ln -s ~/dotfiles/.bashrc ~
@@ -109,7 +110,7 @@ mkdir -p ~/.local/bin
 ln -s ~/dotfiles/tmux-restore-tabs ~/.local/bin/tmux-restore-tabs
 
 # Java
-sudo ln -sfn "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk"
+sudo ln -sfn "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk" /Library/Java/JavaVirtualMachines/openjdk.jdk
 
 source ~/.zshrc
 
@@ -124,7 +125,7 @@ brew bundle --file="~/dotfiles/brewfiles/Brewfile-lang"
 printf "\n--- Installing apps by Homebrew-Cask.. ---\n"
 brew bundle --file="~/dotfiles/brewfiles/Brewfile-cask"
 
-if "$CI"; then
+if [ "$CI" = "true" ]; then
   printf "\n--- Skipping to install apps by mas.. ---\n"
 else
   printf "\n--- Installing apps by mas.. ---\n"
