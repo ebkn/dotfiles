@@ -21,9 +21,9 @@ alias cpu='procs --watch --sortd cpu'
 # requires fzf
 fd() {
   local dir
-  dir=$(find ${1:-.} -type d 2> /dev/null | fzf --reverse +m) && cd "$dir"
+  dir=$(find "${1:-.}" -type d 2> /dev/null | fzf --reverse +m) && cd "$dir"
   if [ "$dir" != "" ]; then
-    cd $dir
+    cd "$dir"
   fi
 }
 
@@ -204,7 +204,7 @@ alias gcp='git cherry-pick'
 function gtag() {
   local tag
   tag="$1"
-  git tag -s -am $tag $tag && git push origin $tag
+  git tag -s -am "$tag" "$tag" && git push origin "$tag"
 }
 
 # interactive cd to ghq repository
@@ -213,7 +213,7 @@ function move_to_repository() {
   local dir
   dir=$(ghq list -p --vcs=git | fzf --reverse)
   if [ "$dir" != "" ]; then
-    cd $dir
+    cd "$dir"
   fi
   zle accept-line
 }

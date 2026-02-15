@@ -39,10 +39,10 @@ if [ `uname` = 'Darwin' ]; then
   fi
 
   GCLOUD_SDK_DIR=$HOME/google-cloud-sdk
-  if [ -f $GCLOUD_SDK_DIR/path.zsh.inc ]; then . $GCLOUD_SDK_DIR/path.zsh.inc; fi
+  if [ -f "$GCLOUD_SDK_DIR/path.zsh.inc" ]; then . "$GCLOUD_SDK_DIR/path.zsh.inc"; fi
   function gcloud() {
     unfunction "$0"
-    if [ -f $GCLOUD_SDK_DIR/completion.zsh.inc ]; then . $GCLOUD_SDK_DIR/completion.zsh.inc; fi
+    if [ -f "$GCLOUD_SDK_DIR/completion.zsh.inc" ]; then . "$GCLOUD_SDK_DIR/completion.zsh.inc"; fi
     $0 "$@"
   }
 
