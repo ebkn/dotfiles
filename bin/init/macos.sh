@@ -1,11 +1,11 @@
-#!/bin/sh
+#!/bin/bash
 #
 # before run this script, following commands are needed.
 # xcode-select --install
 # for Apple Silicon
 # sudo softwareupdate --install-rosetta --agree-to-licensesudo
 
-set -ex
+set -eo pipefail
 
 mkdir -p ~/backup
 mkdir -p ~/.config
@@ -65,6 +65,7 @@ brew bundle --file="~/dotfiles/brewfiles/Brewfile-shell"
 
 "$(brew --prefix)/opt/fzf/install"
 
+mkdir -p -m 0700 ~/.ssh/sockets
 mv ~/.sshconfig ~/.ssh/config
 ln -s ~/dotfiles/.gitignore_global ~
 ln -s ~/dotfiles/.bash_profile ~
