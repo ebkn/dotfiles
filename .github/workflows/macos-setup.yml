@@ -9,4 +9,4 @@ jobs:
     steps:
       - name: Run install script
         run: |
-          curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/master/bin/init/macos.sh | sh
+          curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/macos.sh | sh
