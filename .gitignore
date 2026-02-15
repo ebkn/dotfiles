@@ -6,3 +6,4 @@ vim/nvim/*
 vim/.vim/view
 vim/.vim/sessions
 brewfiles/*.lock.json
+.claude/settings.local.json
