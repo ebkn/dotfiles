@@ -41,7 +41,7 @@
       "WebFetch(domain:docs.aws.amazon.com)",
       "WebFetch(domain:cloud.google.com)",
       "WebFetch(domain:www.npmjs.com)",
-      "WebSearch(**)"
+      "WebSearch"
     ],
     "deny": [
       "Bash(rm -rf /)",
