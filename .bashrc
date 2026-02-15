@@ -17,4 +17,4 @@ alias c='clear'
 alias l='ls -lahG'
 alias python='python3'
 
-source $HOME/.docker/init-bash.sh || true # Added by Docker Desktop
+[ -f "$HOME/.docker/init-bash.sh" ] && source "$HOME/.docker/init-bash.sh" # Added by Docker Desktop

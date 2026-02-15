@@ -83,7 +83,7 @@ case `uname` in
     export PATH="$PATH:${KREW_ROOT:-$HOME/.krew}/bin"
 
     # Docker
-    source $HOME/.docker/init-zsh.sh || true # Added by Docker Desktop
+    [ -f "$HOME/.docker/init-zsh.sh" ] && source "$HOME/.docker/init-zsh.sh" # Added by Docker Desktop
 
     # Python
     # Rye
