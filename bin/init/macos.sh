@@ -23,7 +23,7 @@ export PATH="/usr/local/bin:$PATH"
 export PATH="/opt/homebrew/sbin:$PATH"
 export PATH="/opt/homebrew/bin:$PATH"
 brew upgrade
-brew doctor
+brew doctor || true
 printf "\n--- Homebrew installed ---\n"
 
 printf "\n--- Installing git ---\n"
