@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/zsh
 #
 # before run this script, following commands are needed.
 # xcode-select --install
@@ -43,9 +43,6 @@ fi
 printf "\n--- Setup shell... ---\n"
 # before execute the following line, you should add /opt/homebrew/bin/zsh to /etc/shells
 chsh -s "$(brew --prefix)/bin/zsh"
-
-printf "\n--- Starting zsh ---\n"
-"$(brew --prefix)/bin/zsh"
 
 [ -f ~/.zshrc ] && mv ~/.zshrc ~/backup/
 [ -f ~/.zshenv ] && mv ~/.zshenv ~/backup/

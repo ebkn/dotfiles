@@ -39,10 +39,6 @@ ln -s ~/dotfiles/.zshenv ~
 ln -s ~/dotfiles/.bash_profile ~
 ln -s ~/dotfiles/.bashrc ~
 
-printf "\n--- Starting zsh ---\n"
-zsh
-source ~/.zshrc
-
 printf "\n--- Installing vim ---\n"
 sudo apt install vim
 
