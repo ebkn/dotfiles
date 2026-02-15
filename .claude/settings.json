@@ -23,6 +23,7 @@
       "Bash(git diff:*)",
       "Bash(git log:*)",
       "Bash(git -C * ls-files *)",
+      "Bash(mkdir *)",
       "Bash(terminal-notifier:*)",
       "Grep(**)",
       "Glob(**)",
