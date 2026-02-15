@@ -58,7 +58,14 @@ alias current_branch='git rev-parse --abbrev-ref HEAD'
 alias gsc='git switch -c'
 alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD` --recurse-submodules'
 alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
-alias gpushf='git push origin `git rev-parse --abbrev-ref HEAD` --force-with-lease'
+gpushf() {
+  local branch=$(git rev-parse --abbrev-ref HEAD)
+  if [[ "$branch" =~ ^(main|master|develop|staging)$ ]]; then
+    echo "Error: force-push to '$branch' is not allowed." >&2
+    return 1
+  fi
+  git push origin "$branch" --force-with-lease
+}
 
 # create a new git worktree
 function gw() {
