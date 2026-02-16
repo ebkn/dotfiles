@@ -169,25 +169,23 @@ function gdmerged() {
 
     if [ -n "$worktree_path" ]; then
       echo "✓ Found worktree for $branch: $worktree_path"
-      if git worktree remove "$worktree_path" 2>/dev/null; then
+      # Skip removal if worktree has untracked files
+      local untracked=$(git -C "$worktree_path" ls-files --others --exclude-standard 2>/dev/null)
+      if [ -n "$untracked" ]; then
+        echo "⚠ Skipping worktree removal (has untracked files): $worktree_path"
+      elif git worktree remove "$worktree_path" 2>/dev/null; then
         echo "✓ Removed worktree: $worktree_path"
-        # Now delete the branch after removing worktree
         if git branch -d "$branch" 2>/dev/null; then
           echo "✓ Deleted branch after worktree removal: $branch"
         elif git branch -D "$branch" 2>/dev/null; then
           echo "✓ Force-deleted branch after worktree removal: $branch"
-        else
-          echo "✗ Failed to delete branch after worktree removal: $branch"
         fi
       elif git worktree remove --force "$worktree_path" 2>/dev/null; then
         echo "✓ Force-removed worktree: $worktree_path"
-        # Now delete the branch after removing worktree
         if git branch -d "$branch" 2>/dev/null; then
           echo "✓ Deleted branch after worktree removal: $branch"
         elif git branch -D "$branch" 2>/dev/null; then
           echo "✓ Force-deleted branch after worktree removal: $branch"
-        else
-          echo "✗ Failed to delete branch after worktree removal: $branch"
         fi
       else
         echo "✗ Failed to remove worktree: $worktree_path"
