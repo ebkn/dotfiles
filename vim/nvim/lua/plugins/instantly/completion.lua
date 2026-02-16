@@ -28,7 +28,7 @@ return {
         nmap <silent> gi <Plug>(coc-implementation)
         nmap <silent> gr <Plug>(coc-references)
         nmap <silent> ga <Plug>(coc-codeaction-selected)
-        nmap <silent> ca <Plug><coc-codeaction)
+        nmap <silent> ca <Plug>(coc-codeaction)
         nmap <silent> rn <Plug>(coc-rename)
 
         " filetype
