@@ -101,7 +101,9 @@
       "WebFetch(domain:nodejs.org)",
       "WebFetch(domain:docs.claude.com)",
       "WebFetch(domain:code.claude.com)",
-      "WebSearch"
+      "WebSearch",
+      "Skill(commit)",
+      "Skill(create-pr)"
     ],
     "deny": [
       "Bash(rm -rf /)",
@@ -175,6 +177,10 @@
   "enabledPlugins": {
     "gopls-lsp@claude-plugins-official": true,
     "coderabbit@claude-plugins-official": true
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
   },
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
