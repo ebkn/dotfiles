@@ -26,6 +26,7 @@
       "Bash(sort *)",
       "Bash(uniq *)",
       "Bash(wc *)",
+      "Bash(tee *)",
       "Bash(tr *)",
       "Bash(rg *)",
       "Bash(diff *)",
