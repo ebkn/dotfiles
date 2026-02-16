@@ -36,6 +36,11 @@
 - **Shell scripts**: Run `shellcheck` to validate shell scripts after writing or modifying them.
 - **Directory overview**: Use `tree` to understand project structure quickly.
 
+# Commits
+
+- When changes reach a natural commit boundary, suggest committing to the user.
+- Do not wait until the end of a task — commit incrementally as logical units complete.
+
 # File Access
 
 - Always use relative paths from the working directory when accessing files within the project.
