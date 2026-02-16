@@ -76,7 +76,15 @@ return {
     -- { mods = "LEADER", key = 'u', action = wezterm.action.ActivateCopyMode },
   },
 
+  -- Cmd bypasses tmux mouse reporting so Cmd+Click can open links
+  bypass_mouse_reporting_modifiers = 'SUPER',
+
   mouse_bindings = {
+    {
+        event = { Up = { streak = 1, button = 'Left' } },
+        mods = 'SUPER',
+        action = act.OpenLinkAtMouseCursor,
+    },
     {
         event = { Down = { streak = 1, button = 'Right' } },
         mods = 'NONE',
