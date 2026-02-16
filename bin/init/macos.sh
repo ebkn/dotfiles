@@ -80,7 +80,9 @@ ln -s ~/dotfiles/cursor/keybindings.json ~/Library/Application\ Support/Cursor/U
 ln -s ~/dotfiles/cursor/settings.json ~/Library/Application\ Support/Cursor/User/settings.json
 mkdir -p ~/.claude
 [ -f ~/.claude/settings.json ] && mv ~/.claude/settings.json ~/backup/
-ln -s ~/dotfiles/.claude/settings.json ~/.claude/settings.json
+ln -sf ~/dotfiles/root/.claude/settings.json ~/.claude/settings.json
+[ -d ~/.claude/skills ] && mv ~/.claude/skills ~/backup/
+ln -sf ~/dotfiles/root/.claude/skills ~/.claude/skills
 
 sudo ln -s /usr/local/share/git-core/contrib/diff-highlight/diff-highlight /usr/local/bin/diff-highlight
 
