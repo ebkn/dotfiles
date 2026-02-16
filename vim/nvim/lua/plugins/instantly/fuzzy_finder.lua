@@ -52,7 +52,7 @@ return {
     dependencies = { "junegunn/fzf.vim", "neoclide/coc.nvim" },
     config = function()
       vim.cmd([[
-        nnoremap <C-d> :CocFzfList dianostics<CR>
+        nnoremap <C-d> :CocFzfList diagnostics<CR>
         nnoremap <C-e> :CocFzfList outline<CR>
         nnoremap <silent> <space>c :<C-u>CocFzfList commands<CR>
       ]])
