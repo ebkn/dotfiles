@@ -27,9 +27,9 @@ color cursor black white bold
 # key bindings
 bind generic C !git commit
 bind generic A !git commit --amend
-bind generic F !git fetch %(remote)
-bind generic U !sh -c "git pull origin `git rev-parse --abbrev-ref HEAD` --recurse-submodules && git fetch && git branch --merged | grep -v 'master$' | grep -v 'develop$' | grep -v 'main$' | xargs -I % git branch -d %"
-bind generic P !git push %(remote) %(repo:head)
+bind generic F !sh -c "echo 'Fetching %(remote)...' && git fetch %(remote)"
+bind generic U !sh -c "echo 'Pulling and cleaning up...' && git pull origin $(git rev-parse --abbrev-ref HEAD) --recurse-submodules && git fetch && git branch --merged | grep -v 'master$' | grep -v 'develop$' | grep -v 'main$' | xargs -I % git branch -d %"
+bind generic P !sh -c "echo 'Pushing to %(remote)/%(repo:head)...' && git push %(remote) %(repo:head)"
 bind generic S !git switch -c "%(prompt Enter new branch name: )"
 bind generic g move-first-line
 bind generic G move-last-line
