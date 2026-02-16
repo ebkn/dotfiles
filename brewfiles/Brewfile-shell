@@ -21,6 +21,9 @@ brew 'jo'
 # rg
 brew 'ripgrep'
 
+# linter
+brew 'shellcheck'
+
 # git
 brew 'tig'
 brew 'ghq' # manage repository
