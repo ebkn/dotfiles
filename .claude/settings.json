@@ -33,6 +33,8 @@
       "Bash(jq *)",
       "Bash(yq *)",
       "Bash(tree *)",
+      "Bash(ast-grep *)",
+      "Bash(shellcheck *)",
       "Bash(terminal-notifier *)",
       "Bash(git diff *)",
       "Bash(git status *)",
