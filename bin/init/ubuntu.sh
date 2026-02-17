@@ -84,6 +84,9 @@ ln -s ~/dotfiles/.gitignore_global ~
 [ -f ~/.gitconfig ] && mv ~/.gitconfig ~/backup/
 ln -s ~/dotfiles/.gitconfig ~/.gitconfig
 ln -s ~/dotfiles/.gitconfig-ebkn ~/.gitconfig-ebkn
+mkdir -p ~/.codex/rules
+[ -f ~/.codex/rules/default.rules ] && mv ~/.codex/rules/default.rules ~/backup/
+ln -sf ~/dotfiles/root/.codex/rules/default.rules ~/.codex/rules/default.rules
 
 # node
 ln -s ~/dotfiles/.eslintrc.json ~

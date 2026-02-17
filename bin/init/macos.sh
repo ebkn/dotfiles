@@ -83,6 +83,9 @@ mkdir -p ~/.claude
 ln -sf ~/dotfiles/root/.claude/settings.json ~/.claude/settings.json
 [ -d ~/.claude/skills ] && mv ~/.claude/skills ~/backup/
 ln -sf ~/dotfiles/root/.claude/skills ~/.claude/skills
+mkdir -p ~/.codex/rules
+[ -f ~/.codex/rules/default.rules ] && mv ~/.codex/rules/default.rules ~/backup/
+ln -sf ~/dotfiles/root/.codex/rules/default.rules ~/.codex/rules/default.rules
 
 sudo ln -s /usr/local/share/git-core/contrib/diff-highlight/diff-highlight /usr/local/bin/diff-highlight
 
