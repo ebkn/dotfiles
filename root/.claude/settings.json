@@ -36,6 +36,7 @@
       "Bash(tree *)",
       "Bash(ast-grep *)",
       "Bash(shellcheck *)",
+      "Bash(actionlint *)",
       "Bash(terminal-notifier *)",
       "Bash(test *)",
       "Bash(ping *)",
