@@ -107,8 +107,7 @@
       "WebFetch(domain:docs.claude.com)",
       "WebFetch(domain:code.claude.com)",
       "WebSearch",
-      "Skill(commit)",
-      "Skill(create-pr)"
+      "Skill(commit)"
     ],
     "ask": [
       "Bash(curl *)",
