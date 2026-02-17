@@ -45,3 +45,8 @@
 
 - Always use relative paths from the working directory when accessing files within the project.
 - Avoid absolute paths (including paths starting with `~` or `/`) for project files.
+
+# Shell Commands
+
+- Avoid complex shell commands with pipes (`|`), subshells (`$()`), or long chains. These trigger permission prompts even when base commands are allowed.
+- Prefer dedicated tools (Read, Grep, Glob, Edit, Write) over shell pipelines to keep progress flowing without interruptions.
