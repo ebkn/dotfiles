@@ -37,6 +37,11 @@
       "Bash(ast-grep *)",
       "Bash(shellcheck *)",
       "Bash(terminal-notifier *)",
+      "Bash(ping *)",
+      "Bash(dig *)",
+      "Bash(nslookup *)",
+      "Bash(host *)",
+      "Bash(traceroute *)",
       "Bash(git diff *)",
       "Bash(git status *)",
       "Bash(git log *)",
@@ -107,7 +112,10 @@
     ],
     "ask": [
       "Bash(curl *)",
-      "Bash(wget *)"
+      "Bash(wget *)",
+      "Bash(telnet *)",
+      "Bash(nc *)",
+      "Bash(netcat *)"
     ],
     "deny": [
       "Bash(rm -rf /)",
