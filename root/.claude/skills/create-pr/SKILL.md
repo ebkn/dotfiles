@@ -8,6 +8,7 @@ allowed-tools: Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git r
 
 !`git rev-parse --abbrev-ref HEAD`
 !`git status --short`
+!`git ls-files ':(top,icase).github/pull_request_template.md' ':(top,icase).github/pull_request_template/*.md' ':(top,icase)pull_request_template.md'`
 
 ## Instructions
 
@@ -17,7 +18,7 @@ Create a pull request. Follow this flow:
 
 2. **Uncommitted changes**: If `git status` above shows output, ask the user whether to commit them, ignore them, or abort. Do not proceed until answered.
 
-3. **PR template**: Search for a template in `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/*.md`, or `pull_request_template.md`. If found, use its structure. Keep all HTML comments (`<!-- -->`) intact — only replace obvious placeholders.
+3. **PR template**: Check the pre-fetched template paths above. If any template file is listed, you MUST `Read` it and use its structure as the PR body skeleton. Keep all HTML comments (`<!-- -->`) intact — only replace obvious placeholders. If no template was found, skip this step.
 
 4. **Reference links**: Ask the user for any links to include (issues, docs, related PRs). Proactively suggest any from conversation history.
 
