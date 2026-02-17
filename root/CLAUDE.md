@@ -50,6 +50,11 @@
 - Always use relative paths from the working directory when accessing files within the project.
 - Avoid absolute paths (including paths starting with `~` or `/`) for project files.
 
+# Temporary Files
+
+- When creating temporary files or directories for investigation, place them under the current project directory (e.g., `./tmp/`), not `/tmp` or other system-level locations.
+- Clean up temporary files and directories once the task is complete.
+
 # Shell Commands
 
 - Avoid complex shell commands with pipes (`|`), subshells (`$()`), or long chains. These trigger permission prompts even when base commands are allowed.
