@@ -23,7 +23,7 @@ Create a pull request. Follow this flow:
 4. **Reference links**: Ask the user for any links to include (issues, docs, related PRs). Proactively suggest any from conversation history.
 
 5. **Compose PR**: Based on all commits, the full diff, and conversation history:
-   - Title: Conventional Commits style, under 72 chars, English
+   - Title: Conventional Commits style, under 72 chars. Write in the same language as the PR template; default to English if no template was found.
    - Body (use template if found, otherwise): Summary (what and why), Changes (grouped logically), Concerns/Notes (if any), References (if any)
 
 6. **Confirm**: Show the full PR title and body. The user may request edits — apply and re-confirm. Do not push or create until approved.
