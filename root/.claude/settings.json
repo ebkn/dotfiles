@@ -105,6 +105,10 @@
       "Skill(commit)",
       "Skill(create-pr)"
     ],
+    "ask": [
+      "Bash(curl *)",
+      "Bash(wget *)"
+    ],
     "deny": [
       "Bash(rm -rf /)",
       "Bash(rm -rf ~)",
@@ -126,8 +130,6 @@
       "Bash(sudo chown *)",
       "Bash(sudo -i *)",
       "Bash(sudo su *)",
-      "Bash(curl *)",
-      "Bash(wget *)",
       "Bash(rm -rf .git)",
       "Bash(git push --force-with-lease *)",
       "Bash(git push -f *)",
