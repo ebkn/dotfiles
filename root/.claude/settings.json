@@ -115,7 +115,9 @@
       "Bash(wget *)",
       "Bash(telnet *)",
       "Bash(nc *)",
-      "Bash(netcat *)"
+      "Bash(netcat *)",
+      "Bash(rm *)",
+      "Bash(mv *)"
     ],
     "deny": [
       "Bash(rm -rf /)",
