@@ -42,7 +42,7 @@
 
 # Commits
 
-- When changes reach a natural commit boundary, suggest committing to the user.
+- When changes reach a natural commit boundary, suggest committing to the user with `/commit`.
 - Do not wait until the end of a task — commit incrementally as logical units complete.
 
 # File Access
