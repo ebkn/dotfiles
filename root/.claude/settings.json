@@ -37,6 +37,7 @@
       "Bash(ast-grep *)",
       "Bash(shellcheck *)",
       "Bash(terminal-notifier *)",
+      "Bash(test *)",
       "Bash(ping *)",
       "Bash(dig *)",
       "Bash(nslookup *)",
