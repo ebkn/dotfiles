@@ -1,7 +1,7 @@
 ---
 name: commit
 description: Stage and commit changes with conventional commits
-allowed-tools: Bash(git *), Read, Glob, Grep
+allowed-tools: Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git add *), Bash(git commit *), Read, Glob, Grep
 ---
 
 ## Pre-fetched context
