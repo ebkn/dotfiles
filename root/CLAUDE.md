@@ -28,6 +28,10 @@
   - Propose counterarguments
   - Offer alternative framings
 
+# Research
+
+- Verify information against official documentation and other authoritative sources as much as possible, along with the source code itself.
+
 # Editing
 
 - **File search**: Prefer `rg` (ripgrep) for searching file contents. It is significantly faster than `grep` or `find`.
