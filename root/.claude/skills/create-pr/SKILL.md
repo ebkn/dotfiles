@@ -18,13 +18,19 @@ Create a pull request. Follow this flow:
 
 2. **Uncommitted changes**: If `git status` above shows output, ask the user whether to commit them, ignore them, or abort. Do not proceed until answered.
 
-3. **PR template**: Check the pre-fetched template paths above. If any template file is listed, you MUST `Read` it and use its structure as the PR body skeleton. Keep all HTML comments (`<!-- -->`) intact — only replace obvious placeholders. If no template was found, skip this step.
+3. **PR template**:
+   - If a template path is listed, `Read` it before writing title/body.
+   - Detect `template_language` from headings/instructions/checklists (ignore code, URLs, HTML comments).
+   - Keep template headings/order and keep HTML comments (`<!-- -->`).
+   - If no template exists, skip.
 
 4. **Reference links**: Ask the user for any links to include (issues, docs, related PRs). Proactively suggest any from conversation history.
 
-5. **Compose PR**: Based on all commits, the full diff, and conversation history:
-   - Title: Conventional Commits style, under 72 chars. Write in the same language as the PR template; default to English if no template was found.
-   - Body (use template if found, otherwise): Summary (what and why), Changes (grouped logically), Concerns/Notes (if any), References (if any)
+5. **Compose PR**:
+   - Title: Conventional Commits, under 72 chars.
+   - Title language priority: user request > `template_language` > latest user message > English.
+   - Keep `type(scope)` tokens standard (`feat`, `fix`, etc.); localize only the description text.
+   - Body: if template exists, fill its sections. If not, use Summary / Changes / Concerns / References.
 
 6. **Confirm**: Show the full PR title and body. The user may request edits — apply and re-confirm. Do not push or create until approved.
 
