@@ -48,6 +48,7 @@
       "Bash(nslookup *)",
       "Bash(host *)",
       "Bash(traceroute *)",
+      "Bash(git add *)",
       "Bash(git diff *)",
       "Bash(git status *)",
       "Bash(git log *)",
@@ -60,6 +61,7 @@
       "Bash(git cat-file *)",
       "Bash(git fetch *)",
       "Bash(git rev-parse *)",
+      "Bash(git -C * add *)",
       "Bash(git -C * diff *)",
       "Bash(git -C * status *)",
       "Bash(git -C * log *)",
@@ -135,7 +137,8 @@
       "WebSearch",
       "Skill(commit)",
       "Bash(git push -u origin HEAD)",
-      "Bash(git commit -m *)"
+      "Bash(git commit -m *)",
+      "Bash(git -C * commit -m *)"
     ],
     "deny": [
       "Bash(rm -rf /)",
