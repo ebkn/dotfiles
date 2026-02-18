@@ -1,5 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
   "permissions": {
     "allow": [
       "Bash(pwd *)",
@@ -131,15 +135,6 @@
       "WebSearch",
       "Skill(commit)"
     ],
-    "ask": [
-      "Bash(curl *)",
-      "Bash(wget *)",
-      "Bash(telnet *)",
-      "Bash(nc *)",
-      "Bash(netcat *)",
-      "Bash(rm *)",
-      "Bash(mv *)"
-    ],
     "deny": [
       "Bash(rm -rf /)",
       "Bash(rm -rf ~)",
@@ -205,6 +200,15 @@
       "Write(/etc/passwd)",
       "Write(/etc/shadow)",
       "Write(/etc/sudoers)"
+    ],
+    "ask": [
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Bash(telnet *)",
+      "Bash(nc *)",
+      "Bash(netcat *)",
+      "Bash(rm *)",
+      "Bash(mv *)"
     ]
   },
   "hooks": {
@@ -223,11 +227,8 @@
   },
   "enabledPlugins": {
     "gopls-lsp@claude-plugins-official": true,
-    "coderabbit@claude-plugins-official": true
-  },
-  "attribution": {
-    "commit": "",
-    "pr": ""
+    "coderabbit@claude-plugins-official": true,
+    "swift-lsp@claude-plugins-official": true
   },
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
