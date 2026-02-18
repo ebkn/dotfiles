@@ -51,9 +51,10 @@ return {
     { mods = "CMD", key = "w", action = wezterm.action.PromptInputLine {
       description = 'Close tmux window? (y/n)',
       action = wezterm.action_callback(function(window, pane, line)
-        if line == 'y' then
-          -- 現在のtmux windowを閉じる（最後のwindowなら session も終了 → タブも閉じる）
-          pane:send_text('tmux kill-window\n')
+        if line == 'y' or line == 'Y' then
+          -- tmux root table に割り当てた F12 を送る。
+          -- 文字列送信しないため、vim や実行中プロセスでも漏れない。
+          window:perform_action(act.SendKey { key = 'F12' }, pane)
         end
       end),
     }},
