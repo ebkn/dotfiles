@@ -133,7 +133,9 @@
       "WebFetch(domain:caniuse.com)",
       "WebFetch(domain:json.schemastore.org)",
       "WebSearch",
-      "Skill(commit)"
+      "Skill(commit)",
+      "Bash(git push -u origin HEAD)",
+      "Bash(git commit -m *)"
     ],
     "deny": [
       "Bash(rm -rf /)",
