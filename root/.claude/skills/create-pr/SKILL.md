@@ -28,10 +28,15 @@ Create a pull request. Follow this flow:
 
 5. **Compose PR**:
    - Title: Conventional Commits, under 72 chars.
-   - Title language priority: user request > `template_language` > latest user message > English.
+   - Decide title language before drafting and keep it fixed unless the user requests a change.
+   - Title language policy: use `template_language` first whenever it can be detected.
+   - If the user explicitly asks to override language for the current PR, follow that override.
+   - If no `template_language` is detected, use: explicit user request > latest substantive user message > English.
+   - Ignore slash commands (for example `/create-pr`), code blocks, file paths, and URLs when inferring language.
+   - If language signals conflict or are ambiguous, ask the user which language to use before drafting.
    - Keep `type(scope)` tokens standard (`feat`, `fix`, etc.); localize only the description text.
    - Body: if template exists, fill its sections. If not, use Summary / Changes / Concerns / References.
 
-6. **Confirm**: Show the full PR title and body. The user may request edits — apply and re-confirm. Do not push or create until approved.
+6. **Confirm**: Show the full PR title and body, and include `Title language: <language>` so the user can verify it explicitly. The user may request edits — apply and re-confirm. Do not push or create until approved.
 
 7. **Push and create**: Push (`git push -u origin HEAD`) only if there are unpushed commits (`git log @{upstream}..HEAD`). Create with `gh pr create`. Return the PR URL.

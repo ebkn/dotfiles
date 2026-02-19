@@ -23,10 +23,16 @@ Create a pull request using this flow.
 4. Ask for reference links to include (issues, docs, related PRs) and suggest obvious ones from current context.
 5. Draft the PR:
    - Title: Conventional Commits format, under 72 chars
-   - Title language priority: explicit user request > template language > latest user message > English
+   - Decide title language before drafting and keep it fixed unless the user requests a change
+   - Title language policy: use template language first whenever it can be detected
+   - If the user explicitly asks to override language for the current PR, follow that override
+   - If no template language is detected, use: explicit user request > latest substantive user message > English
+   - Ignore slash commands (for example `/create-pr`), code blocks, file paths, and URLs when inferring language
+   - If language signals conflict or are ambiguous, ask the user which language to use before drafting
    - Keep `type(scope)` tokens standard (for example `feat`, `fix`, `chore`); localize only descriptive text
    - If no template exists, use sections: Summary / Changes / Concerns / References
 6. Confirm the final PR title and body with the user:
+   - Include `Title language: <language>` in the confirmation so the user can verify it explicitly
    - Apply requested edits and re-confirm
    - Do not push or create the PR before approval
 7. Push and create:
