@@ -14,9 +14,13 @@ set ignore-case = true
 set split-view-width = 80%
 set split-view-height = 80%
 
+# Diff view policy:
+# - Prefer clean inline highlights via diff-highlight (no {+ +} markers).
+# - Keep first-parent history for easier review on merge-heavy repos.
 set diff-options = -m --first-parent
 set word-diff = false
 set diff-highlight = true
+# Match GitHub's "Hide whitespace changes" behavior by default.
 set ignore-space = all
 
 set refresh-mode = auto
@@ -25,6 +29,9 @@ set mouse = true
 set mouse-scroll = 1
 
 color cursor black white bold
+# Force color-based inline emphasis (instead of relying on italic only).
+color diff-add-highlight black green
+color diff-del-highlight black red
 
 # key bindings
 bind generic C !git commit
