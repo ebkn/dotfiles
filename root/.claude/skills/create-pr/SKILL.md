@@ -37,6 +37,6 @@ Create a pull request. Follow this flow:
    - Keep `type(scope)` tokens standard (`feat`, `fix`, etc.); localize only the description text.
    - Body: if template exists, fill its sections. If not, use Summary / Changes / Concerns / References.
 
-6. **Confirm**: Show the full PR title and body, and include `Title language: <language>` so the user can verify it explicitly. The user may request edits — apply and re-confirm. Do not push or create until approved.
+6. **Confirm**: Show the full PR title and body. The user may request edits — apply and re-confirm. Do not push or create until approved.
 
 7. **Push and create**: Push (`git push -u origin HEAD`) only if there are unpushed commits (`git log @{upstream}..HEAD`). Create with `gh pr create`. Return the PR URL.

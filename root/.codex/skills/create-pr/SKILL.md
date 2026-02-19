@@ -32,7 +32,6 @@ Create a pull request using this flow.
    - Keep `type(scope)` tokens standard (for example `feat`, `fix`, `chore`); localize only descriptive text
    - If no template exists, use sections: Summary / Changes / Concerns / References
 6. Confirm the final PR title and body with the user:
-   - Include `Title language: <language>` in the confirmation so the user can verify it explicitly
    - Apply requested edits and re-confirm
    - Do not push or create the PR before approval
 7. Push and create:
