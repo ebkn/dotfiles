@@ -33,7 +33,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 ├── root/               #   Home directory configs (symlinked to ~/)
 │   ├── CLAUDE.md       #     Global Claude Code instructions
 │   ├── .claude/        #     Claude Code settings and skills
-│   └── .codex/         #     Codex rules
+│   └── .codex/         #     Codex rules and skills
 ├── cursor/             #   Cursor editor settings and keybindings
 ├── .github/workflows/  #   CI for setup script validation
 ├── .zshrc              #   Zsh entrypoint (sources zsh/ modules)

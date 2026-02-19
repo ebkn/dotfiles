@@ -1,0 +1,4 @@
+interface:
+  display_name: "Commit Changes"
+  short_description: "Stage and commit changes with Conventional Commits"
+  default_prompt: "Use $commit to stage and commit my current changes."

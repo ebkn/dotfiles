@@ -69,6 +69,30 @@ prefix_rule(
 )
 
 prefix_rule(
+    pattern = ["git", "add"],
+    decision = "allow",
+    justification = "Allow staging files for the commit skill.",
+)
+
+prefix_rule(
+    pattern = ["git", "commit", "-m"],
+    decision = "allow",
+    justification = "Allow non-interactive commits for the commit skill.",
+)
+
+prefix_rule(
+    pattern = ["git", "push", "origin", "HEAD"],
+    decision = "allow",
+    justification = "Allow pushing current branch for the create-pr skill.",
+)
+
+prefix_rule(
+    pattern = ["git", "push", "-u", "origin", "HEAD"],
+    decision = "allow",
+    justification = "Allow first push with upstream setup for the create-pr skill.",
+)
+
+prefix_rule(
     pattern = ["git", "tag", ["-l", "--list"]],
     decision = "allow",
     justification = "Allow git tag listing commands.",
@@ -122,6 +146,12 @@ prefix_rule(
     pattern = ["gh", "repo", "view"],
     decision = "allow",
     justification = "Allow gh repo view.",
+)
+
+prefix_rule(
+    pattern = ["gh", "pr", "create"],
+    decision = "allow",
+    justification = "Allow PR creation for the create-pr skill.",
 )
 
 prefix_rule(

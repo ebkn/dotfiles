@@ -86,6 +86,11 @@ ln -sf ~/dotfiles/root/.claude/skills ~/.claude/skills
 mkdir -p ~/.codex/rules
 [ -f ~/.codex/rules/default.rules ] && mv ~/.codex/rules/default.rules ~/backup/
 ln -sf ~/dotfiles/root/.codex/rules/default.rules ~/.codex/rules/default.rules
+mkdir -p ~/.codex/skills
+[ -e ~/.codex/skills/commit ] && mv ~/.codex/skills/commit ~/backup/
+[ -e ~/.codex/skills/create-pr ] && mv ~/.codex/skills/create-pr ~/backup/
+ln -sf ~/dotfiles/root/.codex/skills/commit ~/.codex/skills/commit
+ln -sf ~/dotfiles/root/.codex/skills/create-pr ~/.codex/skills/create-pr
 
 sudo ln -s /usr/local/share/git-core/contrib/diff-highlight/diff-highlight /usr/local/bin/diff-highlight
 
