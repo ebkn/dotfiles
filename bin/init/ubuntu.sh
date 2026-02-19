@@ -92,6 +92,8 @@ mkdir -p ~/.codex/skills
 [ -e ~/.codex/skills/create-pr ] && mv ~/.codex/skills/create-pr ~/backup/
 ln -sf ~/dotfiles/root/.codex/skills/commit ~/.codex/skills/commit
 ln -sf ~/dotfiles/root/.codex/skills/create-pr ~/.codex/skills/create-pr
+[ -e ~/.github ] && mv ~/.github ~/backup/
+ln -sfn ~/dotfiles/root/.github ~/.github
 
 # node
 ln -s ~/dotfiles/.eslintrc.json ~
