@@ -15,7 +15,9 @@ set split-view-width = 80%
 set split-view-height = 80%
 
 set diff-options = -m --first-parent
+set word-diff = false
 set diff-highlight = true
+set ignore-space = all
 
 set refresh-mode = auto
 
