@@ -21,7 +21,7 @@ set diff-options = -m --first-parent
 set word-diff = false
 set diff-highlight = true
 # Match GitHub's "Hide whitespace changes" behavior by default.
-set ignore-space = all
+set ignore-space = some
 
 set refresh-mode = auto
 
