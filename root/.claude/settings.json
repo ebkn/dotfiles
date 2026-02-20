@@ -160,6 +160,8 @@
       "Bash(rm -rf /)",
       "Bash(rm -rf ~)",
       "Bash(rm -rf /*)",
+      "Bash(rm -rf --no-preserve-root /)",
+      "Bash(rm -rf --no-preserve-root /*)",
       "Bash(sudo rm *)",
       "Bash(sudo dd *)",
       "Bash(sudo mkfs *)",
