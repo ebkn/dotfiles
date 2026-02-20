@@ -101,7 +101,6 @@
       "Bash(gh label list *)",
       "Bash(gh pr checks *)",
       "Bash(gh pr create *)",
-      "Bash(gh pr edit *)",
       "Bash(gh pr diff *)",
       "Bash(gh pr list *)",
       "Bash(gh pr status *)",
@@ -232,6 +231,7 @@
       "Bash(rm *)",
       "Bash(mv *)",
       "Bash(gh api *)",
+      "Bash(gh pr edit *)",
       "Bash(git checkout *)",
       "Bash(git push *)",
       "Bash(git switch *)"
