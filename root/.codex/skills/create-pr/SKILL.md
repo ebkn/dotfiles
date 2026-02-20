@@ -27,7 +27,7 @@ Create a pull request using this flow.
    - Title language policy: use template language first whenever it can be detected
    - If the user explicitly asks to override language for the current PR, follow that override
    - If no template language is detected, use: explicit user request > latest substantive user message > English
-   - Ignore slash commands (for example `/create-pr`), code blocks, file paths, and URLs when inferring language
+   - Ignore command-style invocations (for example `$create-pr`), code blocks, file paths, and URLs when inferring language
    - If language signals conflict or are ambiguous, ask the user which language to use before drafting
    - Keep `type(scope)` tokens standard (for example `feat`, `fix`, `chore`); localize only descriptive text
    - If no template exists, use sections: Summary / Changes / Concerns / References
