@@ -1,227 +1,284 @@
-# Rule set derived from root/.claude/settings.json permissions.
-# This file covers command-level allow/forbidden behavior.
-# File write boundaries are still enforced by sandbox writable roots.
+# Synced from root/.claude/settings.json permissions.
+# This file captures command-level allow/forbidden/prompt behavior.
+#
+# Notes:
+# - `git -C * <subcommand> *` from Claude cannot be represented exactly as a
+#   Codex prefix rule, so `git -C` is handled as `prompt`.
+# - Shell redirection patterns like `> /dev/*` and `>> /dev/*` are not
+#   representable as prefix rules.
 
 prefix_rule(
     pattern = [
         [
-            "pwd",
-            "which",
-            "find",
-            "realpath",
-            "dirname",
-            "basename",
-            "grep",
-            "lsof",
-            "ls",
-            "cat",
-            "tail",
-            "head",
-            "touch",
-            "mkdir",
-            "cut",
-            "cp",
-            "echo",
-            "printf",
-            "sed",
+            "actionlint",
+            "ast-grep",
             "awk",
-            "xargs",
+            "basename",
+            "cat",
+            "cp",
+            "cut",
+            "date",
+            "diff",
+            "dig",
+            "dirname",
+            "echo",
+            "file",
+            "find",
+            "grep",
+            "head",
+            "host",
+            "jq",
+            "ls",
+            "lsof",
+            "mkdir",
+            "nslookup",
+            "ping",
+            "printf",
+            "pwd",
+            "readlink",
+            "realpath",
+            "rg",
+            "sed",
+            "shellcheck",
             "sort",
+            "stat",
+            "tail",
+            "tee",
+            "terminal-notifier",
+            "test",
+            "touch",
+            "tr",
+            "traceroute",
+            "tree",
+            "uname",
             "uniq",
             "wc",
-            "tee",
-            "tr",
-            "rg",
-            "diff",
-            "date",
-            "jq",
+            "which",
+            "xargs",
             "yq",
-            "tree",
-            "ast-grep",
-            "shellcheck",
-            "terminal-notifier",
         ],
     ],
     decision = "allow",
-    justification = "Allow common shell utilities from the Claude allow-list.",
+    justification = "Allow shell utilities from the Claude allow-list.",
 )
 
 prefix_rule(
     pattern = [
         "git",
         [
-            "diff",
-            "status",
-            "log",
-            "grep",
+            "add",
             "blame",
-            "show",
+            "branch",
+            "cat-file",
+            "config",
             "describe",
+            "diff",
+            "fetch",
+            "grep",
+            "log",
             "ls-files",
             "ls-tree",
-            "cat-file",
-            "fetch",
+            "merge-base",
+            "remote",
             "rev-parse",
+            "show",
+            "stash",
+            "status",
+            "tag",
         ],
     ],
     decision = "allow",
-    justification = "Allow read/inspect-oriented git commands from the Claude allow-list.",
-)
-
-prefix_rule(
-    pattern = ["git", "add"],
-    decision = "allow",
-    justification = "Allow staging files for the commit skill.",
+    justification = "Allow git commands listed in Claude allow-list.",
 )
 
 prefix_rule(
     pattern = ["git", "commit", "-m"],
     decision = "allow",
-    justification = "Allow non-interactive commits for the commit skill.",
-)
-
-prefix_rule(
-    pattern = ["git", "push", "origin", "HEAD"],
-    decision = "allow",
-    justification = "Allow pushing current branch for the create-pr skill.",
+    justification = "Allow non-interactive commit flow from Claude allow-list.",
 )
 
 prefix_rule(
     pattern = ["git", "push", "-u", "origin", "HEAD"],
     decision = "allow",
-    justification = "Allow first push with upstream setup for the create-pr skill.",
-)
-
-prefix_rule(
-    pattern = ["git", "tag", ["-l", "--list"]],
-    decision = "allow",
-    justification = "Allow git tag listing commands.",
-)
-
-# Claude settings allowed selective `git -C * <subcommand> *` patterns.
-# Prefix rules cannot represent that exact wildcard-in-middle shape safely.
-prefix_rule(
-    pattern = ["git", "-C"],
-    decision = "prompt",
-    justification = "Require explicit approval for path-scoped git commands.",
-)
-
-prefix_rule(
-    pattern = ["gh", "pr", ["diff", "view", "list", "checks", "status"]],
-    decision = "allow",
-    justification = "Allow read-only PR commands from the Claude allow-list.",
-)
-
-prefix_rule(
-    pattern = ["gh", "issue", ["view", "list", "status"]],
-    decision = "allow",
-    justification = "Allow read-only issue commands from the Claude allow-list.",
-)
-
-prefix_rule(
-    pattern = ["gh", "release", ["list", "view"]],
-    decision = "allow",
-    justification = "Allow read-only release commands from the Claude allow-list.",
-)
-
-prefix_rule(
-    pattern = ["gh", "run", ["list", "view"]],
-    decision = "allow",
-    justification = "Allow read-only run commands from the Claude allow-list.",
-)
-
-prefix_rule(
-    pattern = ["gh", "workflow", ["list", "view"]],
-    decision = "allow",
-    justification = "Allow read-only workflow commands from the Claude allow-list.",
+    justification = "Allow upstream setup push from Claude allow-list.",
 )
 
 prefix_rule(
     pattern = ["gh", "browse"],
     decision = "allow",
-    justification = "Allow gh browse.",
+    justification = "Allow `gh browse` from Claude allow-list.",
 )
 
 prefix_rule(
-    pattern = ["gh", "repo", "view"],
+    pattern = ["gh", "issue", ["list", "status", "view"]],
     decision = "allow",
-    justification = "Allow gh repo view.",
+    justification = "Allow read-oriented issue commands from Claude allow-list.",
 )
 
 prefix_rule(
-    pattern = ["gh", "pr", "create"],
+    pattern = ["gh", "label", "list"],
     decision = "allow",
-    justification = "Allow PR creation for the create-pr skill.",
+    justification = "Allow `gh label list` from Claude allow-list.",
+)
+
+prefix_rule(
+    pattern = ["gh", "pr", ["checks", "create", "diff", "list", "status", "view"]],
+    decision = "allow",
+    justification = "Allow PR commands from Claude allow-list.",
+)
+
+prefix_rule(
+    pattern = ["gh", "release", ["list", "view"]],
+    decision = "allow",
+    justification = "Allow release inspection commands from Claude allow-list.",
+)
+
+prefix_rule(
+    pattern = ["gh", "repo", ["list", "view"]],
+    decision = "allow",
+    justification = "Allow repo listing/view commands from Claude allow-list.",
+)
+
+prefix_rule(
+    pattern = ["gh", "run", ["list", "view"]],
+    decision = "allow",
+    justification = "Allow run inspection commands from Claude allow-list.",
+)
+
+prefix_rule(
+    pattern = ["gh", "search", ["code", "commits", "issues", "prs", "repos"]],
+    decision = "allow",
+    justification = "Allow `gh search` commands from Claude allow-list.",
+)
+
+prefix_rule(
+    pattern = ["gh", "workflow", ["list", "view"]],
+    decision = "allow",
+    justification = "Allow workflow inspection commands from Claude allow-list.",
 )
 
 prefix_rule(
     pattern = ["rm", "-rf", ["/", "~", "/*", ".git"]],
     decision = "forbidden",
-    justification = "Block destructive recursive remove targets from the Claude deny-list.",
+    justification = "Block destructive recursive remove targets from Claude deny-list.",
 )
 
 prefix_rule(
     pattern = ["sudo", ["rm", "dd", "mkfs", "fdisk", "mount", "umount"]],
     decision = "forbidden",
-    justification = "Block privileged destructive disk and delete operations.",
+    justification = "Block privileged destructive disk/delete commands from Claude deny-list.",
 )
 
 prefix_rule(
     pattern = [["dd", "mkfs", "fdisk"]],
     decision = "forbidden",
-    justification = "Block destructive disk utilities.",
+    justification = "Block destructive disk utilities from Claude deny-list.",
 )
 
 prefix_rule(
     pattern = ["chmod", "777"],
     decision = "forbidden",
-    justification = "Block broad-permission chmod patterns.",
+    justification = "Block broad chmod patterns matching Claude deny intent.",
 )
 
 prefix_rule(
     pattern = ["chown", "root"],
     decision = "forbidden",
-    justification = "Block ownership escalation patterns.",
+    justification = "Block ownership escalation patterns from Claude deny-list.",
 )
 
 prefix_rule(
-    pattern = ["sudo", ["chmod", "chown", "-i", "su"]],
+    pattern = ["sudo", "chmod", "777"],
     decision = "forbidden",
-    justification = "Block privileged identity/ownership escalation patterns.",
+    justification = "Block privileged chmod 777 from Claude deny-list.",
 )
 
 prefix_rule(
-    pattern = [["curl", "wget"]],
-    decision = "prompt",
-    justification = "Require explicit approval for shell HTTP download commands.",
+    pattern = ["sudo", "chown"],
+    decision = "forbidden",
+    justification = "Block privileged chown from Claude deny-list.",
+)
+
+prefix_rule(
+    pattern = ["sudo", "-i"],
+    decision = "forbidden",
+    justification = "Block privileged shell escalation from Claude deny-list.",
+)
+
+prefix_rule(
+    pattern = ["sudo", "su"],
+    decision = "forbidden",
+    justification = "Block privileged shell escalation from Claude deny-list.",
 )
 
 prefix_rule(
     pattern = ["git", "push", "--force-with-lease"],
     decision = "forbidden",
-    justification = "Block force pushes.",
+    justification = "Block force push from Claude deny-list.",
 )
 
 prefix_rule(
     pattern = ["git", "push", "-f"],
     decision = "forbidden",
-    justification = "Block force pushes.",
+    justification = "Block force push from Claude deny-list.",
 )
 
 prefix_rule(
     pattern = ["git", "clean", "-fd"],
     decision = "forbidden",
-    justification = "Block destructive git clean pattern from the Claude deny-list.",
+    justification = "Block destructive git clean from Claude deny-list.",
 )
 
 prefix_rule(
     pattern = ["docker", "system", "prune", "-af"],
     decision = "forbidden",
-    justification = "Block destructive docker prune command.",
+    justification = "Block destructive docker cleanup from Claude deny-list.",
 )
 
 prefix_rule(
     pattern = ["npm", "publish"],
     decision = "forbidden",
-    justification = "Block npm publish from the Claude deny-list.",
+    justification = "Block npm publish from Claude deny-list.",
+)
+
+prefix_rule(
+    pattern = [["curl", "wget", "telnet", "nc", "netcat"]],
+    decision = "prompt",
+    justification = "Prompt for network/remote shell commands from Claude ask-list.",
+)
+
+prefix_rule(
+    pattern = ["rm"],
+    decision = "prompt",
+    justification = "Prompt for remove commands from Claude ask-list.",
+)
+
+prefix_rule(
+    pattern = ["mv"],
+    decision = "prompt",
+    justification = "Prompt for move commands from Claude ask-list.",
+)
+
+prefix_rule(
+    pattern = ["gh", "api"],
+    decision = "prompt",
+    justification = "Prompt for `gh api` from Claude ask-list.",
+)
+
+prefix_rule(
+    pattern = ["git", "checkout"],
+    decision = "prompt",
+    justification = "Prompt for `git checkout` from Claude ask-list.",
+)
+
+prefix_rule(
+    pattern = ["git", "switch"],
+    decision = "prompt",
+    justification = "Prompt for `git switch` from Claude ask-list.",
+)
+
+prefix_rule(
+    pattern = ["git", "push"],
+    decision = "prompt",
+    justification = "Prompt for git push by default from Claude ask-list.",
 )
