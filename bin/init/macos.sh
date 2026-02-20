@@ -83,6 +83,8 @@ mkdir -p ~/.claude
 ln -sf ~/dotfiles/root/.claude/settings.json ~/.claude/settings.json
 [ -d ~/.claude/skills ] && mv ~/.claude/skills ~/backup/
 ln -sf ~/dotfiles/root/.claude/skills ~/.claude/skills
+[ -d ~/.claude/hooks ] && mv ~/.claude/hooks ~/backup/
+ln -sf ~/dotfiles/root/.claude/hooks ~/.claude/hooks
 mkdir -p ~/.codex/rules
 [ -f ~/.codex/rules/default.rules ] && mv ~/.codex/rules/default.rules ~/backup/
 ln -sf ~/dotfiles/root/.codex/rules/default.rules ~/.codex/rules/default.rules
