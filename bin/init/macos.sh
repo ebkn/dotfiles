@@ -89,8 +89,10 @@ ln -sf ~/dotfiles/root/.codex/rules/default.rules ~/.codex/rules/default.rules
 mkdir -p ~/.codex/skills
 [ -e ~/.codex/skills/commit ] && mv ~/.codex/skills/commit ~/backup/
 [ -e ~/.codex/skills/create-pr ] && mv ~/.codex/skills/create-pr ~/backup/
+[ -e ~/.codex/skills/update-pr ] && mv ~/.codex/skills/update-pr ~/backup/
 ln -sf ~/dotfiles/root/.codex/skills/commit ~/.codex/skills/commit
 ln -sf ~/dotfiles/root/.codex/skills/create-pr ~/.codex/skills/create-pr
+ln -sf ~/dotfiles/root/.codex/skills/update-pr ~/.codex/skills/update-pr
 [ -e ~/.github ] && mv ~/.github ~/backup/
 ln -sfn ~/dotfiles/root/.github ~/.github
 
