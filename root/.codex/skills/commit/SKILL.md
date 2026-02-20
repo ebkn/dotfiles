@@ -19,7 +19,8 @@ Commit changes quickly and keep output minimal. Do not provide a long post-commi
    - English
    - Imperative mood
    - 72 chars or less on the subject line
-   - Add a body only for non-obvious context
+   - Add a body that briefly explains **why** the change was made and any relevant background. Keep it concise — just enough for a future reader to understand the motivation without re-reading the diff.
+   - Omit the body only when the subject line alone is self-explanatory (e.g., fixing a typo).
 6. Ask the user before committing only if:
    - Changes span many unrelated concerns and grouping is unclear
    - Potential secrets are present
