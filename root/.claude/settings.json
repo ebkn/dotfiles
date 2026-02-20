@@ -101,6 +101,7 @@
       "Bash(gh label list *)",
       "Bash(gh pr checks *)",
       "Bash(gh pr create *)",
+      "Bash(gh pr edit *)",
       "Bash(gh pr diff *)",
       "Bash(gh pr list *)",
       "Bash(gh pr status *)",
@@ -153,7 +154,8 @@
       "WebFetch(domain:wiki.archlinux.org)",
       "WebFetch(domain:www.npmjs.com)",
       "WebSearch",
-      "Skill(commit)"
+      "Skill(commit)",
+      "Skill(update-pr)"
     ],
     "deny": [
       "Bash(rm -rf /)",

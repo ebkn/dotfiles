@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update Pull Request"
+  short_description: "Refresh an existing pull request after new commits"
+  default_prompt: "Use $update-pr to update the current branch pull request."
