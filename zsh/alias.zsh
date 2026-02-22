@@ -80,8 +80,10 @@ function gw() {
   local worktree_name="${branch_name//\//-}"
   local worktree_path="$worktree_dir/$worktree_name"
 
-  echo "Creating worktree for branch '$branch_name' at '$worktree_path'"
-  git worktree add -b "$branch_name" "$worktree_path" || return 1
+  # Avoid downloading Git LFS contents when creating the worktree.
+  # Large files remain as LFS pointer files until `git lfs pull` / `checkout`.
+  echo "Creating worktree for branch '$branch_name' at '$worktree_path' (skip git-lfs smudge)"
+  GIT_LFS_SKIP_SMUDGE=1 git worktree add -b "$branch_name" "$worktree_path" || return 1
 
   local worktree_copy_file=".worktree-copy"
 
@@ -119,7 +121,8 @@ function gw() {
             fi
 
             mkdir -p "$(dirname "$rel_dst_path")"
-            cp -R "$entry" "$rel_dst_path"
+            # Use `command cp` to bypass `alias cp='cp -i -r'` in this repo.
+            command cp -R "$entry" "$rel_dst_path"
           done < <(find "$src_path" -mindepth 1)
 
           echo "  Copied: $file"
@@ -134,8 +137,8 @@ function gw() {
           local target_dir=$(dirname "$dst_path")
           mkdir -p "$target_dir"
 
-          # Copy file or symlink
-          cp -R "$src_path" "$dst_path"
+          # Copy file or symlink. Use `command cp` to bypass the `cp` alias.
+          command cp -R "$src_path" "$dst_path"
           echo "  Copied: $file"
         fi
       else
