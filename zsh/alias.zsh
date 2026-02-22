@@ -96,13 +96,48 @@ function gw() {
       file=$(echo "$file" | xargs)
 
       if [ -e "$root_dir/$file" ]; then
-        # Create directory structure if needed
-        local target_dir=$(dirname "$worktree_path/$file")
-        mkdir -p "$target_dir"
+        local src_path="$root_dir/$file"
+        local dst_path="$worktree_path/$file"
 
-        # Copy file or directory
-        cp -r "$root_dir/$file" "$worktree_path/$file"
-        echo "  Copied: $file"
+        # Skip files tracked by Git LFS (filter=lfs in .gitattributes)
+        if [ -d "$src_path" ] && [ ! -L "$src_path" ]; then
+          mkdir -p "$dst_path"
+
+          while IFS= read -r entry; do
+            local rel_path="${entry#$root_dir/}"
+            local rel_dst_path="$worktree_path/$rel_path"
+
+            if [ -d "$entry" ] && [ ! -L "$entry" ]; then
+              mkdir -p "$rel_dst_path"
+              continue
+            fi
+
+            local attr_output=$(git -C "$root_dir" check-attr filter -- "$rel_path" 2>/dev/null)
+            if [[ "$attr_output" == *": filter: lfs" ]]; then
+              echo "  Skipped (git-lfs): $rel_path"
+              continue
+            fi
+
+            mkdir -p "$(dirname "$rel_dst_path")"
+            cp -R "$entry" "$rel_dst_path"
+          done < <(find "$src_path" -mindepth 1)
+
+          echo "  Copied: $file"
+        else
+          local attr_output=$(git -C "$root_dir" check-attr filter -- "$file" 2>/dev/null)
+          if [[ "$attr_output" == *": filter: lfs" ]]; then
+            echo "  Skipped (git-lfs): $file"
+            continue
+          fi
+
+          # Create directory structure if needed
+          local target_dir=$(dirname "$dst_path")
+          mkdir -p "$target_dir"
+
+          # Copy file or symlink
+          cp -R "$src_path" "$dst_path"
+          echo "  Copied: $file"
+        fi
       else
         echo "  Warning: $file not found in root directory"
       fi
