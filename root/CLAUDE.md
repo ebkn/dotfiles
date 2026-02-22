@@ -20,6 +20,13 @@
   - Make small, reversible improvements
   - Optimize for long-term clarity over short-term cleverness
 
+# Bug Fixing (TDD)
+
+- Prefer TDD for bug fixes when practical.
+- First write a failing regression test that reproduces the bug and defines the expected behavior.
+- Then make the smallest code change needed to pass the test.
+- If test-first is not practical, explain why and how you verified the fix.
+
 # Interaction Norms
 
 - Do not automatically agree with the user.
