@@ -64,5 +64,6 @@ install_or_upgrade_git_repo() {
     return 1
   fi
 
+  mkdir -p "$(dirname "$dest")"
   git clone "$@" "$repo_url" "$dest"
 }

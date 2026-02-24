@@ -15,7 +15,8 @@ install_or_upgrade_fzf_shell_integration() {
   if [ -x "${HOME}/.fzf/install" ]; then
     "${HOME}/.fzf/install" --key-bindings --completion --no-update-rc
   else
-    printf "warning: fzf install script not found\n" >&2
+    printf "warning: fzf install script not found at %s\n" "${HOME}/.fzf/install" >&2
+    return 1
   fi
 }
 
@@ -78,6 +79,8 @@ link_with_backup "${DOTFILES_DIR}/.xvimrc" "${HOME}/.xvimrc"
 link_with_backup "${DOTFILES_DIR}/.ideavimrc" "${HOME}/.ideavimrc"
 link_with_backup "${DOTFILES_DIR}/.textlintrc" "${HOME}/.textlintrc"
 link_with_backup "${DOTFILES_DIR}/.clang-format" "${HOME}/.clang-format"
+link_with_backup "${DOTFILES_DIR}/vim/nvim" "${HOME}/.config/nvim"
+link_with_backup "${DOTFILES_DIR}/vim/coc/package.json" "${HOME}/.config/coc/extensions/package.json"
 link_with_backup "${DOTFILES_DIR}/wezterm.lua" "${HOME}/.config/wezterm/wezterm.lua"
 
 log_step "Installing docker"
