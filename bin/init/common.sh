@@ -28,7 +28,7 @@ link_with_backup() {
   dest="$2"
 
   if [ ! -e "$src" ] && [ ! -L "$src" ]; then
-    printf "skip linking (missing source): %s -> %s\n" "$src" "$dest"
+    printf "warning: missing source for link (skipping): %s -> %s\n" "$src" "$dest" >&2
     return 0
   fi
 
@@ -53,14 +53,15 @@ install_or_upgrade_git_repo() {
 
   if [ -d "$dest/.git" ]; then
     if ! git -C "$dest" pull --ff-only; then
-      printf "warning: failed to update %s (continuing)\n" "$dest" >&2
+      printf "warning: failed to update %s\n" "$dest" >&2
+      return 1
     fi
     return 0
   fi
 
   if [ -e "$dest" ]; then
     printf "warning: %s exists and is not a git repo (skipping clone)\n" "$dest" >&2
-    return 0
+    return 1
   fi
 
   git clone "$@" "$repo_url" "$dest"

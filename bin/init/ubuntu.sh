@@ -78,7 +78,6 @@ link_with_backup "${DOTFILES_DIR}/.xvimrc" "${HOME}/.xvimrc"
 link_with_backup "${DOTFILES_DIR}/.ideavimrc" "${HOME}/.ideavimrc"
 link_with_backup "${DOTFILES_DIR}/.textlintrc" "${HOME}/.textlintrc"
 link_with_backup "${DOTFILES_DIR}/.clang-format" "${HOME}/.clang-format"
-link_with_backup "${DOTFILES_DIR}/vim/.vim" "${HOME}/.vim"
 link_with_backup "${DOTFILES_DIR}/wezterm.lua" "${HOME}/.config/wezterm/wezterm.lua"
 
 log_step "Installing docker"
@@ -100,6 +99,10 @@ install_or_upgrade_apt_packages ripgrep
 link_with_backup "${DOTFILES_DIR}/.gitignore_global" "${HOME}/.gitignore_global"
 link_with_backup "${DOTFILES_DIR}/.gitconfig" "${HOME}/.gitconfig"
 link_with_backup "${DOTFILES_DIR}/.gitconfig-ebkn" "${HOME}/.gitconfig-ebkn"
+link_with_backup "${DOTFILES_DIR}/root/CLAUDE.md" "${HOME}/CLAUDE.md"
+link_with_backup "${DOTFILES_DIR}/root/.claude/settings.json" "${HOME}/.claude/settings.json"
+link_with_backup "${DOTFILES_DIR}/root/.claude/skills" "${HOME}/.claude/skills"
+link_with_backup "${DOTFILES_DIR}/root/.claude/hooks" "${HOME}/.claude/hooks"
 link_with_backup "${DOTFILES_DIR}/root/.codex/rules/default.rules" "${HOME}/.codex/rules/default.rules"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/commit" "${HOME}/.codex/skills/commit"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/create-pr" "${HOME}/.codex/skills/create-pr"
@@ -107,7 +110,7 @@ link_with_backup "${DOTFILES_DIR}/root/.codex/skills/update-pr" "${HOME}/.codex/
 link_with_backup "${DOTFILES_DIR}/root/.github" "${HOME}/.github"
 
 # node
-link_with_backup "${DOTFILES_DIR}/.eslintrc.json" "${HOME}/.eslintrc.json"
+link_with_backup "${DOTFILES_DIR}/.eslintrc.js" "${HOME}/.eslintrc.js"
 link_with_backup "${DOTFILES_DIR}/tsconfig.json" "${HOME}/tsconfig.json"
 
 # others

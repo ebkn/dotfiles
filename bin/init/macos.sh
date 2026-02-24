@@ -151,6 +151,7 @@ link_with_backup "${DOTFILES_DIR}/vim/nvim" "${HOME}/.config/nvim"
 link_with_backup "${DOTFILES_DIR}/vim/coc/package.json" "${HOME}/.config/coc/extensions/package.json"
 link_with_backup "${DOTFILES_DIR}/cursor/keybindings.json" "${HOME}/Library/Application Support/Cursor/User/keybindings.json"
 link_with_backup "${DOTFILES_DIR}/cursor/settings.json" "${HOME}/Library/Application Support/Cursor/User/settings.json"
+link_with_backup "${DOTFILES_DIR}/root/CLAUDE.md" "${HOME}/CLAUDE.md"
 link_with_backup "${DOTFILES_DIR}/root/.claude/settings.json" "${HOME}/.claude/settings.json"
 link_with_backup "${DOTFILES_DIR}/root/.claude/skills" "${HOME}/.claude/skills"
 link_with_backup "${DOTFILES_DIR}/root/.claude/hooks" "${HOME}/.claude/hooks"
@@ -173,11 +174,10 @@ link_with_backup "${DOTFILES_DIR}/wezterm.lua" "${HOME}/.config/wezterm/wezterm.
 
 # node
 mkdir -p "${HOME}/.nvm"
-link_with_backup "${DOTFILES_DIR}/.eslintrc.json" "${HOME}/.eslintrc.json"
+link_with_backup "${DOTFILES_DIR}/.eslintrc.js" "${HOME}/.eslintrc.js"
 link_with_backup "${DOTFILES_DIR}/tsconfig.json" "${HOME}/tsconfig.json"
 
 # others
-link_with_backup "${DOTFILES_DIR}/efm-config.yml" "${HOME}/.config/efm-langserverconfig.yaml"
 link_with_backup "${DOTFILES_DIR}/.rgignore" "${HOME}/.rgignore"
 link_with_backup "${DOTFILES_DIR}/.tigrc" "${HOME}/.tigrc"
 
