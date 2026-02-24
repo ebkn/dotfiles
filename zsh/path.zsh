@@ -1,20 +1,17 @@
 export PATH="$PATH:/usr/local/sbin"
 
+# Homebrew packages managed outside Homebrew (Volta/official installers).
+export HOMEBREW_FORBIDDEN_FORMULAE="node npm pnpm yarn claude"
+
+# User-local scripts (init links helpers into ~/.local/bin on both OSes).
+export PATH="$PATH:$HOME/.local/bin"
+
+export VOLTA_HOME="$HOME/.volta"
+
 case `uname` in
   "Darwin" ) # requires gnu-sed
     # Homebrew
     export PATH="/opt/homebrew/bin:$PATH"
-    export HOMEBREW_FORBIDDEN_FORMULAE="node npm pnpm yarn claude"
-
-    # Local
-    export PATH="$PATH:$HOME/.local/bin"
-
-    # MySQL
-    export PATH="$PATH:/usr/local/opt/mysql@5.6/bin"
-    export PATH="$PATH:/usr/local/opt/mysql@5.7/bin"
-
-    # PostgreSQL
-    export PATH="$PATH:/Applications/Postgres.app/Contents/Versions/latest/bin"
 
     # Node.js
     export NVM_DIR="$HOME/.nvm"
@@ -23,9 +20,6 @@ case `uname` in
     MANPATH="$PATH:$NVM_DIR/$NODE_DEFAULT/share/man"
     NODE_PATH=$NVM_DIR/$NODE_DEFAULT/lib/node_modules
     export NODE_PATH=${NODE_PATH:A}
-    export VOLTA_HOME="$HOME/.volta"
-    export PATH="$VOLTA_HOME/bin:$PATH"
-
     # VScode
     export PATH="$PATH:/usr/local/bin/code"
 
@@ -97,10 +91,9 @@ case `uname` in
     # Linuxbrew (Homebrew on Linux)
     export PATH="/home/linuxbrew/.linuxbrew/sbin:/home/linuxbrew/.linuxbrew/bin:$PATH"
     export PATH="$HOME/.linuxbrew/sbin:$HOME/.linuxbrew/bin:$PATH"
-    export HOMEBREW_FORBIDDEN_FORMULAE="node npm pnpm yarn claude"
-
-    export VOLTA_HOME="$HOME/.volta"
-    export PATH="$VOLTA_HOME/bin:$PATH"
     export PATH="$PATH:$HOME/hub-linux-arm64-2.6.0/bin/hub"
   ;;
 esac
+
+# Prefer Volta-managed node/npm across macOS and Linux.
+export PATH="$VOLTA_HOME/bin:$PATH"
