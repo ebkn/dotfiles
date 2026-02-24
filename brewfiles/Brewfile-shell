@@ -24,6 +24,9 @@ brew 'ripgrep'
 # linter
 brew 'shellcheck'
 
+# network
+brew 'tailscale'
+
 # git
 brew 'tig'
 brew 'awscli'
@@ -39,3 +42,7 @@ brew 'bat'
 
 # better diff
 brew 'difftastic'
+
+# database cli
+brew 'mycli'
+brew 'pgcli'

@@ -13,6 +13,7 @@ brew 'hadolint'
 brew 'shellcheck'
 
 # Terraform
+brew 'terraform'
 brew 'tflint'
 
 # Java
@@ -23,3 +24,9 @@ brew 'clang-format'
 
 # yaml
 brew 'yamllint'
+
+# Swift
+brew 'swiftformat'
+brew 'swiftlint'
+brew 'periphery'
+brew 'xcodegen'
