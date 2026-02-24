@@ -52,27 +52,3 @@ function aws() {
   fi
   aws "$@"
 }
-
-if [ `uname` = 'Darwin' ]; then
-  # ruby
-  function rbenv() {
-    unfunction "$0"
-    eval "$(rbenv init - --no-rehash)"
-    $0 "$@"
-  }
-
-  # python
-  function pyenv() {
-    unfunction "$0"
-    eval "$(pyenv init - --no-rehash)"
-    $0 "$@"
-  }
-
-  # swift
-  function swiftenv() {
-    unfunction "$0"
-    eval "$(swiftenv init - --no-rehash)"
-    $0 "$@"
-  }
-
-fi

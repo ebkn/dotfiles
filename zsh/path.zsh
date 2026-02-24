@@ -23,10 +23,6 @@ case `uname` in
     # VScode
     export PATH="$PATH:/usr/local/bin/code"
 
-    # Python
-    export PYENV_ROOT="$HOME/.pyenv"
-    export PATH="$PATH:$PYENV_ROOT/bin"
-
     # Go
     export GOPATH=$HOME/go
     export PATH="$PATH:$GOPATH/bin"
