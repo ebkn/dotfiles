@@ -123,6 +123,9 @@ link_with_backup "${DOTFILES_DIR}/.gitignore_global" "${HOME}/.gitignore_global"
 link_with_backup "${DOTFILES_DIR}/.gitconfig" "${HOME}/.gitconfig"
 link_with_backup "${DOTFILES_DIR}/.gitconfig-ebkn" "${HOME}/.gitconfig-ebkn"
 link_with_backup "${DOTFILES_DIR}/root/CLAUDE.md" "${HOME}/CLAUDE.md"
+# Expose alternate instruction filenames used by local agent tools.
+link_with_backup "${HOME}/CLAUDE.md" "${HOME}/AGENTS.md"
+link_with_backup "${DOTFILES_DIR}/root/.github/copilot-instructions.md" "${HOME}/.github/copilot-instructions.md"
 link_with_backup "${DOTFILES_DIR}/root/.claude/settings.json" "${HOME}/.claude/settings.json"
 link_with_backup "${DOTFILES_DIR}/root/.claude/skills" "${HOME}/.claude/skills"
 link_with_backup "${DOTFILES_DIR}/root/.claude/hooks" "${HOME}/.claude/hooks"
@@ -130,7 +133,6 @@ link_with_backup "${DOTFILES_DIR}/root/.codex/rules/default.rules" "${HOME}/.cod
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/commit" "${HOME}/.codex/skills/commit"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/create-pr" "${HOME}/.codex/skills/create-pr"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/update-pr" "${HOME}/.codex/skills/update-pr"
-link_with_backup "${DOTFILES_DIR}/root/.github" "${HOME}/.github"
 install_or_upgrade_claude
 
 # node

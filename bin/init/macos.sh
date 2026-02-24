@@ -124,6 +124,9 @@ link_with_backup "${DOTFILES_DIR}/vim/coc/package.json" "${HOME}/.config/coc/ext
 link_with_backup "${DOTFILES_DIR}/cursor/keybindings.json" "${HOME}/Library/Application Support/Cursor/User/keybindings.json"
 link_with_backup "${DOTFILES_DIR}/cursor/settings.json" "${HOME}/Library/Application Support/Cursor/User/settings.json"
 link_with_backup "${DOTFILES_DIR}/root/CLAUDE.md" "${HOME}/CLAUDE.md"
+# Expose alternate instruction filenames used by local agent tools.
+link_with_backup "${HOME}/CLAUDE.md" "${HOME}/AGENTS.md"
+link_with_backup "${DOTFILES_DIR}/root/.github/copilot-instructions.md" "${HOME}/.github/copilot-instructions.md"
 link_with_backup "${DOTFILES_DIR}/root/.claude/settings.json" "${HOME}/.claude/settings.json"
 link_with_backup "${DOTFILES_DIR}/root/.claude/skills" "${HOME}/.claude/skills"
 link_with_backup "${DOTFILES_DIR}/root/.claude/hooks" "${HOME}/.claude/hooks"
@@ -131,7 +134,6 @@ link_with_backup "${DOTFILES_DIR}/root/.codex/rules/default.rules" "${HOME}/.cod
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/commit" "${HOME}/.codex/skills/commit"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/create-pr" "${HOME}/.codex/skills/create-pr"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/update-pr" "${HOME}/.codex/skills/update-pr"
-link_with_backup "${DOTFILES_DIR}/root/.github" "${HOME}/.github"
 install_or_upgrade_claude
 
 diff_highlight_source="$(brew --prefix)/opt/git/share/git-core/contrib/diff-highlight/diff-highlight"
