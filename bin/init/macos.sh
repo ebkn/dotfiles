@@ -13,23 +13,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 . "${SCRIPT_DIR}/common.sh"
 
-install_or_upgrade_brew_formula() {
-  local formula
-  formula="$1"
-
-  if brew list --formula "$formula" >/dev/null 2>&1; then
-    brew upgrade "$formula"
-  else
-    brew install "$formula"
-  fi
-}
-
-install_or_upgrade_brew_bundle() {
-  local brewfile
-  brewfile="$1"
-  brew bundle --file="$brewfile"
-}
-
 install_or_upgrade_fzf_shell_integration() {
   local fzf_install
   fzf_install="$(brew --prefix)/opt/fzf/install"

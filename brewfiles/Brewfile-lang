@@ -29,5 +29,5 @@ brew 'yamllint'
 # Swift
 brew 'swiftformat'
 brew 'swiftlint'
-brew 'periphery'
-brew 'xcodegen'
+brew 'periphery' if OS.mac?
+brew 'xcodegen' if OS.mac?

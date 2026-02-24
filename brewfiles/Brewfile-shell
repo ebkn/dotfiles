@@ -26,17 +26,21 @@ brew 'shellcheck'
 
 # network
 brew 'tailscale'
+
+# fly
 brew 'flyctl'
+
+# aws
+brew 'awscli'
 
 # git
 brew 'tig'
-brew 'awscli'
 brew 'ghq' # manage repository
 brew 'git-secrets' # prevent commiting secrets
 brew 'git-lfs' # LFS
 brew 'gibo' # gitignore template
 brew 'gnupg' # signing
-brew 'pinentry-mac' # signing
+brew 'pinentry-mac' if OS.mac? # signing
 
 # colorized cat
 brew 'bat'
@@ -47,3 +51,6 @@ brew 'difftastic'
 # database cli
 brew 'mycli'
 brew 'pgcli'
+
+# util
+brew 'tree'

@@ -12,12 +12,23 @@ install_or_upgrade_apt_packages() {
 . "${SCRIPT_DIR}/common.sh"
 
 install_or_upgrade_fzf_shell_integration() {
+  local fzf_install
+
+  if command -v brew >/dev/null 2>&1; then
+    fzf_install="$(brew --prefix fzf 2>/dev/null)/install"
+    if [ -x "$fzf_install" ]; then
+      "$fzf_install" --key-bindings --completion --no-update-rc
+      return 0
+    fi
+  fi
+
   if [ -x "${HOME}/.fzf/install" ]; then
     "${HOME}/.fzf/install" --key-bindings --completion --no-update-rc
-  else
-    printf "warning: fzf install script not found at %s\n" "${HOME}/.fzf/install" >&2
-    return 1
+    return 0
   fi
+
+  printf "warning: fzf install script not found at %s\n" "${HOME}/.fzf/install" >&2
+  return 1
 }
 
 install_or_upgrade_source_code_pro_font() {
@@ -50,8 +61,10 @@ log_step "Installing base packages"
 sudo apt update
 install_or_upgrade_apt_packages \
   build-essential \
+  procps \
   git \
   curl \
+  file \
   gnupg \
   ca-certificates \
   apt-transport-https \
@@ -60,6 +73,11 @@ install_or_upgrade_apt_packages \
 log_step "Cloning or updating dotfiles"
 install_or_upgrade_git_repo "https://github.com/ebkn/dotfiles" "$DOTFILES_DIR"
 
+log_step "Installing Homebrew"
+install_or_upgrade_homebrew_linux
+brew upgrade
+brew doctor || true
+
 log_step "Installing Google Cloud CLI"
 # update-all expects gcloud to exist before shell lazy-loading is used.
 install_or_upgrade_gcloud
@@ -67,18 +85,20 @@ install_or_upgrade_gcloud
 log_step "Installing Source Code Pro font"
 install_or_upgrade_source_code_pro_font
 
-log_step "Installing or upgrading zsh"
-install_or_upgrade_apt_packages zsh
-
 link_with_backup "${DOTFILES_DIR}/.zshrc" "${HOME}/.zshrc"
 link_with_backup "${DOTFILES_DIR}/.zshenv" "${HOME}/.zshenv"
 link_with_backup "${DOTFILES_DIR}/.bash_profile" "${HOME}/.bash_profile"
 link_with_backup "${DOTFILES_DIR}/.bashrc" "${HOME}/.bashrc"
 link_with_backup "${DOTFILES_DIR}/.tmux.conf" "${HOME}/.tmux.conf"
 
-log_step "Installing or upgrading vim"
-# update-all runs nvim headless commands, so install neovim explicitly too.
-install_or_upgrade_apt_packages vim neovim
+log_step "Installing shell packages from Homebrew"
+# Brewfile-shell now uses OS.mac? guards for mac-only formulae.
+install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-shell"
+install_or_upgrade_fzf_shell_integration
+
+log_step "Installing language tools from Homebrew"
+# Brewfile-lang now uses OS.mac? guards for mac-only formulae.
+install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-lang"
 
 link_with_backup "${DOTFILES_DIR}/.vimrc" "${HOME}/.vimrc"
 link_with_backup "${DOTFILES_DIR}/.xvimrc" "${HOME}/.xvimrc"
@@ -97,16 +117,7 @@ install_or_upgrade_docker_repo
 sudo apt update
 install_or_upgrade_apt_packages docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-log_step "Installing cli utilities"
-install_or_upgrade_apt_packages tig tree awscli
 link_with_backup "${DOTFILES_DIR}/.tigrc" "${HOME}/.tigrc"
-
-log_step "Installing fzf"
-install_or_upgrade_git_repo "https://github.com/junegunn/fzf.git" "${HOME}/.fzf" --depth 1
-install_or_upgrade_fzf_shell_integration
-
-log_step "Installing ripgrep"
-install_or_upgrade_apt_packages ripgrep
 
 link_with_backup "${DOTFILES_DIR}/.gitignore_global" "${HOME}/.gitignore_global"
 link_with_backup "${DOTFILES_DIR}/.gitconfig" "${HOME}/.gitconfig"

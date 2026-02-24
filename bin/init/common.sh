@@ -45,6 +45,71 @@ link_with_backup() {
   ln -s "$src" "$dest"
 }
 
+detect_brew_bin() {
+  local candidate
+
+  if command -v brew >/dev/null 2>&1; then
+    command -v brew
+    return 0
+  fi
+
+  for candidate in \
+    "/opt/homebrew/bin/brew" \
+    "/usr/local/bin/brew" \
+    "/home/linuxbrew/.linuxbrew/bin/brew" \
+    "${HOME}/.linuxbrew/bin/brew"
+  do
+    if [ -x "$candidate" ]; then
+      printf "%s\n" "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+activate_brew_shellenv() {
+  local brew_bin
+
+  if ! brew_bin="$(detect_brew_bin)"; then
+    printf "warning: brew is not installed yet (cannot initialize shellenv)\n" >&2
+    return 1
+  fi
+
+  eval "$("$brew_bin" shellenv)"
+}
+
+install_or_upgrade_homebrew_linux() {
+  if ! detect_brew_bin >/dev/null 2>&1; then
+    if ! command -v curl >/dev/null 2>&1; then
+      printf "warning: curl is not installed yet (cannot install homebrew)\n" >&2
+      return 1
+    fi
+
+    # Ubuntu CI and fresh machines should install non-interactively.
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  fi
+
+  activate_brew_shellenv
+}
+
+install_or_upgrade_brew_formula() {
+  local formula
+  formula="$1"
+
+  if brew list --formula "$formula" >/dev/null 2>&1; then
+    brew upgrade "$formula"
+  else
+    brew install "$formula"
+  fi
+}
+
+install_or_upgrade_brew_bundle() {
+  local brewfile
+  brewfile="$1"
+  brew bundle --file="$brewfile"
+}
+
 install_or_upgrade_git_repo() {
   local repo_url dest
   repo_url="$1"
