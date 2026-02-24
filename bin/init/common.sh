@@ -103,6 +103,43 @@ install_or_upgrade_node_with_volta() {
   return 1
 }
 
+install_or_upgrade_npm_global() {
+  local package npm_cmd volta_npm
+  package="$1"
+  volta_npm="${VOLTA_HOME:-${HOME}/.volta}/bin/npm"
+
+  if command -v npm >/dev/null 2>&1; then
+    npm_cmd="$(command -v npm)"
+  elif [ -x "$volta_npm" ]; then
+    npm_cmd="$volta_npm"
+  else
+    printf "warning: npm is not installed yet (cannot install %s)\n" "$package" >&2
+    return 1
+  fi
+
+  if "$npm_cmd" list -g --depth=0 "$package" >/dev/null 2>&1; then
+    "$npm_cmd" update --global "$package"
+  else
+    "$npm_cmd" install --global "$package"
+  fi
+}
+
+install_or_upgrade_gcloud() {
+  local gcloud_bin
+  gcloud_bin="${HOME}/google-cloud-sdk/bin/gcloud"
+
+  if [ -x "$gcloud_bin" ] || command -v gcloud >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if ! command -v curl >/dev/null 2>&1; then
+    printf "warning: curl is not installed yet (cannot install gcloud)\n" >&2
+    return 1
+  fi
+
+  curl -fsSL https://sdk.cloud.google.com | bash -s -- --disable-prompts --install-dir="${HOME}"
+}
+
 install_or_upgrade_claude() {
   if command -v claude >/dev/null 2>&1; then
     return 0

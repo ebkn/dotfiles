@@ -60,6 +60,9 @@ install_or_upgrade_apt_packages \
 log_step "Cloning or updating dotfiles"
 install_or_upgrade_git_repo "https://github.com/ebkn/dotfiles" "$DOTFILES_DIR"
 
+log_step "Installing Google Cloud CLI"
+install_or_upgrade_gcloud
+
 log_step "Installing Source Code Pro font"
 install_or_upgrade_source_code_pro_font
 
@@ -73,7 +76,7 @@ link_with_backup "${DOTFILES_DIR}/.bashrc" "${HOME}/.bashrc"
 link_with_backup "${DOTFILES_DIR}/.tmux.conf" "${HOME}/.tmux.conf"
 
 log_step "Installing or upgrading vim"
-install_or_upgrade_apt_packages vim
+install_or_upgrade_apt_packages vim neovim
 
 link_with_backup "${DOTFILES_DIR}/.vimrc" "${HOME}/.vimrc"
 link_with_backup "${DOTFILES_DIR}/.xvimrc" "${HOME}/.xvimrc"
@@ -93,7 +96,7 @@ sudo apt update
 install_or_upgrade_apt_packages docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
 log_step "Installing cli utilities"
-install_or_upgrade_apt_packages tig tree
+install_or_upgrade_apt_packages tig tree awscli
 link_with_backup "${DOTFILES_DIR}/.tigrc" "${HOME}/.tigrc"
 
 log_step "Installing fzf"
@@ -120,6 +123,14 @@ install_or_upgrade_claude
 # node
 install_or_upgrade_volta
 install_or_upgrade_node_with_volta
+install_or_upgrade_npm_global "diagnostic-languageserver"
+install_or_upgrade_npm_global "markdownlint-cli"
+install_or_upgrade_npm_global "textlint"
+install_or_upgrade_npm_global "git-delete-squashed"
+install_or_upgrade_npm_global "yarn"
+install_or_upgrade_npm_global "corepack"
+install_or_upgrade_npm_global "@openai/codex"
+install_or_upgrade_npm_global "@githubnext/github-copilot-cli"
 link_with_backup "${DOTFILES_DIR}/.eslintrc.js" "${HOME}/.eslintrc.js"
 link_with_backup "${DOTFILES_DIR}/tsconfig.json" "${HOME}/tsconfig.json"
 

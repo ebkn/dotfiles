@@ -26,6 +26,7 @@ brew 'shellcheck'
 
 # git
 brew 'tig'
+brew 'awscli'
 brew 'ghq' # manage repository
 brew 'git-secrets' # prevent commiting secrets
 brew 'git-lfs' # LFS

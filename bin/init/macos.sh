@@ -30,22 +30,6 @@ install_or_upgrade_brew_bundle() {
   brew bundle --file="$brewfile"
 }
 
-install_or_upgrade_npm_global() {
-  local package
-  package="$1"
-
-  if ! command -v npm >/dev/null 2>&1; then
-    printf "warning: npm is not installed yet (skipping %s)\n" "$package" >&2
-    return 0
-  fi
-
-  if npm list -g --depth=0 "$package" >/dev/null 2>&1; then
-    npm update --global "$package"
-  else
-    npm install --global "$package"
-  fi
-}
-
 install_or_upgrade_fzf_shell_integration() {
   local fzf_install
   fzf_install="$(brew --prefix)/opt/fzf/install"
@@ -119,6 +103,9 @@ install_or_upgrade_brew_formula zsh
 log_step "Cloning or updating dotfiles"
 install_or_upgrade_git_repo "https://github.com/ebkn/dotfiles" "$DOTFILES_DIR"
 
+log_step "Installing Google Cloud CLI"
+install_or_upgrade_gcloud
+
 log_step "Setup shell"
 install_or_upgrade_login_shell
 
@@ -178,6 +165,14 @@ link_with_backup "${DOTFILES_DIR}/wezterm.lua" "${HOME}/.config/wezterm/wezterm.
 mkdir -p "${HOME}/.nvm"
 install_or_upgrade_volta
 install_or_upgrade_node_with_volta
+install_or_upgrade_npm_global "diagnostic-languageserver"
+install_or_upgrade_npm_global "markdownlint-cli"
+install_or_upgrade_npm_global "textlint"
+install_or_upgrade_npm_global "git-delete-squashed"
+install_or_upgrade_npm_global "yarn"
+install_or_upgrade_npm_global "corepack"
+install_or_upgrade_npm_global "@openai/codex"
+install_or_upgrade_npm_global "@githubnext/github-copilot-cli"
 link_with_backup "${DOTFILES_DIR}/.eslintrc.js" "${HOME}/.eslintrc.js"
 link_with_backup "${DOTFILES_DIR}/tsconfig.json" "${HOME}/tsconfig.json"
 
@@ -199,8 +194,6 @@ install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-lang"
 sudo_install_or_upgrade_symlink \
   "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk" \
   "/Library/Java/JavaVirtualMachines/openjdk.jdk"
-
-install_or_upgrade_npm_global "git-delete-squashed"
 
 log_step "Installing apps by Homebrew-Cask"
 install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-cask"
