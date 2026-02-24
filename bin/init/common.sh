@@ -117,8 +117,8 @@ install_or_upgrade_git_repo() {
   shift 2
 
   if [ -d "$dest/.git" ]; then
-    if ! git -C "$dest" pull --ff-only; then
-      printf "warning: failed to update %s\n" "$dest" >&2
+    if ! git -C "$dest" fetch --all --prune; then
+      printf "warning: failed to fetch %s\n" "$dest" >&2
       return 1
     fi
     return 0

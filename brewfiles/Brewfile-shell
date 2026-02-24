@@ -4,9 +4,6 @@ brew 'zsh'
 # tmux
 brew 'tmux'
 
-# terminal
-brew 'wezterm'
-
 # IDE
 brew 'vim'
 brew 'neovim'
