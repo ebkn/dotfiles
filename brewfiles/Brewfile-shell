@@ -26,6 +26,7 @@ brew 'shellcheck'
 
 # network
 brew 'tailscale'
+brew 'flyctl'
 
 # git
 brew 'tig'

@@ -21,6 +21,7 @@ brew 'java'
 
 # C,C++,proto
 brew 'clang-format'
+brew 'fonttools'
 
 # yaml
 brew 'yamllint'
