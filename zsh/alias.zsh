@@ -319,11 +319,9 @@ case `uname` in
       npm i -g markdownlint-cli
       npm i -g textlint
       npm i -g git-delete-squashed
-      npm i -g @modelcontextprotocol/server-brave-search
       npm i -g yarn
       npm i -g corepack # for yarn
       npm i -g @openai/codex
-      npm i -g @anthropic-ai/claude-code
       gcloud components update --quiet
     }
   ;;

@@ -102,3 +102,16 @@ install_or_upgrade_node_with_volta() {
   printf "warning: volta is not installed yet (cannot install node)\n" >&2
   return 1
 }
+
+install_or_upgrade_claude() {
+  if command -v claude >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if ! command -v curl >/dev/null 2>&1; then
+    printf "warning: curl is not installed yet (cannot install claude)\n" >&2
+    return 1
+  fi
+
+  curl -fsSL https://claude.ai/install.sh | bash
+}

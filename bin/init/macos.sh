@@ -143,6 +143,7 @@ link_with_backup "${DOTFILES_DIR}/.bash_profile" "${HOME}/.bash_profile"
 link_with_backup "${DOTFILES_DIR}/.bashrc" "${HOME}/.bashrc"
 link_with_backup "${DOTFILES_DIR}/.tmux.conf" "${HOME}/.tmux.conf"
 link_with_backup "${DOTFILES_DIR}/.vimrc" "${HOME}/.vimrc"
+# .minvimrc is kept in the repo for specific environments and is not linked by default.
 link_with_backup "${DOTFILES_DIR}/.xvimrc" "${HOME}/.xvimrc"
 link_with_backup "${DOTFILES_DIR}/.ideavimrc" "${HOME}/.ideavimrc"
 link_with_backup "${DOTFILES_DIR}/.textlintrc" "${HOME}/.textlintrc"
@@ -160,6 +161,7 @@ link_with_backup "${DOTFILES_DIR}/root/.codex/skills/commit" "${HOME}/.codex/ski
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/create-pr" "${HOME}/.codex/skills/create-pr"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/update-pr" "${HOME}/.codex/skills/update-pr"
 link_with_backup "${DOTFILES_DIR}/root/.github" "${HOME}/.github"
+install_or_upgrade_claude
 
 diff_highlight_source="$(brew --prefix)/opt/git/share/git-core/contrib/diff-highlight/diff-highlight"
 if [ ! -x "$diff_highlight_source" ]; then
@@ -181,6 +183,7 @@ link_with_backup "${DOTFILES_DIR}/tsconfig.json" "${HOME}/tsconfig.json"
 
 # others
 link_with_backup "${DOTFILES_DIR}/.rgignore" "${HOME}/.rgignore"
+link_with_backup "${DOTFILES_DIR}/.sqliterc" "${HOME}/.sqliterc"
 link_with_backup "${DOTFILES_DIR}/.tigrc" "${HOME}/.tigrc"
 
 # scripts

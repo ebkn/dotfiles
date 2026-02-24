@@ -70,6 +70,7 @@ link_with_backup "${DOTFILES_DIR}/.zshrc" "${HOME}/.zshrc"
 link_with_backup "${DOTFILES_DIR}/.zshenv" "${HOME}/.zshenv"
 link_with_backup "${DOTFILES_DIR}/.bash_profile" "${HOME}/.bash_profile"
 link_with_backup "${DOTFILES_DIR}/.bashrc" "${HOME}/.bashrc"
+link_with_backup "${DOTFILES_DIR}/.tmux.conf" "${HOME}/.tmux.conf"
 
 log_step "Installing or upgrading vim"
 install_or_upgrade_apt_packages vim
@@ -82,6 +83,9 @@ link_with_backup "${DOTFILES_DIR}/.clang-format" "${HOME}/.clang-format"
 link_with_backup "${DOTFILES_DIR}/vim/nvim" "${HOME}/.config/nvim"
 link_with_backup "${DOTFILES_DIR}/vim/coc/package.json" "${HOME}/.config/coc/extensions/package.json"
 link_with_backup "${DOTFILES_DIR}/wezterm.lua" "${HOME}/.config/wezterm/wezterm.lua"
+link_with_backup "${DOTFILES_DIR}/cursor/keybindings.json" "${HOME}/.config/Cursor/User/keybindings.json"
+link_with_backup "${DOTFILES_DIR}/cursor/settings.json" "${HOME}/.config/Cursor/User/settings.json"
+# .minvimrc is kept in the repo for specific environments and is not linked by default.
 
 log_step "Installing docker"
 install_or_upgrade_docker_repo
@@ -111,6 +115,7 @@ link_with_backup "${DOTFILES_DIR}/root/.codex/skills/commit" "${HOME}/.codex/ski
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/create-pr" "${HOME}/.codex/skills/create-pr"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/update-pr" "${HOME}/.codex/skills/update-pr"
 link_with_backup "${DOTFILES_DIR}/root/.github" "${HOME}/.github"
+install_or_upgrade_claude
 
 # node
 install_or_upgrade_volta
@@ -121,3 +126,6 @@ link_with_backup "${DOTFILES_DIR}/tsconfig.json" "${HOME}/tsconfig.json"
 # others
 link_with_backup "${DOTFILES_DIR}/.rgignore" "${HOME}/.rgignore"
 link_with_backup "${DOTFILES_DIR}/.sqliterc" "${HOME}/.sqliterc"
+
+# scripts
+link_with_backup "${DOTFILES_DIR}/tmux-restore-tabs" "${HOME}/.local/bin/tmux-restore-tabs"
