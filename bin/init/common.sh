@@ -64,6 +64,7 @@ install_or_upgrade_git_repo() {
     return 1
   fi
 
+  # Some callers use nested destinations (e.g. ~/.tmux/plugins/tpm).
   mkdir -p "$(dirname "$dest")"
   git clone "$@" "$repo_url" "$dest"
 }
@@ -94,6 +95,7 @@ install_or_upgrade_node_with_volta() {
     return $?
   fi
 
+  # init runs before a new shell picks up PATH changes from dotfiles.
   if [ -x "$volta_cmd" ]; then
     "$volta_cmd" install node
     return $?
@@ -110,6 +112,7 @@ install_or_upgrade_npm_global() {
 
   if command -v npm >/dev/null 2>&1; then
     npm_cmd="$(command -v npm)"
+  # Use Volta-managed npm directly during bootstrap before PATH reload.
   elif [ -x "$volta_npm" ]; then
     npm_cmd="$volta_npm"
   else
@@ -137,6 +140,7 @@ install_or_upgrade_gcloud() {
     return 1
   fi
 
+  # zsh/lang.zsh lazy-loads the SDK from ~/google-cloud-sdk.
   curl -fsSL https://sdk.cloud.google.com | bash -s -- --disable-prompts --install-dir="${HOME}"
 }
 
@@ -150,5 +154,6 @@ install_or_upgrade_claude() {
     return 1
   fi
 
+  # Use the official installer; ~/.claude config is linked separately by init.
   curl -fsSL https://claude.ai/install.sh | bash
 }

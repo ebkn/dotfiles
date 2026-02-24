@@ -104,6 +104,7 @@ log_step "Cloning or updating dotfiles"
 install_or_upgrade_git_repo "https://github.com/ebkn/dotfiles" "$DOTFILES_DIR"
 
 log_step "Installing Google Cloud CLI"
+# update-all expects gcloud to exist before shell lazy-loading is used.
 install_or_upgrade_gcloud
 
 log_step "Setup shell"
@@ -165,6 +166,7 @@ link_with_backup "${DOTFILES_DIR}/wezterm.lua" "${HOME}/.config/wezterm/wezterm.
 mkdir -p "${HOME}/.nvm"
 install_or_upgrade_volta
 install_or_upgrade_node_with_volta
+# Keep this list aligned with zsh/alias.zsh:update-all npm global installs.
 install_or_upgrade_npm_global "diagnostic-languageserver"
 install_or_upgrade_npm_global "markdownlint-cli"
 install_or_upgrade_npm_global "textlint"

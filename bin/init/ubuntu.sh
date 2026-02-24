@@ -61,6 +61,7 @@ log_step "Cloning or updating dotfiles"
 install_or_upgrade_git_repo "https://github.com/ebkn/dotfiles" "$DOTFILES_DIR"
 
 log_step "Installing Google Cloud CLI"
+# update-all expects gcloud to exist before shell lazy-loading is used.
 install_or_upgrade_gcloud
 
 log_step "Installing Source Code Pro font"
@@ -76,6 +77,7 @@ link_with_backup "${DOTFILES_DIR}/.bashrc" "${HOME}/.bashrc"
 link_with_backup "${DOTFILES_DIR}/.tmux.conf" "${HOME}/.tmux.conf"
 
 log_step "Installing or upgrading vim"
+# update-all runs nvim headless commands, so install neovim explicitly too.
 install_or_upgrade_apt_packages vim neovim
 
 link_with_backup "${DOTFILES_DIR}/.vimrc" "${HOME}/.vimrc"
@@ -123,6 +125,7 @@ install_or_upgrade_claude
 # node
 install_or_upgrade_volta
 install_or_upgrade_node_with_volta
+# Keep this list aligned with zsh/alias.zsh:update-all npm global installs.
 install_or_upgrade_npm_global "diagnostic-languageserver"
 install_or_upgrade_npm_global "markdownlint-cli"
 install_or_upgrade_npm_global "textlint"
