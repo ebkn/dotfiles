@@ -17,6 +17,11 @@ install_or_upgrade_fzf_shell_integration() {
   local fzf_install
   fzf_install="$(brew --prefix)/opt/fzf/install"
 
+  # fzf's install script generates shell integration files in $HOME.
+  if [ -e "${HOME}/.fzf.zsh" ] || [ -e "${HOME}/.fzf.bash" ]; then
+    return 0
+  fi
+
   if [ -x "$fzf_install" ]; then
     "$fzf_install" --key-bindings --completion --no-update-rc
   else
