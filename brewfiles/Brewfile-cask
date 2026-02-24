@@ -1,7 +1,7 @@
 cask 'google-drive'
 cask 'alfred'
 cask 'karabiner-elements'
-cask 'docker'
+cask 'docker-desktop'
 cask 'google-chrome'
 cask 'brave-browser'
 cask 'microsoft-edge'
