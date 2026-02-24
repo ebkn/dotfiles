@@ -267,6 +267,43 @@ export KUBE_EDITOR=nvim
 
 alias python='python3'
 
+# GitHub Copilot CLI
+if command -v github-copilot-cli >/dev/null 2>&1; then
+  eval "$(github-copilot-cli alias -- "$0")"
+fi
+
+update-all() {
+  brew upgrade
+  brew upgrade --cask
+  zinit ice proto=ssh depth=1
+  zinit update --all
+  nvim --headless +'CocUpdate' +qa
+  nvim --headless +'TSUpdate' +qa
+  nvim --headless '+Lazy! sync' +qa
+  go install golang.org/x/tools/...@latest
+  go install github.com/cweill/gotests/...@latest
+  go install github.com/mattn/efm-langserver@latest
+  go install github.com/hashicorp/terraform-ls@latest
+  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+  go install github.com/nametake/golangci-lint-langserver@latest
+  go install github.com/mikefarah/yq/v4@latest
+  go install github.com/x-motemen/ghq@latest
+  go install github.com/cloudspannerecosystem/spanner-cli@latest
+  go install github.com/aquasecurity/tfsec/cmd/tfsec@latest
+  go install github.com/bufbuild/buf-language-server/cmd/bufls@latest
+  go install mvdan.cc/gofumpt@latest
+  go install tailscale.com/cmd/tailscale{,d}@main
+  npm update --location=global
+  npm i -g diagnostic-languageserver
+  npm i -g markdownlint-cli
+  npm i -g textlint
+  npm i -g git-delete-squashed
+  npm i -g yarn
+  npm i -g corepack # for yarn
+  npm i -g @openai/codex
+  gcloud components update --quiet
+}
+
 case `uname` in
   "Darwin" ) # requires gnu-sed
     his() {
@@ -288,41 +325,6 @@ case `uname` in
       else
         open "$@"
       fi
-    }
-
-    # GitHub Copilot CLI
-    eval "$(github-copilot-cli alias -- "$0")"
-
-    update-all() {
-      brew upgrade
-      brew upgrade --cask
-      zinit ice proto=ssh depth=1
-      zinit update --all
-      nvim --headless +'CocUpdate' +qa
-      nvim --headless +'TSUpdate' +qa
-      nvim --headless '+Lazy! sync' +qa
-      go install golang.org/x/tools/...@latest
-      go install github.com/cweill/gotests/...@latest
-      go install github.com/mattn/efm-langserver@latest
-      go install github.com/hashicorp/terraform-ls@latest
-      go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-      go install github.com/nametake/golangci-lint-langserver@latest
-      go install github.com/mikefarah/yq/v4@latest
-      go install github.com/x-motemen/ghq@latest
-      go install github.com/cloudspannerecosystem/spanner-cli@latest
-      go install github.com/aquasecurity/tfsec/cmd/tfsec@latest
-      go install github.com/bufbuild/buf-language-server/cmd/bufls@latest
-      go install mvdan.cc/gofumpt@latest
-      go install tailscale.com/cmd/tailscale{,d}@main
-      npm update --location=global
-      npm i -g diagnostic-languageserver
-      npm i -g markdownlint-cli
-      npm i -g textlint
-      npm i -g git-delete-squashed
-      npm i -g yarn
-      npm i -g corepack # for yarn
-      npm i -g @openai/codex
-      gcloud components update --quiet
     }
   ;;
 
