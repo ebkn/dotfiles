@@ -16,7 +16,7 @@ Commit changes quickly and keep output minimal. Do not provide a long post-commi
    - `git commit -m "<message>"`
 5. Write commit messages in Conventional Commits format:
    - `type(scope): description`
-   - English
+   - English only (always, regardless of the user's language)
    - Imperative mood
    - 72 chars or less on the subject line
    - Add a body that briefly explains **why** the change was made and any relevant background. Keep it concise — just enough for a future reader to understand the motivation without re-reading the diff.
