@@ -67,3 +67,38 @@ install_or_upgrade_git_repo() {
   mkdir -p "$(dirname "$dest")"
   git clone "$@" "$repo_url" "$dest"
 }
+
+install_or_upgrade_volta() {
+  local volta_bin
+  volta_bin="${VOLTA_HOME:-${HOME}/.volta}/bin/volta"
+
+  if command -v volta >/dev/null 2>&1 || [ -x "$volta_bin" ]; then
+    return 0
+  fi
+
+  if ! command -v curl >/dev/null 2>&1; then
+    printf "warning: curl is not installed yet (cannot install volta)\n" >&2
+    return 1
+  fi
+
+  # Avoid modifying symlinked shell rc files; PATH is managed in dotfiles.
+  curl -fsSL https://get.volta.sh | bash -s -- --skip-setup
+}
+
+install_or_upgrade_node_with_volta() {
+  local volta_cmd
+  volta_cmd="${VOLTA_HOME:-${HOME}/.volta}/bin/volta"
+
+  if command -v volta >/dev/null 2>&1; then
+    volta install node
+    return $?
+  fi
+
+  if [ -x "$volta_cmd" ]; then
+    "$volta_cmd" install node
+    return $?
+  fi
+
+  printf "warning: volta is not installed yet (cannot install node)\n" >&2
+  return 1
+}

@@ -174,6 +174,8 @@ link_with_backup "${DOTFILES_DIR}/wezterm.lua" "${HOME}/.config/wezterm/wezterm.
 
 # node
 mkdir -p "${HOME}/.nvm"
+install_or_upgrade_volta
+install_or_upgrade_node_with_volta
 link_with_backup "${DOTFILES_DIR}/.eslintrc.js" "${HOME}/.eslintrc.js"
 link_with_backup "${DOTFILES_DIR}/tsconfig.json" "${HOME}/tsconfig.json"
 

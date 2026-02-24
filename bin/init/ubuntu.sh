@@ -113,6 +113,8 @@ link_with_backup "${DOTFILES_DIR}/root/.codex/skills/update-pr" "${HOME}/.codex/
 link_with_backup "${DOTFILES_DIR}/root/.github" "${HOME}/.github"
 
 # node
+install_or_upgrade_volta
+install_or_upgrade_node_with_volta
 link_with_backup "${DOTFILES_DIR}/.eslintrc.js" "${HOME}/.eslintrc.js"
 link_with_backup "${DOTFILES_DIR}/tsconfig.json" "${HOME}/tsconfig.json"
 

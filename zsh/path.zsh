@@ -94,6 +94,8 @@ case `uname` in
   ;;
 
   "Linux" )
+    export VOLTA_HOME="$HOME/.volta"
+    export PATH="$VOLTA_HOME/bin:$PATH"
     export PATH="$PATH:$HOME/hub-linux-arm64-2.6.0/bin/hub"
   ;;
 esac
