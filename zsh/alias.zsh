@@ -331,7 +331,6 @@ ssh() {
   if [ -n "$TMUX" ]; then
     tmux select-pane -P 'bg=#252a38'
     tmux set-option -p @ssh_host "${host:-unknown}"
-    tmux set-option pane-active-border-style 'fg=#61afef'
   fi
 
   command ssh "$@"
@@ -340,18 +339,6 @@ ssh() {
   if [ -n "$TMUX" ]; then
     tmux select-pane -P default
     tmux set-option -p -u @ssh_host
-    # Keep border color if another pane still has an active SSH session
-    local _pane _val _has_ssh=false
-    for _pane in $(tmux list-panes -F '#{pane_id}'); do
-      _val=$(tmux show-options -p -t "$_pane" -v @ssh_host 2>/dev/null)
-      if [ -n "$_val" ]; then
-        _has_ssh=true
-        break
-      fi
-    done
-    if ! $_has_ssh; then
-      tmux set-option -u pane-active-border-style
-    fi
   fi
 
   return $ret
