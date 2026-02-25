@@ -37,8 +37,11 @@ install_or_upgrade_login_shell() {
     return 0
   fi
 
-  # before execute the following line, you should add target_shell to /etc/shells
-  chsh -s "$target_shell"
+  if ! grep -qxF "$target_shell" /etc/shells; then
+    sudo sh -c "echo '$target_shell' >> /etc/shells"
+  fi
+
+  sudo chsh -s "$target_shell"
 }
 
 sudo_install_or_upgrade_symlink() {
