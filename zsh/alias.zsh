@@ -299,7 +299,6 @@ update-all() {
   npm i -g textlint
   npm i -g git-delete-squashed
   npm i -g yarn
-  npm i -g corepack # for yarn
   npm i -g @openai/codex
   npm i -g @githubnext/github-copilot-cli
   gcloud components update --quiet
