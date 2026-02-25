@@ -21,9 +21,6 @@ brew 'ripgrep'
 # linter
 brew 'shellcheck'
 
-# network
-brew 'tailscale'
-
 # fly
 brew 'flyctl'
 
