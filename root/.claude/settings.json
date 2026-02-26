@@ -253,18 +253,7 @@
         ]
       }
     ],
-    "Notification": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "terminal-notifier -title 'Claude Code' -message 'Waiting for your input'",
-            "timeout": 10
-          }
-        ]
-      }
-    ]
+    "Notification": []
   },
   "enabledPlugins": {
     "gopls-lsp@claude-plugins-official": true,
