@@ -22,6 +22,7 @@ return {
   font_size = 12.5,
 
   color_scheme = 'OneDark (base16)',
+  show_tab_index_in_tab_bar = false,
 
   scrollback_lines = 100000,
   max_fps = 60,
