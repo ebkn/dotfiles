@@ -1,0 +1,12 @@
+#!/bin/zsh
+#
+# tmux-pane-titles
+#
+# Collect unique directory basenames from all panes in the current tmux window
+# and set as the window name. Called by tmux hooks and zsh chpwd.
+#
+
+panes=$(tmux list-panes -F '#{b:pane_current_path}' 2>/dev/null) || exit 0
+title=$(printf '%s\n' "$panes" | awk '!seen[$0]++ { printf sep $0; sep=" | " }')
+[[ -n "$title" ]] && tmux rename-window -- "$title" 2>/dev/null
+exit 0

@@ -160,3 +160,4 @@ link_with_backup "${DOTFILES_DIR}/.sqliterc" "${HOME}/.sqliterc"
 
 # scripts
 link_with_backup "${DOTFILES_DIR}/tmux-restore-tabs" "${HOME}/.local/bin/tmux-restore-tabs"
+link_with_backup "${DOTFILES_DIR}/tmux-pane-titles" "${HOME}/.local/bin/tmux-pane-titles"
