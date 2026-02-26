@@ -330,6 +330,7 @@ ssh() {
   if [ -n "$TMUX" ]; then
     tmux select-pane -P 'bg=#252a38'
     tmux set-option -p @ssh_host "${host:-unknown}"
+    tmux-pane-titles 2>/dev/null
   fi
 
   command ssh "$@"
@@ -338,6 +339,7 @@ ssh() {
   if [ -n "$TMUX" ]; then
     tmux select-pane -P default
     tmux set-option -p -u @ssh_host
+    tmux-pane-titles 2>/dev/null
   fi
 
   return $ret

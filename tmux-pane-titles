@@ -10,7 +10,9 @@ panes=$(tmux list-panes -F '#{b:pane_current_path} #{@ssh_host}' 2>/dev/null) ||
 title=$(printf '%s\n' "$panes" | awk '{
   dir = $1
   ssh = $2
-  label = (ssh != "") ? "ssh(" dir ")" : dir
+  host = ssh; sub(/^[^@]*@/, "", host)
+  if (length(host) > 10) host = substr(host, 1, 10) "..."
+  label = (ssh != "") ? "ssh(" host ")" : dir
   if (!seen[label]++) { printf sep label; sep = " | " }
 }')
 [[ -n "$title" ]] && tmux rename-window -- "$title" 2>/dev/null
