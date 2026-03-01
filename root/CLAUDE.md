@@ -52,11 +52,6 @@
 - When changes reach a natural commit boundary, suggest committing to the user with `/commit`.
 - Do not wait until the end of a task — commit incrementally as logical units complete.
 
-# File Access
-
-- Always use relative paths from the working directory when accessing files within the project.
-- Avoid absolute paths (including paths starting with `~` or `/`) for project files.
-
 # Temporary Files
 
 - When creating temporary files or directories for investigation, place them under the current project directory (e.g., `./tmp/`), not `/tmp` or other system-level locations.
