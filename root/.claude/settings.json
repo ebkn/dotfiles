@@ -151,6 +151,7 @@
       "WebFetch(domain:stackoverflow.com)",
       "WebFetch(domain:typescriptlang.org)",
       "WebFetch(domain:wiki.archlinux.org)",
+      "WebFetch(domain:developers.openai.com)",
       "WebFetch(domain:www.npmjs.com)",
       "WebSearch",
       "Skill(commit)",
