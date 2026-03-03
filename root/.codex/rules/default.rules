@@ -65,6 +65,17 @@ prefix_rule(
 
 prefix_rule(
     pattern = [
+        ["yarn", "/opt/homebrew/bin/yarn"],
+        [
+            "why",
+        ],
+    ],
+    decision = "allow",
+    justification = "Allow yarn dependency inspection commands.",
+)
+
+prefix_rule(
+    pattern = [
         ["git", "/opt/homebrew/bin/git"],
         [
             "add",
