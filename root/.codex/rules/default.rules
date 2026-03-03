@@ -1,11 +1,12 @@
-# Synced from root/.claude/settings.json permissions.
-# This file captures command-level allow/forbidden/prompt behavior.
+# Codex prefix rules for command-level allow/forbidden/prompt behavior.
 #
 # Notes:
-# - `git -C * <subcommand> *` from Claude cannot be represented exactly as a
-#   Codex prefix rule, so `git -C` is handled as `prompt`.
+# - `git -C * <subcommand> *` cannot be represented exactly as a prefix rule,
+#   so `git -C` is handled as `prompt`.
 # - Shell redirection patterns like `> /dev/*` and `>> /dev/*` are not
 #   representable as prefix rules.
+# - Commands include /opt/homebrew/bin/ absolute paths because Codex resolves
+#   commands to full paths on Apple Silicon Macs.
 
 prefix_rule(
     pattern = [
@@ -59,7 +60,7 @@ prefix_rule(
         ],
     ],
     decision = "allow",
-    justification = "Allow shell utilities from the Claude allow-list.",
+    justification = "Allow shell utilities.",
 )
 
 prefix_rule(
@@ -88,191 +89,191 @@ prefix_rule(
         ],
     ],
     decision = "allow",
-    justification = "Allow git commands listed in Claude allow-list.",
+    justification = "Allow git commands.",
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "commit", "-m"],
     decision = "allow",
-    justification = "Allow non-interactive commit flow from Claude allow-list.",
+    justification = "Allow non-interactive commit flow.",
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "push", "-u", "origin", "HEAD"],
     decision = "allow",
-    justification = "Allow upstream setup push from Claude allow-list.",
+    justification = "Allow upstream setup push.",
 )
 
 prefix_rule(
     pattern = [["gh", "/opt/homebrew/bin/gh"], "browse"],
     decision = "allow",
-    justification = "Allow `gh browse` from Claude allow-list.",
+    justification = "Allow `gh browse`.",
 )
 
 prefix_rule(
     pattern = [["gh", "/opt/homebrew/bin/gh"], "issue", ["list", "status", "view"]],
     decision = "allow",
-    justification = "Allow read-oriented issue commands from Claude allow-list.",
+    justification = "Allow read-oriented issue commands.",
 )
 
 prefix_rule(
     pattern = [["gh", "/opt/homebrew/bin/gh"], "label", "list"],
     decision = "allow",
-    justification = "Allow `gh label list` from Claude allow-list.",
+    justification = "Allow `gh label list`.",
 )
 
 prefix_rule(
     pattern = [["gh", "/opt/homebrew/bin/gh"], "pr", ["checks", "create", "diff", "list", "status", "view"]],
     decision = "allow",
-    justification = "Allow PR commands from Claude allow-list.",
+    justification = "Allow PR commands.",
 )
 
 prefix_rule(
     pattern = [["gh", "/opt/homebrew/bin/gh"], "release", ["list", "view"]],
     decision = "allow",
-    justification = "Allow release inspection commands from Claude allow-list.",
+    justification = "Allow release inspection commands.",
 )
 
 prefix_rule(
     pattern = [["gh", "/opt/homebrew/bin/gh"], "repo", ["list", "view"]],
     decision = "allow",
-    justification = "Allow repo listing/view commands from Claude allow-list.",
+    justification = "Allow repo listing/view commands.",
 )
 
 prefix_rule(
     pattern = [["gh", "/opt/homebrew/bin/gh"], "run", ["list", "view"]],
     decision = "allow",
-    justification = "Allow run inspection commands from Claude allow-list.",
+    justification = "Allow run inspection commands.",
 )
 
 prefix_rule(
     pattern = [["gh", "/opt/homebrew/bin/gh"], "search", ["code", "commits", "issues", "prs", "repos"]],
     decision = "allow",
-    justification = "Allow `gh search` commands from Claude allow-list.",
+    justification = "Allow `gh search` commands.",
 )
 
 prefix_rule(
     pattern = [["gh", "/opt/homebrew/bin/gh"], "workflow", ["list", "view"]],
     decision = "allow",
-    justification = "Allow workflow inspection commands from Claude allow-list.",
+    justification = "Allow workflow inspection commands.",
 )
 
 prefix_rule(
     pattern = ["rm", "-rf", ["/", "~", "/*", ".git"]],
     decision = "forbidden",
-    justification = "Block destructive recursive remove targets from Claude deny-list.",
+    justification = "Block destructive recursive remove targets.",
 )
 
 prefix_rule(
     pattern = ["sudo", ["rm", "dd", "mkfs", "fdisk", "mount", "umount"]],
     decision = "forbidden",
-    justification = "Block privileged destructive disk/delete commands from Claude deny-list.",
+    justification = "Block privileged destructive disk/delete commands.",
 )
 
 prefix_rule(
     pattern = [["dd", "mkfs", "fdisk"]],
     decision = "forbidden",
-    justification = "Block destructive disk utilities from Claude deny-list.",
+    justification = "Block destructive disk utilities.",
 )
 
 prefix_rule(
     pattern = ["chmod", "777"],
     decision = "forbidden",
-    justification = "Block broad chmod patterns matching Claude deny intent.",
+    justification = "Block broad chmod patterns.",
 )
 
 prefix_rule(
     pattern = ["chown", "root"],
     decision = "forbidden",
-    justification = "Block ownership escalation patterns from Claude deny-list.",
+    justification = "Block ownership escalation patterns.",
 )
 
 prefix_rule(
     pattern = ["sudo", "chmod", "777"],
     decision = "forbidden",
-    justification = "Block privileged chmod 777 from Claude deny-list.",
+    justification = "Block privileged chmod 777.",
 )
 
 prefix_rule(
     pattern = ["sudo", "chown"],
     decision = "forbidden",
-    justification = "Block privileged chown from Claude deny-list.",
+    justification = "Block privileged chown.",
 )
 
 prefix_rule(
     pattern = ["sudo", "-i"],
     decision = "forbidden",
-    justification = "Block privileged shell escalation from Claude deny-list.",
+    justification = "Block privileged shell escalation.",
 )
 
 prefix_rule(
     pattern = ["sudo", "su"],
     decision = "forbidden",
-    justification = "Block privileged shell escalation from Claude deny-list.",
+    justification = "Block privileged shell escalation.",
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "push", "--force-with-lease"],
     decision = "forbidden",
-    justification = "Block force push from Claude deny-list.",
+    justification = "Block force push.",
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "push", "-f"],
     decision = "forbidden",
-    justification = "Block force push from Claude deny-list.",
+    justification = "Block force push.",
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "clean", "-fd"],
     decision = "forbidden",
-    justification = "Block destructive git clean from Claude deny-list.",
+    justification = "Block destructive git clean.",
 )
 
 prefix_rule(
     pattern = ["docker", "system", "prune", "-af"],
     decision = "forbidden",
-    justification = "Block destructive docker cleanup from Claude deny-list.",
+    justification = "Block destructive docker cleanup.",
 )
 
 prefix_rule(
     pattern = ["npm", "publish"],
     decision = "forbidden",
-    justification = "Block npm publish from Claude deny-list.",
+    justification = "Block npm publish.",
 )
 
 prefix_rule(
     pattern = [["curl", "wget", "telnet", "nc", "netcat"]],
     decision = "prompt",
-    justification = "Prompt for network/remote shell commands from Claude ask-list.",
+    justification = "Prompt for network/remote shell commands.",
 )
 
 prefix_rule(
     pattern = ["rm"],
     decision = "prompt",
-    justification = "Prompt for remove commands from Claude ask-list.",
+    justification = "Prompt for remove commands.",
 )
 
 prefix_rule(
     pattern = ["mv"],
     decision = "prompt",
-    justification = "Prompt for move commands from Claude ask-list.",
+    justification = "Prompt for move commands.",
 )
 
 prefix_rule(
     pattern = [["gh", "/opt/homebrew/bin/gh"], "api"],
     decision = "prompt",
-    justification = "Prompt for `gh api` from Claude ask-list.",
+    justification = "Prompt for `gh api`.",
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "checkout"],
     decision = "prompt",
-    justification = "Prompt for `git checkout` from Claude ask-list.",
+    justification = "Prompt for `git checkout`.",
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "switch"],
     decision = "prompt",
-    justification = "Prompt for `git switch` from Claude ask-list.",
+    justification = "Prompt for `git switch`.",
 )
