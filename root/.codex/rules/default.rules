@@ -64,7 +64,7 @@ prefix_rule(
 
 prefix_rule(
     pattern = [
-        "git",
+        ["git", "/opt/homebrew/bin/git"],
         [
             "add",
             "blame",
@@ -92,67 +92,67 @@ prefix_rule(
 )
 
 prefix_rule(
-    pattern = ["git", "commit", "-m"],
+    pattern = [["git", "/opt/homebrew/bin/git"], "commit", "-m"],
     decision = "allow",
     justification = "Allow non-interactive commit flow from Claude allow-list.",
 )
 
 prefix_rule(
-    pattern = ["git", "push", "-u", "origin", "HEAD"],
+    pattern = [["git", "/opt/homebrew/bin/git"], "push", "-u", "origin", "HEAD"],
     decision = "allow",
     justification = "Allow upstream setup push from Claude allow-list.",
 )
 
 prefix_rule(
-    pattern = ["gh", "browse"],
+    pattern = [["gh", "/opt/homebrew/bin/gh"], "browse"],
     decision = "allow",
     justification = "Allow `gh browse` from Claude allow-list.",
 )
 
 prefix_rule(
-    pattern = ["gh", "issue", ["list", "status", "view"]],
+    pattern = [["gh", "/opt/homebrew/bin/gh"], "issue", ["list", "status", "view"]],
     decision = "allow",
     justification = "Allow read-oriented issue commands from Claude allow-list.",
 )
 
 prefix_rule(
-    pattern = ["gh", "label", "list"],
+    pattern = [["gh", "/opt/homebrew/bin/gh"], "label", "list"],
     decision = "allow",
     justification = "Allow `gh label list` from Claude allow-list.",
 )
 
 prefix_rule(
-    pattern = ["gh", "pr", ["checks", "create", "diff", "list", "status", "view"]],
+    pattern = [["gh", "/opt/homebrew/bin/gh"], "pr", ["checks", "create", "diff", "list", "status", "view"]],
     decision = "allow",
     justification = "Allow PR commands from Claude allow-list.",
 )
 
 prefix_rule(
-    pattern = ["gh", "release", ["list", "view"]],
+    pattern = [["gh", "/opt/homebrew/bin/gh"], "release", ["list", "view"]],
     decision = "allow",
     justification = "Allow release inspection commands from Claude allow-list.",
 )
 
 prefix_rule(
-    pattern = ["gh", "repo", ["list", "view"]],
+    pattern = [["gh", "/opt/homebrew/bin/gh"], "repo", ["list", "view"]],
     decision = "allow",
     justification = "Allow repo listing/view commands from Claude allow-list.",
 )
 
 prefix_rule(
-    pattern = ["gh", "run", ["list", "view"]],
+    pattern = [["gh", "/opt/homebrew/bin/gh"], "run", ["list", "view"]],
     decision = "allow",
     justification = "Allow run inspection commands from Claude allow-list.",
 )
 
 prefix_rule(
-    pattern = ["gh", "search", ["code", "commits", "issues", "prs", "repos"]],
+    pattern = [["gh", "/opt/homebrew/bin/gh"], "search", ["code", "commits", "issues", "prs", "repos"]],
     decision = "allow",
     justification = "Allow `gh search` commands from Claude allow-list.",
 )
 
 prefix_rule(
-    pattern = ["gh", "workflow", ["list", "view"]],
+    pattern = [["gh", "/opt/homebrew/bin/gh"], "workflow", ["list", "view"]],
     decision = "allow",
     justification = "Allow workflow inspection commands from Claude allow-list.",
 )
@@ -212,19 +212,19 @@ prefix_rule(
 )
 
 prefix_rule(
-    pattern = ["git", "push", "--force-with-lease"],
+    pattern = [["git", "/opt/homebrew/bin/git"], "push", "--force-with-lease"],
     decision = "forbidden",
     justification = "Block force push from Claude deny-list.",
 )
 
 prefix_rule(
-    pattern = ["git", "push", "-f"],
+    pattern = [["git", "/opt/homebrew/bin/git"], "push", "-f"],
     decision = "forbidden",
     justification = "Block force push from Claude deny-list.",
 )
 
 prefix_rule(
-    pattern = ["git", "clean", "-fd"],
+    pattern = [["git", "/opt/homebrew/bin/git"], "clean", "-fd"],
     decision = "forbidden",
     justification = "Block destructive git clean from Claude deny-list.",
 )
@@ -260,25 +260,19 @@ prefix_rule(
 )
 
 prefix_rule(
-    pattern = ["gh", "api"],
+    pattern = [["gh", "/opt/homebrew/bin/gh"], "api"],
     decision = "prompt",
     justification = "Prompt for `gh api` from Claude ask-list.",
 )
 
 prefix_rule(
-    pattern = ["git", "checkout"],
+    pattern = [["git", "/opt/homebrew/bin/git"], "checkout"],
     decision = "prompt",
     justification = "Prompt for `git checkout` from Claude ask-list.",
 )
 
 prefix_rule(
-    pattern = ["git", "switch"],
+    pattern = [["git", "/opt/homebrew/bin/git"], "switch"],
     decision = "prompt",
     justification = "Prompt for `git switch` from Claude ask-list.",
-)
-
-prefix_rule(
-    pattern = ["git", "push"],
-    decision = "prompt",
-    justification = "Prompt for git push by default from Claude ask-list.",
 )

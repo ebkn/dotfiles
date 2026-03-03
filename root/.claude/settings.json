@@ -235,7 +235,6 @@
       "Bash(gh api *)",
       "Bash(gh pr edit *)",
       "Bash(git checkout *)",
-      "Bash(git push *)",
       "Bash(git switch *)"
     ],
     "defaultMode": "acceptEdits"
