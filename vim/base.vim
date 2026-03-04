@@ -93,7 +93,7 @@ set backspace=indent,eol,start " enable backspace
 " clipboard
 if has('nvim')
   " Use OSC 52 for clipboard over SSH so yanks reach the host clipboard
-  lua << EOF
+lua << EOF
   if vim.env.SSH_TTY or vim.env.SSH_CONNECTION then
     vim.g.clipboard = {
       name = 'OSC 52',
@@ -107,7 +107,7 @@ if has('nvim')
       },
     }
   end
-  EOF
+EOF
   set clipboard=unnamed
 else
   set clipboard=unnamed,autoselect
