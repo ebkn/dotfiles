@@ -19,15 +19,20 @@ prefix_rule(
             "cp",
             "cut",
             "date",
+            "df",
             "diff",
             "dig",
             "dirname",
+            "du",
             "echo",
+            "false",
             "file",
             "find",
             "grep",
+            "groups",
             "head",
             "host",
+            "id",
             "jq",
             "ls",
             "lsof",
@@ -35,7 +40,9 @@ prefix_rule(
             "nslookup",
             "ping",
             "printf",
+            "ps",
             "pwd",
+            "read",
             "readlink",
             "realpath",
             "rg",
@@ -50,10 +57,13 @@ prefix_rule(
             "touch",
             "tr",
             "traceroute",
+            "true",
             "tree",
             "uname",
+            "uptime",
             "uniq",
             "wc",
+            "whoami",
             "which",
             "xargs",
             "yq",
@@ -176,6 +186,12 @@ prefix_rule(
 )
 
 prefix_rule(
+    pattern = [["sudo", "su", "doas"]],
+    decision = "forbidden",
+    justification = "Block privilege escalation commands.",
+)
+
+prefix_rule(
     pattern = ["sudo", ["rm", "dd", "mkfs", "fdisk", "mount", "umount"]],
     decision = "forbidden",
     justification = "Block privileged destructive disk/delete commands.",
@@ -185,6 +201,12 @@ prefix_rule(
     pattern = [["dd", "mkfs", "fdisk"]],
     decision = "forbidden",
     justification = "Block destructive disk utilities.",
+)
+
+prefix_rule(
+    pattern = [["diskutil", "parted", "sfdisk", "gdisk", "wipefs", "newfs", "shred"]],
+    decision = "forbidden",
+    justification = "Block destructive disk/partition/data-wipe utilities.",
 )
 
 prefix_rule(
@@ -242,6 +264,30 @@ prefix_rule(
 )
 
 prefix_rule(
+    pattern = [["git", "/opt/homebrew/bin/git"], "reset", "--hard"],
+    decision = "forbidden",
+    justification = "Block destructive git reset.",
+)
+
+prefix_rule(
+    pattern = [["git", "/opt/homebrew/bin/git"], "clean", "-fdx"],
+    decision = "forbidden",
+    justification = "Block destructive git clean -fdx.",
+)
+
+prefix_rule(
+    pattern = [["git", "/opt/homebrew/bin/git"], "checkout", "--"],
+    decision = "forbidden",
+    justification = "Block destructive checkout to overwrite worktree paths.",
+)
+
+prefix_rule(
+    pattern = [["git", "/opt/homebrew/bin/git"], "restore", "--worktree"],
+    decision = "forbidden",
+    justification = "Block destructive restore to overwrite worktree paths.",
+)
+
+prefix_rule(
     pattern = ["docker", "system", "prune", "-af"],
     decision = "forbidden",
     justification = "Block destructive docker cleanup.",
@@ -251,6 +297,12 @@ prefix_rule(
     pattern = ["npm", "publish"],
     decision = "forbidden",
     justification = "Block npm publish.",
+)
+
+prefix_rule(
+    pattern = [["env", "printenv"]],
+    decision = "forbidden",
+    justification = "Block environment variable listing commands.",
 )
 
 prefix_rule(
