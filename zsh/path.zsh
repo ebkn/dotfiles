@@ -14,8 +14,9 @@ case `uname` in
     export PATH="/opt/homebrew/bin:$PATH"
 
     # Node.js
+    # Use $(<file) instead of $(cat file) to avoid fork.
     export NVM_DIR="$HOME/.nvm"
-    NODE_DEFAULT="versions/node/v$(cat "$NVM_DIR/alias/default")"
+    NODE_DEFAULT="versions/node/v$(<"$NVM_DIR/alias/default")"
     export PATH="$PATH:$NVM_DIR/$NODE_DEFAULT/bin" # this requires $ nvm alias default vX.Y.Z
     MANPATH="$PATH:$NVM_DIR/$NODE_DEFAULT/share/man"
     NODE_PATH=$NVM_DIR/$NODE_DEFAULT/lib/node_modules
