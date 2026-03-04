@@ -92,6 +92,22 @@ set backspace=indent,eol,start " enable backspace
 "--- copy/paste ---
 " clipboard
 if has('nvim')
+  " Use OSC 52 for clipboard over SSH so yanks reach the host clipboard
+  lua << EOF
+  if vim.env.SSH_TTY or vim.env.SSH_CONNECTION then
+    vim.g.clipboard = {
+      name = 'OSC 52',
+      copy = {
+        ['+'] = require('vim.ui.clipboard.osc52').copy('+'),
+        ['*'] = require('vim.ui.clipboard.osc52').copy('*'),
+      },
+      paste = {
+        ['+'] = require('vim.ui.clipboard.osc52').paste('+'),
+        ['*'] = require('vim.ui.clipboard.osc52').paste('*'),
+      },
+    }
+  end
+  EOF
   set clipboard=unnamed
 else
   set clipboard=unnamed,autoselect
