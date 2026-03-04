@@ -14,5 +14,6 @@ if [[ -n "$TMUX" ]]; then
     tmux-pane-titles 2>/dev/null
   }
   chpwd_functions+=(_tmux_update_pane_titles)
-  _tmux_update_pane_titles  # set title on shell startup
+  # Initial title is set by tmux hooks (after-new-window, after-new-session)
+  # in .tmux.conf, so no need to call here on shell startup (~20ms saving).
 fi

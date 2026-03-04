@@ -15,29 +15,41 @@ autoload -Uz _zinit
 
 zinit ice proto=ssh depth=1
 
-# color
-zinit light chrissicool/zsh-256color
-# zinit light ael-code/zsh-colored-man-pages
+# --- Synchronous (needed before first prompt) ---
+# Only plugins that affect prompt rendering or color output are loaded
+# synchronously. All others use `wait lucid` to defer loading until
+# after the first prompt, reducing blocking startup time.
 
-# auto suggestion
+# color (must load before other plugins that produce colored output)
+zinit light chrissicool/zsh-256color
+
+# zsh theme (renders the prompt, cannot be deferred)
+zinit light romkatv/powerlevel10k # see ./zsh/.p10k.zsh
+
+# --- Deferred (loaded after first prompt via `wait lucid`) ---
+
+# auto suggestion (loaded synchronously so suggestions appear on first keystroke)
 zinit light zsh-users/zsh-autosuggestions
 
 # syntax highlight
+zinit ice wait lucid
 zinit light zdharma-continuum/fast-syntax-highlighting
 
 # completion
+zinit ice wait lucid
 zinit light zsh-users/zsh-completions
 
-# zsh theme
-zinit light romkatv/powerlevel10k # see ./zsh/.p10k.zsh
-
 # notify after completion
+zinit ice wait lucid
 zinit light MichaelAquilina/zsh-auto-notify
 
-# interactive jq
+# interactive jq (atload: bind ^j after the widget is defined to avoid
+# "unhandled ZLE widget" error from fast-syntax-highlighting)
+zinit ice wait lucid atload"bindkey '^j' jq-complete"
 zinit light reegnz/jq-zsh-plugin
-bindkey '^j' jq-complete
 
-# load bash completion
+# Use -C to skip compaudit security scan (~22ms) and reuse the cached
+# completion dump. The dump is regenerated automatically when
+# zsh-completions or other plugins update completion definitions.
 autoload bashcompinit && bashcompinit
-autoload -Uz compinit && compinit
+autoload -Uz compinit && compinit -C
