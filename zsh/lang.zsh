@@ -1,8 +1,20 @@
 # lazyload
-# direnv works on both macOS and Linux when installed.
-ENVRC_PATH=".envrc"
-if [[ -a "$ENVRC_PATH" ]] && command -v direnv >/dev/null 2>&1; then
-  eval "$(direnv hook zsh)"
+# direnv: inline the hook to avoid forking `direnv hook zsh` on every shell startup.
+# This registers a chpwd/precmd hook that runs `direnv export zsh` on directory change.
+if (( $+commands[direnv] )); then
+  _direnv_hook() {
+    trap -- '' SIGINT
+    eval "$("${commands[direnv]}" export zsh)"
+    trap - SIGINT
+  }
+  typeset -ag precmd_functions
+  if (( ! ${precmd_functions[(I)_direnv_hook]} )); then
+    precmd_functions=(_direnv_hook $precmd_functions)
+  fi
+  typeset -ag chpwd_functions
+  if (( ! ${chpwd_functions[(I)_direnv_hook]} )); then
+    chpwd_functions=(_direnv_hook $chpwd_functions)
+  fi
 fi
 
 # Node.js (nvm is installed via Homebrew on both macOS and Linux).
