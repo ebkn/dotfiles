@@ -267,9 +267,19 @@ export KUBE_EDITOR=nvim
 
 alias python='python3'
 
-# GitHub Copilot CLI
-if command -v github-copilot-cli >/dev/null 2>&1; then
-  eval "$(github-copilot-cli alias -- "$0")"
+# GitHub Copilot CLI (lazy-loaded to avoid ~200ms Node.js fork on every shell startup)
+if (( $+commands[github-copilot-cli] )); then
+  _copilot_cli_init() {
+    unfunction _copilot_cli_init copilot_what-the-shell copilot_git-assist copilot_gh-assist
+    eval "$(github-copilot-cli alias -- zsh)"
+  }
+  copilot_what-the-shell() { _copilot_cli_init; copilot_what-the-shell "$@" }
+  copilot_git-assist() { _copilot_cli_init; copilot_git-assist "$@" }
+  copilot_gh-assist() { _copilot_cli_init; copilot_gh-assist "$@" }
+  alias '??'='copilot_what-the-shell'
+  alias 'git?'='copilot_git-assist'
+  alias 'gh?'='copilot_gh-assist'
+  alias 'wts'='copilot_what-the-shell'
 fi
 
 update-all() {
