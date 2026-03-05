@@ -16,7 +16,6 @@ prefix_rule(
             "awk",
             "basename",
             "cat",
-            "cp",
             "cut",
             "date",
             "df",
@@ -263,6 +262,12 @@ prefix_rule(
 )
 
 prefix_rule(
+    pattern = [["git", "/opt/homebrew/bin/git"], "push", "--force"],
+    decision = "forbidden",
+    justification = "Block force push.",
+)
+
+prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "push", "-f"],
     decision = "forbidden",
     justification = "Block force push.",
@@ -320,6 +325,12 @@ prefix_rule(
     pattern = [["curl", "wget", "telnet", "nc", "netcat"]],
     decision = "prompt",
     justification = "Prompt for network/remote shell commands.",
+)
+
+prefix_rule(
+    pattern = ["cp"],
+    decision = "prompt",
+    justification = "Prompt for copy commands.",
 )
 
 prefix_rule(
