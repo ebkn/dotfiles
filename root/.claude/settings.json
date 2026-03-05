@@ -78,7 +78,7 @@
       "Bash(git ls-tree *)",
       "Bash(git merge-base *)",
       "Bash(git push -u origin HEAD)",
-      "Bash(git remote*)",
+      "Bash(git remote show*)",
       "Bash(git rev-parse *)",
       "Bash(git show *)",
       "Bash(git stash*)",

@@ -101,7 +101,6 @@ prefix_rule(
             "ls-files",
             "ls-tree",
             "merge-base",
-            "remote",
             "rev-parse",
             "show",
             "stash",
@@ -111,6 +110,12 @@ prefix_rule(
     ],
     decision = "allow",
     justification = "Allow git commands.",
+)
+
+prefix_rule(
+    pattern = [["git", "/opt/homebrew/bin/git"], "remote", "show"],
+    decision = "allow",
+    justification = "Allow non-interactive show flow.",
 )
 
 prefix_rule(
