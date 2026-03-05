@@ -47,6 +47,11 @@
 - **Shell scripts**: Run `shellcheck` to validate shell scripts after writing or modifying them.
 - **Directory overview**: Use `tree` to understand project structure quickly.
 
+# Documentation and Comments
+
+- When changing behavior, update related documentation (README, CLAUDE.md, inline docs) in the same commit. Code and docs should stay in sync.
+- Write comments that explain **why**, not what. Leave reasoning, intent, and non-obvious constraints as comments. Omit comments that merely restate the code.
+
 # Commits
 
 - When changes reach a natural commit boundary, suggest committing to the user with `/commit`.
