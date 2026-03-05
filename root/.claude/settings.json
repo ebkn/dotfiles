@@ -114,6 +114,7 @@
       "Bash(gh label list *)",
       "Bash(gh pr checks *)",
       "Bash(gh pr create *)",
+      "Bash(gh pr edit*)",
       "Bash(gh pr diff *)",
       "Bash(gh pr list *)",
       "Bash(gh pr status *)",
@@ -273,8 +274,6 @@
       "Bash(netcat *)",
       "Bash(rm *)",
       "Bash(mv *)",
-      "Bash(gh api *)",
-      "Bash(gh pr edit *)",
       "Bash(git checkout *)",
       "Bash(git switch *)"
     ],
@@ -300,8 +299,8 @@
     "coderabbit@claude-plugins-official": true,
     "swift-lsp@claude-plugins-official": true
   },
+  "autoUpdatesChannel": "stable",
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
-  },
-  "autoUpdatesChannel": "stable"
+  }
 }

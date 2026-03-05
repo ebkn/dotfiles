@@ -144,7 +144,7 @@ prefix_rule(
 )
 
 prefix_rule(
-    pattern = [["gh", "/opt/homebrew/bin/gh"], "pr", ["checks", "create", "diff", "list", "status", "view"]],
+    pattern = [["gh", "/opt/homebrew/bin/gh"], "pr", ["checks", "create", "diff", "edit", "list", "status", "view"]],
     decision = "allow",
     justification = "Allow PR commands.",
 )
@@ -183,6 +183,12 @@ prefix_rule(
     pattern = ["rm", "-rf", ["/", "~", "/*", ".git"]],
     decision = "forbidden",
     justification = "Block destructive recursive remove targets.",
+)
+
+prefix_rule(
+    pattern = ["rm", "-rf", "--no-preserve-root"],
+    decision = "forbidden",
+    justification = "Block destructive recursive remove with --no-preserve-root.",
 )
 
 prefix_rule(
