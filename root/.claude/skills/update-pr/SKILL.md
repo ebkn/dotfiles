@@ -26,9 +26,8 @@ Update the existing pull request for the current branch. Follow this flow:
    - Keep template headings/order and keep HTML comments (`<!-- -->`).
    - If no template exists, skip.
 
-5. **Collect updates**: Ask what changed since the previous PR revision and which links should be included (issues, docs, related PRs). Confirm whether the title should change.
-
-6. **Compose updated PR content**:
+5. **Compose updated PR content**:
+   - Infer what changed since the previous PR revision from the commit log and diff.
    - Title: Conventional Commits, under 72 chars.
    - Decide title language before drafting and keep it fixed unless the user requests a change.
    - Title language policy: use `template_language` first whenever it can be detected.
@@ -38,10 +37,11 @@ Update the existing pull request for the current branch. Follow this flow:
    - If language signals conflict or are ambiguous, ask the user which language to use before drafting.
    - Keep `type(scope)` tokens standard (`feat`, `fix`, etc.); localize only the description text.
    - Body: if template exists, fill its sections. If not, use Summary / Changes / Concerns / References.
+   - Proactively include any reference links (issues, docs, related PRs) found in conversation history.
 
-7. **Confirm**: Show the full updated PR title/body. The user may request edits - apply and re-confirm. Do not push or edit until approved.
+6. **Confirm**: Show the full updated PR title/body. Ask if the user wants to change the title, add links, or make any edits — apply and re-confirm. Do not push or edit until approved.
 
-8. **Push and update**:
+7. **Push and update**:
    - Push (`git push -u origin HEAD`) only if there are unpushed commits (`git log @{upstream}..HEAD`).
    - Update with `gh pr edit --title "<title>" --body-file <file>`.
    - Return the PR URL.

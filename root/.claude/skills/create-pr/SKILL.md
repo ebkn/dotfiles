@@ -24,9 +24,7 @@ Create a pull request. Follow this flow:
    - Keep template headings/order and keep HTML comments (`<!-- -->`).
    - If no template exists, skip.
 
-4. **Reference links**: Ask the user for any links to include (issues, docs, related PRs). Proactively suggest any from conversation history.
-
-5. **Compose PR**:
+4. **Compose PR**:
    - Title: Conventional Commits, under 72 chars.
    - Decide title language before drafting and keep it fixed unless the user requests a change.
    - Title language policy: use `template_language` first whenever it can be detected.
@@ -36,7 +34,8 @@ Create a pull request. Follow this flow:
    - If language signals conflict or are ambiguous, ask the user which language to use before drafting.
    - Keep `type(scope)` tokens standard (`feat`, `fix`, etc.); localize only the description text.
    - Body: if template exists, fill its sections. If not, use Summary / Changes / Concerns / References.
+   - Proactively include any reference links (issues, docs, related PRs) found in conversation history.
 
-6. **Confirm**: Show the full PR title and body. The user may request edits — apply and re-confirm. Do not push or create until approved.
+5. **Confirm**: Show the full PR title and body. Ask if the user wants to add links or make any edits — apply and re-confirm. Do not push or create until approved.
 
-7. **Push and create**: Push (`git push -u origin HEAD`) only if there are unpushed commits (`git log @{upstream}..HEAD`). Create with `gh pr create`. Return the PR URL.
+6. **Push and create**: Push (`git push -u origin HEAD`) only if there are unpushed commits (`git log @{upstream}..HEAD`). Create with `gh pr create`. Return the PR URL.

@@ -24,11 +24,8 @@ Update an existing pull request using this flow.
 4. Load a PR template when available:
    - `git ls-files ':(top,icase).github/pull_request_template.md' ':(top,icase).github/pull_request_template/*.md' ':(top,icase)pull_request_template.md'`
    - Keep template heading order and HTML comments (`<!-- -->`) when filling sections
-5. Ask for updates to include:
-   - Confirm whether the title should change or stay as-is
-   - Ask for links to include (issues, docs, related PRs)
-   - Ask what changed since the last PR draft/review and highlight reviewer-facing impact
-6. Draft updated PR title and body:
+5. Draft updated PR title and body:
+   - Infer what changed since the previous PR revision from the commit log and diff
    - Title: Conventional Commits format, under 72 chars
    - Decide title language before drafting and keep it fixed unless the user requests a change
    - Title language policy: use template language first whenever it can be detected
@@ -38,10 +35,12 @@ Update an existing pull request using this flow.
    - If language signals conflict or are ambiguous, ask the user which language to use before drafting
    - Keep `type(scope)` tokens standard (for example `feat`, `fix`, `chore`); localize only descriptive text
    - If no template exists, use sections: Summary / Changes / Concerns / References
-7. Confirm the final title and body with the user:
+   - Proactively include any reference links (issues, docs, related PRs) found in current context
+6. Confirm the final title and body with the user:
+   - Ask if the user wants to change the title, add links, or make any edits
    - Apply requested edits and re-confirm
    - Do not push or edit the PR before approval
-8. Push and update:
+7. Push and update:
    - Push with `git push -u origin HEAD` when needed
    - Update with `gh pr edit <number> --title "<title>" --body-file <file>`
    - Return the PR URL

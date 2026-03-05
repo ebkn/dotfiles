@@ -20,8 +20,7 @@ Create a pull request using this flow.
 3. Load a PR template when available:
    - `git ls-files ':(top,icase).github/pull_request_template.md' ':(top,icase).github/pull_request_template/*.md' ':(top,icase)pull_request_template.md'`
    - Keep template heading order and HTML comments (`<!-- -->`) when filling sections
-4. Ask for reference links to include (issues, docs, related PRs) and suggest obvious ones from current context.
-5. Draft the PR:
+4. Draft the PR:
    - Title: Conventional Commits format, under 72 chars
    - Decide title language before drafting and keep it fixed unless the user requests a change
    - Title language policy: use template language first whenever it can be detected
@@ -31,10 +30,12 @@ Create a pull request using this flow.
    - If language signals conflict or are ambiguous, ask the user which language to use before drafting
    - Keep `type(scope)` tokens standard (for example `feat`, `fix`, `chore`); localize only descriptive text
    - If no template exists, use sections: Summary / Changes / Concerns / References
-6. Confirm the final PR title and body with the user:
+   - Proactively include any reference links (issues, docs, related PRs) found in current context
+5. Confirm the final PR title and body with the user:
+   - Ask if the user wants to add links or make any edits
    - Apply requested edits and re-confirm
    - Do not push or create the PR before approval
-7. Push and create:
+6. Push and create:
    - Push with `git push -u origin HEAD` when needed
    - Create with `gh pr create`
    - Return the PR URL
