@@ -117,6 +117,12 @@ if [ -f "${HOME}/.sshconfig" ]; then
   mv "${HOME}/.sshconfig" "${HOME}/.ssh/config"
 fi
 link_with_backup "${DOTFILES_DIR}/.sshconfig_base" "${HOME}/.ssh/config_base"
+# Ensure shared SSH defaults are loaded via Include
+if ! grep -qF 'Include config_base' "${HOME}/.ssh/config" 2>/dev/null; then
+  { echo 'Include config_base'; echo; cat "${HOME}/.ssh/config" 2>/dev/null; } > "${HOME}/.ssh/config.tmp"
+  mv "${HOME}/.ssh/config.tmp" "${HOME}/.ssh/config"
+  chmod 600 "${HOME}/.ssh/config"
+fi
 link_with_backup "${DOTFILES_DIR}/.gitignore_global" "${HOME}/.gitignore_global"
 link_with_backup "${DOTFILES_DIR}/.bash_profile" "${HOME}/.bash_profile"
 link_with_backup "${DOTFILES_DIR}/.bashrc" "${HOME}/.bashrc"

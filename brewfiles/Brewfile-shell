@@ -4,6 +4,9 @@ brew 'zsh'
 # tmux
 brew 'tmux'
 
+# auto-reconnecting SSH
+brew 'autossh'
+
 # IDE
 brew 'vim'
 brew 'neovim'

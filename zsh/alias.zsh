@@ -314,25 +314,38 @@ update-all() {
   gcloud components update --quiet
 }
 
-# SSH visual indicator for tmux panes
-# Changes pane background and active border color during SSH sessions
+# SSH wrapper: tmux visual indicator + auto-reconnect with remote tmux reattach.
+# Interactive sessions (no remote command) use autossh to survive connection drops.
+# Non-interactive sessions (ssh host 'cmd') fall back to regular ssh.
+# Bypass: use `command ssh` to skip this wrapper entirely.
 ssh() {
-  # extract hostname from ssh args (skip flags and their arguments)
+  local ssh_opts=()
   local host=""
+  local has_remote_cmd=false
   local skip_next=false
+  local found_host=false
+
   for arg in "$@"; do
     if $skip_next; then
       skip_next=false
+      ssh_opts+=("$arg")
       continue
     fi
     case "$arg" in
       -[bcDEeFIiJLlmOopQRSWw])
         skip_next=true
+        ssh_opts+=("$arg")
         ;;
       -*)
+        ssh_opts+=("$arg")
         ;;
       *)
+        if $found_host; then
+          has_remote_cmd=true
+          break
+        fi
         host="$arg"
+        found_host=true
         ;;
     esac
   done
@@ -343,7 +356,13 @@ ssh() {
     tmux-pane-titles 2>/dev/null
   fi
 
-  command ssh "$@"
+  if ! $has_remote_cmd && (( $+commands[autossh] )); then
+    # Interactive: auto-reconnect and reattach remote tmux (fall back to shell if no tmux)
+    AUTOSSH_GATETIME=0 autossh -M 0 "${ssh_opts[@]}" -t "$host" \
+      'tmux attach 2>/dev/null || tmux new-session 2>/dev/null || exec $SHELL -l'
+  else
+    command ssh "$@"
+  fi
   local ret=$?
 
   if [ -n "$TMUX" ]; then
