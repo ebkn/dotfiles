@@ -315,7 +315,7 @@ update-all() {
 }
 
 # SSH wrapper: tmux visual indicator + auto-reconnect with remote tmux reattach.
-# Interactive sessions (no remote command) use autossh to survive connection drops.
+# Interactive sessions (no remote command) auto-reconnect on disconnect.
 # Non-interactive sessions (ssh host 'cmd') fall back to regular ssh.
 # Bypass: use `command ssh` to skip this wrapper entirely.
 ssh() {
@@ -370,12 +370,20 @@ ssh() {
     if [ -n "$TMUX_PANE" ]; then
       remote_session="local-${TMUX_PANE#%}"
     fi
-    AUTOSSH_GATETIME=0 autossh -M 0 "${ssh_opts[@]}" -t "$host" \
+    # ControlPath=none: bypass stale ControlMaster sockets that can block reconnection.
+    # autossh manages its own reconnection; shared sockets from ControlPersist interfere.
+    AUTOSSH_GATETIME=0 autossh -M 0 \
+      -o ControlPath=none "${ssh_opts[@]}" -t "$host" \
       "tmux new-session -A -s ${remote_session} 2>/dev/null || exec \$SHELL -l"
   else
     command ssh "$@"
   fi
   local ret=$?
+  # Reset terminal state that remote tmux may have left behind on abrupt disconnect
+  # (SGR/X10/button-event/all-mouse tracking, bracketed paste, cursor visibility,
+  # text attributes). Without this, mouse scroll produces raw escape sequences
+  # like "65;61;46M" instead of actual scrolling.
+  printf '\e[?9l\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?2004l\e[?25h\e[0m'
 
   if [ -n "$TMUX" ]; then
     tmux select-pane -P default
