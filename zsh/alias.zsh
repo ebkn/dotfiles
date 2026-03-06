@@ -357,9 +357,21 @@ ssh() {
   fi
 
   if ! $has_remote_cmd && (( $+commands[autossh] )); then
-    # Interactive: auto-reconnect and reattach remote tmux (fall back to shell if no tmux)
+    # Interactive: auto-reconnect with per-pane remote tmux session.
+    # Each local tmux pane gets its own remote session so multiple panes
+    # connecting to the same host stay independent. On reconnect, autossh
+    # reattaches to the same session via -A (attach-or-create).
+    # NOTE: `exit` on the remote destroys the session (last window gone).
+    # Closing the local pane or losing the network leaves the remote
+    # session detached (shell still running), which autossh reattaches
+    # on reconnect. To auto-clean orphaned sessions, set
+    # `set -g destroy-unattached on` in the remote tmux.conf.
+    local remote_session="main"
+    if [ -n "$TMUX_PANE" ]; then
+      remote_session="local-${TMUX_PANE#%}"
+    fi
     AUTOSSH_GATETIME=0 autossh -M 0 "${ssh_opts[@]}" -t "$host" \
-      'tmux attach 2>/dev/null || tmux new-session 2>/dev/null || exec $SHELL -l'
+      "tmux new-session -A -s ${remote_session} 2>/dev/null || exec \$SHELL -l"
   else
     command ssh "$@"
   fi
