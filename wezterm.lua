@@ -19,7 +19,8 @@ return {
     {family = 'Hiragino Kaku Gothic ProN', weight = 'Medium'},
     {family = 'Apple Color Emoji'},
   }),
-  font_size = 12.5,
+  font_size = 13,
+  line_height = 1.2,
 
   color_scheme = 'OneDark (base16)',
   show_tab_index_in_tab_bar = false,
