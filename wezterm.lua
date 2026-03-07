@@ -25,8 +25,8 @@ return {
   show_tab_index_in_tab_bar = false,
 
   scrollback_lines = 100000,
-  max_fps = 60,
-  front_end = 'OpenGL',
+  max_fps = 120,
+  front_end = 'WebGpu',
 
   default_cursor_style = 'SteadyBlock',
   force_reverse_video_cursor = true,
