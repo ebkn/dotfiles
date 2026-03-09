@@ -6,13 +6,18 @@
 # and set as the window name. Called by tmux hooks and zsh chpwd.
 #
 
-panes=$(tmux list-panes -F '#{b:pane_current_path} #{@ssh_host}' 2>/dev/null) || exit 0
+panes=$(tmux list-panes -F '#{b:pane_current_path} #{@ssh_host} #{@git_worktree} #{@git_branch}' 2>/dev/null) || exit 0
 title=$(printf '%s\n' "$panes" | awk '{
   dir = $1
   ssh = $2
+  wt = $3
+  br = $4
   host = ssh; sub(/^[^@]*@/, "", host)
   if (length(host) > 10) host = substr(host, 1, 10) "..."
-  label = (ssh != "") ? "ssh(" host ")" : dir
+  if (ssh != "")    label = "ssh(" host ")"
+  else if (wt != "") label = "wt:" wt
+  else if (br != "") label = "b:" br
+  else               label = dir
   if (!seen[label]++) { printf sep label; sep = " | " }
 }')
 [[ -n "$title" ]] && tmux rename-window -- "$title" 2>/dev/null
