@@ -24,6 +24,11 @@ return {
 
   color_scheme = 'OneDark (base16)',
   show_tab_index_in_tab_bar = false,
+  tab_max_width = 40,
+  window_frame = {
+    font_size = 14,
+    font = wezterm.font({ family = 'Roboto Mono', weight = 'DemiBold', stretch = 'Expanded' }),
+  },
 
   scrollback_lines = 100000,
   max_fps = 120,
