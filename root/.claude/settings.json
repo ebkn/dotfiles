@@ -285,7 +285,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/approve-git-commit.sh",
+            "command": "~/.claude/hooks/approve-multiline-commands.sh",
             "timeout": 5
           }
         ]
