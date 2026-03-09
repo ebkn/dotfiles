@@ -9,7 +9,11 @@ Commit changes quickly and keep output minimal. Do not provide a long post-commi
 
 1. Run `git status --short` and `git diff --stat` to understand scope.
 2. Run `git diff` and `git log --oneline -5` to review details and recent message style.
-3. Group unrelated edits into separate commits when needed.
+3. **Split changes into logical commits.** Default to splitting — only combine when changes are genuinely coupled (one is meaningless without the other). Classify each changed file/hunk by its concern:
+   - Different **scope** (e.g., zsh vs vim vs tmux) → separate commits
+   - Different **intent** (e.g., bug fix vs new feature vs refactor vs docs) → separate commits
+   - Structural cleanup mixed with behavioral change → separate commits (tidy first, then behavior)
+   - If unsure whether to split, split. Smaller commits are always easier to review and revert.
 4. For each commit:
    - `git add <files>`
    - `git diff --cached --stat`
