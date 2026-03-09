@@ -6,8 +6,8 @@
 # and set as the window name. Called by tmux hooks and zsh chpwd.
 #
 
-panes=$(tmux list-panes -F '#{b:pane_current_path} #{@ssh_host} #{@git_worktree} #{@git_branch}' 2>/dev/null) || exit 0
-title=$(printf '%s\n' "$panes" | awk '{
+panes=$(tmux list-panes -F '#{b:pane_current_path}	#{@ssh_host}	#{@git_worktree}	#{@git_branch}' 2>/dev/null) || exit 0
+title=$(printf '%s\n' "$panes" | awk -F'\t' '{
   dir = $1
   ssh = $2
   wt = $3
