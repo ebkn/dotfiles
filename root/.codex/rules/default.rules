@@ -74,6 +74,17 @@ prefix_rule(
 
 prefix_rule(
     pattern = [
+        ["npm", "/opt/homebrew/bin/npm"],
+        [
+            "view",
+        ],
+    ],
+    decision = "allow",
+    justification = "Allow npm package inspection commands.",
+)
+
+prefix_rule(
+    pattern = [
         ["yarn", "/opt/homebrew/bin/yarn"],
         [
             "why",
