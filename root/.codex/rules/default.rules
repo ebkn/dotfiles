@@ -74,8 +74,51 @@ prefix_rule(
 
 prefix_rule(
     pattern = [
+        ["brew", "/opt/homebrew/bin/brew"],
+        [
+            "cat",
+            "deps",
+            "info",
+            "leaves",
+            "list",
+            "outdated",
+            "search",
+        ],
+    ],
+    decision = "allow",
+    justification = "Allow brew inspection commands.",
+)
+
+prefix_rule(
+    pattern = [
+        ["go", "/opt/homebrew/bin/go"],
+        [
+            "doc",
+            "list",
+            "version",
+            "vet",
+        ],
+    ],
+    decision = "allow",
+    justification = "Allow go read-only commands.",
+)
+
+prefix_rule(
+    pattern = [["go", "/opt/homebrew/bin/go"], "mod", ["graph", "verify", "why"]],
+    decision = "allow",
+    justification = "Allow go mod inspection commands.",
+)
+
+prefix_rule(
+    pattern = [
         ["npm", "/opt/homebrew/bin/npm"],
         [
+            "diff",
+            "explain",
+            "fund",
+            "ls",
+            "outdated",
+            "search",
             "view",
         ],
     ],
@@ -87,6 +130,9 @@ prefix_rule(
     pattern = [
         ["yarn", "/opt/homebrew/bin/yarn"],
         [
+            "info",
+            "list",
+            "outdated",
             "why",
         ],
     ],
