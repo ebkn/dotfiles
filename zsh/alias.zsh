@@ -150,7 +150,7 @@ function gw() {
   cd "$worktree_path"
 }
 
-# Open a wezterm window for each git worktree (skip the current one)
+# Open a wezterm tab for each git worktree (skip the current one)
 function open-worktree-tabs() {
   # Use the symlink that always points to the current socket (same as tmux-restore-tabs).
   export WEZTERM_UNIX_SOCKET=~/.local/share/wezterm/default-org.wezfurlong.wezterm
@@ -166,6 +166,10 @@ function open-worktree-tabs() {
   local current_worktree
   current_worktree=$(git rev-parse --show-toplevel 2>/dev/null)
 
+  # Remember the current pane so we can return focus after spawning tabs.
+  local current_pane
+  current_pane=$(wezterm cli list --format json | jq -r '.[] | select(.is_active) | .pane_id')
+
   local count=0
   local dir
   while IFS= read -r line; do
@@ -173,8 +177,8 @@ function open-worktree-tabs() {
       "worktree "*)
         dir="${line#worktree }"
         if [[ "$dir" != "$current_worktree" ]]; then
-          wezterm cli spawn --new-window --cwd "$dir" >/dev/null
-          echo "Opened window: $dir"
+          wezterm cli spawn --cwd "$dir" >/dev/null
+          echo "Opened tab: $dir"
           (( count++ ))
         fi
         ;;
@@ -184,7 +188,8 @@ function open-worktree-tabs() {
   if (( count == 0 )); then
     echo "No other worktrees found"
   else
-    echo "Opened $count worktree window(s)"
+    echo "Opened $count worktree tab(s)"
+    wezterm cli activate-pane --pane-id "$current_pane"
   fi
 }
 
