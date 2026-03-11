@@ -167,8 +167,7 @@ function open-worktree-tabs() {
   current_worktree=$(git rev-parse --show-toplevel 2>/dev/null)
 
   # Remember the current pane so we can return focus after spawning tabs.
-  local current_pane
-  current_pane=$(wezterm cli list --format json | jq -r '.[] | select(.is_active) | .pane_id')
+  local current_pane=$WEZTERM_PANE
 
   local count=0
   local dir
