@@ -176,6 +176,10 @@ function open-worktree-tabs() {
       "worktree "*)
         dir="${line#worktree }"
         if [[ "$dir" != "$current_worktree" ]]; then
+          if [[ ! -d "$dir" ]]; then
+            echo "Skipped (not found): $dir" >&2
+            continue
+          fi
           wezterm cli spawn --cwd "$dir" >/dev/null
           echo "Opened tab: $dir"
           (( count++ ))
