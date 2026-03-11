@@ -150,6 +150,44 @@ function gw() {
   cd "$worktree_path"
 }
 
+# Open a wezterm window for each git worktree (skip the current one)
+function open-worktree-tabs() {
+  # Use the symlink that always points to the current socket (same as tmux-restore-tabs).
+  export WEZTERM_UNIX_SOCKET=~/.local/share/wezterm/default-org.wezfurlong.wezterm
+
+  local worktrees
+  worktrees=$(git worktree list --porcelain 2>/dev/null)
+
+  if [[ -z "$worktrees" ]]; then
+    echo "Not in a git repository or no worktrees found" >&2
+    return 1
+  fi
+
+  local current_worktree
+  current_worktree=$(git rev-parse --show-toplevel 2>/dev/null)
+
+  local count=0
+  local dir
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*)
+        dir="${line#worktree }"
+        if [[ "$dir" != "$current_worktree" ]]; then
+          wezterm cli spawn --new-window --cwd "$dir" >/dev/null
+          echo "Opened window: $dir"
+          (( count++ ))
+        fi
+        ;;
+    esac
+  done <<< "$worktrees"
+
+  if (( count == 0 )); then
+    echo "No other worktrees found"
+  else
+    echo "Opened $count worktree window(s)"
+  fi
+}
+
 # delete merged branches (including squashed branches), worktrees
 function gdmerged() {
   echo "Checking for merged branches..."
