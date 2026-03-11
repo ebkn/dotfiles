@@ -180,7 +180,7 @@ function open-worktree-tabs() {
             echo "Skipped (not found): $dir" >&2
             continue
           fi
-          wezterm cli spawn --cwd "$dir" >/dev/null
+          wezterm cli spawn --pane-id "$current_pane" --cwd "$dir" >/dev/null
           echo "Opened tab: $dir"
           (( count++ ))
         fi
