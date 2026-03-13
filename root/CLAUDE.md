@@ -62,6 +62,14 @@
 - When creating temporary files or directories for investigation, place them under the current project directory (e.g., `./tmp/`), not `/tmp` or other system-level locations.
 - Clean up temporary files and directories once the task is complete.
 
+# Git Worktree
+
+- When the current directory is inside a git worktree, resolve file paths in this priority order (unless explicitly instructed otherwise):
+  1. **Session root** — the working directory where the session started
+  2. **Worktree root** — the root of the current worktree
+  3. **Repo root** — the root of the main repository
+- Do not jump straight to the repo root. Stay in the worktree context first.
+
 # Shell Commands
 
 - Never chain commands with `&&`, `||`, or `;`. Each command must be a single, standalone tool call. Use parallel tool calls instead of chaining.
