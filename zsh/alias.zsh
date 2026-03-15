@@ -397,7 +397,8 @@ ssh() {
   done
 
   if [ -n "$TMUX" ]; then
-    tmux select-pane -P 'bg=#1a2640'
+    # Everforest dark hard: bg_dim (#1e2326) — slightly darker than bg0
+    tmux select-pane -P 'bg=#1e2326'
     tmux set-option -p @ssh_host "${host:-unknown}"
     tmux-pane-titles 2>/dev/null
   fi
