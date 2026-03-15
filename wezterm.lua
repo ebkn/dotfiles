@@ -61,6 +61,18 @@ return {
 
   keys = {
     { mods = "CTRL", key = "q", action=wezterm.action{ SendString="\x11" } },
+    -- Ctrl+T で現在のディレクトリを保持して新しいタブを開く
+    -- OSC 7 (zsh/directory.zsh) + allow-passthrough (.tmux.conf) で CWD を取得
+    { mods = "CTRL", key = "t", action = wezterm.action_callback(function(window, pane)
+      local cwd_url = pane:get_current_working_dir()
+      if cwd_url then
+        window:perform_action(act.SpawnCommandInNewTab {
+          cwd = cwd_url.file_path,
+        }, pane)
+      else
+        window:perform_action(act.SpawnTab 'CurrentPaneDomain', pane)
+      end
+    end)},
     -- Cmd+W で現在のtmux windowを閉じる
     { mods = "CMD", key = "w", action = wezterm.action.PromptInputLine {
       description = 'Close tmux window? (y/n)',

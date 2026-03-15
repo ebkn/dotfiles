@@ -3,6 +3,18 @@ setopt auto_pushd
 setopt pushd_ignore_dups
 setopt pushdminus
 
+# Emit OSC 7 so WezTerm can track the current working directory.
+# Inside tmux, wrap in DCS passthrough so the sequence reaches WezTerm.
+_wezterm_osc7() {
+  if [[ -n "$TMUX" ]]; then
+    printf '\ePtmux;\e\e]7;file://%s%s\a\e\\' "${HOST}" "${PWD}"
+  else
+    printf '\e]7;file://%s%s\e\\' "${HOST}" "${PWD}"
+  fi
+}
+chpwd_functions+=(_wezterm_osc7)
+_wezterm_osc7  # emit for the initial directory
+
 alias -g ...='../..'
 alias -g ....='../../..'
 alias -g .....='../../../..'
