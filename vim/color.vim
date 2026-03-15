@@ -13,4 +13,4 @@ if (empty($TMUX))
 endif
 
 " set color scheme
-colorscheme onedark
+colorscheme night-owl

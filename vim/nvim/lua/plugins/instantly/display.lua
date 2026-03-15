@@ -1,15 +1,6 @@
 return {
   -- color
-  {
-    "navarasu/onedark.nvim",
-    config = function()
-      require('onedark').setup({
-        toggle_style_key = '<C-e>',
-        style = 'warmer'
-      })
-      require('onedark').load()
-    end,
-  },
+  { "haishanh/night-owl.vim" },
 
   -- show line that has git diff
   {
