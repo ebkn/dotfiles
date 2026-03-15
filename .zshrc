@@ -19,6 +19,7 @@ export FZF_DEFAULT_COMMAND="rg --files --hidden --smart-case --glob='!.git/*'"
 
 # display
 setopt print_exit_value
+export BAT_THEME="Nord"
 
 # no peep (except general beep for notifications)
 unsetopt BEEP
