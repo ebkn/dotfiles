@@ -1,6 +1,6 @@
 return {
   -- color
-  { "haishanh/night-owl.vim" },
+  { "arcticicestudio/nord-vim" },
 
   -- show line that has git diff
   {
