@@ -36,21 +36,6 @@ install_or_upgrade_fzf_shell_integration() {
   return 1
 }
 
-install_or_upgrade_source_code_pro_font() {
-  local font_dir
-  font_dir="${HOME}/.local/share/fonts/adobe-fonts/source-code-pro"
-
-  mkdir -p "$(dirname "$font_dir")"
-  install_or_upgrade_git_repo \
-    "https://github.com/adobe-fonts/source-code-pro" \
-    "$font_dir" \
-    --branch release --depth 1
-
-  if command -v fc-cache >/dev/null 2>&1; then
-    fc-cache -f -v "$font_dir"
-  fi
-}
-
 install_or_upgrade_docker_repo() {
   sudo install -m 0755 -d /etc/apt/keyrings
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo tee /etc/apt/keyrings/docker.asc >/dev/null
@@ -86,9 +71,6 @@ brew doctor || true
 log_step "Installing Google Cloud CLI"
 # update-all expects gcloud to exist before shell lazy-loading is used.
 install_or_upgrade_gcloud
-
-log_step "Installing Source Code Pro font"
-install_or_upgrade_source_code_pro_font
 
 link_with_backup "${DOTFILES_DIR}/.zshrc" "${HOME}/.zshrc"
 link_with_backup "${DOTFILES_DIR}/.zshenv" "${HOME}/.zshenv"

@@ -2,7 +2,7 @@
   "window.newWindowProfile": "Default",
   "files.autoSave": "afterDelay",
   "editor.tabSize": 2,
-  "editor.fontFamily": "Roboto Mono DemiBold",
+  "editor.fontFamily": "JetBrains Mono Medium",
   "editor.renderWhitespace": "trailing",
   "editor.wordWrap": "on",
   "files.exclude": {

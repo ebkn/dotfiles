@@ -14,8 +14,8 @@ return {
   },
 
   font = wezterm.font_with_fallback({
-    {family = 'Roboto Mono', weight = 'DemiBold' },
-    {family = 'Roboto Mono', weight = 'DemiBold', italic = true },
+    {family = 'JetBrains Mono', weight = 'Medium' },
+    {family = 'JetBrains Mono', weight = 'Medium', italic = true },
     {family = 'Hiragino Kaku Gothic ProN', weight = 'Medium'},
     {family = 'Apple Color Emoji'},
   }),
@@ -27,7 +27,7 @@ return {
   tab_max_width = 40,
   window_frame = {
     font_size = 14,
-    font = wezterm.font({ family = 'Roboto Mono', weight = 'DemiBold', stretch = 'Expanded' }),
+    font = wezterm.font({ family = 'JetBrains Mono', weight = 'Medium', stretch = 'Expanded' }),
   },
 
   scrollback_lines = 100000,
