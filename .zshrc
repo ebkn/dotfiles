@@ -19,7 +19,8 @@ export FZF_DEFAULT_COMMAND="rg --files --hidden --smart-case --glob='!.git/*'"
 
 # display
 setopt print_exit_value
-export BAT_THEME="OneHalfDark"
+# Use terminal ANSI colors so bat inherits WezTerm's Everforest palette
+export BAT_THEME="ansi"
 
 # no peep (except general beep for notifications)
 unsetopt BEEP
