@@ -2,6 +2,9 @@ local wezterm = require 'wezterm'
 local act = wezterm.action
 
 return {
+  -- $TERM value advertised to the shell (and tmux).
+  -- tmux's terminal-overrides in .tmux.conf match this value to enable
+  -- RGB (true color) and OSC 52 clipboard forwarding.
   term = 'xterm-256color',
 
   default_prog = { '/opt/homebrew/bin/zsh', '--login' },
@@ -22,6 +25,9 @@ return {
   font_size = 13,
   line_height = 1.2,
 
+  -- Terminal-level color palette. WezTerm uses this to render all output.
+  -- Keep in sync with Neovim's colorscheme (vim/color.vim) so that
+  -- ANSI colors and UI chrome share a consistent look.
   color_scheme = 'Everforest Dark (Gogh)',
 
   show_tab_index_in_tab_bar = false,
