@@ -6,20 +6,36 @@
 # and set as the window name. Called by tmux hooks and zsh chpwd.
 #
 
+target_window=""
+target_args=()
+should_debounce=false
+
+# Background tmux hooks pass a window id explicitly. This avoids relying on the
+# current client/window at execution time, which may already have changed.
 # Debounce: when called with --debounce (e.g. from window-layout-changed hook),
 # wait briefly and skip if a newer invocation has started. This prevents redundant
 # runs during rapid pane closes or resize operations.
 if [[ "$1" == "--debounce" ]]; then
+  should_debounce=true
+  shift
+fi
+
+target_window="$1"
+if [[ -n "$target_window" ]]; then
+  target_args=(-t "$target_window")
+fi
+
+if $should_debounce; then
   _debounce_dir="/tmp/tmux-pane-titles"
   mkdir -p "$_debounce_dir" 2>/dev/null
-  _win_id=$(tmux display-message -p '#{session_id}-#{window_id}' 2>/dev/null) || exit 0
+  _win_id=$(tmux display-message -p "${target_args[@]}" '#{session_id}-#{window_id}' 2>/dev/null) || exit 0
   _stamp="$$"
   echo "$_stamp" > "$_debounce_dir/$_win_id" 2>/dev/null
   sleep 0.15
   [[ "$(cat "$_debounce_dir/$_win_id" 2>/dev/null)" == "$_stamp" ]] || exit 0
 fi
 
-panes=$(tmux list-panes -F '#{b:pane_current_path}	#{@ssh_host}	#{@git_worktree}	#{@git_branch}' 2>/dev/null) || exit 0
+panes=$(tmux list-panes "${target_args[@]}" -F '#{b:pane_current_path}	#{@ssh_host}	#{@git_worktree}	#{@git_branch}' 2>/dev/null) || exit 0
 title=$(printf '%s\n' "$panes" | awk -F'\t' '{
   dir = $1
   ssh = $2
@@ -33,5 +49,5 @@ title=$(printf '%s\n' "$panes" | awk -F'\t' '{
   else               label = dir
   if (!seen[label]++) { printf sep label; sep = " | " }
 }')
-[[ -n "$title" ]] && tmux rename-window -- "$title" 2>/dev/null
+[[ -n "$title" ]] && tmux rename-window "${target_args[@]}" -- "$title" 2>/dev/null
 exit 0
