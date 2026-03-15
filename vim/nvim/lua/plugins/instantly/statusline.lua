@@ -4,7 +4,7 @@ return {
     config = function()
       require('lualine').setup({
         options = {
-          theme = 'ayu_mirage',
+          theme = 'everforest',
           colored = true,
           path = 1,
         },
