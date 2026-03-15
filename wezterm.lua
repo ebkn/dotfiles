@@ -2,7 +2,7 @@ local wezterm = require 'wezterm'
 local act = wezterm.action
 
 return {
-  term = 'screen-256color',
+  term = 'xterm-256color',
 
   default_prog = { '/opt/homebrew/bin/zsh', '--login' },
 
