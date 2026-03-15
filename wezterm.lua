@@ -17,8 +17,8 @@ return {
   },
 
   font = wezterm.font_with_fallback({
-    {family = 'JetBrains Mono', weight = 'Medium' },
-    {family = 'JetBrains Mono', weight = 'Medium', italic = true },
+    {family = 'JetBrains Mono', weight = 'Medium', harfbuzz_features = {'calt=0', 'clig=0', 'liga=0'} },
+    {family = 'JetBrains Mono', weight = 'Medium', italic = true, harfbuzz_features = {'calt=0', 'clig=0', 'liga=0'} },
     {family = 'Hiragino Kaku Gothic ProN', weight = 'Medium'},
     {family = 'Apple Color Emoji'},
   }),
