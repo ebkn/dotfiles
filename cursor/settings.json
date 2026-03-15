@@ -3,6 +3,7 @@
   "files.autoSave": "afterDelay",
   "editor.tabSize": 2,
   "editor.fontFamily": "JetBrains Mono Medium",
+  "editor.fontLigatures": false,
   "editor.renderWhitespace": "trailing",
   "editor.wordWrap": "on",
   "files.exclude": {
