@@ -2,4 +2,4 @@
 set termguicolors
 
 " set color scheme
-colorscheme nord
+colorscheme ayu

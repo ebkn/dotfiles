@@ -1,6 +1,13 @@
 return {
   -- color
-  { "arcticicestudio/nord-vim" },
+  {
+    "ayu-theme/ayu-vim",
+    config = function()
+      vim.cmd([[
+        let ayucolor="mirage"
+      ]])
+    end,
+  },
 
   -- show line that has git diff
   {
