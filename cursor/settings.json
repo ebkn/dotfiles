@@ -30,7 +30,6 @@
   "files.insertFinalNewline": true,
   "files.trimFinalNewlines": true,
   "workbench.colorTheme": "One Dark Pro Darker",
-  "oneDarkPro.bold": true,
   "editor.multiCursorLimit": 1000,
   "editor.cursorBlinking": "solid",
   "terminal.integrated.cursorStyle": "line",
