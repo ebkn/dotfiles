@@ -22,7 +22,7 @@ return {
   font_size = 13,
   line_height = 1.2,
 
-  color_scheme = 'Night Owl (Gogh)',
+  color_scheme = 'nord',
   show_tab_index_in_tab_bar = false,
   tab_max_width = 40,
   window_frame = {
