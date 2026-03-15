@@ -1,5 +1,6 @@
 return {
-  -- color
+  -- Colorscheme plugin. Provides the highlight definitions loaded by
+  -- `colorscheme everforest` in vim/color.vim.
   { "sainnhe/everforest" },
 
   -- show line that has git diff
