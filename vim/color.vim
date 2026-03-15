@@ -1,5 +1,5 @@
-" enable true color (tmux declares Tc capability)
+" enable true color (tmux declares RGB capability)
 set termguicolors
 
 " set color scheme
-colorscheme ayu
+colorscheme everforest
