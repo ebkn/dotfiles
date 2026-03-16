@@ -192,6 +192,7 @@
       "WebFetch(domain:developers.openai.com)",
       "WebFetch(domain:biomejs.dev)",
       "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:developers.cloudflare.com)",
       "WebSearch",
       "Skill(commit)",
       "Skill(update-pr)"
