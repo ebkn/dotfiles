@@ -64,11 +64,10 @@
 
 # Git Worktree
 
-- When the current directory is inside a git worktree, resolve file paths in this priority order (unless explicitly instructed otherwise):
-  1. **Session root** — the working directory where the session started
-  2. **Worktree root** — the root of the current worktree
-  3. **Repo root** — the root of the main repository
-- Do not jump straight to the repo root. Stay in the worktree context first.
+- **Always work in the current directory.** The current directory is the worktree root in most cases. Do not resolve paths to the main repository root.
+- Never use `git rev-parse --git-common-dir` or navigate to the repo root to read files, run commands, or resolve paths. Use the current directory as the project root.
+- When reading, searching, or editing files, use relative paths from the current directory or absolute paths within the current directory tree.
+- Only access the main repository root when the user explicitly asks to.
 
 # Shell Commands
 
