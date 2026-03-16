@@ -318,11 +318,7 @@
     ],
     "Notification": []
   },
-  "enabledPlugins": {
-    "gopls-lsp@claude-plugins-official": true,
-    "coderabbit@claude-plugins-official": true,
-    "swift-lsp@claude-plugins-official": true
-  },
+  "enabledPlugins": {},
   "autoUpdatesChannel": "stable",
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
