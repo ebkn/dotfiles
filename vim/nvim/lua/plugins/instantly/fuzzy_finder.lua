@@ -24,7 +24,7 @@ return {
         set rtp+=/opt/homebrew/opt/fzf
         let g:fzf_layout={ 'window': { 'width': 0.9, 'height': 0.9 } }
         let g:fzf_exclude_dir = 'git-worktrees'
-        let $FZF_DEFAULT_COMMAND = 'rg --files --hidden --glob "!' . g:fzf_exclude_dir . '/**"'
+        let $FZF_DEFAULT_COMMAND = 'fzf-files --glob "!' . g:fzf_exclude_dir . '/**"'
         function! s:p(bang, ...)
           let preview_window=get(g:, 'fzf_preview_window', a:bang && &columns>=80 || &columns>=120 ? 'right': '')
           if len(preview_window)

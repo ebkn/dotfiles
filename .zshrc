@@ -15,7 +15,7 @@ source "$HOME/dotfiles/zsh/lang.zsh"
 source "$HOME/dotfiles/zsh/plugin.zsh"
 
 # Settings for fzf
-export FZF_DEFAULT_COMMAND="rg --files --hidden --smart-case --glob='!.git/*'"
+export FZF_DEFAULT_COMMAND="fzf-files"
 
 # display
 setopt print_exit_value
