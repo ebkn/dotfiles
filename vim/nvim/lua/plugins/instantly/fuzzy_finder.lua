@@ -22,6 +22,7 @@ return {
       vim.cmd([[
         set rtp+=/usr/local/opt/fzf
         set rtp+=/opt/homebrew/opt/fzf
+        let $FZF_DEFAULT_COMMAND = 'fzf-files'
         let g:fzf_layout={ 'window': { 'width': 0.9, 'height': 0.9 } }
         function! s:p(bang, ...)
           let preview_window=get(g:, 'fzf_preview_window', a:bang && &columns>=80 || &columns>=120 ? 'right': '')
