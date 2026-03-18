@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# fzf-files: list git-changed files first, then all remaining files (deduped).
+# Extra arguments are passed through to rg (e.g. --glob "!dir/**").
+# Falls back to plain rg --files outside a git repo.
+
+set -euo pipefail
+
+rg_base=(rg --files --hidden --smart-case --glob='!.git/*')
+
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  # Collect unique changed file paths: unstaged + staged + last 5 commits
+  changed=$(
+    {
+      git diff --relative --name-only
+      git diff --relative --name-only --cached
+      git log --relative --name-only --pretty=format: -5
+    } | awk 'NF && !seen[$0]++'
+  )
+
+  # Output changed files (existing only) first, then all rg files, deduped
+  {
+    while IFS= read -r f; do
+      [[ -f "$f" ]] && printf '%s\n' "$f"
+    done <<< "$changed"
+    "${rg_base[@]}" "$@"
+  } | awk '!seen[$0]++'
+else
+  "${rg_base[@]}" "$@"
+fi
