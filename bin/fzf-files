@@ -3,11 +3,13 @@
 # Extra arguments are passed through to rg (e.g. --glob "!dir/**").
 # Falls back to plain rg --files outside a git repo.
 #
-# --label: append tab-delimited git status labels to changed files.
-#   staged files    → path\t(staged)
-#   unstaged files  → path\t(unstaged)
-#   committed files → path\t(<short-hash>)
-# Priority: staged > unstaged > committed (first label wins per file).
+# --label: prepend tab-delimited [ label ] to git-changed files.
+#   With fzf --tabstop=1, the tab renders as a single space:
+#     [ staged   ] path
+#     [ unstaged ] path
+#     [ <hash>   ] path
+#     path                ← no label, no leading space
+#   Priority: staged > unstaged > committed (first label wins per file).
 
 set -euo pipefail
 
@@ -21,24 +23,26 @@ rg_base=(rg --files --hidden --smart-case --glob='!.git/*')
 
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   if "$label_mode"; then
-    # Build labeled list: staged, unstaged, then committed files.
+    # Build labeled list: [ label    ]\tpath
     # Use HASH: prefix marker to distinguish commit hashes from filenames.
     changed=$(
       {
-        git diff --relative --name-only --cached | sed 's/$/\t(staged)/'
-        git diff --relative --name-only | sed 's/$/\t(unstaged)/'
+        git diff --relative --name-only --cached \
+          | awk '{printf "[ staged   ]\t%s\n", $0}'
+        git diff --relative --name-only \
+          | awk '{printf "[ unstaged ]\t%s\n", $0}'
         git log --relative --name-only --pretty='format:HASH:%h' -5 \
-          | awk '/^HASH:/{hash=$0; sub(/^HASH:/,"",hash); next} NF{print $0 "\t(" hash ")"}'
+          | awk '/^HASH:/{hash=$0; sub(/^HASH:/,"",hash); next} NF{printf "[ %-8s ]\t%s\n", hash, $0}'
       }
     )
 
     # Output changed files (existing only, first label wins per path), then rg files
     {
-      while IFS=$'\t' read -r f lbl; do
-        [[ -f "$f" ]] && printf '%s\t%s\n' "$f" "$lbl"
+      while IFS=$'\t' read -r lbl f; do
+        [[ -f "$f" ]] && printf '%s\t%s\n' "$lbl" "$f"
       done <<< "$changed"
       "${rg_base[@]}" "$@"
-    } | awk -F'\t' '!seen[$1]++'
+    } | awk -F'\t' '!seen[$NF]++'
   else
     # Plain mode: no labels
     changed=$(

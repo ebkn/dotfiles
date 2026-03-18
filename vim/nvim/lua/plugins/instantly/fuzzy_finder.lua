@@ -22,7 +22,7 @@ return {
       vim.cmd([[
         set rtp+=/usr/local/opt/fzf
         set rtp+=/opt/homebrew/opt/fzf
-        let $FZF_DEFAULT_COMMAND = 'fzf-files'
+        let $FZF_DEFAULT_OPTS = $FZF_DEFAULT_OPTS . ' --accept-nth=1..'
         let g:fzf_layout={ 'window': { 'width': 0.9, 'height': 0.9 } }
         function! s:p(bang, ...)
           let preview_window=get(g:, 'fzf_preview_window', a:bang && &columns>=80 || &columns>=120 ? 'right': '')
@@ -32,7 +32,7 @@ return {
           return {}
         endfunction
         command! -bang -nargs=? -complete=dir Files
-          \ call fzf#vim#files(<q-args>, s:p(<bang>0), <bang>0)
+          \ call fzf#vim#files(<q-args>, s:p(<bang>0, {'placeholder': '{-1}', 'options': ['--accept-nth=-1']}), <bang>0)
         command! -bar -bang -nargs=? -complete=buffer Buffers
           \ call fzf#vim#buffers(<q-args>, s:p(<bang>0, { "placeholder": "{1}" }), <bang>0)
         command! -bang -nargs=* Rg
