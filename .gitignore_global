@@ -12,3 +12,4 @@ yarn-error.log*
 
 # git-worktree custom commands
 .worktree-copy
+git-worktrees
