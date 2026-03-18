@@ -54,7 +54,10 @@ return {
     -- dependencies = { 'nvim-treesitter/nvim-treesitter', 'nvim-tree/nvim-web-devicons' }, -- if you prefer nvim-web-devicons
     ---@module 'render-markdown'
     ---@type render.md.UserConfig
-    opts = {},
+    opts = {
+      -- sign_text with 3-cell nerd font icons causes nvim_buf_set_extmark errors on nvim 0.11.x
+      sign = { enabled = false },
+    },
   },
 
   -- sticky scroll
