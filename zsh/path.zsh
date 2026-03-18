@@ -6,7 +6,7 @@ export HOMEBREW_FORBIDDEN_FORMULAE="node npm pnpm yarn claude"
 # User-local scripts (init links helpers into ~/.local/bin on both OSes).
 export PATH="$PATH:$HOME/.local/bin"
 
-export VOLTA_HOME="$HOME/.volta"
+# VOLTA_HOME is set in .zshenv (needed by non-interactive shells)
 
 case `uname` in
   "Darwin" ) # requires gnu-sed
@@ -92,5 +92,4 @@ case `uname` in
   ;;
 esac
 
-# Prefer Volta-managed node/npm across macOS and Linux.
-export PATH="$VOLTA_HOME/bin:$PATH"
+# Volta PATH is set in .zshenv (needed by non-interactive shells)
