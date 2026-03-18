@@ -5,9 +5,9 @@
 #
 # --label: prepend tab-delimited [ label ] to git-changed files.
 #   With fzf --tabstop=1, the tab renders as a single space:
-#     [ staged   ] path
-#     [ unstaged ] path
-#     [ <hash>   ] path
+#     [ staged      ] path
+#     [ unstaged    ] path
+#     [ hash(-N)    ] path   ← N = how many commits ago (1–5)
 #     path                ← no label, no leading space
 #   Priority: staged > unstaged > committed (first label wins per file).
 
@@ -28,11 +28,11 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     changed=$(
       {
         git diff --relative --name-only --cached \
-          | awk '{printf "[ staged   ]\t%s\n", $0}'
+          | awk '{printf "[ staged      ]\t%s\n", $0}'
         git diff --relative --name-only \
-          | awk '{printf "[ unstaged ]\t%s\n", $0}'
+          | awk '{printf "[ unstaged    ]\t%s\n", $0}'
         git log --relative --name-only --pretty='format:HASH:%h' -5 \
-          | awk '/^HASH:/{hash=$0; sub(/^HASH:/,"",hash); next} NF{printf "[ %-8s ]\t%s\n", hash, $0}'
+          | awk '/^HASH:/{n++; hash=$0; sub(/^HASH:/,"",hash); next} NF{printf "[ %-11s ]\t%s\n", hash"(-"n")", $0}'
       }
     )
 
