@@ -14,13 +14,8 @@ source "$HOME/dotfiles/zsh/history.zsh"
 source "$HOME/dotfiles/zsh/lang.zsh"
 source "$HOME/dotfiles/zsh/plugin.zsh"
 
-# Settings for fzf
-export FZF_DEFAULT_COMMAND="fzf-files"
-
 # display
 setopt print_exit_value
-# Use terminal ANSI colors so bat inherits WezTerm's Everforest palette
-export BAT_THEME="ansi"
 
 # no peep (except general beep for notifications)
 unsetopt BEEP

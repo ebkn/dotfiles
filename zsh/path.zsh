@@ -3,10 +3,7 @@ export PATH="$PATH:/usr/local/sbin"
 # Homebrew packages managed outside Homebrew (Volta/official installers).
 export HOMEBREW_FORBIDDEN_FORMULAE="node npm pnpm yarn claude"
 
-# User-local scripts (init links helpers into ~/.local/bin on both OSes).
-export PATH="$PATH:$HOME/.local/bin"
-
-# VOLTA_HOME is set in .zshenv (needed by non-interactive shells)
+# User-local scripts PATH and VOLTA_HOME are set in .zshenv
 
 case `uname` in
   "Darwin" ) # requires gnu-sed
