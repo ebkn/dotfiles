@@ -32,7 +32,11 @@ return {
           return {}
         endfunction
         command! -bang -nargs=? -complete=dir Files
-          \ call fzf#vim#files(<q-args>, s:p(<bang>0, {'placeholder': '{-1}', 'options': ['--accept-nth=-1']}), <bang>0)
+          \ call fzf#vim#files(<q-args>, {
+          \   'options': ['--accept-nth=-1',
+          \     '--preview', 'bat --color=always --style=numbers --line-range=:500 {-1}',
+          \     '--preview-window', 'right']
+          \ }, <bang>0)
         command! -bar -bang -nargs=? -complete=buffer Buffers
           \ call fzf#vim#buffers(<q-args>, s:p(<bang>0, { "placeholder": "{1}" }), <bang>0)
         command! -bang -nargs=* Rg
