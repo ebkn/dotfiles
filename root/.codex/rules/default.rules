@@ -419,3 +419,4 @@ prefix_rule(
     decision = "prompt",
     justification = "Prompt for `git switch`.",
 )
+prefix_rule(pattern=["/usr/bin/log", "show"], decision="allow")
