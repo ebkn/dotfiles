@@ -22,6 +22,10 @@ return {
       vim.cmd([[
         set rtp+=/usr/local/opt/fzf
         set rtp+=/opt/homebrew/opt/fzf
+        " FZF_DEFAULT_OPTS (.zshenv) sets --delimiter=\t --nth=-1 for
+        " tab-delimited shell output (fzf-files --label).
+        " fzf.vim commands use different formats, so per-command overrides
+        " are needed below (--nth, --accept-nth, --preview, etc.).
         let $FZF_DEFAULT_OPTS = $FZF_DEFAULT_OPTS . ' --accept-nth=1..'
         let g:fzf_layout={ 'window': { 'width': 0.9, 'height': 0.9 } }
         function! s:p(bang, ...)
@@ -39,10 +43,15 @@ return {
           \ }, <bang>0)
         command! -bar -bang -nargs=? -complete=buffer Buffers
           \ call fzf#vim#buffers(<q-args>, s:p(<bang>0, { "placeholder": "{1}" }), <bang>0)
+        " rg output is file:line:col:content (colon-delimited).
+        " fzf#vim#with_preview sets --delimiter=: which overrides the
+        " global tab delimiter, so --nth=-1 from FZF_DEFAULT_OPTS would
+        " match only the content field. Override with 1,4.. to search
+        " filename (field 1) and content (field 4+), skipping line/col.
         command! -bang -nargs=* Rg
           \ call fzf#vim#grep(
           \   'rg --column --no-heading --color=always --smart-case --hidden -- '.shellescape(<q-args>), 1,
-          \   fzf#vim#with_preview(), <bang>0)
+          \   fzf#vim#with_preview({'options': ['--nth', '1,4..']}), <bang>0)
         nnoremap <C-f> :Files<CR>
         nnoremap <C-g> :Rg<Space>
         nnoremap <C-b> :Buffers<CR>
