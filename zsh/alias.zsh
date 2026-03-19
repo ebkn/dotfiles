@@ -293,7 +293,7 @@ function gtag() {
 # requires ghq, fzf
 function move_to_repository() {
   local dir
-  dir=$(ghq list -p --vcs=git | fzf --reverse)
+  dir=$(ghq list -p --vcs=git | fzf --reverse --preview='')
   if [ "$dir" != "" ]; then
     cd "$dir"
   fi
