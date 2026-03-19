@@ -55,8 +55,14 @@ return {
     ---@module 'render-markdown'
     ---@type render.md.UserConfig
     opts = {
+      heading = {
+        icons = { '# ', '## ', '### ', '#### ', '##### ', '###### ' },
+      },
       code = {
-        border = 'thin'
+        border = 'thin',
+      },
+      html = {
+        comment = { conceal = false },
       },
       -- sign_text with 3-cell nerd font icons causes nvim_buf_set_extmark errors on nvim 0.11.x
       sign = { enabled = false },
