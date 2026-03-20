@@ -5,11 +5,12 @@
 #
 # --label: prepend tab-delimited [ label ] to git-changed files.
 #   With fzf --tabstop=1, the tab renders as a single space:
+#     [ untracked   ] path
 #     [ staged      ] path
 #     [ unstaged    ] path
 #     [ hash(-N)    ] path   ← N = how many commits ago (1–5)
 #     path                ← no label, no leading space
-#   Priority: staged > unstaged > committed (first label wins per file).
+#   Priority: untracked > staged > unstaged > committed (first label wins per file).
 
 set -euo pipefail
 
@@ -27,6 +28,8 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     # Use HASH: prefix marker to distinguish commit hashes from filenames.
     changed=$(
       {
+        git ls-files --others --exclude-standard \
+          | awk '{printf "[ untracked   ]\t%s\n", $0}'
         git diff --relative --name-only --cached \
           | awk '{printf "[ staged      ]\t%s\n", $0}'
         git diff --relative --name-only \
@@ -47,6 +50,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     # Plain mode: no labels
     changed=$(
       {
+        git ls-files --others --exclude-standard
         git diff --relative --name-only
         git diff --relative --name-only --cached
         git log --relative --name-only --pretty=format: -5
