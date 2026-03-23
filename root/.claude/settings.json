@@ -199,7 +199,11 @@
       "WebFetch(domain:platform.claude.com)",
       "WebSearch",
       "Skill(commit)",
-      "Skill(update-pr)"
+      "Skill(update-pr)",
+      "Bash(/opt/homebrew/bin/aws logs get-query-results *)",
+      "Bash(aws logs get-query-results *)",
+      "Bash(/opt/homebrew/bin/aws logs start-query *)",
+      "Bash(aws logs start-query *)"
     ],
     "deny": [
       "Bash(rm -rf /)",

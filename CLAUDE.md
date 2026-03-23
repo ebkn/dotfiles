@@ -63,6 +63,10 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 - **New dotfiles**: When adding a new dotfile, add the corresponding `ln -sf` line in `bin/init/macos.sh` (and `ubuntu.sh` if cross-platform).
 - **Home directory agent config**: Global Claude Code/Codex settings live in `root/` and are symlinked to `~/` by the setup script.
 
+## Environment Notes
+
+- **AWS CLI**: Use `/opt/homebrew/bin/aws` to invoke the AWS CLI. The `aws` command is lazy-loaded in zsh, so the bare `aws` may not resolve in non-interactive shells.
+
 ## Testing
 
 - GitHub Actions CI runs `bin/init/macos.sh` (`.github/workflows/macos-setup.yml`) and `bin/init/ubuntu.sh` (`.github/workflows/ubuntu-setup.yml`) to verify setup scripts.
