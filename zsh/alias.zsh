@@ -444,7 +444,7 @@ ssh() {
 case `uname` in
   "Darwin" ) # requires gnu-sed
     his() {
-      print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac --reverse | gsed -r 's/ *[0-9]*\*? *//' | gsed -r 's/\\/\\\\/g')
+      print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac --reverse --no-preview | gsed -r 's/ *[0-9]*\*? *//' | gsed -r 's/\\/\\\\/g')
     }
 
     gs() {
@@ -467,7 +467,7 @@ case `uname` in
 
   "Linux" )
     his() {
-      print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac | sed -r 's/ *[0-9]*\*? *//' | sed -r 's/\\/\\\\/g')
+      print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) | fzf +s --tac --no-preview | sed -r 's/ *[0-9]*\*? *//' | sed -r 's/\\/\\\\/g')
     }
 
     gs() {
