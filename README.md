@@ -52,6 +52,13 @@ Prefix: `C-q`
 | `C-q t` | Popup tig (80%x80%) |
 | `C-q g` | Open GitHub PR/repo in browser |
 
+### URL (fzf-url)
+
+| Key | Action |
+|-----|--------|
+| `C-q b` | Browse: pick a URL with fzf and open it |
+| `C-y` (in fzf) | Copy URL to clipboard instead of opening |
+
 ### Copy Mode
 
 | Key | Action |
