@@ -51,7 +51,7 @@ return {
         command! -bang -nargs=* Rg
           \ call fzf#vim#grep(
           \   'rg --column --no-heading --color=always --smart-case --hidden -- '.shellescape(<q-args>), 1,
-          \   fzf#vim#with_preview({'options': ['--nth', '1,4..']}), <bang>0)
+          \   fzf#vim#with_preview({'options': ['--sort', '--nth', '1,4..']}), <bang>0)
         nnoremap <C-f> :Files<CR>
         nnoremap <C-g> :Rg<Space>
         nnoremap <C-b> :Buffers<CR>

@@ -22,7 +22,7 @@ export BAT_THEME="ansi"
 
 export PATH="$HOME/.local/bin:$PATH"
 export FZF_DEFAULT_COMMAND="fzf-files --label"
-export FZF_DEFAULT_OPTS="--style=minimal --ansi --tabstop=1 --delimiter=\\t --nth=-1 --accept-nth=-1 --preview='if [ -d {-1} ]; then ls -1 --color=always {-1}; else bat --color=always --style=numbers --line-range=:500 {-1}; fi' --bind=ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up"
+export FZF_DEFAULT_OPTS="--style=minimal --ansi --tabstop=1 --no-sort --layout=reverse --delimiter=\\t --nth=-1 --accept-nth=-1 --preview='if [ -d {-1} ]; then ls -1 --color=always {-1}; else bat --color=always --style=numbers --line-range=:500 {-1}; fi' --bind=ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up"
 
 export VOLTA_HOME="$HOME/.volta"
 export PATH="$VOLTA_HOME/bin:$PATH"
