@@ -335,7 +335,6 @@
     "Notification": []
   },
   "enabledPlugins": {
-    "github@claude-plugins-official": true,
     "playwright@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
     "figma@claude-plugins-official": true,
