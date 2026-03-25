@@ -71,6 +71,7 @@
 
 # Shell Commands
 
+- **Do not include `cd` in compound commands** (`cd /path && git add` etc.). When you need to change directories, run `cd` as a standalone command first, then run subsequent commands separately.
 - Never chain commands with `&&`, `||`, or `;`. Each command must be a single, standalone tool call. Use parallel tool calls instead of chaining.
 - Avoid pipes (`|`) and subshells (`$()`) when possible. These trigger permission prompts even when individual commands are allowed.
 - Prefer dedicated tools (Read, Grep, Glob, Edit, Write) over shell commands to keep progress flowing without interruptions.
