@@ -43,5 +43,5 @@ Update the existing pull request for the current branch. Follow this flow:
 
 7. **Push and update**:
    - Push (`git push -u origin HEAD`) only if there are unpushed commits (`git log @{upstream}..HEAD`).
-   - Update with `gh pr edit --title "<title>" --body-file <file>`.
+   - Update with `gh pr edit --title "<title>" --body "<body>"`.
    - Return the PR URL.

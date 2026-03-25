@@ -38,4 +38,4 @@ Create a pull request. Follow this flow:
 
 5. **Confirm**: Show the full PR title and body. Ask if the user wants to add links or make any edits — apply and re-confirm. Do not push or create until approved.
 
-6. **Push and create**: Push (`git push -u origin HEAD`) only if there are unpushed commits (`git log @{upstream}..HEAD`). Create with `gh pr create`. Return the PR URL.
+6. **Push and create**: Push (`git push -u origin HEAD`) only if there are unpushed commits (`git log @{upstream}..HEAD`). Create with `gh pr create --title "<title>" --body "<body>"`. Return the PR URL.
