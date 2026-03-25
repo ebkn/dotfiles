@@ -20,7 +20,7 @@ Commit changes quickly. Do not summarize after — move on immediately.
    - Structural cleanup mixed with behavioral change → separate commits (tidy first, then behavior)
    - If unsure whether to split, split. Smaller commits are always easier to review and revert.
 3. For each commit: `git add <files>` → `git diff --cached --stat` → commit
-4. Message: Conventional Commits (`type(scope): description`), English only (always, regardless of the user's language), imperative, under 72 chars. Match repo style if one exists.
+4. Message: Conventional Commits (`type(scope): description`), English only (always, regardless of the user's language), imperative. Match repo style if one exists.
    - Add a body that briefly explains **why** the change was made and any relevant background. Keep it concise — just enough for a future reader to understand the motivation without re-reading the diff.
    - Omit the body only when the subject line alone is self-explanatory (e.g., fixing a typo).
 5. Ask user ONLY if: changes span many unrelated concerns with unclear grouping, possible secrets, or generated files that shouldn't be committed.

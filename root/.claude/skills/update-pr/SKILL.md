@@ -28,7 +28,7 @@ Update the existing pull request for the current branch. Follow this flow:
 
 5. **Compose updated PR content**:
    - Infer what changed since the previous PR revision from the commit log and diff.
-   - Title: Conventional Commits, under 72 chars.
+   - Title: Conventional Commits.
    - Decide title language before drafting and keep it fixed unless the user requests a change.
    - Title language policy: use `template_language` first whenever it can be detected.
    - If the user explicitly asks to override language for the current PR, follow that override.

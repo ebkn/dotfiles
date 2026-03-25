@@ -25,7 +25,7 @@ Create a pull request. Follow this flow:
    - If no template exists, skip.
 
 4. **Compose PR**:
-   - Title: Conventional Commits, under 72 chars.
+   - Title: Conventional Commits.
    - Decide title language before drafting and keep it fixed unless the user requests a change.
    - Title language policy: use `template_language` first whenever it can be detected.
    - If the user explicitly asks to override language for the current PR, follow that override.
