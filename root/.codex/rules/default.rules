@@ -152,6 +152,7 @@ prefix_rule(
             "describe",
             "diff",
             "fetch",
+            "for-each-ref",
             "grep",
             "log",
             "ls-files",
