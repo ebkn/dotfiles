@@ -51,19 +51,3 @@ function kubectl() {
   source <(kubectl completion zsh)
   $0 "$@"
 }
-
-function npm() {
-  unfunction "$0"
-  source <(eval `npm completion`)
-  $0 "$@"
-}
-
-function aws() {
-  local aws_completer_path
-  unfunction "$0"
-  aws_completer_path="$(command -v aws_completer 2>/dev/null)"
-  if [[ -n "$aws_completer_path" ]]; then
-    complete -C "$aws_completer_path" aws
-  fi
-  aws "$@"
-}

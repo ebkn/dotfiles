@@ -64,9 +64,6 @@ case `uname` in
     # gcloud
     export CLOUDSDK_PYTHON=python3
 
-    # aws
-    export PATH="$PATH:/usr/local/bin/aws_completer"
-
     # kubernetes
     export PATH="$PATH:${KREW_ROOT:-$HOME/.krew}/bin"
 
