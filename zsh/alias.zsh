@@ -69,7 +69,16 @@ gpushf() {
 
 # create a new git worktree
 function gw() {
-  local root_dir=$(git rev-parse --show-toplevel)
+  # Resolve the main repository root (not a worktree root).
+  # --git-common-dir returns the shared .git directory; its parent is the main repo root.
+  local root_dir=$(git rev-parse --path-format=absolute --git-common-dir)
+  root_dir="${root_dir%/.git}"
+
+  # Run from the repository root so that worktree paths resolve correctly.
+  if [[ "$PWD" != "$root_dir" ]]; then
+    echo "Changing directory to repository root: $root_dir"
+    cd "$root_dir" || return 1
+  fi
   local worktree_dir="$root_dir/git-worktrees"
 
   local branch_name="$1"
