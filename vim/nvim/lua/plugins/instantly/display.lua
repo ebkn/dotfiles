@@ -36,7 +36,7 @@ return {
     build = ":TSUpdate",
     config = function()
       require('nvim-treesitter.configs').setup({
-        ensure_installed = { "go", "typescript", "javascript", "dart", "ruby", "proto", "yaml", "json", "bash", "html", "css", "make", "vim", "lua" },
+        ensure_installed = { "go", "typescript", "javascript", "dart", "ruby", "proto", "yaml", "json", "bash", "html", "css", "make", "vim", "lua", "markdown", "markdown_inline" },
         sync_install = false,
         highlight = {
           enable = true,

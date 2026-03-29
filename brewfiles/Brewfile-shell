@@ -49,5 +49,8 @@ brew 'difftastic'
 brew 'mycli'
 brew 'pgcli'
 
+# image processing (used by image.nvim for in-terminal image preview)
+brew 'imagemagick'
+
 # util
 brew 'tree'
