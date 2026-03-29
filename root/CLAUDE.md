@@ -39,10 +39,15 @@
 
 - Verify information against official documentation and other authoritative sources as much as possible, along with the source code itself.
 
+# Tool Usage
+
+- **Prefer dedicated tools**: Use Read, Grep, Glob, Edit, Write over shell commands whenever possible. Fall back to Bash only when dedicated tools cannot accomplish the task.
+- **No interpreter languages**: Do not invoke Python, Ruby, PHP, Perl, or other interpreter languages for any purpose — editing, analysis, investigation, debugging, or one-off scripting. Use dedicated tools, shell built-ins, and standard CLI utilities (`rg`, `jq`, `yq`, `sed`, `awk`, `sort`, `uniq`, `wc`, `cut`, `tr`, `diff`, `xargs`, `ast-grep`, etc.) instead.
+
 # Editing
 
 - **File search**: Prefer `rg` (ripgrep) for searching file contents. It is significantly faster than `grep` or `find`.
-- **Bulk edits**: Do not generate Python/Node scripts for large-scale changes. Use the Edit tool or shell commands (sed, awk) directly. For complex structural refactoring across many files, use `ast-grep` instead.
+- **Bulk edits**: Use the Edit tool or shell commands (sed, awk) directly. For complex structural refactoring across many files, use `ast-grep` instead.
 - **Structured data**: Use `jq` for JSON and `yq` for YAML editing instead of sed/awk on structured data.
 - **Shell scripts**: Run `shellcheck` to validate shell scripts after writing or modifying them.
 - **Directory overview**: Use `tree` to understand project structure quickly.
