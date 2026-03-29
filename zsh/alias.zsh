@@ -43,6 +43,14 @@ alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|volumes" -N -
 # requires trash
 alias rm='trash'
 
+# terminal image viewer (sixel via ImageMagick, works over SSH+tmux)
+# Fits image within terminal bounds, preserving aspect ratio.
+imgcat() {
+  local pw=$(( $(tput cols) * 9 ))
+  local ph=$(( $(tput lines) * 18 ))
+  magick "$1" -resize "${pw}x${ph}" sixel:-
+}
+
 # git
 alias gti='git' # typo
 alias got='git' # typo
