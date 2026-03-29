@@ -44,10 +44,25 @@ alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|volumes" -N -
 alias rm='trash'
 
 # terminal image viewer (sixel via ImageMagick, works over SSH+tmux)
-# Fits image within terminal bounds, preserving aspect ratio.
+# Fits image within current tmux pane, preserving aspect ratio.
+# Uses CSI 16t to get cell pixel size (physical pixels, HiDPI-aware).
 imgcat() {
-  local pw=$(( $(tput cols) * 9 ))
-  local ph=$(( $(tput lines) * 18 ))
+  local cw=9 ch=18
+  local old_settings=$(stty -g < /dev/tty)
+  stty raw -echo min 0 time 1 < /dev/tty
+  printf '\e[16t' > /dev/tty
+  local resp=""
+  while IFS= read -r -k1 -t 0.1 ch < /dev/tty; do
+    resp+="$ch"
+    [[ "$ch" == "t" ]] && break
+  done
+  stty "$old_settings" < /dev/tty
+  if [[ "$resp" =~ '\[6;([0-9]+);([0-9]+)t' ]]; then
+    ch=${match[1]}
+    cw=${match[2]}
+  fi
+  local pw=$(( $(tput cols) * cw * 9 / 10 ))
+  local ph=$(( $(tput lines) * ch * 9 / 10 ))
   magick "$1" -resize "${pw}x${ph}" sixel:-
 }
 
