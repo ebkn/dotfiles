@@ -10,6 +10,7 @@ brew 'autossh'
 # IDE
 brew 'vim'
 brew 'neovim'
+brew 'tree-sitter-cli' # required by nvim-treesitter to compile parsers
 
 # fuzzy finder
 brew 'fzf'

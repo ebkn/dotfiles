@@ -30,18 +30,17 @@ return {
   --   end,
   -- },
 
-  -- syntax highlight
+  -- syntax highlight (parsers installed manually via :TSInstall)
   {
     "nvim-treesitter/nvim-treesitter",
     build = ":TSUpdate",
     config = function()
-      require('nvim-treesitter.configs').setup({
-        ensure_installed = { "go", "typescript", "javascript", "dart", "ruby", "proto", "yaml", "json", "bash", "html", "css", "make", "vim", "lua", "markdown", "markdown_inline" },
-        sync_install = false,
-        highlight = {
-          enable = true,
-          disable = { "dart" },
-        },
+      -- Neovim 0.10+ enables treesitter highlight automatically; disable for dart
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = "dart",
+        callback = function(args)
+          vim.treesitter.stop(args.buf)
+        end,
       })
     end,
   },
