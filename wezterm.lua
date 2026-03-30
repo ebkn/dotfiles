@@ -1,6 +1,21 @@
 local wezterm = require 'wezterm'
 local act = wezterm.action
 
+-- Open links and immediately refocus WezTerm so consecutive
+-- Cmd+Clicks work without needing a plain click in between.
+-- NOTE: open-uri only fires for CompleteSelectionOrOpenLinkAtMouseCursor,
+-- NOT for OpenLinkAtMouseCursor (see mouse_bindings below).
+wezterm.on('open-uri', function(_window, _pane, uri)
+  wezterm.run_child_process({ '/usr/bin/open', uri })
+  -- Refocus WezTerm after the browser steals focus.
+  -- Runs in a background subshell so it doesn't block the UI.
+  wezterm.run_child_process({
+    '/bin/sh', '-c',
+    "(sleep 0.4; osascript -e 'tell application \"WezTerm\" to activate') &",
+  })
+  return false
+end)
+
 return {
   -- $TERM value advertised to the shell (and tmux).
   -- tmux's terminal-overrides in .tmux.conf match this value to enable
@@ -106,11 +121,12 @@ return {
   -- Cmd bypasses tmux mouse reporting so Cmd+Click can open links
   bypass_mouse_reporting_modifiers = 'SUPER',
 
+
   mouse_bindings = {
     {
         event = { Up = { streak = 1, button = 'Left' } },
         mods = 'SUPER',
-        action = act.OpenLinkAtMouseCursor,
+        action = act.CompleteSelectionOrOpenLinkAtMouseCursor,
     },
     {
         event = { Down = { streak = 1, button = 'Right' } },
