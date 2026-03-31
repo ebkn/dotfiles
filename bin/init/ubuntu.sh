@@ -143,6 +143,7 @@ link_with_backup "${DOTFILES_DIR}/.sqliterc" "${HOME}/.sqliterc"
 # scripts
 link_with_backup "${DOTFILES_DIR}/tmux-restore-tabs" "${HOME}/.local/bin/tmux-restore-tabs"
 link_with_backup "${DOTFILES_DIR}/tmux-pane-titles" "${HOME}/.local/bin/tmux-pane-titles"
+link_with_backup "${DOTFILES_DIR}/tmux-track-session" "${HOME}/.local/bin/tmux-track-session"
 link_with_backup "${DOTFILES_DIR}/bin/fzf-files" "${HOME}/.local/bin/fzf-files"
 
 log_step "Ensuring tmux plugin manager"

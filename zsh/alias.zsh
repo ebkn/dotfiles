@@ -468,9 +468,11 @@ ssh() {
     fi
     # ControlPath=none: bypass stale ControlMaster sockets that can block reconnection.
     # autossh manages its own reconnection; shared sockets from ControlPersist interfere.
+    # tmux-track-session: reattach to the last-used session if the user switched
+    # sessions on the remote. Falls back to plain tmux if script is not deployed.
     AUTOSSH_GATETIME=0 autossh -M 0 \
       -o ControlPath=none "${ssh_opts[@]}" -t "$host" \
-      "tmux new-session -A -s ${remote_session} 2>/dev/null || exec \$SHELL -l"
+      "~/.local/bin/tmux-track-session attach ${remote_session} 2>/dev/null || tmux new-session -A -s ${remote_session} 2>/dev/null || exec \$SHELL -l"
   else
     command ssh "$@"
   fi
