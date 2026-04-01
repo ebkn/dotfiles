@@ -30,9 +30,10 @@ return {
   --   end,
   -- },
 
-  -- syntax highlight (parsers installed manually via :TSInstall)
+  -- syntax highlight (main branch required for Neovim 0.12+)
   {
     "nvim-treesitter/nvim-treesitter",
+    branch = "main",
     build = ":TSUpdate",
     config = function()
       -- Neovim 0.10+ enables treesitter highlight automatically; disable for dart
