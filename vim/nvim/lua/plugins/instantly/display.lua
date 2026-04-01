@@ -71,7 +71,12 @@ return {
   -- sticky scroll
   {
     "nvim-treesitter/nvim-treesitter-context",
-    opts = { enable = true },
+    opts = {
+      enable = true,
+      on_attach = function(buf)
+        return vim.bo[buf].filetype ~= "markdown"
+      end,
+    },
   },
 
   -- scroll bar
