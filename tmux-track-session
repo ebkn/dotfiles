@@ -100,6 +100,12 @@ case "${1:-}" in
     rm -f "$PID_DIR/$conn_id"
     ;;
 
+  # Legacy subcommands (called by old tmux hooks still loaded in running
+  # sessions). No-op until the tmux config is reloaded or tmux restarted.
+  register|update|cleanup)
+    exit 0
+    ;;
+
   *)
     echo "Usage: tmux-track-session {attach|monitor}" >&2
     exit 1
