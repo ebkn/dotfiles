@@ -5,38 +5,43 @@
 # If the user switches to a different session on the remote, the reconnect
 # lands in the wrong session.
 #
-# Solution: Track session changes per connection ID via tty mapping.
-#   1. On attach, map the client tty to the connection ID.
-#   2. On session switch (tmux hook), save the new session name.
-#   3. On reconnect, read the saved session name and attach to it.
+# Solution: A per-connection monitor polls the client's current session
+# and persists it. On reconnect, the saved session name is used.
+# Unlike the previous hook-based approach (global client-session-changed +
+# tty-to-conn_id mapping), this avoids race conditions from stale tty
+# mappings when PTY numbers are reused on reconnect.
 #
 # State directory: $XDG_STATE_HOME/tmux-track-session/
-#   tty/      — {safe_tty} files containing conn_id
 #   session/  — {conn_id} files containing last session name
+#   pid/      — {conn_id} files containing monitor PID
 #
 # Subcommands:
 #   attach <conn_id>                — attach to last-known session for conn_id
-#   register <conn_id> <client_tty> — map client tty to conn_id (called by tmux)
-#   update <client_tty> <session>   — save session for the conn_id at tty (hook)
-#   cleanup <client_tty>            — remove tty mapping on detach (hook)
+#   monitor <conn_id> <client_tty>  — poll session changes (called by tmux)
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tmux-track-session"
-TTY_DIR="$STATE_DIR/tty"
 SESSION_DIR="$STATE_DIR/session"
+PID_DIR="$STATE_DIR/pid"
 SELF="$HOME/.local/bin/tmux-track-session"
 
 ensure_dirs() {
-  mkdir -p "$TTY_DIR" "$SESSION_DIR"
-}
-
-safe_tty() {
-  printf '%s' "$1" | tr '/' '_'
+  mkdir -p "$SESSION_DIR" "$PID_DIR"
 }
 
 case "${1:-}" in
   attach)
     conn_id="${2:?usage: tmux-track-session attach <conn_id>}"
     ensure_dirs
+
+    # Migrate: clean up tty mapping directory from previous implementation
+    [ -d "$STATE_DIR/tty" ] && rm -rf "$STATE_DIR/tty"
+
+    # Kill any stale monitor for this conn_id from a previous connection
+    pid_file="$PID_DIR/$conn_id"
+    if [ -f "$pid_file" ]; then
+      kill "$(cat "$pid_file")" 2>/dev/null
+      rm -f "$pid_file"
+    fi
 
     target="$conn_id"
     state_file="$SESSION_DIR/$conn_id"
@@ -47,42 +52,56 @@ case "${1:-}" in
       fi
     fi
 
-    # Attach (or create) the target session, then register the tty mapping.
+    # Attach (or create) the target session, then start a monitor.
     # #{client_tty} is expanded by tmux before passing to run-shell.
     exec tmux new-session -A -s "$target" \; \
-      run-shell -b "'$SELF' register '$conn_id' '#{client_tty}'" \
+      run-shell -b "'$SELF' monitor '$conn_id' '#{client_tty}'" \
       2>/dev/null
     # exec failed — fall through to login shell
     exec "${SHELL:-/bin/sh}" -l
     ;;
 
-  register)
+  monitor)
     conn_id="$2"
     client_tty="$3"
     # Guard: if tmux didn't expand #{client_tty}, skip silently
     [ -z "$client_tty" ] || [ "$client_tty" = '#{client_tty}' ] && exit 0
     ensure_dirs
-    printf '%s' "$conn_id" > "$TTY_DIR/$(safe_tty "$client_tty")"
-    ;;
 
-  update)
-    client_tty="$2"
-    client_session="$3"
-    [ -z "$client_tty" ] && exit 0
-    tty_file="$TTY_DIR/$(safe_tty "$client_tty")"
-    [ -f "$tty_file" ] || exit 0
-    conn_id=$(cat "$tty_file")
-    [ -n "$conn_id" ] && printf '%s' "$client_session" > "$SESSION_DIR/$conn_id"
-    ;;
+    # Record monitor PID so attach can kill us on reconnect
+    printf '%s' "$$" > "$PID_DIR/$conn_id"
 
-  cleanup)
-    client_tty="$2"
-    [ -z "$client_tty" ] && exit 0
-    rm -f "$TTY_DIR/$(safe_tty "$client_tty")"
+    # Record initial client PID to detect tty reuse (graceful degradation
+    # if the lookup fails — the PID check is simply skipped)
+    my_pid=$(tmux list-clients -f "#{==:#{client_tty},$client_tty}" \
+      -F '#{client_pid}' 2>/dev/null)
+
+    prev=""
+    while true; do
+      # Check client is still alive and is the same client we started with
+      info=$(tmux list-clients -f "#{==:#{client_tty},$client_tty}" \
+        -F '#{client_pid} #{client_session}' 2>/dev/null)
+      [ -z "$info" ] && break
+
+      current_pid="${info%% *}"
+      session="${info#* }"
+
+      # If client PID changed, our client was replaced (tty reuse) — stop
+      if [ -n "$my_pid" ] && [ "$current_pid" != "$my_pid" ]; then
+        break
+      fi
+
+      if [ "$session" != "$prev" ]; then
+        printf '%s' "$session" > "$SESSION_DIR/$conn_id"
+        prev="$session"
+      fi
+      sleep 2
+    done
+    rm -f "$PID_DIR/$conn_id"
     ;;
 
   *)
-    echo "Usage: tmux-track-session {attach|register|update|cleanup}" >&2
+    echo "Usage: tmux-track-session {attach|monitor}" >&2
     exit 1
     ;;
 esac
