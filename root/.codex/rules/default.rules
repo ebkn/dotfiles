@@ -182,9 +182,15 @@ prefix_rule(
 )
 
 prefix_rule(
-    pattern = [["git", "/opt/homebrew/bin/git"], "push", "-u", "origin", "HEAD"],
+    pattern = [["git", "/opt/homebrew/bin/git"], "push"],
     decision = "allow",
-    justification = "Allow upstream setup push.",
+    justification = "Allow git push.",
+)
+
+prefix_rule(
+    pattern = [["git", "/opt/homebrew/bin/git"], "merge", ["main", "origin/main"]],
+    decision = "allow",
+    justification = "Allow merging main branch.",
 )
 
 prefix_rule(
