@@ -205,6 +205,7 @@
       "WebFetch(domain:docs.anthropic.com)",
       "WebFetch(domain:claude.com)",
       "WebFetch(domain:platform.claude.com)",
+      "WebFetch(domain:arxiv.org)",
       "WebSearch",
       "Skill(commit)",
       "Skill(update-pr)",
