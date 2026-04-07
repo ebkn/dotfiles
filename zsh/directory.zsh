@@ -51,6 +51,20 @@ if [[ -n "$TMUX" ]]; then
     tmux-pane-titles 2>/dev/null
   }
   chpwd_functions+=(_tmux_update_pane_titles)
-  # Initial title is set by tmux hooks (after-new-window, after-new-session)
-  # in .tmux.conf, so no need to call here on shell startup (~20ms saving).
+
+  # Detect pane structure changes (open/close/split) and update title.
+  # Replaces tmux server-side hooks (after-new-window, after-split-window,
+  # window-layout-changed) which used run-shell -b and caused SIGSEGV in
+  # tty_keys_next due to fork racing with tty input processing.
+  # Calling from zsh forks the shell process, not the tmux server — safe.
+  _TMUX_PANE_COUNT=""
+  _tmux_check_pane_structure() {
+    local count
+    count=$(tmux display-message -p '#{window_panes}' 2>/dev/null) || return
+    [[ "$count" != "$_TMUX_PANE_COUNT" ]] || return
+    _TMUX_PANE_COUNT=$count
+    _tmux_set_git_pane_options
+    tmux-pane-titles 2>/dev/null
+  }
+  precmd_functions+=(_tmux_check_pane_structure)
 fi
