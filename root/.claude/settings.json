@@ -201,6 +201,8 @@
       "WebFetch(domain:www.npmjs.com)",
       "WebFetch(domain:developers.cloudflare.com)",
       "WebFetch(domain:ai.google.dev)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:claude.com)",
       "WebFetch(domain:platform.claude.com)",
       "WebSearch",
       "Skill(commit)",
