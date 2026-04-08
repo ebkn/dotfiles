@@ -43,7 +43,7 @@ title=$(printf '%s\n' "$panes" | awk -F'\t' '{
   br = $4
   host = ssh; sub(/^[^@]*@/, "", host)
   if (length(host) > 10) host = substr(host, 1, 10) "..."
-  if (ssh != "")    label = "ssh(" host ")"
+  if (ssh != "")    label = "ssh:" host
   else if (wt != "") label = "wt:" wt
   else if (br != "") label = "b:" br
   else               label = dir
