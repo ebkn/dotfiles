@@ -24,12 +24,17 @@ alias -g ......='../../../../..'
 if [[ -n "$TMUX" ]]; then
   _tmux_set_git_pane_options() {
     local git_dir common_dir branch
-    git_dir=$(git rev-parse --git-dir 2>/dev/null) || {
+    # --path-format=absolute is required: --git-common-dir normally
+    # returns a path relative to --git-dir (e.g. "../.git"), which breaks
+    # string comparison against --git-dir's absolute path when cwd is a
+    # subdirectory of the repo, misdetecting a normal checkout as a
+    # linked worktree. Requires git >= 2.31.
+    git_dir=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || {
       tmux set-option -p @git_worktree '' 2>/dev/null
       tmux set-option -p @git_branch '' 2>/dev/null
       return
     }
-    common_dir=$(git rev-parse --git-common-dir 2>/dev/null)
+    common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
     branch=$(git branch --show-current 2>/dev/null)
 
     # Worktree: git-dir differs from common-dir
