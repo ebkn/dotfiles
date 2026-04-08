@@ -107,8 +107,71 @@ gpushf() {
   git push origin "$branch" --force-with-lease
 }
 
-# create a new git worktree
+# create a new git worktree, or fuzzy-pick an existing one with fzf when called without args
 function gw() {
+  local branch_name="$1"
+
+  # No argument: fuzzy-pick an existing worktree (excluding main) and cd into it.
+  if [[ -z "$branch_name" ]]; then
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      echo "Error: not inside a git repository" >&2
+      return 1
+    fi
+    # Resolve the main repo root so worktree paths can be rendered relative to it.
+    local main_root
+    main_root=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+    main_root="${main_root%/.git}"
+
+    # Build "<padded_branch>\t<rel_path>\t<abs_path>" lines from `git worktree
+    # list`, skipping the main branch. The branch is the bracketed last token
+    # ("[name]") when present; bare/detached worktrees have no brackets. The
+    # branch column is padded to (max branch length + 4) so all relative paths
+    # line up with at least a few spaces of breathing room.
+    local entries
+    entries=$(git worktree list | awk -v root="$main_root" '
+      {
+        abs_path = $1
+        rel_path = abs_path
+        if (root != "" && index(abs_path, root "/") == 1) {
+          rel_path = substr(abs_path, length(root) + 2)
+        }
+        branch = ""
+        for (i = 2; i <= NF; i++) {
+          if ($i ~ /^\[.+\]$/) {
+            branch = substr($i, 2, length($i) - 2)
+            break
+          }
+        }
+        if (branch == "") branch = "(detached)"
+        if (branch == "main") next
+        n++
+        branches[n] = branch
+        rels[n] = rel_path
+        abss[n] = abs_path
+        if (length(branch) > max_branch) max_branch = length(branch)
+      }
+      END {
+        pad = max_branch + 4
+        for (i = 1; i <= n; i++) {
+          printf "%-*s\t%s\t%s\n", pad, branches[i], rels[i], abss[i]
+        }
+      }')
+    if [[ -z "$entries" ]]; then
+      echo "No worktrees to pick" >&2
+      return 0
+    fi
+    # --no-preview overrides the global FZF_DEFAULT_OPTS file/dir preview.
+    # --with-nth=1,2 hides the absolute path column; --nth=1,2 lets users
+    # search by branch or relative path; --accept-nth=3 returns the absolute
+    # path on selection so `cd` works regardless of $PWD.
+    local selected
+    selected=$(fzf --reverse --no-preview \
+                   --delimiter=$'\t' --with-nth=1,2 --nth=1,2 --accept-nth=3 \
+                   --prompt='worktree> ' <<< "$entries") || return 0
+    [[ -n "$selected" ]] && cd "$selected"
+    return
+  fi
+
   # Resolve the main repository root (not a worktree root).
   # --git-common-dir returns the shared .git directory; its parent is the main repo root.
   local root_dir=$(git rev-parse --path-format=absolute --git-common-dir)
@@ -121,11 +184,6 @@ function gw() {
   fi
   local worktree_dir="$root_dir/git-worktrees"
 
-  local branch_name="$1"
-  if [[ -z "$branch_name" ]]; then
-    echo "Error: branch name is required" >&2
-    return 1
-  fi
   local worktree_name="${branch_name//\//-}"
   local worktree_path="$worktree_dir/$worktree_name"
 
