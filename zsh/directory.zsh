@@ -44,12 +44,17 @@ if [[ -n "$TMUX" ]]; then
       tmux set-option -p @git_worktree '' 2>/dev/null
     fi
 
-    # Branch: skip main/develop/empty
-    if [[ -n "$branch" && "$branch" != "main" && "$branch" != "develop" ]]; then
-      tmux set-option -p @git_branch "$branch" 2>/dev/null
-    else
-      tmux set-option -p @git_branch '' 2>/dev/null
-    fi
+    # Branch: skip default-ish branches where the name carries no
+    # meaningful signal. tmux-pane-titles falls back to the directory
+    # basename when @git_branch is empty.
+    case "$branch" in
+      ''|main|develop|staging)
+        tmux set-option -p @git_branch '' 2>/dev/null
+        ;;
+      *)
+        tmux set-option -p @git_branch "$branch" 2>/dev/null
+        ;;
+    esac
   }
   _tmux_update_pane_titles() {
     _tmux_set_git_pane_options
