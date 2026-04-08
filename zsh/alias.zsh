@@ -112,12 +112,13 @@ gpushf() {
 function gw() {
   local input="$1"
 
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Error: not inside a git repository" >&2
+    return 1
+  fi
+
   # No argument: fuzzy-pick an existing worktree (excluding main) and cd into it.
   if [[ -z "$input" ]]; then
-    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-      echo "Error: not inside a git repository" >&2
-      return 1
-    fi
     # Resolve the main repo root so worktree paths can be rendered relative to it.
     local main_root
     main_root=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
@@ -186,7 +187,7 @@ function gw() {
   local worktree_dir="$root_dir/git-worktrees"
 
   local branch_name worktree_name worktree_path
-  local pr_url_pattern='^https?://github\.com/[^/]+/[^/]+/pull/[0-9]+'
+  local pr_url_pattern='^https?://github\.com/([^/]+)/([^/]+)/pull/([0-9]+)'
 
   if [[ "$input" =~ $pr_url_pattern ]]; then
     # PR URL: resolve the head branch via gh, fetch it, and create a worktree
@@ -196,16 +197,28 @@ function gw() {
       return 1
     fi
 
-    local pr_data
-    if ! pr_data=$(gh pr view "$input" --json headRefName,number,isCrossRepository \
-        --jq '[.headRefName, (.number|tostring), (.isCrossRepository|tostring)] | @tsv'); then
-      echo "Error: failed to fetch PR info from $input" >&2
+    local pr_owner="${match[1]}"
+    local pr_repo="${match[2]}"
+    local pr_number="${match[3]}"
+
+    # Abort if the PR's repo does not match the current repo's origin. Otherwise
+    # `git fetch origin pull/<num>/head` would reach into an unrelated remote.
+    # GitHub treats owner/repo case-insensitively, so normalize before comparing.
+    local current_repo
+    if ! current_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null); then
+      echo "Error: failed to resolve current repository via gh" >&2
+      return 1
+    fi
+    if [[ "${current_repo:l}" != "${pr_owner:l}/${pr_repo:l}" ]]; then
+      echo "Error: PR belongs to '$pr_owner/$pr_repo' but current repo is '$current_repo'" >&2
       return 1
     fi
 
-    local pr_number is_cross
-    IFS=$'\t' read -r branch_name pr_number is_cross <<< "$pr_data"
-    if [[ -z "$branch_name" || -z "$pr_number" ]]; then
+    if ! branch_name=$(gh pr view "$input" --json headRefName --jq .headRefName); then
+      echo "Error: failed to fetch PR info from $input" >&2
+      return 1
+    fi
+    if [[ -z "$branch_name" ]]; then
       echo "Error: could not parse PR info from $input" >&2
       return 1
     fi
@@ -213,26 +226,19 @@ function gw() {
     worktree_name="${branch_name//\//-}"
     worktree_path="$worktree_dir/$worktree_name"
 
-    # Reuse an existing local branch if present; otherwise fetch the PR head
-    # via refs/pull/<num>/head, which works for both same-repo and fork PRs.
+    # Hard error on name collision: silently reusing a stale local branch can
+    # check out completely unrelated commits.
     if git show-ref --verify --quiet "refs/heads/$branch_name"; then
-      echo "Local branch '$branch_name' already exists; reusing it"
-    else
-      echo "Fetching PR #$pr_number ($branch_name)..."
-      git fetch origin "pull/$pr_number/head:$branch_name" || return 1
+      echo "Error: local branch '$branch_name' already exists" >&2
+      echo "Delete it first: git branch -D '$branch_name'" >&2
+      return 1
     fi
+
+    echo "Fetching PR #$pr_number ($branch_name)..."
+    git fetch origin "pull/$pr_number/head:$branch_name" || return 1
 
     echo "Creating worktree for PR #$pr_number ($branch_name) at '$worktree_path' (skip git-lfs smudge)"
     GIT_LFS_SKIP_SMUDGE=1 git worktree add "$worktree_path" "$branch_name" || return 1
-
-    # Same-repo PRs: set upstream so `git push` works without args. Cross-repo
-    # PRs originate from a fork, so the user can't push back to origin's branch.
-    if [[ "$is_cross" != "true" ]]; then
-      if ! git show-ref --verify --quiet "refs/remotes/origin/$branch_name"; then
-        git fetch origin "$branch_name" 2>/dev/null
-      fi
-      git -C "$worktree_path" branch --set-upstream-to="origin/$branch_name" "$branch_name" 2>/dev/null
-    fi
   else
     # Branch name: create a brand-new branch alongside the worktree.
     branch_name="$input"
