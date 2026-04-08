@@ -107,12 +107,13 @@ gpushf() {
   git push origin "$branch" --force-with-lease
 }
 
-# create a new git worktree, or fuzzy-pick an existing one with fzf when called without args
+# create a new git worktree, fuzzy-pick an existing one when called without args,
+# or check out a GitHub PR into a new worktree when given a PR URL.
 function gw() {
-  local branch_name="$1"
+  local input="$1"
 
   # No argument: fuzzy-pick an existing worktree (excluding main) and cd into it.
-  if [[ -z "$branch_name" ]]; then
+  if [[ -z "$input" ]]; then
     if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
       echo "Error: not inside a git repository" >&2
       return 1
@@ -184,13 +185,65 @@ function gw() {
   fi
   local worktree_dir="$root_dir/git-worktrees"
 
-  local worktree_name="${branch_name//\//-}"
-  local worktree_path="$worktree_dir/$worktree_name"
+  local branch_name worktree_name worktree_path
+  local pr_url_pattern='^https?://github\.com/[^/]+/[^/]+/pull/[0-9]+'
 
-  # Avoid downloading Git LFS contents when creating the worktree.
-  # Large files remain as LFS pointer files until `git lfs pull` / `checkout`.
-  echo "Creating worktree for branch '$branch_name' at '$worktree_path' (skip git-lfs smudge)"
-  GIT_LFS_SKIP_SMUDGE=1 git worktree add -b "$branch_name" "$worktree_path" || return 1
+  if [[ "$input" =~ $pr_url_pattern ]]; then
+    # PR URL: resolve the head branch via gh, fetch it, and create a worktree
+    # checked out on that existing branch (rather than creating a new one).
+    if ! (( $+commands[gh] )); then
+      echo "Error: gh CLI is required to handle PR URLs" >&2
+      return 1
+    fi
+
+    local pr_data
+    if ! pr_data=$(gh pr view "$input" --json headRefName,number,isCrossRepository \
+        --jq '[.headRefName, (.number|tostring), (.isCrossRepository|tostring)] | @tsv'); then
+      echo "Error: failed to fetch PR info from $input" >&2
+      return 1
+    fi
+
+    local pr_number is_cross
+    IFS=$'\t' read -r branch_name pr_number is_cross <<< "$pr_data"
+    if [[ -z "$branch_name" || -z "$pr_number" ]]; then
+      echo "Error: could not parse PR info from $input" >&2
+      return 1
+    fi
+
+    worktree_name="${branch_name//\//-}"
+    worktree_path="$worktree_dir/$worktree_name"
+
+    # Reuse an existing local branch if present; otherwise fetch the PR head
+    # via refs/pull/<num>/head, which works for both same-repo and fork PRs.
+    if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+      echo "Local branch '$branch_name' already exists; reusing it"
+    else
+      echo "Fetching PR #$pr_number ($branch_name)..."
+      git fetch origin "pull/$pr_number/head:$branch_name" || return 1
+    fi
+
+    echo "Creating worktree for PR #$pr_number ($branch_name) at '$worktree_path' (skip git-lfs smudge)"
+    GIT_LFS_SKIP_SMUDGE=1 git worktree add "$worktree_path" "$branch_name" || return 1
+
+    # Same-repo PRs: set upstream so `git push` works without args. Cross-repo
+    # PRs originate from a fork, so the user can't push back to origin's branch.
+    if [[ "$is_cross" != "true" ]]; then
+      if ! git show-ref --verify --quiet "refs/remotes/origin/$branch_name"; then
+        git fetch origin "$branch_name" 2>/dev/null
+      fi
+      git -C "$worktree_path" branch --set-upstream-to="origin/$branch_name" "$branch_name" 2>/dev/null
+    fi
+  else
+    # Branch name: create a brand-new branch alongside the worktree.
+    branch_name="$input"
+    worktree_name="${branch_name//\//-}"
+    worktree_path="$worktree_dir/$worktree_name"
+
+    # Avoid downloading Git LFS contents when creating the worktree.
+    # Large files remain as LFS pointer files until `git lfs pull` / `checkout`.
+    echo "Creating worktree for branch '$branch_name' at '$worktree_path' (skip git-lfs smudge)"
+    GIT_LFS_SKIP_SMUDGE=1 git worktree add -b "$branch_name" "$worktree_path" || return 1
+  fi
 
   local worktree_copy_file=".worktree-copy"
 
