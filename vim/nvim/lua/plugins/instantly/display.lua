@@ -60,13 +60,36 @@ return {
       },
       code = {
         border = 'thin',
+        -- code.style defaults to 'full' which enables language-based syntax
+        -- highlighting via treesitter. Embedded languages require their
+        -- parser to be installed (`:TSInstall <lang>`).
       },
+      -- Keep raw "-" / "*" / "+" markers instead of bullet icons.
+      bullet = { enabled = false },
       html = {
         comment = { conceal = false },
       },
       -- sign_text with 3-cell nerd font icons causes nvim_buf_set_extmark errors on nvim 0.11.x
       sign = { enabled = false },
     },
+    config = function(_, opts)
+      require('render-markdown').setup(opts)
+      -- Dim HTML comments (<!-- ... -->) in markdown. The html treesitter
+      -- parser is not bundled with nvim 0.12 and nvim-treesitter main
+      -- branch does not auto-install it, so <!-- --> text renders as plain
+      -- Normal. A vim syntax region gives us a reliable, parser-free hook.
+      local function set_hl()
+        vim.api.nvim_set_hl(0, 'MarkdownHtmlComment', { fg = '#555f65', italic = true })
+      end
+      set_hl()
+      vim.api.nvim_create_autocmd('ColorScheme', { pattern = '*', callback = set_hl })
+      vim.api.nvim_create_autocmd('FileType', {
+        pattern = 'markdown',
+        callback = function()
+          vim.cmd([[syntax region MarkdownHtmlComment start=/<!--/ end=/-->/ containedin=ALL keepend]])
+        end,
+      })
+    end,
   },
 
   -- sticky scroll
