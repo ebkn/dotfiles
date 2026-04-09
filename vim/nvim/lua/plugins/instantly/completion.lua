@@ -63,6 +63,12 @@ return {
     "dense-analysis/ale",
     config = function()
       vim.cmd([[
+        " Only run the linters listed in g:ale_linters. Without this, ALE
+        " auto-enables every default linter for every filetype, and (since
+        " Neovim 0.7) routes them through vim.diagnostic — whose default
+        " sign text is E/W/I/H. That collides with coc's sign column and
+        " causes a momentary layout shift when the async lint lands.
+        let g:ale_linters_explicit=1
         let g:ale_linters={
           \ 'proto': ['buf-lint'],
         \}
