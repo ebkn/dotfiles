@@ -36,7 +36,30 @@ return {
     branch = "main",
     build = ":TSUpdate",
     config = function()
-      -- Neovim 0.10+ enables treesitter highlight automatically; disable for dart
+      -- Install parsers used for markdown fenced code block injection.
+      -- The `main` branch does not auto-install; `install()` runs async so
+      -- it does not block startup and is a no-op once parsers are present.
+      -- c / lua / markdown / markdown_inline / query / vim / vimdoc are
+      -- bundled with Neovim 0.12 so they are intentionally omitted.
+      require('nvim-treesitter').install({
+        'bash', 'css', 'go', 'html', 'javascript', 'json', 'make',
+        'proto', 'python', 'ruby', 'rust', 'toml', 'tsx', 'typescript', 'yaml',
+      })
+
+      -- Start treesitter on markdown so fenced code blocks get per-language
+      -- highlighting via the injection query bundled with Neovim
+      -- (runtime/queries/markdown/injections.scm dispatches on the fence
+      -- info string). nvim does not auto-start treesitter for markdown —
+      -- the bundled ftplugin/markdown.lua only installs heading keymaps.
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = "markdown",
+        callback = function(args)
+          pcall(vim.treesitter.start, args.buf)
+        end,
+      })
+
+      -- dart's treesitter queries are noisy / conflict with flutter-tools;
+      -- keep the vim-syntax highlight path for dart files.
       vim.api.nvim_create_autocmd("FileType", {
         pattern = "dart",
         callback = function(args)
