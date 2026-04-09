@@ -148,6 +148,7 @@ prefix_rule(
             "blame",
             "branch",
             "cat-file",
+            "cherry-pick",
             "config",
             "describe",
             "diff",
