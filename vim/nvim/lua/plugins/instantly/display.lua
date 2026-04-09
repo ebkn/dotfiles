@@ -127,7 +127,16 @@ return {
   },
 
   -- scroll bar
-  { "dstein64/nvim-scrollview", opts = {} },
+  {
+    "dstein64/nvim-scrollview",
+    opts = {
+      -- Drop 'diagnostics' from the default sign set. Coc's sign column
+      -- and lualine already surface diagnostics; scrollview's overlay
+      -- renders E/W on top of the last buffer column (default
+      -- hide_on_text_intersect=false) and clips that character.
+      signs_on_startup = { 'marks', 'search' },
+    },
+  },
 
   -- HlSearch lens
   {
