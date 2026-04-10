@@ -364,6 +364,13 @@ function open-worktree-tabs() {
 
 # delete merged branches (including squashed branches), worktrees
 function gdmerged() {
+  # Prune admin records for worktrees whose directories were deleted manually
+  # (e.g. via `rm`/`trash`). Without this, `git branch -d` refuses to delete
+  # the associated branch because git still believes it is checked out at the
+  # now-missing path, and `git worktree remove` below errors on the same path.
+  echo "Pruning stale worktrees..."
+  git worktree prune -v
+
   echo "Checking for merged branches..."
   local current_branch=$(git rev-parse --abbrev-ref HEAD)
   echo "Current branch: $current_branch"
