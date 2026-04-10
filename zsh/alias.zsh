@@ -526,41 +526,53 @@ update-all() {
   gcloud components update --quiet
 }
 
-# SSH wrapper: tmux visual indicator + auto-reconnect with remote tmux reattach.
-# Interactive sessions (no remote command) auto-reconnect on disconnect.
-# Non-interactive sessions (ssh host 'cmd') fall back to regular ssh.
-# Bypass: use `command ssh` to skip this wrapper entirely.
-ssh() {
-  local ssh_opts=()
-  local host=""
-  local has_remote_cmd=false
+# Shared argv parser for the ssh/myssh wrappers below.
+# Walks the argument list the same way ssh itself does and populates:
+#   _SSH_PARSE_HOST           — the target host argument (empty if not found)
+#   _SSH_PARSE_OPTS           — ssh options preceding the host, in order
+#   _SSH_PARSE_HAS_REMOTE_CMD — true when a command follows the host (e.g. `ssh h ls`)
+_ssh_parse_argv() {
+  _SSH_PARSE_OPTS=()
+  _SSH_PARSE_HOST=""
+  _SSH_PARSE_HAS_REMOTE_CMD=false
   local skip_next=false
   local found_host=false
-
+  local arg
   for arg in "$@"; do
     if $skip_next; then
       skip_next=false
-      ssh_opts+=("$arg")
+      _SSH_PARSE_OPTS+=("$arg")
       continue
     fi
     case "$arg" in
       -[bcDEeFIiJLlmOopQRSWw])
         skip_next=true
-        ssh_opts+=("$arg")
+        _SSH_PARSE_OPTS+=("$arg")
         ;;
       -*)
-        ssh_opts+=("$arg")
+        _SSH_PARSE_OPTS+=("$arg")
         ;;
       *)
         if $found_host; then
-          has_remote_cmd=true
+          _SSH_PARSE_HAS_REMOTE_CMD=true
           break
         fi
-        host="$arg"
+        _SSH_PARSE_HOST="$arg"
         found_host=true
         ;;
     esac
   done
+}
+
+# ssh wrapper: lightweight tmux visual indicator for any remote.
+# Makes no assumption about what is installed on the remote — safe to use
+# against foreign hosts, CI runners, jump boxes, etc. For interactive work
+# on your own machines (where tmux + tmux-track-session are deployed and
+# auto-reconnect is desired), use `myssh` instead.
+# Bypass: use `command ssh` to skip this wrapper entirely.
+ssh() {
+  _ssh_parse_argv "$@"
+  local host="$_SSH_PARSE_HOST"
 
   if [ -n "$TMUX" ]; then
     # Everforest dark hard: bg_dim (#1e2326) — slightly darker than bg0
@@ -569,7 +581,57 @@ ssh() {
     tmux-pane-titles 2>/dev/null
   fi
 
+  command ssh "$@"
+  local ret=$?
+
+  # Reset terminal state that remote tmux may have left behind on abrupt disconnect
+  # (SGR/X10/button-event/all-mouse tracking, bracketed paste, cursor visibility,
+  # text attributes). Without this, mouse scroll produces raw escape sequences
+  # like "65;61;46M" instead of actual scrolling.
+  printf '\e[?9l\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?2004l\e[?25h\e[0m'
+
+  if [ -n "$TMUX" ]; then
+    tmux select-pane -P default
+    tmux set-option -p -u @ssh_host
+    tmux-pane-titles 2>/dev/null
+  fi
+
+  return $ret
+}
+
+# myssh: ssh into "my machines" — hosts where tmux + tmux-track-session
+# are deployed. Adds auto-reconnect via autossh and attaches to a per-pane
+# remote tmux session. Sets `@ssh_my_machine` on the local pane so tmux
+# bindings (prefix + p/t/o/u) pass the prefix chord through to the nested
+# remote tmux instead of falling back to running the local popup / copy-mode.
+#
+# Falls back to plain `command ssh` without setting `@ssh_my_machine` when:
+#   - a remote command is given (e.g. `myssh host 'ls'`) — one-shot
+#   - autossh is not installed
+#
+# Bypass: use plain `ssh` (the wrapper above) or `command ssh`.
+myssh() {
+  _ssh_parse_argv "$@"
+  local host="$_SSH_PARSE_HOST"
+  local ssh_opts=("${_SSH_PARSE_OPTS[@]}")
+  local has_remote_cmd="$_SSH_PARSE_HAS_REMOTE_CMD"
+
+  local use_autossh=false
   if ! $has_remote_cmd && (( $+commands[autossh] )); then
+    use_autossh=true
+  fi
+
+  if [ -n "$TMUX" ]; then
+    # Everforest dark hard: bg_dim (#1e2326) — slightly darker than bg0
+    tmux select-pane -P 'bg=#1e2326'
+    tmux set-option -p @ssh_host "${host:-unknown}"
+    if $use_autossh; then
+      tmux set-option -p @ssh_my_machine 1
+    fi
+    tmux-pane-titles 2>/dev/null
+  fi
+
+  if $use_autossh; then
     # Interactive: auto-reconnect with per-pane remote tmux session.
     # Each local tmux pane gets its own remote session so multiple panes
     # connecting to the same host stay independent. On reconnect, autossh
@@ -594,6 +656,7 @@ ssh() {
     command ssh "$@"
   fi
   local ret=$?
+
   # Reset terminal state that remote tmux may have left behind on abrupt disconnect
   # (SGR/X10/button-event/all-mouse tracking, bracketed paste, cursor visibility,
   # text attributes). Without this, mouse scroll produces raw escape sequences
@@ -603,6 +666,7 @@ ssh() {
   if [ -n "$TMUX" ]; then
     tmux select-pane -P default
     tmux set-option -p -u @ssh_host
+    tmux set-option -p -u @ssh_my_machine
     tmux-pane-titles 2>/dev/null
   fi
 
