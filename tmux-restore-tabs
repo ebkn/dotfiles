@@ -26,9 +26,10 @@ set -e
 # the current socket, so we override the env var here.
 export WEZTERM_UNIX_SOCKET=~/.local/share/wezterm/default-org.wezfurlong.wezterm
 
-# Get all tmux session names as an array.
+# Get all tmux session names sorted by creation time (oldest first).
+# This preserves the original tab order when restoring after a crash.
 # ${(@f)...} splits output by newlines into array elements (zsh syntax).
-sessions=("${(@f)$(tmux list-sessions -F '#{session_name}' 2>/dev/null)}")
+sessions=("${(@f)$(tmux list-sessions -F '#{session_created} #{session_name}' 2>/dev/null | sort -n | cut -d' ' -f2-)}")
 
 if [[ ${#sessions[@]} -eq 0 || -z "${sessions[1]}" ]]; then
   echo "No tmux sessions found"
