@@ -28,6 +28,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 ├── brewfiles/          #   Homebrew dependency lists by category
 │   ├── Brewfile-shell  #     Shell tools (tmux, fzf, ripgrep, etc.)
 │   ├── Brewfile-lang   #     Language runtimes and managers
+│   ├── Brewfile-xcode  #     Swift tools requiring Xcode.app
 │   ├── Brewfile-cask   #     GUI applications
 │   └── Brewfile-mas    #     Mac App Store apps
 ├── root/               #   Home directory configs (symlinked to ~/)

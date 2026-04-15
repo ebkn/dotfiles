@@ -1,0 +1,6 @@
+# Swift (requires full Xcode.app installation)
+brew 'swiftformat'
+brew 'swiftlint'
+tap 'peripheryapp/periphery' if OS.mac?
+cask 'periphery' if OS.mac?
+brew 'xcodegen' if OS.mac?

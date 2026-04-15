@@ -27,9 +27,4 @@ brew 'fonttools'
 # yaml
 brew 'yamllint'
 
-# Swift
-brew 'swiftformat'
-brew 'swiftlint'
-tap 'peripheryapp/periphery' if OS.mac?
-cask 'periphery' if OS.mac?
-brew 'xcodegen' if OS.mac?
+# Swift tools that require Xcode.app are in Brewfile-xcode.

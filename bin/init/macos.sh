@@ -211,6 +211,9 @@ else
   install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-mas"
 fi
 
+log_step "Installing Xcode-dependent tools"
+install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-xcode"
+
 if [ -t 0 ] && [ -z "${TMUX:-}" ] && [ "${INIT_START_TMUX:-false}" = "true" ]; then
   log_step "Starting tmux"
   tmux
