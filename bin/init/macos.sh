@@ -98,7 +98,9 @@ log_step "Installing Google Cloud CLI"
 install_or_upgrade_gcloud
 
 log_step "Setup shell"
-install_or_upgrade_login_shell
+if [ "$CI" != "true" ]; then
+  install_or_upgrade_login_shell
+fi
 
 link_with_backup "${DOTFILES_DIR}/.zshrc" "${HOME}/.zshrc"
 link_with_backup "${DOTFILES_DIR}/.zshenv" "${HOME}/.zshenv"
@@ -155,7 +157,9 @@ diff_highlight_source="$(brew --prefix)/opt/git/share/git-core/contrib/diff-high
 if [ ! -x "$diff_highlight_source" ]; then
   diff_highlight_source="$(brew --prefix)/share/git-core/contrib/diff-highlight/diff-highlight"
 fi
-sudo_install_or_upgrade_symlink "$diff_highlight_source" "/usr/local/bin/diff-highlight"
+if [ "$CI" != "true" ]; then
+  sudo_install_or_upgrade_symlink "$diff_highlight_source" "/usr/local/bin/diff-highlight"
+fi
 
 link_with_backup "${DOTFILES_DIR}/.gitconfig" "${HOME}/.gitconfig"
 link_with_backup "${DOTFILES_DIR}/.gitconfig-ebkn" "${HOME}/.gitconfig-ebkn"
@@ -196,23 +200,25 @@ log_step "Installing languages from homebrew"
 install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-lang"
 
 # Java (after Brewfile-lang installs openjdk)
-sudo_install_or_upgrade_symlink \
-  "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk" \
-  "/Library/Java/JavaVirtualMachines/openjdk.jdk"
+if [ "$CI" != "true" ]; then
+  sudo_install_or_upgrade_symlink \
+    "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk" \
+    "/Library/Java/JavaVirtualMachines/openjdk.jdk"
+fi
 
 log_step "Installing apps by Homebrew-Cask"
 install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-cask"
 
 if [ "$CI" = "true" ]; then
-  log_step "Skipping to install apps by mas"
+  log_step "Skipping mas and Xcode-dependent tools (CI)"
 else
   log_step "Installing apps by mas"
   install_or_upgrade_brew_formula mas
   install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-mas"
-fi
 
-log_step "Installing Xcode-dependent tools"
-install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-xcode"
+  log_step "Installing Xcode-dependent tools"
+  install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-xcode"
+fi
 
 log_step "Setup complete"
 
