@@ -41,7 +41,7 @@ install_or_upgrade_login_shell() {
     sudo sh -c "echo '$target_shell' >> /etc/shells"
   fi
 
-  sudo chsh -s "$target_shell"
+  sudo chsh -s "$target_shell" "$USER"
 }
 
 sudo_install_or_upgrade_symlink() {
