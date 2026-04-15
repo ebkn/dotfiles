@@ -3,23 +3,23 @@ log_step() {
 }
 
 backup_path() {
-  local path backup_path suffix
-  path="$1"
+  local src dest suffix
+  src="$1"
 
-  if [ ! -e "$path" ] && [ ! -L "$path" ]; then
+  if [ ! -e "$src" ] && [ ! -L "$src" ]; then
     return 0
   fi
 
   : "${BACKUP_DIR:=${HOME}/backup}"
   mkdir -p "$BACKUP_DIR"
 
-  backup_path="${BACKUP_DIR}/$(basename "$path")"
-  if [ -e "$backup_path" ] || [ -L "$backup_path" ]; then
+  dest="${BACKUP_DIR}/$(basename "$src")"
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
     suffix="$(date +%Y%m%d%H%M%S)"
-    backup_path="${backup_path}.${suffix}"
+    dest="${dest}.${suffix}"
   fi
 
-  mv "$path" "$backup_path"
+  mv "$src" "$dest"
 }
 
 link_with_backup() {
