@@ -5,11 +5,11 @@
 #
 set -eo pipefail
 
-# When invoked via `curl ... | zsh`, stdin is the pipe.  Reconnect to
-# the TTY early so every command (sudo, installers) can prompt.
-if [ ! -t 0 ] && [ -e /dev/tty ]; then
-  exec </dev/tty
-fi
+# When invoked via `curl ... | zsh`, stdin is the pipe.  We must NOT
+# `exec </dev/tty` here — zsh reads the remaining script from stdin, so
+# replacing it would cause the shell to hang waiting on the TTY.
+# Instead, attach /dev/tty only to specific commands that need interactive
+# input (e.g. sudo), and pass it to the final exec.
 
 DOTFILES_DIR="${HOME}/dotfiles"
 
@@ -26,7 +26,7 @@ fi
 # Install Rosetta 2 on Apple Silicon if missing.
 if [ "$(uname -m)" = "arm64" ] && ! /usr/bin/pgrep -q oahd; then
   printf "Installing Rosetta 2...\n"
-  sudo softwareupdate --install-rosetta --agree-to-license
+  sudo softwareupdate --install-rosetta --agree-to-license </dev/tty
 fi
 
 # Clone dotfiles if missing.
@@ -35,4 +35,10 @@ if [ ! -d "$DOTFILES_DIR" ]; then
   git clone https://github.com/ebkn/dotfiles "$DOTFILES_DIR"
 fi
 
-exec zsh "${DOTFILES_DIR}/bin/init/macos.sh"
+# Reconnect stdin to the TTY for the setup script so sudo and other
+# interactive prompts work correctly.
+if [ -e /dev/tty ]; then
+  exec zsh "${DOTFILES_DIR}/bin/init/macos.sh" </dev/tty
+else
+  exec zsh "${DOTFILES_DIR}/bin/init/macos.sh"
+fi
