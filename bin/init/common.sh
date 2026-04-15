@@ -1,3 +1,5 @@
+trap 'printf "error: %s failed at line %d (exit %d)\n" "${0}" ${LINENO} $? >&2' ZERR
+
 log_step() {
   printf "\n--- %s ---\n" "$1"
 }
