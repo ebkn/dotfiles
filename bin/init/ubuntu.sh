@@ -76,6 +76,7 @@ log_step "Installing Google Cloud CLI"
 # update-all expects gcloud to exist before shell lazy-loading is used.
 install_or_upgrade_gcloud
 
+log_step "Linking dotfiles"
 link_with_backup "${DOTFILES_DIR}/.zshrc" "${HOME}/.zshrc"
 link_with_backup "${DOTFILES_DIR}/.zshenv" "${HOME}/.zshenv"
 link_with_backup "${DOTFILES_DIR}/.bash_profile" "${HOME}/.bash_profile"
@@ -110,7 +111,6 @@ sudo apt update
 install_or_upgrade_apt_packages docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
 link_with_backup "${DOTFILES_DIR}/.tigrc" "${HOME}/.tigrc"
-
 link_with_backup "${DOTFILES_DIR}/.gitignore_global" "${HOME}/.gitignore_global"
 link_with_backup "${DOTFILES_DIR}/.gitconfig" "${HOME}/.gitconfig"
 link_with_backup "${DOTFILES_DIR}/.gitconfig-ebkn" "${HOME}/.gitconfig-ebkn"
@@ -127,7 +127,7 @@ link_with_backup "${DOTFILES_DIR}/root/.codex/skills/create-pr" "${HOME}/.codex/
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/update-pr" "${HOME}/.codex/skills/update-pr"
 install_or_upgrade_claude
 
-# node
+log_step "Installing Node.js toolchain"
 install_or_upgrade_volta
 install_or_upgrade_node_with_volta
 # Keep this list aligned with zsh/alias.zsh:update-all npm global installs.
@@ -154,3 +154,5 @@ link_with_backup "${DOTFILES_DIR}/bin/fzf-files" "${HOME}/.local/bin/fzf-files"
 log_step "Ensuring tmux plugin manager"
 install_or_upgrade_git_repo "https://github.com/tmux-plugins/tpm" "${HOME}/.tmux/plugins/tpm"
 "${HOME}/.tmux/plugins/tpm/bin/install_plugins"
+
+log_step "Setup complete"

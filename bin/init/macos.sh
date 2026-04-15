@@ -108,6 +108,7 @@ install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-shell"
 
 install_or_upgrade_fzf_shell_integration
 
+log_step "Linking dotfiles"
 mkdir -p -m 0700 "${HOME}/.ssh/sockets"
 if [ -f "${HOME}/.sshconfig" ]; then
   if [ -e "${HOME}/.ssh/config" ] || [ -L "${HOME}/.ssh/config" ]; then
@@ -161,7 +162,7 @@ link_with_backup "${DOTFILES_DIR}/.gitconfig-ebkn" "${HOME}/.gitconfig-ebkn"
 
 link_with_backup "${DOTFILES_DIR}/wezterm.lua" "${HOME}/.config/wezterm/wezterm.lua"
 
-# node
+log_step "Installing Node.js toolchain"
 mkdir -p "${HOME}/.nvm"
 install_or_upgrade_volta
 install_or_upgrade_node_with_volta
@@ -212,6 +213,8 @@ fi
 
 log_step "Installing Xcode-dependent tools"
 install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-xcode"
+
+log_step "Setup complete"
 
 if [ -t 0 ] && [ -z "${TMUX:-}" ] && [ "${INIT_START_TMUX:-false}" = "true" ]; then
   log_step "Starting tmux"

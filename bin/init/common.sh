@@ -26,6 +26,7 @@ backup_path() {
     dest="${dest}.${suffix}"
   fi
 
+  printf "backup: %s -> %s\n" "$src" "$dest"
   mv "$src" "$dest"
 }
 
