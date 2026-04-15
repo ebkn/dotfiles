@@ -5,6 +5,12 @@
 #
 set -eo pipefail
 
+# When invoked via `curl ... | bash`, stdin is the pipe.  Reconnect to
+# the TTY early so every command (sudo, installers) can prompt.
+if [ ! -t 0 ] && [ -e /dev/tty ]; then
+  exec </dev/tty
+fi
+
 DOTFILES_DIR="${HOME}/dotfiles"
 
 # Install git if missing.
