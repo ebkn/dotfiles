@@ -1,4 +1,9 @@
-trap 'printf "error: %s failed at line %d (exit %d)\n" "${0}" ${LINENO} $? >&2' ZERR
+# ZERR (zsh) / ERR (bash) — report the failing line before set -e exits.
+if [ -n "${ZSH_VERSION:-}" ]; then
+  trap 'printf "error: %s failed at line %d (exit %d)\n" "${0}" ${LINENO} $? >&2' ZERR
+else
+  trap 'printf "error: %s failed at line %d (exit %d)\n" "${BASH_SOURCE[0]:-$0}" ${LINENO} $? >&2' ERR
+fi
 
 log_step() {
   printf "\n--- %s ---\n" "$1"
