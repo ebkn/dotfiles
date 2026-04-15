@@ -1,9 +1,8 @@
 #!/bin/zsh
 #
-# before run this script, following commands are needed.
-# xcode-select --install
-# for Apple Silicon
-# sudo softwareupdate --install-rosetta --agree-to-licensesudo
+# Setup script for macOS. Requires Xcode CLT and (on Apple Silicon) Rosetta.
+# On a fresh Mac, use the bootstrap script instead:
+#   curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-macos.sh | zsh
 
 set -eo pipefail
 

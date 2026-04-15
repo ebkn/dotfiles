@@ -1,5 +1,9 @@
 #!/bin/bash
-
+#
+# Setup script for Ubuntu. Requires git.
+# On a fresh machine, use the bootstrap script instead:
+#   curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-ubuntu.sh | bash
+#
 set -eo pipefail
 
 DOTFILES_DIR="${HOME}/dotfiles"

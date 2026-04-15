@@ -6,13 +6,12 @@ Personal dotfiles for macOS and Linux.
 
 ```sh
 # macOS
-xcode-select --install
-curl -s https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/macos.sh | zsh
+curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-macos.sh | zsh
 ```
 
 ```sh
 # Ubuntu
-curl -s https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/ubuntu.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-ubuntu.sh | bash
 ```
 
 ## What's included
