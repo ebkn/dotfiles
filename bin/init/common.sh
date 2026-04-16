@@ -129,6 +129,11 @@ install_or_upgrade_git_repo() {
       printf "warning: failed to fetch %s\n" "$dest" >&2
       return 1
     fi
+    # Fast-forward the working directory so the init script uses the latest
+    # files.  Non-fast-forward cases (local changes, diverged history) are
+    # intentionally left alone with a warning.
+    git -C "$dest" merge --ff-only 2>/dev/null ||
+      printf "warning: could not fast-forward %s\n" "$dest" >&2
     return 0
   fi
 
