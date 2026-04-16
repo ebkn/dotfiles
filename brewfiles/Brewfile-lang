@@ -3,6 +3,9 @@
 # use volta
 brew 'nvm'
 
+# Go
+brew 'go'
+
 # Rust
 brew 'rustup'
 
