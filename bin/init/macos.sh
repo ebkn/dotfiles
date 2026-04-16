@@ -206,6 +206,9 @@ if [ "$CI" != "true" ]; then
     "/Library/Java/JavaVirtualMachines/openjdk.jdk"
 fi
 
+log_step "Installing Tailscale from source"
+go install tailscale.com/cmd/tailscale{,d}@main
+
 log_step "Installing apps by Homebrew-Cask"
 install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-cask"
 
