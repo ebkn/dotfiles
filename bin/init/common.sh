@@ -115,7 +115,9 @@ install_or_upgrade_brew_formula() {
 install_or_upgrade_brew_bundle() {
   local brewfile
   brewfile="$1"
-  brew bundle --file="$brewfile"
+  # --verbose streams each formula's install output instead of buffering it
+  # until the bundle completes, so long-running installs show progress/errors.
+  brew bundle --verbose --file="$brewfile"
 }
 
 install_or_upgrade_git_repo() {
