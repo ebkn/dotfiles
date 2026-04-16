@@ -24,4 +24,4 @@ if [ ! -d "$DOTFILES_DIR" ]; then
   git clone https://github.com/ebkn/dotfiles "$DOTFILES_DIR"
 fi
 
-exec "${DOTFILES_DIR}/bin/init/ubuntu.sh"
+exec bash "${DOTFILES_DIR}/bin/init/ubuntu.sh"
