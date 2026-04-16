@@ -214,10 +214,19 @@ if [ "$CI" = "true" ]; then
 else
   log_step "Installing apps by mas"
   install_or_upgrade_brew_formula mas
-  install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-mas"
+  # mas can fail when the user is not signed into the App Store (common on
+  # a fresh Mac).  Don't let that abort the entire setup.
+  if ! install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-mas"; then
+    printf "warning: some mas apps failed to install (continuing)\n" >&2
+  fi
 
-  log_step "Installing Xcode-dependent tools"
-  install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-xcode"
+  if [ -d "/Applications/Xcode.app" ]; then
+    log_step "Installing Xcode-dependent tools"
+    install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-xcode"
+  else
+    log_step "Skipping Xcode-dependent tools (Xcode.app not found)"
+    printf "hint: install Xcode from the App Store and re-run this script\n" >&2
+  fi
 fi
 
 log_step "Setup complete"
