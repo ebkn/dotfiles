@@ -224,6 +224,11 @@ else
   fi
 
   if [ -d "/Applications/Xcode.app" ]; then
+    log_step "Accepting Xcode license"
+    # xcodebuild refuses to run (and Brewfile-xcode formulas fail) until the
+    # license is accepted. `-license accept` is idempotent.
+    sudo xcodebuild -license accept
+
     log_step "Installing Xcode-dependent tools"
     install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-xcode"
   else
