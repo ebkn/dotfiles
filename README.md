@@ -6,12 +6,12 @@ Personal dotfiles for macOS and Linux.
 
 ```sh
 # macOS
-zsh <(curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-macos.sh)
+zsh <(curl -fsSL -H 'Accept: application/vnd.github.raw' https://api.github.com/repos/ebkn/dotfiles/contents/bin/init/bootstrap-macos.sh)
 ```
 
 ```sh
 # Ubuntu
-bash <(curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-ubuntu.sh)
+bash <(curl -fsSL -H 'Accept: application/vnd.github.raw' https://api.github.com/repos/ebkn/dotfiles/contents/bin/init/bootstrap-ubuntu.sh)
 ```
 
 ## What's included

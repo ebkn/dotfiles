@@ -1,11 +1,11 @@
 #!/bin/bash
 set -eo pipefail
 # Bootstrap script for a fresh Ubuntu machine.
-# Usage: bash <(curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-ubuntu.sh)
+# Usage: bash <(curl -fsSL -H 'Accept: application/vnd.github.raw' https://api.github.com/repos/ebkn/dotfiles/contents/bin/init/bootstrap-ubuntu.sh)
 
 if [ ! -t 0 ] && [ "${CI:-}" != "true" ]; then
   printf "error: stdin must be a terminal. Run with:\n" >&2
-  printf "  bash <(curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-ubuntu.sh)\n" >&2
+  printf "  bash <(curl -fsSL -H 'Accept: application/vnd.github.raw' https://api.github.com/repos/ebkn/dotfiles/contents/bin/init/bootstrap-ubuntu.sh)\n" >&2
   exit 1
 fi
 

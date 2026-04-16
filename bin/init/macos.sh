@@ -2,7 +2,7 @@
 #
 # Setup script for macOS. Requires Xcode CLT and (on Apple Silicon) Rosetta.
 # On a fresh Mac, use the bootstrap script instead:
-#   zsh <(curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-macos.sh)
+#   zsh <(curl -fsSL -H 'Accept: application/vnd.github.raw' https://api.github.com/repos/ebkn/dotfiles/contents/bin/init/bootstrap-macos.sh)
 
 set -eo pipefail
 

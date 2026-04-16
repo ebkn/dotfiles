@@ -2,7 +2,7 @@
 #
 # Setup script for Ubuntu. Requires git.
 # On a fresh machine, use the bootstrap script instead:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-ubuntu.sh)
+#   bash <(curl -fsSL -H 'Accept: application/vnd.github.raw' https://api.github.com/repos/ebkn/dotfiles/contents/bin/init/bootstrap-ubuntu.sh)
 #
 set -eo pipefail
 

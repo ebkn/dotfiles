@@ -1,11 +1,11 @@
 #!/bin/zsh
 set -eo pipefail
 # Bootstrap script for a fresh Mac.
-# Usage: zsh <(curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-macos.sh)
+# Usage: zsh <(curl -fsSL -H 'Accept: application/vnd.github.raw' https://api.github.com/repos/ebkn/dotfiles/contents/bin/init/bootstrap-macos.sh)
 
 if [ ! -t 0 ] && [ "${CI:-}" != "true" ]; then
   printf "error: stdin must be a terminal. Run with:\n" >&2
-  printf "  zsh <(curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-macos.sh)\n" >&2
+  printf "  zsh <(curl -fsSL -H 'Accept: application/vnd.github.raw' https://api.github.com/repos/ebkn/dotfiles/contents/bin/init/bootstrap-macos.sh)\n" >&2
   exit 1
 fi
 
