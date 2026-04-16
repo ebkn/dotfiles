@@ -72,7 +72,7 @@ defaults write com.apple.finder AppleShowAllFiles TRUE
 
 log_step "Installing HomeBrew"
 if ! command -v brew 2> /dev/null; then
-  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
 export PATH="/usr/local/bin:$PATH"
 export PATH="/opt/homebrew/sbin:$PATH"
