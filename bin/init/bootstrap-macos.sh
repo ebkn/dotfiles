@@ -27,10 +27,14 @@ if [ "$(uname -m)" = "arm64" ] && ! /usr/bin/pgrep -q oahd; then
   sudo softwareupdate --install-rosetta --agree-to-license
 fi
 
-# Clone dotfiles if missing.
+# Clone or update dotfiles so macos.sh always runs the latest code.
 if [ ! -d "$DOTFILES_DIR" ]; then
   printf "Cloning dotfiles...\n"
   git clone https://github.com/ebkn/dotfiles "$DOTFILES_DIR"
+else
+  printf "Updating dotfiles...\n"
+  git -C "$DOTFILES_DIR" fetch --all --prune
+  git -C "$DOTFILES_DIR" merge --ff-only || printf "warning: could not fast-forward dotfiles\n" >&2
 fi
 
 exec zsh "${DOTFILES_DIR}/bin/init/macos.sh"

@@ -18,10 +18,14 @@ if ! command -v git >/dev/null 2>&1; then
   sudo apt install -y git
 fi
 
-# Clone dotfiles if missing.
+# Clone or update dotfiles so ubuntu.sh always runs the latest code.
 if [ ! -d "$DOTFILES_DIR" ]; then
   printf "Cloning dotfiles...\n"
   git clone https://github.com/ebkn/dotfiles "$DOTFILES_DIR"
+else
+  printf "Updating dotfiles...\n"
+  git -C "$DOTFILES_DIR" fetch --all --prune
+  git -C "$DOTFILES_DIR" merge --ff-only || printf "warning: could not fast-forward dotfiles\n" >&2
 fi
 
 exec bash "${DOTFILES_DIR}/bin/init/ubuntu.sh"
