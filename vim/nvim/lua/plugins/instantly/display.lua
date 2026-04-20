@@ -132,9 +132,11 @@ return {
     opts = {
       -- Drop 'diagnostics' from the default sign set. Coc's sign column
       -- and lualine already surface diagnostics; scrollview's overlay
-      -- renders E/W on top of the last buffer column (default
-      -- hide_on_text_intersect=false) and clips that character.
+      -- renders E/W on top of the last buffer column and clips that character.
       signs_on_startup = { 'marks', 'search' },
+      -- Hide the scrollbar (and signs) on rows where it would overlap text,
+      -- so the rightmost character stays visible.
+      hide_on_text_intersect = true,
     },
   },
 
