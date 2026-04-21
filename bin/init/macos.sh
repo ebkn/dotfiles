@@ -110,6 +110,9 @@ install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-shell"
 
 install_or_upgrade_fzf_shell_integration
 
+log_step "Installing other CLI tools"
+install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-others"
+
 log_step "Linking dotfiles"
 mkdir -p -m 0700 "${HOME}/.ssh/sockets"
 if [ -f "${HOME}/.sshconfig" ]; then
