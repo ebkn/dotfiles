@@ -47,7 +47,7 @@ title=$(printf '%s\n' "$panes" | awk -F'\t' '{
   else if (wt != "") label = "wt:" wt
   else if (br != "") label = "b:" br
   else               label = dir
-  if (!seen[label]++) { printf sep label; sep = " | " }
+  if (!seen[label]++) { printf sep label; sep = "," }
 }')
 [[ -n "$title" ]] && tmux rename-window "${target_args[@]}" -- "$title" 2>/dev/null
 exit 0
