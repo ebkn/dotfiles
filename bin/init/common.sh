@@ -224,6 +224,31 @@ install_or_upgrade_gcloud() {
   curl -fsSL https://sdk.cloud.google.com | bash -s -- --disable-prompts --install-dir="${HOME}"
 }
 
+is_wsl() {
+  [ -n "${WSL_DISTRO_NAME:-}" ] || grep -qi microsoft /proc/version 2>/dev/null
+}
+
+wsl_windows_home() {
+  local cmd_exe userprofile
+
+  if command -v cmd.exe >/dev/null 2>&1; then
+    cmd_exe="cmd.exe"
+  elif [ -x "/mnt/c/Windows/System32/cmd.exe" ]; then
+    cmd_exe="/mnt/c/Windows/System32/cmd.exe"
+  else
+    printf "warning: cmd.exe not found\n" >&2
+    return 1
+  fi
+
+  userprofile="$("$cmd_exe" /C 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')"
+  if [ -z "$userprofile" ]; then
+    printf "warning: could not determine Windows USERPROFILE\n" >&2
+    return 1
+  fi
+
+  wslpath "$userprofile"
+}
+
 install_or_upgrade_claude() {
   if command -v claude >/dev/null 2>&1; then
     return 0

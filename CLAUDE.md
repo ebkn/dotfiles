@@ -23,7 +23,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   ├── *.vim           #   Vim core config (base, color, keymap, view)
 │   └── lazy.lua        #   lazy.nvim bootstrap
 ├── bin/
-│   ├── init/           #   Platform setup scripts (macos.sh, ubuntu.sh)
+│   ├── init/           #   Platform setup scripts (macos.sh, ubuntu.sh, wsl.sh)
 │   └── install_minimum_vim.sh
 ├── brewfiles/          #   Homebrew dependency lists by category
 │   ├── Brewfile-shell  #     Shell tools (tmux, fzf, ripgrep, etc.)

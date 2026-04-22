@@ -1,0 +1,12 @@
+---
+name: WSL setup
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run install script
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-wsl.sh | bash
