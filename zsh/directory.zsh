@@ -15,6 +15,27 @@ _wezterm_osc7() {
 chpwd_functions+=(_wezterm_osc7)
 _wezterm_osc7  # emit for the initial directory
 
+# When over SSH without tmux, emit OSC 2 (terminal title) so the local
+# tmux captures it as pane_title. The local set-titles-string displays
+# this alongside the host name in the WezTerm tab.
+# (Inside remote tmux, set-titles + tmux-pane-titles handle this instead.)
+if [[ -n "$SSH_CONNECTION" && -z "$TMUX" ]]; then
+  _ssh_set_pane_title() {
+    local title="${PWD##*/}"
+    local branch
+    branch=$(git branch --show-current 2>/dev/null)
+    if [[ -n "$branch" ]]; then
+      case "$branch" in
+        main|develop|staging) ;;
+        *) title="b:$branch" ;;
+      esac
+    fi
+    printf '\e]2;%s\a' "$title"
+  }
+  chpwd_functions+=(_ssh_set_pane_title)
+  _ssh_set_pane_title  # emit for the initial directory
+fi
+
 alias -g ...='../..'
 alias -g ....='../../..'
 alias -g .....='../../../..'
