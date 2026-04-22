@@ -124,7 +124,7 @@ fi
 link_with_backup "${DOTFILES_DIR}/.sshconfig_base" "${HOME}/.ssh/config_base"
 # Ensure shared SSH defaults are loaded via Include
 if ! grep -qF 'Include config_base' "${HOME}/.ssh/config" 2>/dev/null; then
-  { echo 'Include config_base'; echo; cat "${HOME}/.ssh/config" 2>/dev/null; } > "${HOME}/.ssh/config.tmp"
+  { echo 'Include config_base'; echo; cat "${HOME}/.ssh/config" 2>/dev/null || true; } > "${HOME}/.ssh/config.tmp"
   mv "${HOME}/.ssh/config.tmp" "${HOME}/.ssh/config"
   chmod 600 "${HOME}/.ssh/config"
 fi
