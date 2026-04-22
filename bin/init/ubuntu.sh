@@ -117,6 +117,10 @@ link_with_backup "${DOTFILES_DIR}/.tigrc" "${HOME}/.tigrc"
 link_with_backup "${DOTFILES_DIR}/.gitignore_global" "${HOME}/.gitignore_global"
 link_with_backup "${DOTFILES_DIR}/.gitconfig" "${HOME}/.gitconfig"
 link_with_backup "${DOTFILES_DIR}/.gitconfig-ebkn" "${HOME}/.gitconfig-ebkn"
+# On CI, disable .gitconfig's HTTPS→SSH URL rewriting — no SSH keys available.
+if [ "${CI:-}" = "true" ]; then
+  git config --global --unset-all 'url.git@github.com:.insteadOf' || true
+fi
 link_with_backup "${DOTFILES_DIR}/root/CLAUDE.md" "${HOME}/CLAUDE.md"
 # Expose alternate instruction filenames used by local agent tools.
 link_with_backup "${HOME}/CLAUDE.md" "${HOME}/AGENTS.md"

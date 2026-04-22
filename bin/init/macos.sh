@@ -166,6 +166,10 @@ fi
 
 link_with_backup "${DOTFILES_DIR}/.gitconfig" "${HOME}/.gitconfig"
 link_with_backup "${DOTFILES_DIR}/.gitconfig-ebkn" "${HOME}/.gitconfig-ebkn"
+# On CI, disable .gitconfig's HTTPS→SSH URL rewriting — no SSH keys available.
+if [ "${CI:-}" = "true" ]; then
+  git config --global --unset-all 'url.git@github.com:.insteadOf' || true
+fi
 
 link_with_backup "${DOTFILES_DIR}/wezterm.lua" "${HOME}/.config/wezterm/wezterm.lua"
 
