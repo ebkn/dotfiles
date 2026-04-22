@@ -1,7 +1,7 @@
 ENABLE_CORRECTION="true"
 
 # Start Tmux
-export PATH="/opt/homebrew/bin:$PATH"
+# /opt/homebrew/bin is added in .zshenv (needed by non-interactive shells too)
 # tmuxを自動起動し、tmux終了時にシェルも終了する
 [[ -z "$TMUX" ]] && tmux -u && exit
 
