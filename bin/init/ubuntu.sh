@@ -92,6 +92,9 @@ log_step "Installing language tools from Homebrew"
 # Brewfile-lang now uses OS.mac? guards for mac-only formulae.
 install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-lang"
 
+log_step "Installing other CLI tools from Homebrew"
+install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-others"
+
 log_step "Installing Tailscale from source"
 go install tailscale.com/cmd/tailscale{,d}@main
 

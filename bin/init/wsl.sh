@@ -144,6 +144,9 @@ log_step "Installing language tools from Homebrew"
 # Brewfile-lang uses OS.mac? guards for mac-only formulae.
 install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-lang"
 
+log_step "Installing other CLI tools from Homebrew"
+install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-others"
+
 # Docker: WSL2 uses Docker Desktop for Windows with WSL integration.
 # Installing Docker CE here would conflict with Docker Desktop.
 # See: https://docs.docker.com/desktop/wsl/
