@@ -46,12 +46,12 @@ return {
   color_scheme = 'Everforest Dark (Gogh)',
 
   show_tab_index_in_tab_bar = false,
-  tab_max_width = 80,
+  tab_max_width = 120,
   -- Disable two-finger swipe / mouse wheel over the tab bar from switching
   -- tabs. macOS trackpad swipes are easy to trigger accidentally.
   mouse_wheel_scrolls_tabs = false,
   window_frame = {
-    font_size = 13,
+    font_size = 12,
     font = wezterm.font({ family = 'JetBrains Mono', weight = 'Medium', stretch = 'Expanded' }),
   },
 
