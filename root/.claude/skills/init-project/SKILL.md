@@ -226,11 +226,35 @@ testpaths = ["tests"]
 
 Also create a `tests/` directory with an empty `__init__.py` (Python only).
 
+### Step 6.5: Next.js boilerplate (Next.js only)
+
+If the chosen framework is Next.js, create the official App Router boilerplate. Fetch the latest template files from the `vercel/next.js` GitHub repo (`packages/create-next-app/templates/app/ts/`) using WebFetch against raw.githubusercontent.com, then create:
+
+- `next.config.ts` — empty Next.js config
+- `tsconfig.json` — TypeScript config with Next.js plugin and `@/*` path alias
+- `app/layout.tsx` — root layout with Geist fonts
+- `app/page.tsx` — default home page
+- `app/globals.css` — global styles
+- `app/page.module.css` — page-level CSS module
+- `public/` — SVG assets (`file.svg`, `globe.svg`, `next.svg`, `vercel.svg`, `window.svg`)
+
+After creating the files, install the runtime dependencies:
+
+```bash
+npm install next react react-dom
+npm install -D typescript @types/node @types/react @types/react-dom vitest
+```
+
+Then run `npm run build` to verify the setup works and generate `next-env.d.ts`.
+
+**Other frameworks** — skip this step.
+
 ### Step 7: .gitignore
 
 If `.gitignore` does not exist, create one with sensible defaults for the language:
 
 **TypeScript**: `node_modules/`, `dist/`, `.env*.local`, `*.tsbuildinfo`
+**Next.js** (in addition to TypeScript): `.next/`, `out/`
 **Go**: binary name (project name), `vendor/` (optional)
 **Python**: `__pycache__/`, `*.pyc`, `.venv/`, `dist/`, `*.egg-info/`, `.env*.local`
 
