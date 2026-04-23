@@ -108,7 +108,7 @@ If `package.json` does not exist, create one:
   "private": true,
   "packageManager": "npm@{current npm version}",
   "engines": {
-    "node": ">={current major node version}.0.0"
+    "node": "{exact current node version}"
   },
   "scripts": {
     "dev": "next dev --turbopack",
@@ -133,10 +133,12 @@ Adjust `dev`, `build`, and `start` scripts based on the framework:
 Also create `.npmrc` with:
 
 ```
-min-release-age=7d
+save-exact=true
+min-release-age=7
 ```
 
-This prevents npm from installing package versions published less than 7 days ago.
+- `save-exact=true` — pin dependencies to exact versions (no `^` or `~` prefix)
+- `min-release-age=7` — skip package versions published less than 7 days ago
 
 Then install biome:
 
