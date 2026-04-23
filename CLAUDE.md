@@ -1,6 +1,6 @@
 # Project: dotfiles
 
-Personal dotfiles repository managing shell, editor, terminal, and development tool configurations for macOS and Linux.
+Personal dotfiles repository managing shell, editor, terminal, and development tool configurations for macOS, Linux, and Windows.
 
 ## Structure
 
@@ -23,7 +23,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   ├── *.vim           #   Vim core config (base, color, keymap, view)
 │   └── lazy.lua        #   lazy.nvim bootstrap
 ├── bin/
-│   ├── init/           #   Platform setup scripts (macos.sh, ubuntu.sh, wsl.sh)
+│   ├── init/           #   Platform setup scripts (macos.sh, ubuntu.sh, wsl.sh, windows.ps1)
 │   └── install_minimum_vim.sh
 ├── brewfiles/          #   Homebrew dependency lists by category
 │   ├── Brewfile-shell  #     Shell tools (tmux, fzf, ripgrep, etc.)
