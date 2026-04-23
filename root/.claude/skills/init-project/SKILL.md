@@ -1,7 +1,7 @@
 ---
 name: init-project
-description: Scaffold a new project in the current directory — git init, README.md, CLAUDE.md, Claude settings.json, and linter config for the specified language (TypeScript, Go, Python). Use this skill when the user wants to initialize or bootstrap a new project from scratch, set up a fresh repo, or scaffold project boilerplate.
-allowed-tools: Bash(git init *), Bash(git init), Bash(git status *), Bash(git rev-parse *), Bash(ls*), Bash(tree*), Bash(mkdir *), Read, Write, Glob
+description: Scaffold a new project in the current directory — git init, README.md, CLAUDE.md, AGENTS.md, Claude settings.json, and linter config for the specified language (TypeScript, Go, Python). Use this skill when the user wants to initialize or bootstrap a new project from scratch, set up a fresh repo, or scaffold project boilerplate.
+allowed-tools: Bash(git init *), Bash(git init), Bash(git status *), Bash(git rev-parse *), Bash(git add *), Bash(git commit -m *), Bash(npm init *), Bash(npm install *), Bash(ls*), Bash(tree*), Bash(mkdir *), Bash(ln -s *), Read, Write, Glob
 ---
 
 ## Instructions
@@ -62,6 +62,14 @@ Generate a project CLAUDE.md. The structure should be:
 
 Fill in the Development section with concrete commands based on the language/framework chosen (e.g., `npm test`, `go test ./...`, `pytest`). Leave Context, Structure, and Implementation Plan as HTML comments for the user to fill in — these require human judgment.
 
+### Step 3.5: AGENTS.md
+
+Create a symlink `AGENTS.md -> CLAUDE.md` so that other AI coding tools (e.g., GitHub Copilot) read the same project instructions:
+
+```bash
+ln -s CLAUDE.md AGENTS.md
+```
+
 ### Step 4: .claude/settings.json
 
 Create `.claude/settings.json` with permissions scoped to the project's language. Use this as the base and add language-specific entries:
@@ -89,9 +97,58 @@ Create `.claude/settings.json` with permissions scoped to the project's language
 - `Bash(pytest *)`, `Bash(ruff *)`, `Bash(ruff check *)`, `Bash(ruff format *)`
 - `Bash(pip install *)` if no pyproject.toml build system is obvious
 
+### Step 4.5: package.json and dependencies (TypeScript / Node.js only)
+
+If `package.json` does not exist, create one:
+
+```json
+{
+  "name": "{project-name}",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "npm@{current npm version}",
+  "engines": {
+    "node": ">={current major node version}.0.0"
+  },
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run"
+  }
+}
+```
+
+Run `npm -v` and `node -v` to fill in the actual versions.
+
+Adjust `dev`, `build`, and `start` scripts based on the framework:
+- **Next.js**: `next dev --turbopack`, `next build`, `next start`
+- **Plain TypeScript**: remove `dev`, `build`, `start` or set appropriate commands
+
+Also create `.npmrc` with:
+
+```
+min-release-age=7d
+```
+
+This prevents npm from installing package versions published less than 7 days ago.
+
+Then install biome:
+
+```bash
+npm install -D @biomejs/biome
+```
+
+**Go / Python** — skip this step.
+
 ### Step 5: Linter config
 
-Set up a minimal linter config for the chosen language. Do not install packages — just create the config file. The user will install dependencies themselves.
+Set up a minimal linter config for the chosen language.
 
 **TypeScript** — `biome.json`:
 
@@ -181,4 +238,13 @@ Always include: `.DS_Store`, `tmp/`
 
 After scaffolding, run `tree -a -I '.git' --dirsfirst` and show the user what was created. List any files that were skipped because they already existed.
 
-Do not make an initial commit — leave that to the user.
+### Step 9: Initial commit
+
+Stage all created files and make an initial commit:
+
+```bash
+git add <all created files>
+git commit -m "chore: scaffold project with initial config"
+```
+
+Only commit the files that were created by this skill. Do not use `git add .` or `git add -A`.
