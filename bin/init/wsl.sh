@@ -113,11 +113,6 @@ log_step "Installing Google Cloud CLI"
 # update-all expects gcloud to exist before shell lazy-loading is used.
 install_or_upgrade_gcloud
 
-log_step "Setup shell"
-if [ "$CI" != "true" ]; then
-  install_or_upgrade_login_shell
-fi
-
 log_step "Configuring SSH"
 mkdir -p "${HOME}/.ssh/sockets"
 chmod 700 "${HOME}/.ssh" "${HOME}/.ssh/sockets"
@@ -140,6 +135,11 @@ log_step "Installing shell packages from Homebrew"
 # Brewfile-shell uses OS.mac? guards for mac-only formulae.
 install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-shell"
 install_or_upgrade_fzf_shell_integration
+
+log_step "Setup shell"
+if [ "$CI" != "true" ]; then
+  install_or_upgrade_login_shell
+fi
 
 log_step "Installing language tools from Homebrew"
 # Brewfile-lang uses OS.mac? guards for mac-only formulae.
