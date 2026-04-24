@@ -41,7 +41,14 @@ function scrapbox() {
 alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|volumes" -N -A -C'
 
 # requires trash
-alias rm='trash'
+# Strip flags so that rm -r / rm -rf still go through trash.
+rm() {
+  local args=()
+  for arg in "$@"; do
+    [[ "$arg" == -* ]] || args+=("$arg")
+  done
+  trash "${args[@]}"
+}
 
 # terminal image viewer (sixel via ImageMagick, works over SSH+tmux)
 # Fits image to 90% of available area, preserving aspect ratio.
