@@ -20,8 +20,5 @@ brew 'graphviz'
 tap 'github/gh'
 brew 'gh'
 
-# move to trash instead of rm
-brew 'trash'
-
 # AST-based code search and replace
 brew 'ast-grep'
