@@ -7,8 +7,6 @@
     Run this script directly on Windows (PowerShell) to install desktop
     applications that correspond to Brewfile-cask and Brewfile-mas on macOS.
 .EXAMPLE
-    iex (irm 'https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/windows.ps1')
-.EXAMPLE
     powershell -ExecutionPolicy Bypass -File windows.ps1
 #>
 Set-StrictMode -Version Latest

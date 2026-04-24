@@ -21,7 +21,7 @@ bash <(curl -fsSL -H 'Accept: application/vnd.github.raw' https://api.github.com
 
 ```powershell
 # Windows (GUI apps via winget — run in PowerShell on the Windows host)
-iex (irm 'https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/windows.ps1')
+powershell -ExecutionPolicy Bypass -File bin\init\windows.ps1
 ```
 
 ## What's included
