@@ -1,0 +1,12 @@
+---
+name: Windows setup
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run install script
+        run: powershell -ExecutionPolicy Bypass -File bin\init\windows.ps1
