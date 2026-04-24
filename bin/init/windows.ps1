@@ -69,6 +69,12 @@ Install-WingetPackage 'Spotify.Spotify'
 Install-WingetPackage 'Amazon.Kindle'
 
 # ------------------------------------------------------------------
+# Automation
+# ------------------------------------------------------------------
+Write-Step 'Installing automation tools'
+Install-WingetPackage 'AutoHotkey.AutoHotkey'
+
+# ------------------------------------------------------------------
 # Input
 # ------------------------------------------------------------------
 Write-Step 'Installing input method'
