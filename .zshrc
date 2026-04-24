@@ -5,6 +5,7 @@ ENABLE_CORRECTION="true"
 # tmuxを自動起動し、tmux終了時にシェルも終了する
 [[ -z "$TMUX" ]] && tmux -u && exit
 
+source "$HOME/dotfiles/zsh/ssh-agent.zsh"
 source "$HOME/dotfiles/zsh/path.zsh"
 source "$HOME/dotfiles/zsh/.p10k.zsh"
 source "$HOME/dotfiles/zsh/alias.zsh"

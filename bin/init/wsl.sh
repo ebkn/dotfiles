@@ -98,7 +98,8 @@ install_or_upgrade_apt_packages \
   gnupg \
   ca-certificates \
   apt-transport-https \
-  software-properties-common
+  software-properties-common \
+  keychain
 
 log_step "Cloning or updating dotfiles"
 install_or_upgrade_git_repo "https://github.com/ebkn/dotfiles" "$DOTFILES_DIR"
