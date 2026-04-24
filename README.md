@@ -1,6 +1,6 @@
 # ebkn's dotfiles
 
-Personal dotfiles for macOS and Linux.
+Personal dotfiles for macOS, Linux, and Windows.
 
 ## Install
 
@@ -12,6 +12,16 @@ zsh <(curl -fsSL -H 'Accept: application/vnd.github.raw' https://api.github.com/
 ```sh
 # Ubuntu
 bash <(curl -fsSL -H 'Accept: application/vnd.github.raw' https://api.github.com/repos/ebkn/dotfiles/contents/bin/init/bootstrap-ubuntu.sh)
+```
+
+```sh
+# WSL2 (CLI environment inside WSL)
+bash <(curl -fsSL -H 'Accept: application/vnd.github.raw' https://api.github.com/repos/ebkn/dotfiles/contents/bin/init/bootstrap-wsl.sh)
+```
+
+```powershell
+# Windows (GUI apps via winget — run in PowerShell on the Windows host)
+powershell -ExecutionPolicy Bypass -File bin\init\windows.ps1
 ```
 
 ## What's included
