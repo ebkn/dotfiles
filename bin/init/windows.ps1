@@ -6,6 +6,8 @@
     Companion to wsl.sh which handles the CLI environment inside WSL.
     Run this script directly on Windows (PowerShell) to install desktop
     applications that correspond to Brewfile-cask and Brewfile-mas on macOS.
+    On a fresh machine, use the bootstrap script instead:
+      iex (irm 'https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-windows.ps1')
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File windows.ps1
 #>
