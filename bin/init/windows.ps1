@@ -28,14 +28,19 @@ function Write-Step {
 }
 
 function Install-WingetPackage {
-    param([string]$Id)
+    param(
+        [string]$Id,
+        [ValidateSet('any', 'user')]
+        [string]$Scope = 'any'
+    )
 
+    $scopeArgs = if ($Scope -eq 'user') { @('--scope', 'user') } else { @() }
     $installed = winget list --exact --id $Id 2>$null
     if ($LASTEXITCODE -eq 0 -and ($installed | Select-String -Pattern $Id -Quiet)) {
-        winget upgrade --exact --id $Id --accept-source-agreements --accept-package-agreements
+        winget upgrade --exact --id $Id @scopeArgs --accept-source-agreements --accept-package-agreements
     }
     else {
-        winget install --exact --id $Id --accept-source-agreements --accept-package-agreements
+        winget install --exact --id $Id @scopeArgs --accept-source-agreements --accept-package-agreements
     }
 }
 
@@ -92,7 +97,7 @@ Install-WingetPackage 'Microsoft.Teams'
 Write-Step 'Installing productivity tools'
 Install-WingetPackage 'AgileBits.1Password'
 Install-WingetPackage 'Google.GoogleDrive'
-Install-WingetPackage 'Spotify.Spotify'
+Install-WingetPackage 'Spotify.Spotify' -Scope user
 
 # ------------------------------------------------------------------
 # Automation
