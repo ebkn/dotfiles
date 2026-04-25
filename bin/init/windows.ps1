@@ -12,6 +12,16 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Re-launch elevated if not already. Docker Desktop and other machine-scope
+# winget packages require Administrator; without this the install aborts with
+# "must be owned by an elevated account".
+$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Host 'Re-launching with Administrator privileges...' -ForegroundColor Yellow
+    Start-Process powershell -Verb RunAs -ArgumentList @('-NoExit', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath)
+    exit
+}
+
 function Write-Step {
     param([string]$Message)
     Write-Host "`n--- $Message ---" -ForegroundColor Cyan
