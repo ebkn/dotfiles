@@ -107,4 +107,28 @@ Write-Step 'Installing input method'
 Install-WingetPackage 'Google.JapaneseIME'
 
 # ------------------------------------------------------------------
+# AutoHotkey script deployment
+# ------------------------------------------------------------------
+Write-Step 'Deploying AutoHotkey key remap script'
+
+$ahkSource = Join-Path $PSScriptRoot '..\..\autohotkey\keyremap.ahk'
+$ahkDest   = Join-Path $env:USERPROFILE 'Documents\AutoHotkey'
+$ahkFile   = Join-Path $ahkDest 'keyremap.ahk'
+$startupDir = [Environment]::GetFolderPath('Startup')
+$shortcut   = Join-Path $startupDir 'keyremap.lnk'
+
+if (-not (Test-Path $ahkDest)) {
+    New-Item -ItemType Directory -Path $ahkDest -Force | Out-Null
+}
+Copy-Item -Path $ahkSource -Destination $ahkFile -Force
+Write-Host "  Copied keyremap.ahk -> $ahkFile"
+
+# Create startup shortcut so the script runs on login
+$WshShell = New-Object -ComObject WScript.Shell
+$lnk = $WshShell.CreateShortcut($shortcut)
+$lnk.TargetPath = $ahkFile
+$lnk.Save()
+Write-Host "  Created startup shortcut -> $shortcut"
+
+# ------------------------------------------------------------------
 Write-Step 'Setup complete'

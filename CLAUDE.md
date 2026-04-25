@@ -22,6 +22,8 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   ├── coc/            #   CoC (Conquer of Completion) extensions config
 │   ├── *.vim           #   Vim core config (base, color, keymap, view)
 │   └── lazy.lua        #   lazy.nvim bootstrap
+├── autohotkey/         # AutoHotkey v2 scripts for Windows
+│   └── keyremap.ahk   #   Key remapping (CapsLock→Ctrl, Alt→IME switch)
 ├── bin/
 │   ├── init/           #   Platform setup scripts (macos.sh, ubuntu.sh, wsl.sh, windows.ps1)
 │   └── install_minimum_vim.sh
