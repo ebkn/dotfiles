@@ -76,7 +76,6 @@ Write-Step 'Installing productivity tools'
 Install-WingetPackage 'AgileBits.1Password'
 Install-WingetPackage 'Google.GoogleDrive'
 Install-WingetPackage 'Spotify.Spotify'
-Install-WingetPackage 'Amazon.Kindle'
 
 # ------------------------------------------------------------------
 # Automation
