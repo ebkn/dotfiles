@@ -30,19 +30,33 @@ function Write-Step {
 function Install-WingetPackage {
     param(
         [string]$Id,
-        # Some installers (e.g. Spotify) refuse to run in an elevated context.
-        # Pass -Scope user to force per-user installation via --scope user.
+        # Some installers (e.g. Spotify) check the process token and refuse to
+        # run elevated — --scope user alone is not enough. 'user' de-elevates
+        # via a temporary scheduled task so the installer sees a standard token.
         [ValidateSet('any', 'user')]
         [string]$Scope = 'any'
     )
 
-    $scopeArgs = if ($Scope -eq 'user') { @('--scope', 'user') } else { @() }
+    if ($Scope -eq 'user') {
+        $taskName = 'DotfilesWingetInstall'
+        $wingetArgs = "install --exact --id $Id --scope user --accept-source-agreements --accept-package-agreements"
+        $action = New-ScheduledTaskAction -Execute 'winget' -Argument $wingetArgs
+        $taskPrincipal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+        Register-ScheduledTask -TaskName $taskName -Action $action -Principal $taskPrincipal -Force | Out-Null
+        Start-ScheduledTask -TaskName $taskName
+        Write-Host "  Installing $Id as standard user (via scheduled task)..."
+        do { Start-Sleep -Seconds 2 }
+        while ((Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue).State -eq 'Running')
+        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+        return
+    }
+
     $installed = winget list --exact --id $Id 2>$null
     if ($LASTEXITCODE -eq 0 -and ($installed | Select-String -Pattern $Id -Quiet)) {
-        winget upgrade --exact --id $Id @scopeArgs --accept-source-agreements --accept-package-agreements
+        winget upgrade --exact --id $Id --accept-source-agreements --accept-package-agreements
     }
     else {
-        winget install --exact --id $Id @scopeArgs --accept-source-agreements --accept-package-agreements
+        winget install --exact --id $Id --accept-source-agreements --accept-package-agreements
     }
 }
 
