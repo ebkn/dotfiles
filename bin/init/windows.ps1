@@ -39,6 +39,22 @@ function Install-WingetPackage {
     }
 }
 
+function Repair-DockerDesktopOwnership {
+    # Docker Desktop's installer rejects ProgramData\DockerDesktop unless owned by Administrators/SYSTEM.
+    $dir = 'C:\ProgramData\DockerDesktop'
+    if (-not (Test-Path $dir)) { return }
+
+    $adminSid = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')
+    $systemSid = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')
+    $ownerSid = (Get-Acl $dir).GetOwner([System.Security.Principal.SecurityIdentifier])
+    if ($ownerSid -eq $adminSid -or $ownerSid -eq $systemSid) { return }
+
+    Write-Host "Repairing ownership on $dir (current owner: $((Get-Acl $dir).Owner))" -ForegroundColor Yellow
+    takeown /F $dir /R /A /D Y | Out-Null
+    icacls $dir /grant 'Administrators:F' /T /C | Out-Null
+    Remove-Item $dir -Recurse -Force
+}
+
 # ------------------------------------------------------------------
 # Preflight
 # ------------------------------------------------------------------
@@ -58,6 +74,7 @@ Install-WingetPackage 'Google.Chrome'
 # ------------------------------------------------------------------
 Write-Step 'Installing development tools'
 Install-WingetPackage 'Microsoft.VisualStudioCode'
+Repair-DockerDesktopOwnership
 Install-WingetPackage 'Docker.DockerDesktop'
 Install-WingetPackage 'wez.wezterm'
 
