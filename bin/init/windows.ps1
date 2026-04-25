@@ -30,6 +30,8 @@ function Write-Step {
 function Install-WingetPackage {
     param(
         [string]$Id,
+        # Some installers (e.g. Spotify) refuse to run in an elevated context.
+        # Pass -Scope user to force per-user installation via --scope user.
         [ValidateSet('any', 'user')]
         [string]$Scope = 'any'
     )
@@ -57,6 +59,8 @@ function Repair-DockerDesktopOwnership {
     Write-Host "Repairing ownership on $dir (current owner: $((Get-Acl $dir).Owner))" -ForegroundColor Yellow
     takeown /F $dir /R /A /D Y | Out-Null
     icacls $dir /grant 'Administrators:F' /T /C | Out-Null
+    # Remove the directory so the installer recreates it with correct ACLs.
+    # Fixing ownership alone is not enough — the installer also checks ACL entries.
     Remove-Item $dir -Recurse -Force
 }
 
@@ -79,6 +83,7 @@ Install-WingetPackage 'Google.Chrome'
 # ------------------------------------------------------------------
 Write-Step 'Installing development tools'
 Install-WingetPackage 'Microsoft.VisualStudioCode'
+# Ownership repair must run before install; see Repair-DockerDesktopOwnership.
 Repair-DockerDesktopOwnership
 Install-WingetPackage 'Docker.DockerDesktop'
 Install-WingetPackage 'wez.wezterm'
@@ -116,6 +121,8 @@ Install-WingetPackage 'Google.JapaneseIME'
 # ------------------------------------------------------------------
 Write-Step 'Deploying AutoHotkey key remap script'
 
+# Copy rather than symlink — the dotfiles repo lives in WSL and Windows AHK
+# cannot follow WSL symlinks or UNC paths reliably.
 $ahkSource = Join-Path $PSScriptRoot '..\..\autohotkey\keyremap.ahk'
 $ahkDest   = Join-Path $env:USERPROFILE 'Documents\AutoHotkey'
 $ahkFile   = Join-Path $ahkDest 'keyremap.ahk'
@@ -128,7 +135,7 @@ if (-not (Test-Path $ahkDest)) {
 Copy-Item -Path $ahkSource -Destination $ahkFile -Force
 Write-Host "  Copied keyremap.ahk -> $ahkFile"
 
-# Create startup shortcut so the script runs on login
+# A .lnk in the Startup folder makes Windows launch the script on login.
 $WshShell = New-Object -ComObject WScript.Shell
 $lnk = $WshShell.CreateShortcut($shortcut)
 $lnk.TargetPath = $ahkFile

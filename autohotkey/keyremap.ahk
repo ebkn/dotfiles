@@ -1,5 +1,6 @@
 ; -*- coding: utf-8-with-signature -*-
 #Requires AutoHotkey v2.0
+; Kill any already-running instance of this script on reload/re-launch.
 #SingleInstance Force
 
 ; ===================================================================
@@ -16,21 +17,25 @@ CapsLock::LCtrl
 ; Alt+<key> combinations still work normally thanks to the ~ prefix.
 ; ===================================================================
 
+; ~ lets the native Alt keydown pass through so Alt+Tab etc. still work.
+; A_PriorKey guard fires only when Alt was released without pressing another
+; key in between — i.e., a standalone tap.
 ~LAlt Up:: {
     if (A_PriorKey = "LAlt")
-        IME_Set(0)
+        IME_Set(0)  ; 0 = IME off (direct / English input)
 }
 
 ~RAlt Up:: {
     if (A_PriorKey = "RAlt")
-        IME_Set(1)
+        IME_Set(1)  ; 1 = IME on (Japanese input)
 }
 
 ; ===================================================================
 ; IME Helper Functions
 ;
-; Uses the Input Method Manager API to get/set IME open status.
-; Reference: karakaram/alt-ime-ahk
+; Talks to the IME via ImmGetDefaultIMEWnd + WM_IME_CONTROL messages.
+; This is the standard approach used by karakaram/alt-ime-ahk and works
+; with both Microsoft IME and Google Japanese Input.
 ; ===================================================================
 
 IME_Get(winTitle := "A") {
