@@ -1,0 +1,64 @@
+#!/bin/sh
+# notify-send shim that emits OSC 9 to the host terminal.
+#
+# zsh-auto-notify calls libnotify's notify-send on Linux/WSL, which
+# needs a DBus notification daemon (org.freedesktop.Notifications).
+# WSL has none, so the call fails with a GDBus error. WezTerm
+# supports OSC 9 system notifications on macOS and Windows, so this
+# shim bypasses DBus entirely and writes OSC 9 to the controlling
+# tty.
+#
+# Inside tmux the OSC must be wrapped in DCS tmux passthrough
+# (\ePtmux;\e<seq>\e\\) and every embedded ESC must be doubled,
+# otherwise tmux swallows the sequence instead of forwarding it to
+# the outer terminal. allow-passthrough must also be on (set in
+# .tmux.conf).
+#
+# Argument compatibility: parses libnotify-bin notify-send flags and
+# extracts SUMMARY and BODY. Other flags (urgency, timeout, icon,
+# etc.) are accepted and ignored — OSC 9 has no equivalent.
+
+set -u
+
+summary=
+body=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -u|--urgency|-t|--expire-time|-i|--icon|-a|--app-name|-c|--category|-h|--hint|-r|--replace-id)
+      shift 2 || break ;;
+    --urgency=*|--expire-time=*|--icon=*|--app-name=*|--category=*|--hint=*|--replace-id=*)
+      shift ;;
+    -p|--print-id|-w|--wait|-N|--transient|-e|--hint-server)
+      shift ;;
+    --)
+      shift; break ;;
+    -*)
+      shift ;;
+    *)
+      if [ -z "$summary" ]; then
+        summary="$1"
+      elif [ -z "$body" ]; then
+        body="$1"
+      fi
+      shift ;;
+  esac
+done
+
+[ -n "$summary" ] || exit 0
+
+if [ -n "$body" ]; then
+  msg="$summary: $body"
+else
+  msg="$summary"
+fi
+
+esc=$(printf '\033')
+
+if [ -n "${TMUX-}" ]; then
+  inner=$(printf '%s]9;%s\007' "$esc" "$msg" | sed "s/${esc}/${esc}${esc}/g")
+  # \134 = octal for backslash; combined with the trailing ESC this is
+  # the DCS String Terminator (ST = ESC \).
+  printf '%sPtmux;%s%s\134' "$esc" "$inner" "$esc" >/dev/tty 2>/dev/null || true
+else
+  printf '%s]9;%s\007' "$esc" "$msg" >/dev/tty 2>/dev/null || true
+fi
