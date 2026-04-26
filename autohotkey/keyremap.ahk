@@ -7,53 +7,71 @@
 ; Key Remapping
 ; ===================================================================
 
-; Caps Lock -> Left Control
 CapsLock::LCtrl
 
 ; ===================================================================
 ; IME Switching (Left Alt = English, Right Alt = Japanese)
 ;
-; Tapping Left/Right Alt alone switches IME mode.
-; Alt+<key> combinations still work normally thanks to the ~ prefix.
+; Based on karakaram/alt-ime-ahk.
+; ~ passes through the native key event so Alt+Tab etc. still work.
+; A_PriorKey (tracked by the keyboard hook) equals "LAlt"/"RAlt" only
+; when no other key was pressed between Alt-down and Alt-up — i.e., a
+; standalone tap.
 ; ===================================================================
 
-; ~ lets the native Alt keydown pass through so Alt+Tab etc. still work.
-; A_PriorKey guard fires only when Alt was released without pressing another
-; key in between — i.e., a standalone tap.
 ~LAlt Up:: {
     if (A_PriorKey = "LAlt")
-        IME_Set(0)  ; 0 = IME off (direct / English input)
+        IME_SET(0)
 }
 
 ~RAlt Up:: {
     if (A_PriorKey = "RAlt")
-        IME_Set(1)  ; 1 = IME on (Japanese input)
+        IME_SET(1)
 }
 
 ; ===================================================================
 ; IME Helper Functions
 ;
-; Talks to the IME via ImmGetDefaultIMEWnd + WM_IME_CONTROL messages.
-; This is the standard approach used by karakaram/alt-ime-ahk and works
-; with both Microsoft IME and Google Japanese Input.
+; Port of IMEv2.ahk (k-ayaki) — the standard AHK v2 IME library used
+; by alt-ime-ahk-v2f.  Works with Microsoft IME and Google Japanese Input.
+;
+; GetGUIThreadInfo obtains the focused control's HWND, which
+; ImmGetDefaultIMEWnd requires (not the top-level window handle).
+; DllCall("SendMessage") targets the IME window directly — AHK's
+; built-in SendMessage cannot do this because the IME window is not a
+; child control.
 ; ===================================================================
 
-IME_Get(winTitle := "A") {
-    try {
-        hwnd := WinGetID(winTitle)
-        ime := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
-        if (ime)
-            return SendMessage(0x283, 0x005, 0, ime)  ; WM_IME_CONTROL, IMC_GETOPENSTATUS
+IME_GET(WinTitle := "A") {
+    hwnd := WinExist(WinTitle)
+    if (WinActive(WinTitle)) {
+        ptrSize := !A_PtrSize ? 4 : A_PtrSize
+        cbSize := 4 + 4 + (ptrSize * 6) + 16
+        stGTI := Buffer(cbSize, 0)
+        NumPut("UInt", cbSize, stGTI.Ptr, 0)
+        hwnd := DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", stGTI.Ptr)
+            ? NumGet(stGTI.Ptr, 8 + ptrSize, "UPtr") : hwnd
     }
-    return -1
+    return DllCall("SendMessage"
+        , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
+        , "UInt", 0x0283    ; WM_IME_CONTROL
+        , "Int",  0x0005    ; IMC_GETOPENSTATUS
+        , "Int",  0)
 }
 
-IME_Set(setSts, winTitle := "A") {
-    try {
-        hwnd := WinGetID(winTitle)
-        ime := DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
-        if (ime)
-            return SendMessage(0x283, 0x006, setSts, ime)  ; WM_IME_CONTROL, IMC_SETOPENSTATUS
+IME_SET(SetSts, WinTitle := "A") {
+    hwnd := WinExist(WinTitle)
+    if (WinActive(WinTitle)) {
+        ptrSize := !A_PtrSize ? 4 : A_PtrSize
+        cbSize := 4 + 4 + (ptrSize * 6) + 16
+        stGTI := Buffer(cbSize, 0)
+        NumPut("UInt", cbSize, stGTI.Ptr, 0)
+        hwnd := DllCall("GetGUIThreadInfo", "UInt", 0, "Ptr", stGTI.Ptr)
+            ? NumGet(stGTI.Ptr, 8 + ptrSize, "UPtr") : hwnd
     }
-    return -1
+    return DllCall("SendMessage"
+        , "Ptr", DllCall("imm32\ImmGetDefaultIMEWnd", "Ptr", hwnd, "Ptr")
+        , "UInt", 0x0283    ; WM_IME_CONTROL
+        , "Int",  0x006     ; IMC_SETOPENSTATUS
+        , "Int",  SetSts)   ; 0 = off, 1 = on
 }
