@@ -91,6 +91,8 @@ log_step "Installing base packages"
 sudo apt update
 # libnotify-bin: provides `notify-send`, required by the zsh-auto-notify plugin
 # (zsh/plugin.zsh) which otherwise warns "notify-send must be installed".
+# wslu: provides `wslview`, used by xdg-open and tools that open URLs in
+# the Windows default browser (tmux-fzf-url, gh, etc.).
 install_or_upgrade_apt_packages \
   build-essential \
   procps \
@@ -102,7 +104,8 @@ install_or_upgrade_apt_packages \
   apt-transport-https \
   software-properties-common \
   keychain \
-  libnotify-bin
+  libnotify-bin \
+  wslu
 
 log_step "Ensuring en_US.UTF-8 locale"
 ensure_locale "en_US.UTF-8"
