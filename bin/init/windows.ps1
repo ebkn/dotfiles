@@ -147,7 +147,10 @@ $scancodeMap = [byte[]](
     0x00, 0x00, 0x00, 0x00   # Null terminator
 )
 $regPath = 'HKLM:\SYSTEM\CurrentControlSet\Control\Keyboard Layout'
-$current = (Get-ItemProperty -Path $regPath -Name 'Scancode Map' -ErrorAction SilentlyContinue).'Scancode Map'
+# Get-ItemProperty returns an object without the property when the value is
+# absent, which Set-StrictMode -Version Latest treats as an error.
+try { $current = Get-ItemPropertyValue -Path $regPath -Name 'Scancode Map' }
+catch { $current = $null }
 if (-not $current -or (Compare-Object $scancodeMap $current)) {
     Set-ItemProperty -Path $regPath -Name 'Scancode Map' -Value $scancodeMap -Type Binary
     Write-Host '  Scancode Map written. A reboot is required for this to take effect.' -ForegroundColor Yellow
