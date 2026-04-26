@@ -3,20 +3,38 @@ local act = wezterm.action
 
 local is_windows = wezterm.target_triple:find('windows') ~= nil
 
+-- Default shell: macOS uses Homebrew zsh; on Windows launch zsh inside
+-- WSL's default distro from $HOME.
+-- Why the full Linuxbrew path: wsl.exe -e bypasses login shells and
+-- only inherits /etc/environment's PATH, which does not include
+-- /home/linuxbrew/.linuxbrew/bin. A bare `zsh` therefore would not
+-- resolve. Once zsh -l starts, zsh/path.zsh adds Linuxbrew to PATH.
+-- This path matches install_or_upgrade_login_shell in bin/init/wsl.sh.
+local default_prog
+if is_windows then
+  default_prog = { 'wsl.exe', '--cd', '~', '--', '/home/linuxbrew/.linuxbrew/bin/zsh', '-l' }
+else
+  default_prog = { '/opt/homebrew/bin/zsh', '--login' }
+end
+
 -- Open links and immediately refocus WezTerm so consecutive
 -- Cmd+Clicks work without needing a plain click in between.
 -- NOTE: open-uri only fires for CompleteSelectionOrOpenLinkAtMouseCursor,
 -- NOT for OpenLinkAtMouseCursor (see mouse_bindings below).
-wezterm.on('open-uri', function(_window, _pane, uri)
-  wezterm.run_child_process({ '/usr/bin/open', uri })
-  -- Refocus WezTerm after the browser steals focus.
-  -- Runs in a background subshell so it doesn't block the UI.
-  wezterm.run_child_process({
-    '/bin/sh', '-c',
-    "(sleep 0.4; osascript -e 'tell application \"WezTerm\" to activate') &",
-  })
-  return false
-end)
+-- macOS only: uses /usr/bin/open and osascript. On Windows we leave
+-- open-uri unhandled so WezTerm's default ShellExecute path runs.
+if not is_windows then
+  wezterm.on('open-uri', function(_window, _pane, uri)
+    wezterm.run_child_process({ '/usr/bin/open', uri })
+    -- Refocus WezTerm after the browser steals focus.
+    -- Runs in a background subshell so it doesn't block the UI.
+    wezterm.run_child_process({
+      '/bin/sh', '-c',
+      "(sleep 0.4; osascript -e 'tell application \"WezTerm\" to activate') &",
+    })
+    return false
+  end)
+end
 
 local keys = {
   { mods = "CTRL", key = "q", action=wezterm.action{ SendString="\x11" } },
@@ -85,7 +103,7 @@ return {
   -- RGB (true color) and OSC 52 clipboard forwarding.
   term = 'xterm-256color',
 
-  default_prog = { '/opt/homebrew/bin/zsh', '--login' },
+  default_prog = default_prog,
 
   window_padding = {
     left = 0,
