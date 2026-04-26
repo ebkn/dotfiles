@@ -101,6 +101,7 @@ Install-WingetPackage 'Microsoft.VisualStudioCode'
 Repair-DockerDesktopOwnership
 Install-WingetPackage 'Docker.DockerDesktop'
 Install-WingetPackage 'wez.wezterm'
+Install-WingetPackage 'GnuPG.GnuPG'
 
 # ------------------------------------------------------------------
 # Communication
