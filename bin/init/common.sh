@@ -270,6 +270,48 @@ wsl_windows_home() {
   wslpath "$userprofile"
 }
 
+# Install git's contrib/diff-highlight to $HOME/.local/bin so tig can spawn it
+# via `set diff-highlight = true`. Debian/Ubuntu's git package ships only the
+# Perl source under /usr/share/doc/git/contrib/; the Makefile inlines
+# DiffHighlight.pm into a standalone script. Linuxbrew git ships it prebuilt.
+install_or_upgrade_diff_highlight() {
+  local target src brew_git contrib_dir build_dir
+  target="${HOME}/.local/bin/diff-highlight"
+
+  if command -v brew >/dev/null 2>&1; then
+    brew_git="$(brew --prefix git 2>/dev/null || true)"
+    if [ -n "$brew_git" ] && [ -x "${brew_git}/share/git-core/contrib/diff-highlight/diff-highlight" ]; then
+      src="${brew_git}/share/git-core/contrib/diff-highlight/diff-highlight"
+      mkdir -p "$(dirname "$target")"
+      ln -sfn "$src" "$target"
+      return 0
+    fi
+  fi
+
+  contrib_dir="/usr/share/doc/git/contrib/diff-highlight"
+  if [ ! -f "${contrib_dir}/diff-highlight.perl" ] ||
+     [ ! -f "${contrib_dir}/DiffHighlight.pm" ] ||
+     [ ! -f "${contrib_dir}/Makefile" ]; then
+    printf "warning: diff-highlight sources not found in %s\n" "$contrib_dir" >&2
+    return 1
+  fi
+
+  build_dir="$(mktemp -d)"
+  cp "${contrib_dir}/diff-highlight.perl" \
+     "${contrib_dir}/DiffHighlight.pm" \
+     "${contrib_dir}/Makefile" \
+     "$build_dir/"
+  if ! ( cd "$build_dir" && make diff-highlight >/dev/null ); then
+    printf "warning: failed to build diff-highlight in %s\n" "$build_dir" >&2
+    rm -rf "$build_dir"
+    return 1
+  fi
+
+  mkdir -p "$(dirname "$target")"
+  install -m 755 "${build_dir}/diff-highlight" "$target"
+  rm -rf "$build_dir"
+}
+
 install_or_upgrade_claude() {
   if command -v claude >/dev/null 2>&1; then
     return 0

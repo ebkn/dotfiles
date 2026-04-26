@@ -176,6 +176,7 @@ link_with_backup "${DOTFILES_DIR}/cursor/keybindings.json" "${HOME}/.config/Curs
 link_with_backup "${DOTFILES_DIR}/cursor/settings.json" "${HOME}/.config/Cursor/User/settings.json"
 
 link_with_backup "${DOTFILES_DIR}/.tigrc" "${HOME}/.tigrc"
+install_or_upgrade_diff_highlight
 link_with_backup "${DOTFILES_DIR}/.gitignore_global" "${HOME}/.gitignore_global"
 link_with_backup "${DOTFILES_DIR}/.gitconfig" "${HOME}/.gitconfig"
 link_with_backup "${DOTFILES_DIR}/.gitconfig-ebkn" "${HOME}/.gitconfig-ebkn"

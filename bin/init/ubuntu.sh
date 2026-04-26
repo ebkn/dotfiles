@@ -123,6 +123,7 @@ sudo apt update
 install_or_upgrade_apt_packages docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
 link_with_backup "${DOTFILES_DIR}/.tigrc" "${HOME}/.tigrc"
+install_or_upgrade_diff_highlight
 link_with_backup "${DOTFILES_DIR}/.gitignore_global" "${HOME}/.gitignore_global"
 link_with_backup "${DOTFILES_DIR}/.gitconfig" "${HOME}/.gitconfig"
 link_with_backup "${DOTFILES_DIR}/.gitconfig-ebkn" "${HOME}/.gitconfig-ebkn"
