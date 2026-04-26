@@ -3,11 +3,10 @@
 ; Kill any already-running instance of this script on reload/re-launch.
 #SingleInstance Force
 
-; ===================================================================
-; Key Remapping
-; ===================================================================
-
-CapsLock::LCtrl
+; CapsLock -> Ctrl is handled at the keyboard driver level via Scancode Map
+; in the registry (set by windows.ps1), not here.  AHK's hook-level remap
+; cannot fully suppress CapsLock from the IME layer, which causes unwanted
+; IME toggling with Google Japanese Input.
 
 ; ===================================================================
 ; IME Switching (Left Alt = English, Right Alt = Japanese)

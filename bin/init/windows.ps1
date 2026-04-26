@@ -131,6 +131,32 @@ Write-Step 'Installing input method'
 Install-WingetPackage 'Google.JapaneseIME'
 
 # ------------------------------------------------------------------
+# Key remapping (Scancode Map)
+# ------------------------------------------------------------------
+Write-Step 'Remapping CapsLock to Left Ctrl (Scancode Map)'
+
+# Remap at the keyboard driver level so the IME never sees a CapsLock event.
+# AHK's hook-level remap (CapsLock::LCtrl) cannot prevent Google Japanese
+# Input from treating CapsLock as the Eisu (英数) key.
+# Requires a reboot to take effect.
+$scancodeMap = [byte[]](
+    0x00, 0x00, 0x00, 0x00,  # Header Version
+    0x00, 0x00, 0x00, 0x00,  # Header Flags
+    0x02, 0x00, 0x00, 0x00,  # Number of entries (1 remap + 1 null terminator)
+    0x1D, 0x00, 0x3A, 0x00,  # CapsLock (0x003A) -> Left Ctrl (0x001D)
+    0x00, 0x00, 0x00, 0x00   # Null terminator
+)
+$regPath = 'HKLM:\SYSTEM\CurrentControlSet\Control\Keyboard Layout'
+$current = (Get-ItemProperty -Path $regPath -Name 'Scancode Map' -ErrorAction SilentlyContinue).'Scancode Map'
+if (-not $current -or (Compare-Object $scancodeMap $current)) {
+    Set-ItemProperty -Path $regPath -Name 'Scancode Map' -Value $scancodeMap -Type Binary
+    Write-Host '  Scancode Map written. A reboot is required for this to take effect.' -ForegroundColor Yellow
+}
+else {
+    Write-Host '  Scancode Map already set.'
+}
+
+# ------------------------------------------------------------------
 # AutoHotkey script deployment
 # ------------------------------------------------------------------
 Write-Step 'Deploying AutoHotkey key remap script'
