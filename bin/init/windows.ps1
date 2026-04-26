@@ -192,4 +192,22 @@ Start-Process -FilePath $ahkFile
 Write-Host "  Started keyremap.ahk"
 
 # ------------------------------------------------------------------
+# WezTerm configuration
+# ------------------------------------------------------------------
+Write-Step 'Pointing WezTerm to WSL dotfiles config'
+
+# Set WEZTERM_CONFIG_FILE to the WSL-side wezterm.lua via UNC path so
+# edits in WSL are reflected immediately (WezTerm auto-reloads on change).
+# AHK must be copied because it cannot read UNC paths, but WezTerm can.
+$wslConfigPath = (wsl.exe -- sh -c 'wslpath -w ~/dotfiles/wezterm.lua' 2>$null | Select-Object -Last 1)
+if ($wslConfigPath) {
+    $wslConfigPath = $wslConfigPath.Trim()
+    [Environment]::SetEnvironmentVariable('WEZTERM_CONFIG_FILE', $wslConfigPath, 'User')
+    Write-Host "  WEZTERM_CONFIG_FILE = $wslConfigPath"
+}
+else {
+    Write-Host '  warning: could not resolve WSL path for wezterm.lua' -ForegroundColor Yellow
+}
+
+# ------------------------------------------------------------------
 Write-Step 'Setup complete'
