@@ -64,6 +64,9 @@ install_or_upgrade_apt_packages \
   apt-transport-https \
   software-properties-common
 
+log_step "Ensuring en_US.UTF-8 locale"
+ensure_locale "en_US.UTF-8"
+
 log_step "Cloning or updating dotfiles"
 install_or_upgrade_git_repo "https://github.com/ebkn/dotfiles" "$DOTFILES_DIR"
 

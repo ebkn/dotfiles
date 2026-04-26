@@ -228,6 +228,27 @@ is_wsl() {
   [ -n "${WSL_DISTRO_NAME:-}" ] || grep -qi microsoft /proc/version 2>/dev/null
 }
 
+# Generate a locale via locale-gen if it is missing. .zshenv/.bash_profile
+# export LANG=en_US.UTF-8, but a fresh Ubuntu/WSL only ships C.UTF-8, so libc
+# emits "cannot set LC_CTYPE to default locale" until the locale is generated.
+ensure_locale() {
+  local locale_name normalized
+  locale_name="${1:-en_US.UTF-8}"
+  # locale -a reports "en_US.utf8" (no dash, lowercase) — normalize both sides.
+  normalized="$(printf '%s' "$locale_name" | tr '[:upper:]' '[:lower:]' | tr -d '-')"
+
+  if locale -a 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -d '-' | grep -qx "$normalized"; then
+    return 0
+  fi
+
+  if ! command -v locale-gen >/dev/null 2>&1; then
+    sudo apt-get install -y locales
+  fi
+
+  sudo locale-gen "$locale_name"
+  sudo update-locale LANG="$locale_name"
+}
+
 wsl_windows_home() {
   local cmd_exe userprofile
 
