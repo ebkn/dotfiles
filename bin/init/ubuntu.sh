@@ -53,6 +53,8 @@ mkdir -p "$BACKUP_DIR"
 
 log_step "Installing base packages"
 sudo apt update
+# libnotify-bin: provides `notify-send`, required by the zsh-auto-notify plugin
+# (zsh/plugin.zsh) which otherwise warns "notify-send must be installed".
 install_or_upgrade_apt_packages \
   build-essential \
   procps \
@@ -62,7 +64,8 @@ install_or_upgrade_apt_packages \
   gnupg \
   ca-certificates \
   apt-transport-https \
-  software-properties-common
+  software-properties-common \
+  libnotify-bin
 
 log_step "Ensuring en_US.UTF-8 locale"
 ensure_locale "en_US.UTF-8"
