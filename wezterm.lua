@@ -1,6 +1,8 @@
 local wezterm = require 'wezterm'
 local act = wezterm.action
 
+local is_windows = wezterm.target_triple:find('windows') ~= nil
+
 -- Open links and immediately refocus WezTerm so consecutive
 -- Cmd+Clicks work without needing a plain click in between.
 -- NOTE: open-uri only fires for CompleteSelectionOrOpenLinkAtMouseCursor,
@@ -15,6 +17,67 @@ wezterm.on('open-uri', function(_window, _pane, uri)
   })
   return false
 end)
+
+local keys = {
+  { mods = "CTRL", key = "q", action=wezterm.action{ SendString="\x11" } },
+  -- Ctrl+T で現在のディレクトリを保持して新しいタブを開く
+  -- OSC 7 (zsh/directory.zsh) + allow-passthrough (.tmux.conf) で CWD を取得
+  { mods = "CTRL", key = "t", action = wezterm.action_callback(function(window, pane)
+    local cwd_url = pane:get_current_working_dir()
+    if cwd_url then
+      window:perform_action(act.SpawnCommandInNewTab {
+        cwd = cwd_url.file_path,
+      }, pane)
+    else
+      window:perform_action(act.SpawnTab 'CurrentPaneDomain', pane)
+    end
+  end)},
+  -- Cmd+W で現在のtmux windowを閉じる
+  { mods = "CMD", key = "w", action = wezterm.action.PromptInputLine {
+    description = 'Close tmux window? (y/n)',
+    action = wezterm.action_callback(function(window, pane, line)
+      if line == 'y' or line == 'Y' then
+        -- tmux root table に割り当てた F12 を送る。
+        -- 文字列送信しないため、vim や実行中プロセスでも漏れない。
+        window:perform_action(act.SendKey { key = 'F12' }, pane)
+      end
+    end),
+  }},
+  -- tmux を利用するので今は利用していない
+  -- 分割
+  -- { mods = "LEADER", key = "v", action = wezterm.action { SplitHorizontal = { domain = "CurrentPaneDomain" } }, },
+  -- { mods = "LEADER", key = "s", action = wezterm.action { SplitVertical = { domain = "CurrentPaneDomain" } }, },
+  -- { mods = "LEADER", key = "w", action = wezterm.action.CloseCurrentPane { confirm = true } },
+  -- 移動
+  -- { mods = "LEADER", key = 'h', action = wezterm.action.ActivatePaneDirection 'Left' },
+  -- { mods = "LEADER", key = 'j', action = wezterm.action.ActivatePaneDirection 'Down' },
+  -- { mods = "LEADER", key = 'k', action = wezterm.action.ActivatePaneDirection 'Up' },
+  -- { mods = "LEADER", key = 'l', action = wezterm.action.ActivatePaneDirection 'Right' },
+  -- リサイズ
+  -- { mods = "LEADER|SHIFT", key = 'h', action = wezterm.action.AdjustPaneSize { 'Left', 15 } },
+  -- { mods = "LEADER|SHIFT", key = 'j', action = wezterm.action.AdjustPaneSize { 'Down', 15 } },
+  -- { mods = "LEADER|SHIFT", key = 'k', action = wezterm.action.AdjustPaneSize { 'Up', 15 } },
+  -- { mods = "LEADER|SHIFT", key = 'l', action = wezterm.action.AdjustPaneSize { 'Right', 15 } },
+  -- コピーモード
+  -- { mods = "LEADER", key = 'u', action = wezterm.action.ActivateCopyMode },
+}
+
+-- Windows 流儀の Ctrl+C / Ctrl+V を有効化。WezTerm の既定は Ctrl+Shift+C /
+-- Ctrl+Shift+V だが、Windows ユーザーには馴染みが薄い。Ctrl+C は選択がある
+-- ときだけコピーし、無ければ通常通り SIGINT を送るので vim や実行中プロセス
+-- を壊さない。macOS では Cmd+C/V が既定なので Windows ターゲット時のみ。
+if is_windows then
+  table.insert(keys, { mods = 'CTRL', key = 'c', action = wezterm.action_callback(function(window, pane)
+    local sel = window:get_selection_text_for_pane(pane)
+    if sel ~= '' then
+      window:perform_action(act.CopyTo 'Clipboard', pane)
+      window:perform_action(act.ClearSelection, pane)
+    else
+      window:perform_action(act.SendKey { key = 'c', mods = 'CTRL' }, pane)
+    end
+  end) })
+  table.insert(keys, { mods = 'CTRL', key = 'v', action = act.PasteFrom 'Clipboard' })
+end
 
 return {
   -- $TERM value advertised to the shell (and tmux).
@@ -77,49 +140,7 @@ return {
   -- tmux を利用するので今は利用していない
   -- leader = { key = 'q', mods = 'CTRL', timeout_milliseconds = 1000 },
 
-  keys = {
-    { mods = "CTRL", key = "q", action=wezterm.action{ SendString="\x11" } },
-    -- Ctrl+T で現在のディレクトリを保持して新しいタブを開く
-    -- OSC 7 (zsh/directory.zsh) + allow-passthrough (.tmux.conf) で CWD を取得
-    { mods = "CTRL", key = "t", action = wezterm.action_callback(function(window, pane)
-      local cwd_url = pane:get_current_working_dir()
-      if cwd_url then
-        window:perform_action(act.SpawnCommandInNewTab {
-          cwd = cwd_url.file_path,
-        }, pane)
-      else
-        window:perform_action(act.SpawnTab 'CurrentPaneDomain', pane)
-      end
-    end)},
-    -- Cmd+W で現在のtmux windowを閉じる
-    { mods = "CMD", key = "w", action = wezterm.action.PromptInputLine {
-      description = 'Close tmux window? (y/n)',
-      action = wezterm.action_callback(function(window, pane, line)
-        if line == 'y' or line == 'Y' then
-          -- tmux root table に割り当てた F12 を送る。
-          -- 文字列送信しないため、vim や実行中プロセスでも漏れない。
-          window:perform_action(act.SendKey { key = 'F12' }, pane)
-        end
-      end),
-    }},
-    -- tmux を利用するので今は利用していない
-    -- 分割
-    -- { mods = "LEADER", key = "v", action = wezterm.action { SplitHorizontal = { domain = "CurrentPaneDomain" } }, },
-    -- { mods = "LEADER", key = "s", action = wezterm.action { SplitVertical = { domain = "CurrentPaneDomain" } }, },
-    -- { mods = "LEADER", key = "w", action = wezterm.action.CloseCurrentPane { confirm = true } },
-    -- 移動
-    -- { mods = "LEADER", key = 'h', action = wezterm.action.ActivatePaneDirection 'Left' },
-    -- { mods = "LEADER", key = 'j', action = wezterm.action.ActivatePaneDirection 'Down' },
-    -- { mods = "LEADER", key = 'k', action = wezterm.action.ActivatePaneDirection 'Up' },
-    -- { mods = "LEADER", key = 'l', action = wezterm.action.ActivatePaneDirection 'Right' },
-    -- リサイズ
-    -- { mods = "LEADER|SHIFT", key = 'h', action = wezterm.action.AdjustPaneSize { 'Left', 15 } },
-    -- { mods = "LEADER|SHIFT", key = 'j', action = wezterm.action.AdjustPaneSize { 'Down', 15 } },
-    -- { mods = "LEADER|SHIFT", key = 'k', action = wezterm.action.AdjustPaneSize { 'Up', 15 } },
-    -- { mods = "LEADER|SHIFT", key = 'l', action = wezterm.action.AdjustPaneSize { 'Right', 15 } },
-    -- コピーモード
-    -- { mods = "LEADER", key = 'u', action = wezterm.action.ActivateCopyMode },
-  },
+  keys = keys,
 
   -- Cmd bypasses tmux mouse reporting so Cmd+Click can open links
   bypass_mouse_reporting_modifiers = 'SUPER',
