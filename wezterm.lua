@@ -84,18 +84,21 @@ local keys = {
 -- Ctrl+Shift+V だが、Windows ユーザーには馴染みが薄い。Ctrl+C は選択がある
 -- ときだけコピーし、無ければ通常通り SIGINT を送るので vim や実行中プロセス
 -- を壊さない。macOS では Cmd+C/V が既定なので Windows ターゲット時のみ。
--- Alt+C / Alt+V for copy/paste on Windows. Ctrl+C is SIGINT and Ctrl+V is
--- used by vim (visual block), so Alt avoids conflicts with terminal apps.
--- macOS uses Cmd+C/V natively, so this is Windows-only.
+-- Windows: Ctrl+C/V for copy/paste (macOS uses Cmd+C/V natively).
+-- Ctrl+C copies when there is a terminal selection; otherwise SIGINT is
+-- sent so vim/shell Ctrl+C still works.  Ctrl+V always pastes — vim's
+-- visual-block mode is accessible via Ctrl+Q instead.
 if is_windows then
-  table.insert(keys, { mods = 'ALT', key = 'c', action = wezterm.action_callback(function(window, pane)
+  table.insert(keys, { mods = 'CTRL', key = 'c', action = wezterm.action_callback(function(window, pane)
     local sel = window:get_selection_text_for_pane(pane)
     if sel ~= '' then
       window:perform_action(act.CopyTo 'Clipboard', pane)
       window:perform_action(act.ClearSelection, pane)
+    else
+      window:perform_action(act.SendKey { key = 'c', mods = 'CTRL' }, pane)
     end
   end) })
-  table.insert(keys, { mods = 'ALT', key = 'v', action = act.PasteFrom 'Clipboard' })
+  table.insert(keys, { mods = 'CTRL', key = 'v', action = act.PasteFrom 'Clipboard' })
 end
 
 return {
