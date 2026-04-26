@@ -156,5 +156,10 @@ $lnk.TargetPath = $ahkFile
 $lnk.Save()
 Write-Host "  Created startup shortcut -> $shortcut"
 
+# Start immediately so the user doesn't have to re-login.
+# #SingleInstance Force in the script ensures duplicates are harmless.
+Start-Process -FilePath $ahkFile
+Write-Host "  Started keyremap.ahk"
+
 # ------------------------------------------------------------------
 Write-Step 'Setup complete'
