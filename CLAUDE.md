@@ -26,6 +26,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   └── keyremap.ahk   #   Key remapping (CapsLock→Ctrl, Alt→IME switch)
 ├── bin/
 │   ├── init/           #   Platform setup scripts (macos.sh, ubuntu.sh, wsl.sh, windows.ps1)
+│   ├── wsl/            #   WSL-only helper scripts (e.g. notify-send OSC 9 shim)
 │   └── install_minimum_vim.sh
 ├── brewfiles/          #   Homebrew dependency lists by category
 │   ├── Brewfile-shell  #     Shell tools (tmux, fzf, ripgrep, etc.)
@@ -64,6 +65,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 - **Neovim plugins**: Plugin config lives in `vim/nvim/lua/plugins/`, split into `instantly/` (always loaded) and `lazy/` (on-demand by filetype). Core Vim settings are in `vim/*.vim`.
 - **Brewfiles**: Changes should go in the appropriate category file under `brewfiles/` (shell, lang, cask, mas).
 - **New dotfiles**: When adding a new dotfile, add the corresponding `ln -sf` line in `bin/init/macos.sh` (and `ubuntu.sh` if cross-platform).
+- **Platform-specific binaries**: Helper scripts that only make sense on one OS go under `bin/<platform>/` (e.g. `bin/wsl/`). Cross-platform helpers stay at `bin/` root. Symlink them from the matching `bin/init/<platform>.{sh,ps1}`.
 - **Home directory agent config**: Global Claude Code/Codex settings live in `root/` and are symlinked to `~/` by the setup script.
 
 ## Environment Notes

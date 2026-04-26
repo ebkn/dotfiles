@@ -223,6 +223,11 @@ link_with_backup "${DOTFILES_DIR}/tmux-restore-tabs" "${HOME}/.local/bin/tmux-re
 link_with_backup "${DOTFILES_DIR}/tmux-pane-titles" "${HOME}/.local/bin/tmux-pane-titles"
 link_with_backup "${DOTFILES_DIR}/tmux-track-session" "${HOME}/.local/bin/tmux-track-session"
 link_with_backup "${DOTFILES_DIR}/bin/fzf-files" "${HOME}/.local/bin/fzf-files"
+# Override libnotify's notify-send with an OSC 9 shim that talks to
+# WezTerm directly. WSL has no DBus notification daemon, so the real
+# notify-send fails. .zshenv puts ~/.local/bin ahead of /usr/bin so
+# this symlink wins on PATH.
+link_with_backup "${DOTFILES_DIR}/bin/wsl/notify-send" "${HOME}/.local/bin/notify-send"
 
 log_step "Ensuring tmux plugin manager"
 install_or_upgrade_git_repo "https://github.com/tmux-plugins/tpm" "${HOME}/.tmux/plugins/tpm"
