@@ -102,6 +102,7 @@ Repair-DockerDesktopOwnership
 Install-WingetPackage 'Docker.DockerDesktop'
 Install-WingetPackage 'wez.wezterm'
 Install-WingetPackage 'GnuPG.GnuPG'
+Install-WingetPackage 'tailscale.tailscale'
 
 # ------------------------------------------------------------------
 # Communication
