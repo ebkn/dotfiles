@@ -207,6 +207,18 @@ install_or_upgrade_npm_global() {
   fi
 }
 
+install_go_tool() {
+  local module
+  module="$1"
+
+  if ! command -v go >/dev/null 2>&1; then
+    printf "warning: go is not installed yet (cannot install %s)\n" "$module" >&2
+    return 1
+  fi
+
+  go install "$module"
+}
+
 install_or_upgrade_gcloud() {
   local gcloud_bin
   gcloud_bin="${HOME}/google-cloud-sdk/bin/gcloud"
