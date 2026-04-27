@@ -179,6 +179,7 @@ install_or_upgrade_volta
 install_or_upgrade_node_with_volta
 # Keep this list aligned with zsh/alias.zsh:update-all npm global installs.
 install_or_upgrade_npm_global "diagnostic-languageserver"
+install_or_upgrade_npm_global "dockerfile-language-server-nodejs"
 install_or_upgrade_npm_global "markdownlint-cli"
 install_or_upgrade_npm_global "textlint"
 install_or_upgrade_npm_global "git-delete-squashed"

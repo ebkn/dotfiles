@@ -530,6 +530,7 @@ update-all() {
   go install tailscale.com/cmd/tailscale{,d}@main
   npm update --location=global
   npm i -g diagnostic-languageserver
+  npm i -g dockerfile-language-server-nodejs
   npm i -g markdownlint-cli
   npm i -g textlint
   npm i -g git-delete-squashed
