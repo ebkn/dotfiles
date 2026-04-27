@@ -42,12 +42,6 @@
       "initializationOptions": {
         "command": ["golangci-lint", "run", "--issues-exit-code=1", "--output.json.path", "stdout", "--show-stats=false"]
       }
-    },
-    "bufls": {
-      "command": "bufls",
-      "rootPatterns": ["buf.yaml"],
-      "args": ["serve"],
-      "filetypes": ["proto"]
     }
   },
   "go.goplsOptions": {

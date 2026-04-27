@@ -526,7 +526,6 @@ update-all() {
   go install github.com/x-motemen/ghq@latest
   go install github.com/cloudspannerecosystem/spanner-cli@latest
   go install github.com/aquasecurity/tfsec/cmd/tfsec@latest
-  go install github.com/bufbuild/buf-language-server/cmd/bufls@latest
   go install mvdan.cc/gofumpt@latest
   go install tailscale.com/cmd/tailscale{,d}@main
   npm update --location=global
