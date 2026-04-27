@@ -162,9 +162,21 @@ install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-others"
 # See: https://docs.docker.com/desktop/wsl/
 log_step "Skipping Docker CE (use Docker Desktop for Windows with WSL integration)"
 
-# Tailscale: use the Windows-side Tailscale app for network access.
-# WSL2 shares the Windows network stack when using mirrored networking mode.
-log_step "Skipping Tailscale (use Windows-side Tailscale app)"
+log_step "Installing Go tools"
+# Keep this list aligned with zsh/alias.zsh:update-all go installs.
+# Tailscale is intentionally omitted: WSL2 uses the Windows-side Tailscale
+# app and shares the Windows network stack via mirrored networking mode.
+install_go_tool "golang.org/x/tools/...@latest"
+install_go_tool "github.com/cweill/gotests/...@latest"
+install_go_tool "github.com/mattn/efm-langserver@latest"
+install_go_tool "github.com/hashicorp/terraform-ls@latest"
+install_go_tool "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest"
+install_go_tool "github.com/nametake/golangci-lint-langserver@latest"
+install_go_tool "github.com/mikefarah/yq/v4@latest"
+install_go_tool "github.com/x-motemen/ghq@latest"
+install_go_tool "github.com/cloudspannerecosystem/spanner-cli@latest"
+install_go_tool "github.com/aquasecurity/tfsec/cmd/tfsec@latest"
+install_go_tool "mvdan.cc/gofumpt@latest"
 
 link_with_backup "${DOTFILES_DIR}/.vimrc" "${HOME}/.vimrc"
 link_with_backup "${DOTFILES_DIR}/.xvimrc" "${HOME}/.xvimrc"
