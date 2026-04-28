@@ -537,6 +537,10 @@ update-all() {
   npm i -g yarn
   npm i -g @openai/codex
   npm i -g @githubnext/github-copilot-cli
+  # Audit the cwd project for known vulnerabilities (skipped outside projects).
+  if [ -f package-lock.json ]; then
+    npm audit || true
+  fi
   gcloud components update --quiet
 }
 
