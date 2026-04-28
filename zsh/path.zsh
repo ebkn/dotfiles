@@ -3,6 +3,13 @@ export PATH="$PATH:/usr/local/sbin"
 # Homebrew packages managed outside Homebrew (Volta/official installers).
 export HOMEBREW_FORBIDDEN_FORMULAE="node npm pnpm yarn claude"
 
+# Supply-chain hardening for Homebrew.
+# Verify Sigstore attestations on bottles to ensure they were built by
+# Homebrew's official CI rather than tampered with downstream.
+export HOMEBREW_VERIFY_ATTESTATIONS=1
+# Refuse HTTP-to-HTTPS redirects during downloads.
+export HOMEBREW_NO_INSECURE_REDIRECT=1
+
 # User-local scripts PATH and VOLTA_HOME are set in .zshenv
 
 case `uname` in
