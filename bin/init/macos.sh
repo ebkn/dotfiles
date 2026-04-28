@@ -177,6 +177,8 @@ log_step "Installing Node.js toolchain"
 mkdir -p "${HOME}/.nvm"
 install_or_upgrade_volta
 install_or_upgrade_node_with_volta
+# Link .npmrc before npm runs so min-release-age applies on first install.
+link_with_backup "${DOTFILES_DIR}/.npmrc" "${HOME}/.npmrc"
 # Keep this list aligned with zsh/alias.zsh:update-all npm global installs.
 install_or_upgrade_npm_global "diagnostic-languageserver"
 install_or_upgrade_npm_global "dockerfile-language-server-nodejs"
