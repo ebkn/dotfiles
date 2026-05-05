@@ -399,6 +399,7 @@
   },
   "effortLevel": "high",
   "autoUpdatesChannel": "stable",
+  "theme": "dark-ansi",
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
