@@ -386,7 +386,8 @@
     "semgrep@claude-plugins-official": true,
     "chrome-devtools-mcp@claude-plugins-official": true,
     "semgrep-plugin@claude-plugins-official": false,
-    "skill-creator@claude-plugins-official": true
+    "skill-creator@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
