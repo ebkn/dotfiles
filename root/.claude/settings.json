@@ -402,5 +402,8 @@
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
-  }
+  },
+  "theme": "dark-ansi",
+  "remoteControlAtStartup": true,
+  "agentPushNotifEnabled": false
 }
