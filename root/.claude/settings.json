@@ -396,7 +396,7 @@
       }
     }
   },
-  "effortLevel": "high",
+  "effortLevel": "max",
   "autoUpdatesChannel": "stable",
   "theme": "dark-ansi",
   "remoteControlAtStartup": true,
