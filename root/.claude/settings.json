@@ -405,5 +405,6 @@
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
   },
-  "tui": "fullscreen"
+  "tui": "fullscreen",
+  "prefersReducedMotion": true
 }
