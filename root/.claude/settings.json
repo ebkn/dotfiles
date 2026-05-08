@@ -399,11 +399,11 @@
   "effortLevel": "high",
   "autoUpdatesChannel": "stable",
   "theme": "dark-ansi",
+  "remoteControlAtStartup": true,
+  "agentPushNotifEnabled": false,
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
   },
-  "theme": "dark-ansi",
-  "remoteControlAtStartup": true,
-  "agentPushNotifEnabled": false
+  "tui": "fullscreen"
 }
