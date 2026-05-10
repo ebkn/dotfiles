@@ -16,16 +16,64 @@
 ; A_PriorKey (tracked by the keyboard hook) equals "LAlt"/"RAlt" only
 ; when no other key was pressed between Alt-down and Alt-up — i.e., a
 ; standalone tap.
+;
+; SwitchInput first forces the keyboard layout to English (0409) or
+; Japanese (0411) via WM_INPUTLANGCHANGEREQUEST, then sets the IME
+; open state.  Toggling IME state alone is unreliable when Windows
+; auto-switches the layout to "English (US)", because no IME window
+; exists in that layout.
 ; ===================================================================
 
 ~LAlt Up:: {
     if (A_PriorKey = "LAlt")
-        IME_SET(0)
+        SwitchInput(0x0409, 0)
 }
 
 ~RAlt Up:: {
     if (A_PriorKey = "RAlt")
-        IME_SET(1)
+        SwitchInput(0x0411, 1)
+}
+
+; Find an already-loaded HKL whose low word matches the requested language ID.
+; Returns 0 if no matching layout is loaded in the system.
+FindHKLByLangID(langID) {
+    count := DllCall("GetKeyboardLayoutList", "Int", 0, "Ptr", 0)
+    buf := Buffer(A_PtrSize * count, 0)
+    DllCall("GetKeyboardLayoutList", "Int", count, "Ptr", buf.Ptr)
+    Loop count {
+        hkl := NumGet(buf.Ptr, (A_Index - 1) * A_PtrSize, "Ptr")
+        if ((hkl & 0xFFFF) = langID)
+            return hkl
+    }
+    return 0
+}
+
+; Switch the foreground window's input language to targetLangID, then set IME
+; open state.  AttachThreadInput is required because ActivateKeyboardLayout
+; only affects the calling thread; without attaching, our AHK process would
+; switch its own layout while the foreground app stays put.  PostMessage is
+; sent in addition as a fallback for apps that listen for it explicitly.
+SwitchInput(targetLangID, imeState) {
+    targetHkl := FindHKLByLangID(targetLangID)
+    if (!targetHkl)
+        return
+
+    fgWnd := WinExist("A")
+    if (!fgWnd)
+        return
+
+    fgThread := DllCall("GetWindowThreadProcessId", "Ptr", fgWnd, "Ptr", 0, "UInt")
+    ourThread := DllCall("GetCurrentThreadId", "UInt")
+
+    if (fgThread && fgThread != ourThread) {
+        DllCall("AttachThreadInput", "UInt", ourThread, "UInt", fgThread, "Int", 1)
+        DllCall("ActivateKeyboardLayout", "Ptr", targetHkl, "UInt", 0)
+        PostMessage(0x50, 0, targetHkl, , "ahk_id " fgWnd)
+        DllCall("AttachThreadInput", "UInt", ourThread, "UInt", fgThread, "Int", 0)
+    }
+
+    Sleep 80
+    IME_SET(imeState)
 }
 
 ; ===================================================================
