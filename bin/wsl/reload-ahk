@@ -1,0 +1,57 @@
+#!/bin/sh
+# Reload the Windows-side AutoHotkey keyremap script after editing
+# autohotkey/keyremap.ahk in this WSL repo.
+#
+# windows.ps1 copies (does NOT symlink) keyremap.ahk to
+# %USERPROFILE%\Documents\AutoHotkey\ because Windows AHK cannot
+# follow WSL symlinks across the 9P bridge. So "reload" is two steps:
+#   1. re-copy the source to the Windows-side path
+#   2. re-launch the script — #SingleInstance Force in keyremap.ahk
+#      kills the running instance and replaces it cleanly.
+# Right-clicking "Reload Script" on the tray icon would only reload
+# the already-deployed (stale) Windows-side copy.
+
+set -eu
+
+script_path=$(readlink -f "$0")
+script_dir=$(dirname "$script_path")
+repo_root=$(cd "$script_dir/../.." && pwd)
+src="$repo_root/autohotkey/keyremap.ahk"
+
+if [ ! -f "$src" ]; then
+  printf "error: source not found: %s\n" "$src" >&2
+  exit 1
+fi
+
+if command -v cmd.exe >/dev/null 2>&1; then
+  cmd_exe="cmd.exe"
+elif [ -x "/mnt/c/Windows/System32/cmd.exe" ]; then
+  cmd_exe="/mnt/c/Windows/System32/cmd.exe"
+else
+  printf "error: cmd.exe not found — not running under WSL?\n" >&2
+  exit 1
+fi
+
+# cmd.exe emits a UNC-cwd warning when invoked from a /home path; harmless.
+userprofile=$("$cmd_exe" /C 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')
+if [ -z "$userprofile" ]; then
+  printf "error: could not read Windows USERPROFILE\n" >&2
+  exit 1
+fi
+
+dest_win="${userprofile}\\Documents\\AutoHotkey\\keyremap.ahk"
+dest=$(wslpath "$dest_win")
+
+if [ ! -d "$(dirname "$dest")" ]; then
+  printf "error: %s missing — run bin/init/windows.ps1 first\n" "$(dirname "$dest")" >&2
+  exit 1
+fi
+
+cp "$src" "$dest"
+printf "copied: %s -> %s\n" "$src" "$dest"
+
+# `start ""` — the empty title is required because start treats the
+# first quoted token as a window title. The .ahk extension is handled
+# by Windows' file association (set up by the AHK installer).
+"$cmd_exe" /C start "" "$dest_win" >/dev/null 2>&1
+printf "restarted: %s\n" "$dest_win"

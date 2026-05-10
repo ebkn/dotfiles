@@ -243,6 +243,11 @@ link_with_backup "${DOTFILES_DIR}/bin/fzf-files" "${HOME}/.local/bin/fzf-files"
 # notify-send fails. .zshenv puts ~/.local/bin ahead of /usr/bin so
 # this symlink wins on PATH.
 link_with_backup "${DOTFILES_DIR}/bin/wsl/notify-send" "${HOME}/.local/bin/notify-send"
+# `reload-ahk`: re-copies autohotkey/keyremap.ahk to the Windows side
+# and re-launches it. Needed because windows.ps1 deploys via copy
+# (AHK can't follow WSL symlinks), so editing in the repo is not
+# enough — the Windows-side copy must be refreshed.
+link_with_backup "${DOTFILES_DIR}/bin/wsl/reload-ahk" "${HOME}/.local/bin/reload-ahk"
 
 log_step "Ensuring tmux plugin manager"
 install_or_upgrade_git_repo "https://github.com/tmux-plugins/tpm" "${HOME}/.tmux/plugins/tpm"
