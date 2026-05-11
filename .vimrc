@@ -1,4 +1,4 @@
-set shell=/bin/zsh
+if executable('zsh') | let &shell = exepath('zsh') | endif
 
 "--- load settings ---
 source $HOME/dotfiles/vim/base.vim
