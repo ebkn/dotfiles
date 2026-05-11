@@ -7,6 +7,33 @@ return {
     branch = "release",
     event = "VimEnter",
     config = function()
+      -- Auto-install on startup if missing. Keep in sync with vim/coc/package.json.
+      vim.g.coc_global_extensions = {
+        "@yaegassy/coc-ruff",
+        "coc-clangd",
+        "coc-css",
+        "coc-diagnostic",
+        "coc-eslint",
+        "coc-flutter",
+        "coc-git",
+        "coc-highlight",
+        "coc-html",
+        "coc-jedi",
+        "coc-json",
+        "coc-lists",
+        "coc-markdownlint",
+        "coc-omnisharp",
+        "coc-rls",
+        "coc-rust-analyzer",
+        "coc-sh",
+        "coc-snippets",
+        "coc-solargraph",
+        "coc-sql",
+        "coc-tsserver",
+        "coc-vetur",
+        "coc-yaml",
+      }
+
       -- Set up key mappings after coc is loaded
       vim.api.nvim_create_autocmd("User", {
         pattern = "CocNvimInit",
