@@ -398,15 +398,15 @@
       }
     }
   },
-  "effortLevel": "max",
+  "effortLevel": "high",
   "autoUpdatesChannel": "stable",
+  "tui": "fullscreen",
+  "prefersReducedMotion": true,
   "theme": "dark-ansi",
   "remoteControlAtStartup": true,
   "agentPushNotifEnabled": false,
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
-  },
-  "tui": "fullscreen",
-  "prefersReducedMotion": true
+  }
 }
