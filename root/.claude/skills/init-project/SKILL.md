@@ -106,6 +106,7 @@ If `package.json` does not exist, create one:
   "name": "{project-name}",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "packageManager": "npm@{current npm version}",
   "engines": {
     "node": "{exact current node version}"
@@ -119,10 +120,14 @@ If `package.json` does not exist, create one:
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run --passWithNoTests"
   }
 }
 ```
+
+Notes on the template:
+- `"type": "module"` — required so `vitest.config.ts` (ESM imports) loads under `verbatimModuleSyntax` in the strict tsconfig added in Step 6.
+- `--passWithNoTests` — keeps CI green before any tests exist; remove it once a test suite is in place if you prefer strict failure.
 
 Run `npm -v` and `node -v` to fill in the actual versions.
 
@@ -140,11 +145,19 @@ min-release-age=7
 - `save-exact=true` — pin dependencies to exact versions (no `^` or `~` prefix)
 - `min-release-age=7` — skip package versions published less than 7 days ago
 
-Then install biome:
+Then install dev dependencies. The exact set depends on the framework:
 
-```bash
-npm install -D @biomejs/biome
-```
+- **Plain TypeScript**: install biome, vitest, and typescript together so the `lint`, `test`, and `typecheck` scripts work immediately.
+
+  ```bash
+  npm install -D @biomejs/biome vitest typescript
+  ```
+
+- **Next.js**: install biome here; vitest and typescript are installed alongside the Next.js runtime deps in Step 6.5.
+
+  ```bash
+  npm install -D @biomejs/biome
+  ```
 
 **Go / Python** — skip this step.
 
@@ -154,9 +167,11 @@ Set up a minimal linter config for the chosen language.
 
 **TypeScript** — `biome.json`:
 
+First run `npx biome --version` to read the installed CLI version (e.g. `2.4.15`). Pin the `$schema` URL to that exact version — using a stale version like `2.0.0` against a newer CLI produces a deserialize warning on every lint run.
+
 ```json
 {
-  "$schema": "https://biomejs.dev/schemas/2.0.0/schema.json",
+  "$schema": "https://biomejs.dev/schemas/{installed-biome-version}/schema.json",
   "linter": {
     "enabled": true
   },
@@ -192,7 +207,7 @@ select = ["E", "F", "I", "W"]
 
 ### Step 6: Test framework config
 
-Set up a minimal test config. Do not install packages — just create the config file.
+Set up a minimal test config. Packages were already installed in Step 4.5 (plain TypeScript) or are installed in Step 6.5 (Next.js); here you only create the config files.
 
 **TypeScript** — `vitest.config.ts`:
 
@@ -208,6 +223,33 @@ export default defineConfig({
 
 Also add to `.claude/settings.json`:
 - `Bash(npx vitest *)`
+
+**Plain TypeScript only** — also create `tsconfig.json` so `npm run typecheck` runs against a real config instead of `tsc` defaults. Next.js has its own tsconfig generated in Step 6.5; do not create this for Next.js projects.
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+After writing the configs, verify the toolchain end-to-end by running `npm run typecheck`, `npm run lint`, and `npm run test:run`. All three should pass on the empty scaffold; if any fails, fix the config before moving on.
 
 **Go** — no config file needed. Go's built-in `go test` works out of the box. Note the test conventions in the CLAUDE.md Development section:
 
