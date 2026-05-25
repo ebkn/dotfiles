@@ -414,12 +414,14 @@
     }
   },
   "effortLevel": "high",
+  "fastMode": true,
   "autoUpdatesChannel": "stable",
   "tui": "fullscreen",
   "prefersReducedMotion": true,
   "theme": "dark-ansi",
   "remoteControlAtStartup": true,
   "agentPushNotifEnabled": false,
+  "skipAutoPermissionPrompt": true,
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
