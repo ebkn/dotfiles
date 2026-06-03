@@ -90,6 +90,11 @@ case `uname` in
     export PATH="/home/linuxbrew/.linuxbrew/sbin:/home/linuxbrew/.linuxbrew/bin:$PATH"
     export PATH="$HOME/.linuxbrew/sbin:$HOME/.linuxbrew/bin:$PATH"
     export PATH="$PATH:$HOME/hub-linux-arm64-2.6.0/bin/hub"
+
+    # Go
+    export GOPATH=$HOME/go
+    export PATH="$PATH:$GOPATH/bin"
+    export GO111MODULE=on
   ;;
 esac
 
