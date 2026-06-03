@@ -395,8 +395,9 @@ function gdmerged() {
   echo "$merged_branches"
   echo
 
-  # Process each merged branch
-  echo "$merged_branches" | while read -r branch; do
+  # Use here-string (not pipe) so the loop runs in the current shell and
+  # stdin stays free for the interactive prompt below.
+  while IFS= read -r branch; do
     # Skip if empty or protected branch
     if [ -z "$branch" ] || [ "$branch" = "main" ] || [ "$branch" = "master" ] || [ "$branch" = "develop" ] || [ "$branch" = "staging" ]; then
       echo "Skipping protected/empty branch: '$branch'"
@@ -405,14 +406,8 @@ function gdmerged() {
 
     echo "Processing branch: $branch"
 
-    # Delete the branch
-    if git branch -d "$branch" 2>/dev/null; then
-      echo "✓ Deleted branch: $branch"
-    else
-      echo "✗ Failed to delete branch: $branch"
-    fi
-
-    # Check and remove associated worktree
+    # Resolve associated worktree (if any) before the prompt so the path can
+    # be shown in the confirmation message.
     local worktree_path=""
     local temp_file=$(mktemp)
     git worktree list --porcelain > "$temp_file" 2>/dev/null
@@ -430,6 +425,31 @@ function gdmerged() {
       esac
     done < "$temp_file"
     /bin/rm -f "$temp_file"
+
+    # Auto-delete only when the upstream is gone (PR merged and remote
+    # branch already pruned). Anything else — including research worktrees
+    # with no commits — gets a y/n prompt so it isn't lost by accident.
+    local upstream_track
+    upstream_track=$(git for-each-ref --format='%(upstream:track)' "refs/heads/$branch")
+
+    if [[ "$upstream_track" != *"[gone]"* ]]; then
+      local hint=""
+      [ -n "$worktree_path" ] && hint=" [worktree: $worktree_path]"
+      if ! read -q "?  delete '$branch'$hint? [y/N] " </dev/tty; then
+        echo
+        echo "  skipped: $branch"
+        echo
+        continue
+      fi
+      echo
+    fi
+
+    # Delete the branch
+    if git branch -d "$branch" 2>/dev/null; then
+      echo "✓ Deleted branch: $branch"
+    else
+      echo "✗ Failed to delete branch: $branch"
+    fi
 
     if [ -n "$worktree_path" ]; then
       echo "✓ Found worktree for $branch: $worktree_path"
@@ -458,7 +478,7 @@ function gdmerged() {
       echo "No worktree found for branch: $branch"
     fi
     echo
-  done
+  done <<< "$merged_branches"
 }
 alias gdsquashed='git-delete-squashed main' # requires npm i -g git-delete-squashed
 alias gp='gpull && gf && gdmerged && gdsquashed'

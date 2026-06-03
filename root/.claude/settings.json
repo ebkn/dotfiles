@@ -8,6 +8,7 @@
     "allow": [
       "Bash(actionlint *)",
       "Bash(ast-grep *)",
+      "Bash(autossh -V)",
       "Bash(awk *)",
       "Bash(basename *)",
       "Bash(cat *)",
@@ -47,11 +48,18 @@
       "Bash(sed *)",
       "Bash(shellcheck *)",
       "Bash(sort *)",
+      "Bash(ssh -V)",
       "Bash(stat *)",
+      "Bash(sw_vers)",
       "Bash(tail *)",
+      "Bash(tailscale netcheck *)",
+      "Bash(tailscale ping *)",
+      "Bash(tailscale status *)",
       "Bash(tee *)",
       "Bash(terminal-notifier *)",
       "Bash(test *)",
+      "Bash(tmux list-panes:*)",
+      "Bash(tmux list-sessions:*)",
       "Bash(touch *)",
       "Bash(tr *)",
       "Bash(traceroute *)",
@@ -65,6 +73,10 @@
       "Bash(whoami*)",
       "Bash(which *)",
       "Bash(xargs *)",
+      "Bash(/opt/homebrew/bin/aws logs get-query-results *)",
+      "Bash(/opt/homebrew/bin/aws logs start-query *)",
+      "Bash(aws logs get-query-results *)",
+      "Bash(aws logs start-query *)",
       "Bash(docker buildx imagetools inspect *)",
       "Bash(docker manifest inspect *)",
       "Bash(brew cat *)",
@@ -96,6 +108,7 @@
       "Bash(yarn list*)",
       "Bash(yarn outdated*)",
       "Bash(yarn why *)",
+      "Bash(volta list *)",
       "Bash(yq *)",
       "Bash(git add *)",
       "Bash(git blame *)",
@@ -192,8 +205,10 @@
       "WebFetch(domain:docs.claude.com)",
       "WebFetch(domain:docs.docker.com)",
       "WebFetch(domain:docs.github.com)",
+      "WebFetch(domain:docs.npmjs.com)",
       "WebFetch(domain:docs.python.org)",
       "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:gist.github.com)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:hub.docker.com)",
       "WebFetch(domain:json.schemastore.org)",
@@ -203,11 +218,15 @@
       "WebFetch(domain:nodejs.org)",
       "WebFetch(domain:pkg.go.dev)",
       "WebFetch(domain:pypi.org)",
+      "WebFetch(domain:qiita.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:registry.terraform.io)",
+      "WebFetch(domain:socket.dev)",
       "WebFetch(domain:stackoverflow.com)",
       "WebFetch(domain:typescriptlang.org)",
       "WebFetch(domain:wiki.archlinux.org)",
+      "WebFetch(domain:winget.run)",
+      "WebFetch(domain:www.autohotkey.com)",
       "WebFetch(domain:developers.openai.com)",
       "WebFetch(domain:biomejs.dev)",
       "WebFetch(domain:www.npmjs.com)",
@@ -218,17 +237,15 @@
       "WebFetch(domain:claude.com)",
       "WebFetch(domain:platform.claude.com)",
       "WebFetch(domain:arxiv.org)",
+      "WebFetch(domain:coderabbit.ai)",
       "WebFetch(domain:docs.coderabbit.ai)",
+      "WebFetch(domain:www.coderabbit.ai)",
       "WebFetch(domain:docs.sentry.io)",
       "WebFetch(domain:sentry.io)",
       "WebFetch(domain:vercel.com)",
       "WebSearch",
       "Skill(commit)",
-      "Skill(update-pr)",
-      "Bash(/opt/homebrew/bin/aws logs get-query-results *)",
-      "Bash(aws logs get-query-results *)",
-      "Bash(/opt/homebrew/bin/aws logs start-query *)",
-      "Bash(aws logs start-query *)"
+      "Skill(update-pr)"
     ],
     "deny": [
       "Bash(rm -rf /)",
@@ -355,7 +372,7 @@
       "Bash(git checkout *)",
       "Bash(git switch *)"
     ],
-    "defaultMode": "acceptEdits"
+    "defaultMode": "default"
   },
   "hooks": {
     "PreToolUse": [
@@ -396,15 +413,17 @@
       }
     }
   },
-  "effortLevel": "max",
+  "effortLevel": "high",
+  "fastMode": true,
   "autoUpdatesChannel": "stable",
+  "tui": "fullscreen",
+  "prefersReducedMotion": true,
   "theme": "dark-ansi",
   "remoteControlAtStartup": true,
   "agentPushNotifEnabled": false,
+  "skipAutoPermissionPrompt": true,
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
-  },
-  "tui": "fullscreen",
-  "prefersReducedMotion": true
+  }
 }
