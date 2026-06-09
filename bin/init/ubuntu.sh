@@ -170,7 +170,6 @@ install_or_upgrade_npm_global "textlint"
 install_or_upgrade_npm_global "git-delete-squashed"
 install_or_upgrade_npm_global "yarn"
 install_or_upgrade_npm_global "@openai/codex"
-install_or_upgrade_npm_global "@githubnext/github-copilot-cli"
 link_with_backup "${DOTFILES_DIR}/.eslintrc.js" "${HOME}/.eslintrc.js"
 link_with_backup "${DOTFILES_DIR}/tsconfig.json" "${HOME}/tsconfig.json"
 
