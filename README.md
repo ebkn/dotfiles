@@ -171,8 +171,6 @@ Files are stored in `~/.local/share/tmux/resurrect/`.
 | Key | Action |
 |-----|--------|
 | `CR` | Accept completion |
-| `C-k` | Trigger Copilot suggestion |
-| `C-x` | Next Copilot suggestion |
 
 ### Search (hlslens)
 

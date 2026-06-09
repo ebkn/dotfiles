@@ -106,21 +106,4 @@ return {
       ]])
     end,
   },
-
-  -- Copilot
-  {
-    "github/copilot.vim",
-    config = function()
-      vim.cmd([[
-        " accept suggestion by C-j
-        imap <silent> <C-k> <Plug>(copilot-suggest)
-        imap <silent> <C-x> <Plug>(copilot-next)
-        let b:copilot_enabled=v:true
-
-        " bind accept action to <C-n>
-        " imap <silent><script><expr> <C-n> copilot#Accept("\<CR>")
-        " let g:copilot_no_tab_map=v:true
-      ]])
-    end,
-  },
 }

@@ -5,7 +5,6 @@
   "ansible-vim": { "branch": "master", "commit": "6c42a448e30bc48ae98792bce38970148b0e3c9d" },
   "coc-fzf": { "branch": "master", "commit": "6f19832e9e80ceacb98faac2688364b4f7a5b8e4" },
   "coc.nvim": { "branch": "release", "commit": "492694ca9fd874b2d12985f78f875d94a9940a83" },
-  "copilot.vim": { "branch": "release", "commit": "a12fd5672110c8aa7e3c8419e28c96943ca179be" },
   "dart-vim-plugin": { "branch": "master", "commit": "dd74e59c50e29896483a87373743136f2cbd24e7" },
   "everforest": { "branch": "master", "commit": "aeef62ee97872d2557d25904d160ec93a4a355f8" },
   "fern-git-status.vim": { "branch": "master", "commit": "151336335d3b6975153dad77e60049ca7111da8e" },
