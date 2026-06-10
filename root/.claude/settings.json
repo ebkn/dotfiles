@@ -374,6 +374,7 @@
     ],
     "defaultMode": "default"
   },
+  "model": "claude-fable-5[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -415,7 +416,7 @@
   },
   "effortLevel": "high",
   "fastMode": true,
-  "autoUpdatesChannel": "stable",
+  "autoUpdatesChannel": "latest",
   "tui": "fullscreen",
   "prefersReducedMotion": true,
   "theme": "dark-ansi",
@@ -425,5 +426,6 @@
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
-  }
+  },
+  "skipWorkflowUsageWarning": true
 }
