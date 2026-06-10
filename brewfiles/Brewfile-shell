@@ -25,6 +25,9 @@ brew 'ripgrep'
 # linter
 brew 'shellcheck'
 
+# static analysis (security)
+brew 'semgrep'
+
 # fly
 brew 'flyctl'
 
