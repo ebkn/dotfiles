@@ -374,7 +374,6 @@
     ],
     "defaultMode": "default"
   },
-  "model": "claude-fable-5[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -415,10 +414,14 @@
     }
   },
   "effortLevel": "high",
-  "fastMode": true,
   "autoUpdatesChannel": "latest",
   "tui": "fullscreen",
+  "voice": {
+    "enabled": true,
+    "mode": "hold"
+  },
   "prefersReducedMotion": true,
+  "skipWorkflowUsageWarning": true,
   "theme": "dark-ansi",
   "remoteControlAtStartup": true,
   "agentPushNotifEnabled": false,
@@ -426,6 +429,5 @@
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
-  },
-  "skipWorkflowUsageWarning": true
+  }
 }
