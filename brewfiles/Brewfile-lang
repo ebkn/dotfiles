@@ -16,8 +16,6 @@ brew 'hadolint'
 brew 'shellcheck'
 
 # Terraform
-tap 'hashicorp/tap'
-brew 'hashicorp/tap/terraform'
 brew 'tflint'
 
 # Java

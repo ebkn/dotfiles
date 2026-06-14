@@ -17,7 +17,6 @@ brew 'ffmpeg'
 brew 'graphviz'
 
 # GitHub
-tap 'github/gh'
 brew 'gh'
 
 # AST-based code search and replace
