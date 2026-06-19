@@ -372,7 +372,7 @@
       "Bash(git checkout *)",
       "Bash(git switch *)"
     ],
-    "defaultMode": "default"
+    "defaultMode": "auto"
   },
   "hooks": {
     "PreToolUse": [
@@ -423,9 +423,11 @@
   "prefersReducedMotion": true,
   "skipWorkflowUsageWarning": true,
   "theme": "dark-ansi",
+  "editorMode": "normal",
   "remoteControlAtStartup": true,
   "agentPushNotifEnabled": false,
   "skipAutoPermissionPrompt": true,
+  "useAutoModeDuringPlan": true,
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
