@@ -23,4 +23,5 @@ Commit changes quickly. Do not summarize after — move on immediately.
 4. Message: Conventional Commits (`type(scope): description`), English only (always, regardless of the user's language), imperative. Match repo style if one exists.
    - Add a body that briefly explains **why** the change was made and any relevant background. Keep it concise — just enough for a future reader to understand the motivation without re-reading the diff.
    - Omit the body only when the subject line alone is self-explanatory (e.g., fixing a typo).
+   - Do **not** append the Claude session URL / `Claude-Session:` trailer to the commit message.
 5. Ask user ONLY if: changes span many unrelated concerns with unclear grouping, possible secrets, or generated files that shouldn't be committed.

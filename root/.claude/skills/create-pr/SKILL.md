@@ -35,6 +35,7 @@ Create a pull request. Follow this flow:
    - Keep `type(scope)` tokens standard (`feat`, `fix`, etc.); localize only the description text.
    - Body: if template exists, fill its sections. If not, use Summary / Changes / Concerns / References.
    - Proactively include any reference links (issues, docs, related PRs) found in conversation history.
+   - Do **not** append the Claude session URL (`https://claude.ai/code/…`) to the PR body.
 
 5. **Confirm**: Show the full PR title and body. Ask if the user wants to add links or make any edits — apply and re-confirm. Do not push or create until approved.
 
