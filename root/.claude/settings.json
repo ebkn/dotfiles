@@ -383,6 +383,11 @@
             "type": "command",
             "command": "~/.claude/hooks/approve-multiline-commands.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/strip-redundant-cd.sh",
+            "timeout": 5
           }
         ]
       }
