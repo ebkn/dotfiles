@@ -73,10 +73,15 @@
 - Never use `git rev-parse --git-common-dir` or navigate to the repo root to read files, run commands, or resolve paths. Use the current directory as the project root.
 - When reading, searching, or editing files, use relative paths from the current directory or absolute paths within the current directory tree.
 - Only access the main repository root when the user explicitly asks to.
+- **The session is already launched from the worktree root — never prepend `cd <worktree-root> &&` to a command.** You are there. `cd` into the directory you are already in is redundant, is not in the allow list, and turns the call into a compound command, forcing a permission prompt every time. Run the command directly. Do not run `pwd`/`cd` to "recompute" your location.
 
 # Shell Commands
 
-- **Do not include `cd` in compound commands** (`cd /path && git add` etc.). When you need to change directories, run `cd` as a standalone command first, then run subsequent commands separately.
+- **Do not include `cd` in compound commands** (`cd /path && git add` etc.). When you need to change directories, run `cd` as a standalone command first, then run subsequent commands separately. A standalone `cd` persists to later calls; a `cd … && …` does not persist *and* forces a permission prompt.
+- **For a subdirectory, prefer the tool's directory flag over `cd`.** These are single, allow-listed commands that need no `cd`:
+  - `yarn workspace <pkg> <script>` instead of `cd apps/<app> && yarn <script>`
+  - `make -C <dir> <target>` instead of `cd <dir> && make <target>`
+  - `git -C <dir> <subcommand>` instead of `cd <dir> && git <subcommand>`
 - Never chain commands with `&&`, `||`, or `;`. Each command must be a single, standalone tool call. Use parallel tool calls instead of chaining.
 - Avoid pipes (`|`) and subshells (`$()`) when possible. These trigger permission prompts even when individual commands are allowed.
 - Prefer dedicated tools (Read, Grep, Glob, Edit, Write) over shell commands to keep progress flowing without interruptions.
