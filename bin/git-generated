@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# git-generated: locally hide files marked `linguist-generated` from diffs.
+#
+# Reads the repository's top-level .gitattributes, collects every pattern marked
+# `linguist-generated`, and writes `<pattern> -diff` into $GIT_DIR/info/attributes
+# (repo-local, untracked, highest precedence). With `-diff`, Git treats those paths
+# as binary, so their diffs collapse to a single "Binary files differ" line. This
+# de-noises tig/git diffs without touching any tracked file and without committing.
+#
+# Why -diff (not --ext-diff + a custom driver): this repo sets `diff.external = difft`
+# globally, and enabling --ext-diff routes *every* file through difftastic inside tig,
+# which breaks its diff view. `-diff` suppresses content without invoking any external
+# diff, so it leaves the rest of the tig view intact.
+#
+# Usage:
+#   git-generated [hide]   suppress generated files (default; persists under .git/)
+#   git-generated show     restore normal diffs (remove the managed block)
+#   git-generated status   print current state and matched patterns
+#
+# Limitations: only the top-level .gitattributes is read. Nested .gitattributes and
+# subdirectory `linguist-generated=false` overrides are not resolved.
+
+set -euo pipefail
+
+readonly MARK_BEGIN='# >>> git-generated managed (do not edit) >>>'
+readonly MARK_END='# <<< git-generated managed <<<'
+
+die() {
+  printf 'git-generated: %s\n' "$1" >&2
+  exit 1
+}
+
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die 'not inside a git work tree'
+
+toplevel="$(git rev-parse --show-toplevel)"
+attr_file="$(git rev-parse --git-path info/attributes)"
+src_attr="${toplevel}/.gitattributes"
+
+# Emit the first token (pattern) of each line marked linguist-generated,
+# skipping comments, `linguist-generated=false`, and `-linguist-generated`.
+generated_patterns() {
+  [[ -f "$src_attr" ]] || return 0
+  grep -v -E '^[[:space:]]*#' "$src_attr" \
+    | grep -E '(^|[[:space:]])-?linguist-generated' \
+    | grep -v -E 'linguist-generated=false' \
+    | grep -v -E '(^|[[:space:]])-linguist-generated' \
+    | awk '{ print $1 }'
+}
+
+# Drop the managed block (inclusive) from the info/attributes file.
+remove_block() {
+  [[ -f "$attr_file" ]] || return 0
+  local tmp
+  tmp="$(mktemp)"
+  awk -v b="$MARK_BEGIN" -v e="$MARK_END" '
+    $0 == b { skip = 1 }
+    skip != 1 { print }
+    $0 == e { skip = 0 }
+  ' "$attr_file" > "$tmp"
+  mv "$tmp" "$attr_file"
+}
+
+has_block() {
+  [[ -f "$attr_file" ]] && grep -qF "$MARK_BEGIN" "$attr_file"
+}
+
+cmd_hide() {
+  local patterns
+  patterns="$(generated_patterns)"
+  [[ -n "$patterns" ]] || die "no linguist-generated entries found in ${src_attr}"
+  remove_block
+  mkdir -p "$(dirname "$attr_file")"
+  {
+    printf '%s\n' "$MARK_BEGIN"
+    while IFS= read -r pattern; do
+      [[ -n "$pattern" ]] && printf '%s -diff\n' "$pattern"
+    done <<< "$patterns"
+    printf '%s\n' "$MARK_END"
+  } >> "$attr_file"
+  printf 'git-generated: hidden %s pattern(s) via %s\n' \
+    "$(printf '%s\n' "$patterns" | grep -c .)" "$attr_file"
+}
+
+cmd_show() {
+  remove_block
+  printf 'git-generated: restored normal diffs\n'
+}
+
+cmd_status() {
+  if has_block; then
+    printf 'state: HIDDEN (managed block present in %s)\n' "$attr_file"
+  else
+    printf 'state: shown (no managed block)\n'
+  fi
+  local patterns
+  patterns="$(generated_patterns)"
+  if [[ -n "$patterns" ]]; then
+    printf 'linguist-generated patterns in %s:\n' "$src_attr"
+    # Iterate line by line; unquoted expansion would glob-expand patterns like gen/**.
+    while IFS= read -r pattern; do
+      [[ -n "$pattern" ]] && printf '  %s\n' "$pattern"
+    done <<< "$patterns"
+  else
+    printf 'no linguist-generated patterns in %s\n' "$src_attr"
+  fi
+}
+
+case "${1:-hide}" in
+  hide) cmd_hide ;;
+  show) cmd_show ;;
+  status) cmd_status ;;
+  *) die "unknown command: ${1} (use hide|show|status)" ;;
+esac

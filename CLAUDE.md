@@ -27,6 +27,8 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 ├── bin/
 │   ├── init/           #   Platform setup scripts (macos.sh, ubuntu.sh, wsl.sh, windows.ps1)
 │   ├── wsl/            #   WSL-only helper scripts (e.g. notify-send OSC 9 shim)
+│   ├── fzf-files       #   List git-changed files first for fzf (symlinked to ~/.local/bin)
+│   ├── git-generated   #   Locally hide linguist-generated files from diffs via .git/info/attributes
 │   └── install_minimum_vim.sh
 ├── brewfiles/          #   Homebrew dependency lists by category
 │   ├── Brewfile-shell  #     Shell tools (tmux, fzf, ripgrep, etc.)

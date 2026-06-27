@@ -118,6 +118,14 @@
   untracked = cyan
 
 # -------------------------------------------
+# Aliases
+# -------------------------------------------
+[alias]
+  # Locally hide/show files marked `linguist-generated` in diffs.
+  # Backed by bin/git-generated (symlinked to ~/.local/bin). See its header for details.
+  generated = "!git-generated"
+
+# -------------------------------------------
 # Git LFS
 # -------------------------------------------
 [filter "lfs"]
