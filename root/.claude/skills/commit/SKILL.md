@@ -1,6 +1,7 @@
 ---
 name: commit
 description: Stage and commit changes with conventional commits
+effort: low
 allowed-tools: Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git add *), Bash(git commit *), Bash(echo *), Read, Glob, Grep
 ---
 
