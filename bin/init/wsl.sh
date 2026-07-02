@@ -210,6 +210,7 @@ link_with_backup "${DOTFILES_DIR}/root/.codex/rules/default.rules" "${HOME}/.cod
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/commit" "${HOME}/.codex/skills/commit"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/create-pr" "${HOME}/.codex/skills/create-pr"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/update-pr" "${HOME}/.codex/skills/update-pr"
+link_with_backup "${DOTFILES_DIR}/root/opencode" "${HOME}/.config/opencode"
 install_or_upgrade_claude
 
 log_step "Installing Node.js toolchain"
