@@ -59,7 +59,7 @@
 
 # Commits
 
-- When changes reach a natural commit boundary, suggest committing to the user with `/commit`.
+- Use the `commit` skill to commit. The user may invoke it explicitly (`/commit`), but by default call it automatically whenever changes reach a natural commit boundary — do not wait to be asked.
 - Do not wait until the end of a task — commit incrementally as logical units complete.
 
 # Temporary Files
