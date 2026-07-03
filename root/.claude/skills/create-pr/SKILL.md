@@ -15,7 +15,7 @@ allowed-tools: Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git r
 
 Create a pull request. Follow this flow:
 
-1. **Gather context**: Get default branch via `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`, then run `git log --oneline`, `git diff --stat`, and `git diff` against it.
+1. **Gather context**: Get the default branch locally via `git rev-parse --abbrev-ref origin/HEAD` (strip the `origin/` prefix); only if that fails (origin/HEAD unset) fall back to `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`. Then run `git log --oneline`, `git diff --stat`, and `git diff` against it.
 
 2. **Uncommitted changes**: If `git status` above shows output, ask the user whether to commit them, ignore them, or abort. Do not proceed until answered.
 

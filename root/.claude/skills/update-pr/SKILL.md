@@ -14,7 +14,7 @@ allowed-tools: Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git r
 
 Update the existing pull request for the current branch. Follow this flow:
 
-1. **Gather context**: Get default branch via `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`, then run `git log --oneline`, `git diff --stat`, and `git diff` against it.
+1. **Gather context**: Get the default branch locally via `git rev-parse --abbrev-ref origin/HEAD` (strip the `origin/` prefix); only if that fails (origin/HEAD unset) fall back to `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`. Then run `git log --oneline`, `git diff --stat`, and `git diff` against it.
 
 2. **Missing PR check**: Run `gh pr view --json number,url,title,body,baseRefName,headRefName,isDraft`. If it fails, tell the user there is no open PR for this branch. Ask whether to switch to `/create-pr` or abort.
 
