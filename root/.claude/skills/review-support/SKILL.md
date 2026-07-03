@@ -1,6 +1,7 @@
 ---
 name: review-support
-description: Help the user review a GitHub pull request and compose the review comments they will send themselves. Act as a facilitator — give a compact overview, draw out the user's concerns through dialogue, verify them against the real code, and shape them into sendable, severity-labeled inline comments plus a summary memo. Do NOT originate code-quality verdicts on your own; the review judgment stays with the user. Triggered by requests like "PRをレビューしたい", "レビューを書きたい", "レビューコメントをまとめたい", "help me review this PR", "help me write review comments", or the `/review-support [PR-number|URL]` command.
+description: Help the user review a GitHub pull request and compose the review comments they will send themselves. Act as a facilitator — give a compact overview, draw out the user's concerns through dialogue, verify them against the real code, and shape them into sendable, severity-labeled inline comments plus a summary memo. Do NOT originate code-quality verdicts on your own; the review judgment stays with the user. Triggered by requests like "PRをレビューしたい", "レビューを書きたい", "レビューコメントをまとめたい", "help me review this PR", "help me write review comments", or the `/review-support` command.
+effort: max
 allowed-tools: Bash(gh pr view *), Bash(gh pr diff *), Bash(gh pr status *), Bash(gh repo view *), Bash(git rev-parse *), Bash(git log *), Bash(git diff *), Bash(git blame *), Bash(git show *), Read, Glob, Grep, AskUserQuestion
 ---
 
@@ -30,9 +31,8 @@ If the user clearly only wants to *understand* the PR (no intent to comment), st
 
 ### Phase 1: Identify the PR
 
-- If a PR number or URL is given as an argument, use it.
-- Otherwise, run `gh pr status --json number,title,headRefName,url` to find the PR for the current branch.
-- If neither resolves a PR, ask the user for the number or URL.
+- Default: the user has already checked out the branch for the PR they want to review. Run `gh pr status --json number,title,headRefName,url` and use the PR for the current branch.
+- Only if that resolves no PR (detached branch, wrong workspace), ask the user for the number or URL.
 
 ### Phase 2: Fetch PR information
 
