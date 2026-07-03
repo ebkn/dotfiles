@@ -153,8 +153,10 @@ link_with_backup "${DOTFILES_DIR}/root/.claude/settings.json" "${HOME}/.claude/s
 link_with_backup "${DOTFILES_DIR}/root/.claude/hooks" "${HOME}/.claude/hooks"
 link_with_backup "${DOTFILES_DIR}/root/.codex/rules/default.rules" "${HOME}/.codex/rules/default.rules"
 # Single source of truth for agent skills: root/.agents/skills.
-# Claude Code and OpenCode both read ~/.claude/skills, so one link covers both.
-# (Linking ~/.agents/skills too would make OpenCode double-load every skill.)
+# ~/.agents/skills is the emerging cross-tool standard (newer Codex, Cursor,
+# Gemini, Copilot). Claude Code reads ~/.claude/skills. OpenCode reads both, so
+# it may list each skill twice — accepted for cross-tool coverage.
+link_with_backup "${DOTFILES_DIR}/root/.agents/skills" "${HOME}/.agents/skills"
 link_with_backup "${DOTFILES_DIR}/root/.agents/skills" "${HOME}/.claude/skills"
 # Codex 0.142.x reads ~/.codex/skills and scaffolds bundled skills under
 # ~/.codex/skills/.system, so the whole dir can't be a single symlink — link
