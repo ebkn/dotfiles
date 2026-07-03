@@ -25,4 +25,13 @@ Commit changes quickly. Do not summarize after — move on immediately.
    - Add a body that briefly explains **why** the change was made and any relevant background. Keep it concise — just enough for a future reader to understand the motivation without re-reading the diff.
    - Omit the body only when the subject line alone is self-explanatory (e.g., fixing a typo).
    - Do **not** append the Claude session URL / `Claude-Session:` trailer to the commit message.
+   - For a multi-line message, feed it through a **quoted** heredoc into `git commit -F -` (stdin) so backticks, `$`, and quotes stay literal — no escaping, and no `$()` subshell (which triggers permission prompts):
+
+     ```sh
+     git commit -F - <<'COMMIT_MSG_EOF'
+     type(scope): subject
+
+     Body explaining why.
+     COMMIT_MSG_EOF
+     ```
 5. Ask user ONLY if: changes span many unrelated concerns with unclear grouping, possible secrets, or generated files that shouldn't be committed.
