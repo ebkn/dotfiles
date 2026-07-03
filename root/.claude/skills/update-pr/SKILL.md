@@ -46,5 +46,11 @@ Update the existing pull request for the current branch. Follow this flow:
    - Check for an upstream with `git rev-parse --abbrev-ref --symbolic-full-name @{upstream}`.
    - If it fails (no upstream), push unconditionally with `git push -u origin HEAD`.
    - If an upstream exists, push only when `git log @{upstream}..HEAD` shows unpushed commits.
-   - Update with `gh pr edit --title "<title>" --body "<body>"`.
+   - Update the PR, passing the body via a **quoted** heredoc into `--body-file -` (stdin) so backticks, `$`, and quotes in the body stay literal — no escaping, no temp file, and no `$()` subshell:
+
+     ```sh
+     gh pr edit --title "<title>" --body-file - <<'PR_BODY_EOF'
+     <body>
+     PR_BODY_EOF
+     ```
    - Return the PR URL.

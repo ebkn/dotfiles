@@ -43,4 +43,12 @@ Create a pull request. Follow this flow:
    - If it fails (no upstream — the common new-branch case), push unconditionally with `git push -u origin HEAD`.
    - If an upstream exists, push only when `git log @{upstream}..HEAD` shows unpushed commits.
 
-   Then create with `gh pr create --title "<title>" --body "<body>"`. Return the PR URL.
+   Then create the PR, passing the body via a **quoted** heredoc into `--body-file -` (stdin) so backticks, `$`, and quotes in the body stay literal — no escaping, no temp file, and no `$()` subshell:
+
+   ```sh
+   gh pr create --title "<title>" --body-file - <<'PR_BODY_EOF'
+   <body>
+   PR_BODY_EOF
+   ```
+
+   Return the PR URL.
