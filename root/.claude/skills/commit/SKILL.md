@@ -34,4 +34,4 @@ Commit changes quickly. Do not summarize after — move on immediately.
      Body explaining why.
      COMMIT_MSG_EOF
      ```
-5. Ask user ONLY if: changes span many unrelated concerns with unclear grouping, possible secrets, or generated files that shouldn't be committed.
+5. **Don't block — proceed with a safe default and report.** This skill may run autonomously, so do not stop to ask. Make the call yourself: split conservatively when grouping is unclear; exclude generated files unless they're clearly meant to be committed. **Secrets are the exception that still needs care, but not a halt:** if a change looks like a real credential/token/key, do **not** stage that file — commit the rest and flag the suspect file prominently in your reply so the human can resolve it. Never commit a suspected secret and never block waiting for confirmation.

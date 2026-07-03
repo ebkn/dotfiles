@@ -17,7 +17,7 @@ Create a pull request. Follow this flow:
 
 1. **Gather context**: Get the default branch locally via `git rev-parse --abbrev-ref origin/HEAD` (strip the `origin/` prefix); only if that fails (origin/HEAD unset) fall back to `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`. Then read the commits **with full messages** via `git log <base>..HEAD` (bodies included — the commit skill records the *why* there) plus `git diff --stat <base>..HEAD` for the file-level shape. Pull the full `git diff <base>..HEAD` only when the messages and stat don't sufficiently explain the changes (thin or missing commit bodies) — for large PRs this avoids reading the whole diff needlessly.
 
-2. **Uncommitted changes**: If `git status` above shows output, ask the user whether to commit them, ignore them, or abort. Do not proceed until answered.
+2. **Uncommitted changes**: Don't block. Create the PR from the commits that already exist and note in your reply that any uncommitted changes were left out. Only stop if there are no commits ahead of the base branch — there is then nothing to open a PR from.
 
 3. **PR template**:
    - If a template path is listed, `Read` it before writing title/body.
@@ -32,7 +32,7 @@ Create a pull request. Follow this flow:
    - If the user explicitly asks to override language for the current PR, follow that override.
    - If no `template_language` is detected, use: explicit user request > latest substantive user message > English.
    - Ignore slash commands (for example `/create-pr`), code blocks, file paths, and URLs when inferring language.
-   - If language signals conflict or are ambiguous, ask the user which language to use before drafting.
+   - If language signals conflict or are ambiguous, don't block — fall back to the priority order above (default to English when nothing is decisive).
    - Keep `type(scope)` tokens standard (`feat`, `fix`, etc.); localize only the description text.
    - Body: if template exists, fill its sections. If not, use Summary / Changes / Concerns / References.
    - Proactively include any reference links (issues, docs, related PRs) found in conversation history.

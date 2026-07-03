@@ -17,9 +17,9 @@ Update the existing pull request for the current branch. Follow this flow:
 
 1. **Gather context**: Get the default branch locally via `git rev-parse --abbrev-ref origin/HEAD` (strip the `origin/` prefix); only if that fails (origin/HEAD unset) fall back to `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`. Then read the commits **with full messages** via `git log <base>..HEAD` (bodies included — the commit skill records the *why* there) plus `git diff --stat <base>..HEAD` for the file-level shape. Pull the full `git diff <base>..HEAD` only when the messages and stat don't sufficiently explain the changes (thin or missing commit bodies) — the commits added since the last PR revision are the main material for the update, so focus there.
 
-2. **Missing PR check**: Run `gh pr view --json number,url,title,body,baseRefName,headRefName,isDraft`. If it fails, tell the user there is no open PR for this branch. Ask whether to switch to `/create-pr` or abort.
+2. **Missing PR check**: Run `gh pr view --json number,url,title,body,baseRefName,headRefName,isDraft`. If it fails, there is nothing to update — report that no open PR exists for this branch and that `/create-pr` would create one, then stop. (This is a terminal condition, not a blocking question.)
 
-3. **Uncommitted changes**: If `git status` above shows output, ask whether to commit them, ignore them, or abort. Do not proceed until answered.
+3. **Uncommitted changes**: Don't block. Update the PR from the pushed/committed state and note in your reply that any uncommitted changes were left out.
 
 4. **PR template**:
    - If a template path is listed, `Read` it before writing title/body.
@@ -35,12 +35,12 @@ Update the existing pull request for the current branch. Follow this flow:
    - If the user explicitly asks to override language for the current PR, follow that override.
    - If no `template_language` is detected, use: explicit user request > latest substantive user message > English.
    - Ignore slash commands (for example `/update-pr`), code blocks, file paths, and URLs when inferring language.
-   - If language signals conflict or are ambiguous, ask the user which language to use before drafting.
+   - If language signals conflict or are ambiguous, don't block — fall back to the priority order above (default to English when nothing is decisive).
    - Keep `type(scope)` tokens standard (`feat`, `fix`, etc.); localize only the description text.
    - Body: if template exists, fill its sections. If not, use Summary / Changes / Concerns / References.
    - Proactively include any reference links (issues, docs, related PRs) found in conversation history.
 
-6. **Confirm**: Show the full updated PR title/body. Ask if the user wants to change the title, add links, or make any edits — apply and re-confirm. Do not push or edit until approved.
+6. **No approval gate**: Do not ask the user to confirm the title/body — proceed directly to push and update (mirrors create-pr, which creates without confirmation). Report the final title/body in your reply after the update lands.
 
 7. **Push and update**:
    - Check for an upstream with `git rev-parse --abbrev-ref --symbolic-full-name @{upstream}`.
