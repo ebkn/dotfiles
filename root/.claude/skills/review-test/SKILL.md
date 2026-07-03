@@ -1,6 +1,7 @@
 ---
 name: review-test
 description: テストコードのレビューを行う。公開契約（入出力・エラー契約・副作用保証）を起点に、テストが振る舞いの仕様として機能しているかを評価し、改善点を優先度付きで報告する。「テストをレビューして」「テストのレビューをお願い」「test review」「review the tests」などテストそのもののレビューを依頼された時、または /review-test コマンドで起動する。
+effort: max
 allowed-tools: Bash, Read, Glob, Grep
 ---
 
