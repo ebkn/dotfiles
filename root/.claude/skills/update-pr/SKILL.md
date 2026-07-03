@@ -42,6 +42,8 @@ Update the existing pull request for the current branch. Follow this flow:
 6. **Confirm**: Show the full updated PR title/body. Ask if the user wants to change the title, add links, or make any edits — apply and re-confirm. Do not push or edit until approved.
 
 7. **Push and update**:
-   - Push (`git push -u origin HEAD`) only if there are unpushed commits (`git log @{upstream}..HEAD`).
+   - Check for an upstream with `git rev-parse --abbrev-ref --symbolic-full-name @{upstream}`.
+   - If it fails (no upstream), push unconditionally with `git push -u origin HEAD`.
+   - If an upstream exists, push only when `git log @{upstream}..HEAD` shows unpushed commits.
    - Update with `gh pr edit --title "<title>" --body "<body>"`.
    - Return the PR URL.

@@ -38,4 +38,9 @@ Create a pull request. Follow this flow:
    - Proactively include any reference links (issues, docs, related PRs) found in conversation history.
    - Do **not** append the Claude session URL (`https://claude.ai/code/…`) to the PR body.
 
-5. **Push and create**: Do not ask the user to confirm the title/body — create directly. Push (`git push -u origin HEAD`) only if there are unpushed commits (`git log @{upstream}..HEAD`). Create with `gh pr create --title "<title>" --body "<body>"`. Return the PR URL.
+5. **Push and create**: Do not ask the user to confirm the title/body — create directly. Push before creating:
+   - Check for an upstream with `git rev-parse --abbrev-ref --symbolic-full-name @{upstream}`.
+   - If it fails (no upstream — the common new-branch case), push unconditionally with `git push -u origin HEAD`.
+   - If an upstream exists, push only when `git log @{upstream}..HEAD` shows unpushed commits.
+
+   Then create with `gh pr create --title "<title>" --body "<body>"`. Return the PR URL.
