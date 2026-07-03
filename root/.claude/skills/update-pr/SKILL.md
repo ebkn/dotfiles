@@ -1,6 +1,7 @@
 ---
 name: update-pr
 description: Update an existing GitHub pull request after adding commits by revising title/body, preserving template format, and pushing pending branch changes.
+effort: low
 allowed-tools: Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git rev-parse *), Bash(git push *), Bash(git ls-files *), Bash(gh repo view *), Bash(gh pr view *), Bash(gh pr edit *), Read, Glob, Grep, AskUserQuestion
 ---
 
