@@ -9,6 +9,13 @@ Help the user **compose the review comments they want to send** on a GitHub pull
 
 **Output language: match the language the user used in their request.** Japanese request → respond in Japanese. Code snippets, file paths, and command output stay verbatim.
 
+**Writing quality (applies to every output).** Write as a well-edited technical document, not as terse notes:
+
+- **読みやすさを最優先に。** 一文一意で短く区切り、主語と述語を対応させる。箇条書きの断片(体言止めの羅列)に逃げず、必要なら助詞・述語を補って意味の通る文にする。
+- **日本語で自然な語は日本語で書く。** 定訳のある概念(例: 目的/背景/変更点/影響範囲/後方互換/呼び出し元/責務)は日本語で表現する。カタカナ語や英単語は、日本語にすると不自然・冗長になる技術用語(例: API, commit, diff, PR, schema, migration)に限って使う。無意味な和英混在(「このロジックを fix する」等)は避ける。
+- **固有名詞・コード片はそのまま。** 関数名・型名・ファイルパス・コマンド・URL は原文のまま。
+- 冗長な前置きや自明な説明は削る。読み手はこのプロジェクトの開発者である前提で、要点だけを密度高く書く。
+
 ## What this skill is for
 
 This is the single PR-review support skill. It covers **both** understanding the PR (a compact overview + follow-up walkthrough) and, on top of that, **helping the user write the review comments they will send**. The deliverable is drafted, severity-labeled comments — but the user always submits them.
@@ -71,33 +78,33 @@ The goal of this output is to get the user reading the right code fast — **not
 ```
 ## PR #<N>: <title>  (+<additions>/-<deletions>, <changedFiles> files ・ <state> ・ <url>)
 
-### 何を・何のために (intent)
-- 1–2 lines: the problem being solved and the goal. From the PR body; if absent, write "PR本文に記載なし" — do not guess.
+### 目的と背景
+- 解決したい課題と狙いを1〜2文で。PR本文が出典。記載がなければ「PR本文に記載なし」と書き、推測しない。
 
-### 実装アプローチ (how)
-- 2–3 bullets: the concrete approach taken (the mechanism, not a file listing). Focus on the non-obvious design choices, since the user knows the basics.
+### 実装アプローチ
+- 採用した手法(仕組み)を2〜3点。ファイルの列挙ではなく、非自明な設計判断に絞る。基本的な事柄は既知として省く。
 
-### まず読むべき順 (reading order)
+### 読む順序
 | # | ファイル | 役割 | 見どころ |
 |---|---|---|---|
-| 1 | `path/to/entry.ext` | この変更の起点/公開面 | <1行: なぜ最初に読むか> |
-| 2 | `path/to/core.ext` | 中核ロジック | <1行> |
-| 3 | `path/to/foo_test.ext` | 振る舞いの仕様 | <1行> |
-（High-signal files のみ、risk order。生成物・lockfile は載せない。3–6行に収める）
+| 1 | `path/to/entry.ext` | 変更の起点・公開面 | なぜ最初に読むかを1文で |
+| 2 | `path/to/core.ext` | 中核ロジック | 1文 |
+| 3 | `path/to/foo_test.ext` | 振る舞いの仕様 | 1文 |
+（重要なファイルのみをリスク順に。生成物・ロックファイルは載せない。3〜6行に収める）
 
-### 関連リンク (prior art) — あれば
-| 種別 | 参照 | リンク/パス |
+### 関連リンク（あれば）
+| 種別 | 内容 | パス・URL |
 |---|---|---|
-| PR | #<n> <一言> | <url> |
-| issue | #<n> <一言> | <url> |
-| doc | <title> | `docs/....md` |
-（PR本文のリンク・関連PR・関連docのうち、レビューに効くものだけ。無ければ節ごと省略）
+| PR | #<n> 一言 | <生URL> |
+| Issue | #<n> 一言 | <生URL> |
+| doc | タイトル | `docs/....md` |
+（PR本文中のリンク・関連PR・関連docのうち、レビューに効くものだけ。無ければ節ごと省く）
 
-### 注意を引く点（質問候補）
-- 2–4 objective facts stated as questions to the user, e.g.:
-  - "公開API <X> のシグネチャが変わっています。後方互換についてコメントしますか？"
-  - "外部サービス <Y> への新規呼び出しがあります。エラーハンドリングを確認しますか？"
-  - "この変更にテストが見当たりません。テスト追加を求めますか？"
+### 確認したい点（質問候補）
+- 事実にもとづく質問を2〜4点。良し悪しの判断ではなく、ユーザーが観点を選べるように問いの形で示す。例:
+  - 「公開API `<X>` のシグネチャが変わっています。後方互換についてコメントしますか？」
+  - 「外部サービス `<Y>` への呼び出しが追加されています。エラーハンドリングを確認しますか？」
+  - 「この変更に対応するテストが見当たりません。テスト追加を求めますか？」
 ```
 
 ### Phase 4: Elicit review points (divergent)
