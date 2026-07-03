@@ -38,8 +38,9 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   └── Brewfile-mas    #     Mac App Store apps
 ├── root/               #   Home directory configs (symlinked to ~/)
 │   ├── CLAUDE.md       #     Global Claude Code instructions
-│   ├── .claude/        #     Claude Code settings and skills
-│   ├── .codex/         #     Codex rules and skills
+│   ├── .agents/skills/ #     Cross-tool agent skills (single source of truth)
+│   ├── .claude/        #     Claude Code settings and hooks
+│   ├── .codex/         #     Codex prefix rules
 │   └── opencode/       #     OpenCode config → ~/.config/opencode
 ├── cursor/             #   Cursor editor settings and keybindings
 ├── .github/workflows/  #   CI for setup script validation
@@ -70,6 +71,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 - **New dotfiles**: When adding a new dotfile, add the corresponding `ln -sf` line in `bin/init/macos.sh` (and `ubuntu.sh` if cross-platform).
 - **Platform-specific binaries**: Helper scripts that only make sense on one OS go under `bin/<platform>/` (e.g. `bin/wsl/`). Cross-platform helpers stay at `bin/` root. Symlink them from the matching `bin/init/<platform>.{sh,ps1}`.
 - **Home directory agent config**: Global Claude Code/Codex settings live in `root/` and are symlinked to `~/` by the setup script.
+- **Agent skills**: All skills live once under `root/.agents/skills/<name>/SKILL.md`. The setup script links this dir to `~/.claude/skills` (read by Claude Code and OpenCode) and links each skill individually into `~/.codex/skills/` (Codex owns bundled `.system` skills in that dir, so it can't be a single symlink). Add a new skill by creating its dir here — the Codex loop picks it up automatically. Skills use Claude frontmatter (`effort`, `allowed-tools`) and `!` command pre-fetch; other tools ignore the extra fields, and `!` lines render as inert text for them. `agents/openai.yaml` inside a skill supplies Codex UI metadata and is ignored elsewhere.
 
 ## Environment Notes
 

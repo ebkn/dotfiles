@@ -149,12 +149,18 @@ link_with_backup "${DOTFILES_DIR}/root/CLAUDE.md" "${HOME}/CLAUDE.md"
 link_with_backup "${HOME}/CLAUDE.md" "${HOME}/AGENTS.md"
 link_with_backup "${DOTFILES_DIR}/root/.github/copilot-instructions.md" "${HOME}/.github/copilot-instructions.md"
 link_with_backup "${DOTFILES_DIR}/root/.claude/settings.json" "${HOME}/.claude/settings.json"
-link_with_backup "${DOTFILES_DIR}/root/.claude/skills" "${HOME}/.claude/skills"
 link_with_backup "${DOTFILES_DIR}/root/.claude/hooks" "${HOME}/.claude/hooks"
 link_with_backup "${DOTFILES_DIR}/root/.codex/rules/default.rules" "${HOME}/.codex/rules/default.rules"
-link_with_backup "${DOTFILES_DIR}/root/.codex/skills/commit" "${HOME}/.codex/skills/commit"
-link_with_backup "${DOTFILES_DIR}/root/.codex/skills/create-pr" "${HOME}/.codex/skills/create-pr"
-link_with_backup "${DOTFILES_DIR}/root/.codex/skills/update-pr" "${HOME}/.codex/skills/update-pr"
+# Single source of truth for agent skills: root/.agents/skills.
+# Claude Code and OpenCode both read ~/.claude/skills, so one link covers both.
+# (Linking ~/.agents/skills too would make OpenCode double-load every skill.)
+link_with_backup "${DOTFILES_DIR}/root/.agents/skills" "${HOME}/.claude/skills"
+# Codex 0.142.x reads ~/.codex/skills and scaffolds bundled skills under
+# ~/.codex/skills/.system, so the whole dir can't be a single symlink — link
+# each skill individually.
+for skill_dir in "${DOTFILES_DIR}"/root/.agents/skills/*/; do
+  link_with_backup "${skill_dir%/}" "${HOME}/.codex/skills/$(basename "$skill_dir")"
+done
 link_with_backup "${DOTFILES_DIR}/root/opencode" "${HOME}/.config/opencode"
 install_or_upgrade_claude
 
