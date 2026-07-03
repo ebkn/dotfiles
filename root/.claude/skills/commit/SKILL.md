@@ -14,7 +14,7 @@ allowed-tools: Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git a
 
 Commit changes quickly. Do not summarize after — move on immediately.
 
-1. Run `git diff` and `git log --oneline -5`
+1. Run `git diff HEAD` and `git log --oneline -5`. Use `HEAD`, not a bare `git diff` — a bare `git diff` shows only unstaged changes and would miss anything already staged (before the first commit `HEAD` doesn't exist, so fall back to `git diff --cached`). No `git diff` surfaces untracked files, so `Read` any `??` files from status — you need their contents both to write an accurate message and to catch secrets.
 2. **Split changes into logical commits.** Default to splitting — only combine when changes are genuinely coupled (one is meaningless without the other). Classify each changed file/hunk by its concern:
    - Different **scope** (e.g., zsh vs vim vs tmux) → separate commits
    - Different **intent** (e.g., bug fix vs new feature vs refactor vs docs) → separate commits
