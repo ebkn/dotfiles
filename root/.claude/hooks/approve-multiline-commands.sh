@@ -3,9 +3,9 @@
 # wildcard "*" from matching (it does not match newline characters).
 #
 # Covered commands:
-#   - git commit -m "..." (with optional -C <dir> or chained after git add)
-#   - gh pr create --title ... --body "..."
-#   - gh pr edit ... --body "..."
+#   - git commit -m/-F ... (with optional -C <dir> or chained after git add)
+#   - gh pr create --title ... --body/--body-file ...
+#   - gh pr edit ... --body/--body-file ...
 #
 # See: https://github.com/anthropics/claude-code/issues/11932
 # Docs: https://docs.claude.com/en/hooks
@@ -31,9 +31,10 @@ approve() {
 
 first_line="${COMMAND%%$'\n'*}"
 
-# git commit -m (with optional -C <dir> prefix or chained after git add)
+# git commit -m/-F (with optional -C <dir> prefix or chained after git add).
+# -F is the stdin-heredoc form the commit skill uses for multi-line messages.
 if [[ "$first_line" =~ ^git\  ]] &&
-   [[ "$COMMAND" =~ git\ (-C\ [^\ ]+\ )?commit\ -m\  ]]; then
+   [[ "$COMMAND" =~ git\ (-C\ [^\ ]+\ )?commit\ -(m|F)\  ]]; then
   approve "Auto-approved multiline git commit via PreToolUse hook"
   exit 0
 fi
