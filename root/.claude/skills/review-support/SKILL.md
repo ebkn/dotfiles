@@ -1,6 +1,6 @@
 ---
 name: review-support
-description: Help the reviewer understand a GitHub pull request through dialogue. Orient with a short reading guide, then answer their questions and dig into the real code interactively so their understanding deepens. Only once understanding is solid — and only when the reviewer asks — organize their own conclusions into review notes they send themselves. Facilitator: never produce ok/ng verdicts or review comments on your own. Triggered by requests like "PRをレビューしたい", "PRを理解したい", "このPRを見たい", "help me review this PR", or the `/review-support` command.
+description: Help the reviewer understand a GitHub pull request through dialogue. Start with a short orientation to the PR's purpose and approach, then answer their questions and dig into the real code interactively so their understanding deepens. Only once understanding is solid — and only when the reviewer asks — organize their own conclusions into review notes they send themselves. Facilitator: never produce ok/ng verdicts or review comments on your own. Triggered by requests like "PRをレビューしたい", "PRを理解したい", "このPRを見たい", "help me review this PR", or the `/review-support` command.
 effort: max
 allowed-tools: Bash(gh pr view *), Bash(gh pr diff *), Bash(gh pr status *), Bash(gh pr list *), Bash(gh repo view *), Bash(git rev-parse *), Bash(git log *), Bash(git diff *), Bash(git blame *), Bash(git show *), Read, Glob, Grep, AskUserQuestion
 ---
