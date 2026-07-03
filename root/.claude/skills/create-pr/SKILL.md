@@ -15,7 +15,7 @@ allowed-tools: Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git r
 
 Create a pull request. Follow this flow:
 
-1. **Gather context**: Get the default branch locally via `git rev-parse --abbrev-ref origin/HEAD` (strip the `origin/` prefix); only if that fails (origin/HEAD unset) fall back to `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`. Then run `git log --oneline`, `git diff --stat`, and `git diff` against it.
+1. **Gather context**: Get the default branch locally via `git rev-parse --abbrev-ref origin/HEAD` (strip the `origin/` prefix); only if that fails (origin/HEAD unset) fall back to `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`. Then read the commits **with full messages** via `git log <base>..HEAD` (bodies included — the commit skill records the *why* there) plus `git diff --stat <base>..HEAD` for the file-level shape. Pull the full `git diff <base>..HEAD` only when the messages and stat don't sufficiently explain the changes (thin or missing commit bodies) — for large PRs this avoids reading the whole diff needlessly.
 
 2. **Uncommitted changes**: If `git status` above shows output, ask the user whether to commit them, ignore them, or abort. Do not proceed until answered.
 
