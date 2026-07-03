@@ -1,88 +1,68 @@
 ---
 name: review-support
-description: Help the user review a GitHub pull request and compose the review comments they will send themselves. Act as a facilitator — give a compact overview, draw out the user's concerns through dialogue, verify them against the real code, and shape them into sendable, severity-labeled inline comments plus a summary memo. Do NOT originate code-quality verdicts on your own; the review judgment stays with the user. Triggered by requests like "PRをレビューしたい", "レビューを書きたい", "レビューコメントをまとめたい", "help me review this PR", "help me write review comments", or the `/review-support` command.
+description: Help the reviewer understand a GitHub pull request through dialogue. Orient with a short reading guide, then answer their questions and dig into the real code interactively so their understanding deepens. Only once understanding is solid — and only when the reviewer asks — organize their own conclusions into review notes they send themselves. Facilitator: never produce ok/ng verdicts or review comments on your own. Triggered by requests like "PRをレビューしたい", "PRを理解したい", "このPRを見たい", "help me review this PR", or the `/review-support` command.
 effort: max
-allowed-tools: Bash(gh pr view *), Bash(gh pr diff *), Bash(gh pr status *), Bash(gh repo view *), Bash(git rev-parse *), Bash(git log *), Bash(git diff *), Bash(git blame *), Bash(git show *), Read, Glob, Grep, AskUserQuestion
+allowed-tools: Bash(gh pr view *), Bash(gh pr diff *), Bash(gh pr status *), Bash(gh pr list *), Bash(gh repo view *), Bash(git rev-parse *), Bash(git log *), Bash(git diff *), Bash(git blame *), Bash(git show *), Read, Glob, Grep, AskUserQuestion
 ---
 
-Help the user **compose the review comments they want to send** on a GitHub pull request. **The user sends the review themselves — this skill never posts it.**
+このスキルの目的は、**レビュワーが対象PRを「理解」すること**を支援することにある。まず読むべき起点を示し、そこから**対話を通じて理解を深める**。レビュー内容としてまとめるのは、理解が固まった後、レビュワーが求めたときだけ行う。**レビューの送信は必ずレビュワー自身が行い、このスキルは投稿しない。**
 
-**Output language: match the language the user used in their request.** Japanese request → respond in Japanese. Code snippets, file paths, and command output stay verbatim.
+**出力言語はレビュワーの依頼言語に合わせる。** 日本語の依頼には日本語で答える。コード片・ファイルパス・コマンド出力はそのまま引用する。
 
-**Writing quality (applies to every output).** Write as a well-edited technical document, not as terse notes:
+**文章品質（すべての出力に適用）。** 走り書きではなく、推敲された技術文書として書く。
 
-- **読みやすさを最優先に。** 一文一意で短く区切り、主語と述語を対応させる。箇条書きの断片(体言止めの羅列)に逃げず、必要なら助詞・述語を補って意味の通る文にする。
-- **日本語で自然な語は日本語で書く。** 定訳のある概念(例: 目的/背景/変更点/影響範囲/後方互換/呼び出し元/責務)は日本語で表現する。カタカナ語や英単語は、日本語にすると不自然・冗長になる技術用語(例: API, commit, diff, PR, schema, migration)に限って使う。無意味な和英混在(「このロジックを fix する」等)は避ける。
-- **固有名詞・コード片はそのまま。** 関数名・型名・ファイルパス・コマンド・URL は原文のまま。
-- 冗長な前置きや自明な説明は削る。読み手はこのプロジェクトの開発者である前提で、要点だけを密度高く書く。
+- **読みやすさを最優先に。** 一文一意で短く区切り、主語と述語を対応させる。体言止めの羅列に逃げず、助詞・述語を補って意味の通る文にする。
+- **日本語で自然な語は日本語で書く。** 定訳のある概念（目的／背景／変更点／影響範囲／後方互換／呼び出し元／責務 など）は日本語で表す。カタカナ語や英単語は、日本語だと不自然・冗長になる技術用語（API, commit, diff, PR, schema, migration など）に限る。無意味な和英混在（「このロジックを fix する」等）は避ける。
+- **固有名詞・コード片はそのまま。** 関数名・型名・ファイルパス・コマンド・URL は原文どおり。
+- URL とファイルパスは**生の文字列**で出力する（`https://github.com/org/repo/pull/123`、`docs/auth.md`）。Markdownリンク `[text](url)` はターミナルから辿れないため使わない。
 
-## What this skill is for
+## 基本原則
 
-This is the single PR-review support skill. It covers **both** understanding the PR (a compact overview + follow-up walkthrough) and, on top of that, **helping the user write the review comments they will send**. The deliverable is drafted, severity-labeled comments — but the user always submits them.
+- **理解が主目的。** 最初からレビューコメント案を並べて「これで OK か？」と問う進め方はしない。序盤の出力はあくまで理解のための地図であり、コメント化は最後の工程。理解が固まる前にコメントを生成しない。
+- **ファシリテーターに徹する。** レビューの判断はレビュワーが下す。「これはバグ」「直すべき」「LGTM」といった品質判断を自分から述べない。懸念や指摘の発生源は常にレビワー側にあり、こちらの役割はその理解を助け、裏取りし、最後に言語化・整形することにある。
+  - 例外: **事実の不整合**（PR本文と diff が食い違う、テストが doc と逆を主張している 等）は、判断ではなく事実の報告として直接指摘してよい。
+- **対話で深める。** 最初は短い起点だけを示し、詳細はレビュワーの問いに応じて展開する。情報を前倒しで詰め込まない。
+- **プロジェクトの前提知識を仮定する。** レビュワーはこのプロジェクトの開発者であり、ドメイン・規約・技術スタックの基礎は知っている。周知のフレームワーク／標準ライブラリの挙動、自明なコード、既知の規約は説明しない。**この変更に固有で非自明な点**（狙い・採用した手法・影響が及ぶ範囲）にだけ言葉を割く。
+- **結論の前に実コードで裏取りする。** 呼び出し元・テスト・base ブランチ版を実際に読んで確認する。推測と事実を区別し、不確かなときは「不明」と述べる。
+- **表は圧縮になるときだけ。** 構造を文より速く伝えられる場合に限り、小さく単純な表を使う（読む順序、関連リンク等）。数行・3〜4列を上限とし、肥大化するなら箇条書きに戻す。
 
-If the user clearly only wants to *understand* the PR (no intent to comment), stay in Phases 1–3 and do not push toward drafting comments.
+## 手順
 
-## Operating principles
+### 1. 対象PRを把握する
 
-- **Facilitator, not author of verdicts.** The concerns originate from the **user**, not from your own quality judgment.
-  - Do **not** spontaneously assert "this is a bug", "this should be refactored", "this is bad style", or hand over a finished LGTM/verdict.
-  - Instead, surface facts that naturally draw attention and **turn them into questions for the user** ("this changes the public API signature — do you want to comment on backward compatibility?"). Let the user decide whether it becomes a review comment.
-  - Your value-add is **articulation, verification, severity classification, and formatting** of the concerns the user expresses — not inventing the concerns.
-  - Exception: **factual inconsistencies** (e.g., "the PR body says X but the diff does Y", "this test asserts the opposite of the doc") may be raised directly. That is fact-reporting, not a quality verdict.
-- **Verify before wording.** Before turning a user's concern into a comment, check it against the real code (callers, tests, base-branch version). Label each item's status: `仮説 / 確認済み / 棄却`. Never draft a comment on an unverified hypothesis without saying so.
-- **Separate facts from inference.** Distinguish what the PR/code/commits state from what you infer. When uncertain, say "unclear" rather than guessing.
-- **Go deeper through dialogue.** Keep the initial overview compact. Expand only in response to the user; do not front-load.
-- **Assume project familiarity.** The user develops this project and holds baseline knowledge of its domain, conventions, and stack. Do **not** explain well-known framework/stdlib behavior, restate obvious code, or re-teach project conventions they already know. Spend words only on what is **specific and non-obvious about this change** — the intent, the approach chosen, and where it touches things.
-- **Orient before detail.** The first output is a **reading guide**, not a full explanation: what the PR is trying to do and why, the concrete approach, and — most importantly — *what to read first and in what order* so the user can dive into the code efficiently.
-- **Visualize when it compresses.** Use a **small, simple** table when it conveys structure faster than prose (reading-order, changed-areas-by-concern, related links). Cap tables at a handful of rows and 3–4 columns; if a table would sprawl, use bullets instead. Never table-ize prose that reads fine as a sentence.
-- **Emit links as raw strings.** Output every URL and file path as a **bare string** (e.g. `https://github.com/org/repo/pull/123`, `docs/auth.md`), never as a Markdown link `[text](url)`. Markdown links are not clickable from the Claude Code terminal — the raw string is. Put a short label next to the raw URL if context is needed, but keep the URL itself unwrapped.
-- **Prefer brevity.** Comments the user sends should be short and specific. Favor giving the user facts and options so they can phrase the comment in their own words over handing them a finished paragraph.
+- 既定では、レビュワーは対象PRのブランチを checkout 済みとする。`gh pr status --json number,title,headRefName,url` で現在のブランチのPRを特定する。
+- 特定できない場合（detached、別のワークスペース等）に限り、PR番号か URL をレビュワーに尋ねる。
+- PRの基本情報と diff を取得する。
+  - `gh pr view <N> --json number,title,body,author,baseRefName,headRefName,additions,deletions,changedFiles,labels,state,url`
+  - diff は**リスク順**（変更行数順ではない）に読む。ロックファイルや生成物に高シグナルのファイルを埋もれさせない。
+    1. 公開API（export された関数・型、route handler、RPC/GraphQL schema）
+    2. 認証・認可・権限チェック
+    3. データモデルと schema migration
+    4. 外部 I/O（外部API、ネットワーク、ファイルシステム、キュー）
+    5. 設定・環境変数・feature flag
+    6. 中核ロジック
+    7. テスト（上記の意図とカバレッジの確認に使う）
+    8. ドキュメント（コードとの整合性チェックに使う）
+    9. 生成物・ロックファイル・スナップショットは流し読みのみ
+  - 全体が 500 行以下なら `gh pr diff <N>` を一括取得。大きければリスク順にファイル単位で取得する。
+- 理解に役立つ**関連情報**を集める（後続の起点提示で生URLとして示す）。
+  - PR本文中のリンク（Issue、関連PR、外部doc）をそのまま抜き出す。
+  - 同じコードの過去PR: `git log --oneline -15 -- <path>` で履歴を見て、要所の commit を `gh pr list --search "<sha or keyword>" --state all --json number,title,url` でPRに対応づける。効くものを1〜3件。
+  - 対象箇所を説明する repo 内 doc: `Glob` で `docs/**` や近傍の `*.md`、`rg` で対象モジュール名を `docs/` 内検索。
+  - 存在するものだけを引用し、リンクを捏造しない。
 
-## Procedure
+### 2. 理解の起点を示す
 
-### Phase 1: Identify the PR
-
-- Default: the user has already checked out the branch for the PR they want to review. Run `gh pr status --json number,title,headRefName,url` and use the PR for the current branch.
-- Only if that resolves no PR (detached branch, wrong workspace), ask the user for the number or URL.
-
-### Phase 2: Fetch PR information
-
-Collect:
-
-- `gh pr view <N> --json number,title,body,author,baseRefName,headRefName,additions,deletions,changedFiles,labels,state,url`
-- `gh pr view <N> --json files` for the per-file additions/deletions.
-- Diff strategy (read in **risk order**, not change-size order — do not let lockfiles or generated code crowd out high-signal files):
-  - Total diff ≤ 500 lines: `gh pr diff <N>` in one call.
-  - Larger: fetch file-by-file in risk order (high → low):
-    1. Public API surface (exported functions/types, route handlers, RPC/GraphQL schemas)
-    2. Authentication / authorization / permission checks
-    3. Data model and schema migrations
-    4. External I/O (third-party APIs, network, filesystem, queues)
-    5. Configuration and environment variables, feature flags
-    6. Core business logic
-    7. Tests (confirm intent and coverage of the above)
-    8. Documentation (fact-check against the code)
-    9. Generated artifacts, lockfiles, snapshots — skim only; do not deep-read.
-  - Path heuristics: `*.lock` / `*.sum` / `dist/` / `generated/` / `__snapshots__/` / `vendor/` / `*.min.js` → generated; `docs/` / `*.md` → doc.
-  - When useful, `Read` the base-branch version for comparison.
-- **Gather related context to link in the overview** (the user wants filenames/links to prior art, not just the raw diff):
-  - Links in the PR body — issues, related PRs, external docs. Extract them verbatim.
-  - Prior PRs on the same code: `git log --oneline -15 -- <changed-path>` to see recent history; map notable commits to their PR with `gh pr list --search "<sha or keyword>" --state all --json number,title,url`. Surface the 1–3 most relevant.
-  - In-repo docs describing the touched area: `Glob` for `docs/**`, `README*`, `**/*.md` near the changed files, and `rg` for the changed module/symbol names inside `docs/`. List the ones a reviewer should read.
-  - Keep every reference as `名前 + 生のパス or URL` (bare string, not a Markdown link) so the user can click/copy it from the terminal. Do not invent links — only cite what actually exists.
-
-### Phase 3: Present a reading guide
-
-The goal of this output is to get the user reading the right code fast — **not** to explain the PR in full. Assume they know the project. Keep it short; use the small tables below. Drop any section that has nothing meaningful to say (e.g., no related prior art → omit that table).
+対象を最短で正しく読み始められるようにするのが狙い。PRの全容を説明しきることではない。短くまとめ、レビュワーが既知のことは省く。**ここではレビューコメント案や「質問候補」を出さない**——それは理解が済んでから、レビワーの求めに応じて行う。
 
 ```
-## PR #<N>: <title>  (+<additions>/-<deletions>, <changedFiles> files ・ <state> ・ <url>)
+## PR #<N>: <title>  (+<additions>/-<deletions>, <changedFiles> files ・ <state> ・ <生URL>)
 
 ### 目的と背景
-- 解決したい課題と狙いを1〜2文で。PR本文が出典。記載がなければ「PR本文に記載なし」と書き、推測しない。
+- 解決したい課題と狙いを1〜2文で。出典はPR本文。記載がなければ「PR本文に記載なし」と書き、推測しない。
 
 ### 実装アプローチ
-- 採用した手法(仕組み)を2〜3点。ファイルの列挙ではなく、非自明な設計判断に絞る。基本的な事柄は既知として省く。
+- 採用した手法（仕組み）を2〜3点。ファイルの列挙ではなく、非自明な設計判断に絞る。
 
 ### 読む順序
 | # | ファイル | 役割 | 見どころ |
@@ -96,88 +76,77 @@ The goal of this output is to get the user reading the right code fast — **not
 | 種別 | 内容 | パス・URL |
 |---|---|---|
 | PR | #<n> 一言 | <生URL> |
-| Issue | #<n> 一言 | <生URL> |
 | doc | タイトル | `docs/....md` |
-（PR本文中のリンク・関連PR・関連docのうち、レビューに効くものだけ。無ければ節ごと省く）
-
-### 確認したい点（質問候補）
-- 事実にもとづく質問を2〜4点。良し悪しの判断ではなく、ユーザーが観点を選べるように問いの形で示す。例:
-  - 「公開API `<X>` のシグネチャが変わっています。後方互換についてコメントしますか？」
-  - 「外部サービス `<Y>` への呼び出しが追加されています。エラーハンドリングを確認しますか？」
-  - 「この変更に対応するテストが見当たりません。テスト追加を求めますか？」
+（レビューに効くものだけ。無ければ節ごと省く）
 ```
 
-### Phase 4: Elicit review points (divergent)
+最後に、次の一歩をレビュワーに委ねる短い問いかけで締める。例:「どこから見ていきますか。特定のファイルの詳細、背景の掘り下げ、既存コードへの影響など、気になるところを教えてください。」
 
-Draw out what the **user** wants to raise. Drive it with `AskUserQuestion` or open prompts. Classify each emerging point into one of three streams:
+### 3. 対話で理解を深める（このスキルの中心）
 
-- **疑問 (question)** — the user finds the intent unclear and wants to ask the author.
-- **懸念 (concern)** — the user suspects a problem (bug, design, maintainability). Mark `仮説` until verified.
-- **確認 (fact-check)** — test coverage, backward compatibility, migration, doc-vs-code consistency.
+レビュワーの問いに応じて、正確に、実コードにもとづいて答える。これが主となる工程で、ここに最も時間をかける。**この段階ではレビューコメントを作らない。** 理解を助けることに徹する。
 
-Do not add concerns the user did not raise. You *may* keep offering attention-drawing facts as questions (Phase 3 style) to prompt them, but the user decides what becomes a comment.
+- **コードの読み解き:** 該当箇所を `Read` し、何をしているかを正確に説明する。意図が読めなければ「不明」と述べる。
+- **背景の掘り下げ:** PR本文・commit message・関連Issue・`git blame`・周辺コードから事実を集める。
+- **影響範囲:** `rg` で呼び出し元や参照箇所を洗い、関連するテスト・doc を確認する。
+- **既存との比較:** base ブランチ版を `Read` し、diff が実際に何を変えているかを説明する。
 
-### Phase 5: Verify against real code (as needed)
+レビュワーが疑問・懸念を口にしたら、その裏取りを引き受ける（呼び出し元の広がり、テストの有無、base との差分）。ただし裏取りの結果として事実を返すのであって、良し悪しの結論は返さない。レビュワーが求めていない懸念を自分から積み増さない。
 
-For each `懸念(仮説)`, do the legwork before it becomes a comment:
+### 4. 理解が固まったら整理する
 
-- `rg` for callers and references to gauge blast radius.
-- `Read` the related tests — is the behavior exercised?
-- `Read` the base-branch version and explain what the diff actually changes.
-- Update the label: `仮説 → 確認済み` (concern stands) or `棄却` (turned out fine — tell the user why, so they can drop it).
+**レビワーが「理解できた」「レビュー内容をまとめたい」と示したときにだけ**この工程に入る。ここで初めて、対話を通じてレビュワー自身が形成した疑問・懸念を、送信できる形に整理する。整理するのはあくまでレビワーが対話の中で挙げた論点であり、こちらが新たに判断を持ち込むわけではない。
 
-### Phase 6: Converge — assemble sendable comments
+送信用に2つを用意する。レビュワーが GitHub にコピーして自分で送る。
 
-Produce **both** outputs. The user copy-pastes them into GitHub and sends manually.
-
-**(A) Inline comments** — one block per location:
+**(A) 個別コメント** — 箇所ごとに1ブロック:
 
 ```
 ### 送信用コメント
 
 1. `path/to/file.ext:120`  [issue]
-   <comment body, 1–3 lines, in the user's voice — specific and short>
+   本文を1〜3文で。レビュワーの言葉で、具体的かつ簡潔に。
 
 2. `path/to/other.ext:45`  [question]
-   <comment body>
+   本文
 
 3. `path/to/file.ext:200`  [nitpick / non-blocking]
-   <comment body>
+   本文
 ```
 
-**(B) Summary memo** — for the overall PR comment / review submission note:
+**(B) 全体所感** — PR全体コメント／レビュー本文向け:
 
 ```
-### 全体所感（PR全体コメント用）
-- <overall framing in 2–4 bullets: approve intent / blocking items / open questions>
+### 全体所感
+- 全体の枠づけを2〜4点（意図への評価、blocking な点、未解決の問い など）
 ```
 
-Rules for this phase:
+この工程の約束事:
 
-- Attach a **severity label** to every inline comment (see below).
-- Keep each comment copy-paste ready and phrased as the user would send it — but keep it lean so the user can adjust wording.
-- List `棄却` items separately as "確認して問題なかった点" so the user knows what was checked and dropped.
-- **Do not send.** Never run `gh pr comment`, `gh pr review`, or any posting command. If the user asks you to send, remind them this skill hands off at draft; they submit it themselves.
+- 各コメントに**深刻度ラベル**を付ける（下表）。ラベルはレビュワーの意図を反映するもので、こちらの判断ではない。
+- コメントはコピーしてそのまま送れる粒度にしつつ、レビュワーが手を入れられるよう簡潔に保つ。
+- 対話の中で裏取りして問題なかった点は「確認して問題なかった点」として分けて記す。何を確認して落としたかが分かるようにする。
+- **送信しない。** `gh pr comment`／`gh pr review` などの投稿コマンドは実行しない。送信を求められたら、このスキルは下書きまでで、投稿はレビュワー自身が行うと伝える。
 
-## Severity labels (based on Conventional Comments)
+## 深刻度ラベル（Conventional Comments に準拠）
 
-Classify each comment so the user can decide what to send and how firmly. Reflect the **user's** intent, not your own verdict.
+各コメントを分類し、レビュワーが「何を・どの強さで送るか」を選べるようにする。反映するのはレビュワーの意図であり、こちらの判断ではない。
 
-| Label | Meaning | Blocks merge? |
+| ラベル | 意味 | merge を止めるか |
 |---|---|---|
-| `issue` | A problem the user believes should be addressed | usually yes |
-| `question` | The user wants to understand the author's intent | no (but may gate approval) |
-| `suggestion` | A concrete alternative the user proposes | optional |
-| `nitpick` | Minor / stylistic; explicitly non-blocking | no |
-| `praise` | Something the user wants to positively call out | no |
+| `issue` | 対応すべきとレビュワーが考える問題 | 多くの場合 yes |
+| `question` | 作者の意図を確認したい | no（承認の条件にはなりうる） |
+| `suggestion` | 具体的な代替案の提示 | 任意 |
+| `nitpick` | 軽微・様式上の指摘。明示的に non-blocking | no |
+| `praise` | 良い点として明示的に伝えたい | no |
 
-Add `(blocking)` / `(non-blocking)` when the user wants to make the merge impact explicit.
+merge への影響を明示したいときは `(blocking)` / `(non-blocking)` を添える。
 
-## Prohibited (unless the user explicitly requests otherwise)
+## 禁止事項（レビュワーが明示的に求めた場合を除く）
 
-- **Posting the review** (`gh pr comment` / `gh pr review` / any send). The user always submits.
-- **Originating code-quality verdicts** the user did not raise ("this is buggy", "this is well done", "refactor this"). Surface facts as questions instead.
-- Proposing fix code unprompted.
-- Imposing subjective stylistic or architectural preferences without a factual basis from the code.
+- **レビューの投稿**（`gh pr comment` / `gh pr review` など）。送信は常にレビュワーが行う。
+- **自分発の品質判断**（「これはバグ」「よくできている」「リファクタすべき」等）。事実を示し、判断はレビュワーに委ねる。
+- 求められていない修正コードの提案。
+- コードにもとづく根拠のない、主観的な様式・設計の押し付け。
 
-Factual inconsistencies (PR-body-vs-diff, doc-vs-code, test-asserts-opposite) are **not** prohibited — reporting them is fact-checking, and they make good review material.
+事実の不整合（PR本文と diff、doc とコード、テストが逆を主張 等）の指摘は禁止に含めない。これは品質判断ではなく事実確認であり、良いレビュー材料になる。
