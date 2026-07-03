@@ -53,4 +53,5 @@ Update the existing pull request for the current branch. Follow this flow:
      <body>
      PR_BODY_EOF
      ```
+   - Keep the title free of backticks — GitHub renders PR titles as plain text, so backticks would appear literally *and* would trigger shell command substitution inside the double quotes; escape any `$` or `"` if the title contains them.
    - Return the PR URL.
