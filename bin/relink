@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+#
+# relink — re-sync the dotfiles symlinks defined in bin/init/link_dotfiles().
+#
+# Reports drift (missing links, or paths that no longer point into the repo)
+# and, if any is found, asks before creating/fixing the links. Existing real
+# files at a link target are moved to ~/backup, same as the init script.
+#
+# `update-all` calls this at the end so symlinks added to the repo after a
+# machine was provisioned land without re-running the full platform init script.
+set -uo pipefail
+
+DOTFILES_DIR="${DOTFILES_DIR:-${HOME}/dotfiles}"
+BACKUP_DIR="${BACKUP_DIR:-${HOME}/backup}"
+
+if [ ! -d "$DOTFILES_DIR" ]; then
+  printf "error: dotfiles dir not found: %s\n" "$DOTFILES_DIR" >&2
+  exit 1
+fi
+
+# common.sh installs an ERR trap and assumes `set -e`; relink deliberately runs
+# without -e so it can survey every link, so drop the trap after sourcing.
+. "${DOTFILES_DIR}/bin/init/common.sh"
+. "${DOTFILES_DIR}/bin/init/links.sh"
+trap - ERR
+
+# Pass 1: report drift without touching anything.
+LINK_DRIFT=0
+LINK_CHECK=1 link_dotfiles
+
+if [ "$LINK_DRIFT" != "1" ]; then
+  printf "dotfiles symlinks are up to date.\n"
+  exit 0
+fi
+
+printf "\n"
+printf "Create/fix the links above? Existing files are backed up to %s [y/N] " "$BACKUP_DIR"
+read -r reply
+case "$reply" in
+  [yY] | [yY][eE][sS])
+    link_dotfiles
+    printf "done.\n"
+    ;;
+  *)
+    printf "skipped.\n"
+    ;;
+esac

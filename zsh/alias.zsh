@@ -546,6 +546,12 @@ update-all() {
     npm audit || true
   fi
   gcloud components update --quiet
+  # After all package updates, re-sync dotfiles symlinks so links added to the
+  # repo since this machine was provisioned get created (reports drift, then
+  # asks before changing anything). See bin/relink.
+  if command -v relink >/dev/null 2>&1; then
+    relink
+  fi
 }
 
 # Shared argv parser for the ssh/myssh wrappers below.

@@ -40,11 +40,26 @@ link_with_backup() {
     return 0
   fi
 
-  mkdir -p "$(dirname "$dest")"
-
+  # Already correctly linked — nothing to do in either apply or check mode.
   if [ -L "$dest" ] && [ -e "$dest" ] && [ "$dest" -ef "$src" ]; then
     return 0
   fi
+
+  # Check mode (LINK_CHECK=1): report drift and record it in LINK_DRIFT without
+  # touching the filesystem. `relink` uses this to preview work before asking.
+  if [ "${LINK_CHECK:-0}" = "1" ]; then
+    # Consumed by bin/relink to decide whether to prompt.
+    # shellcheck disable=SC2034
+    LINK_DRIFT=1
+    if [ -e "$dest" ] || [ -L "$dest" ]; then
+      printf "drift:   %s does not point to %s\n" "$dest" "$src"
+    else
+      printf "missing: %s -> %s\n" "$dest" "$src"
+    fi
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$dest")"
 
   if [ -e "$dest" ] || [ -L "$dest" ]; then
     backup_path "$dest"
