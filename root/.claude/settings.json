@@ -471,7 +471,6 @@
       }
     }
   },
-  "effortLevel": "high",
   "autoUpdatesChannel": "latest",
   "tui": "fullscreen",
   "voice": {
