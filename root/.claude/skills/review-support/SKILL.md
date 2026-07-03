@@ -35,6 +35,7 @@ allowed-tools: Bash(gh pr view *), Bash(gh pr diff *), Bash(gh pr status *), Bas
 - 特定できない場合（detached、別のワークスペース等）に限り、PR番号か URL をレビュワーに尋ねる。
 - PRの基本情報と diff を取得する。
   - `gh pr view <N> --json number,title,body,author,baseRefName,headRefName,additions,deletions,changedFiles,labels,state,url`
+  - `gh pr view <N> --comments` でPR上の既存議論（レビュースレッド・コメント）も読む。設計判断の経緯・既出の懸念・合意事項が残る、背景理解に最も濃い情報源。既存の指摘は「議論でこう指摘されている」という事実として扱い、自分の良し悪し判断として取り込まない。
   - diff は**リスク順**（変更行数順ではない）に読む。ロックファイルや生成物に高シグナルのファイルを埋もれさせない。
     1. 公開API（export された関数・型、route handler、RPC/GraphQL schema）
     2. 認証・認可・権限チェック
