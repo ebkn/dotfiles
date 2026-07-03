@@ -25,6 +25,9 @@ If the user clearly only wants to *understand* the PR (no intent to comment), st
 - **Verify before wording.** Before turning a user's concern into a comment, check it against the real code (callers, tests, base-branch version). Label each item's status: `仮説 / 確認済み / 棄却`. Never draft a comment on an unverified hypothesis without saying so.
 - **Separate facts from inference.** Distinguish what the PR/code/commits state from what you infer. When uncertain, say "unclear" rather than guessing.
 - **Go deeper through dialogue.** Keep the initial overview compact. Expand only in response to the user; do not front-load.
+- **Assume project familiarity.** The user develops this project and holds baseline knowledge of its domain, conventions, and stack. Do **not** explain well-known framework/stdlib behavior, restate obvious code, or re-teach project conventions they already know. Spend words only on what is **specific and non-obvious about this change** — the intent, the approach chosen, and where it touches things.
+- **Orient before detail.** The first output is a **reading guide**, not a full explanation: what the PR is trying to do and why, the concrete approach, and — most importantly — *what to read first and in what order* so the user can dive into the code efficiently.
+- **Visualize when it compresses.** Use a **small, simple** table when it conveys structure faster than prose (reading-order, changed-areas-by-concern, related links). Cap tables at a handful of rows and 3–4 columns; if a table would sprawl, use bullets instead. Never table-ize prose that reads fine as a sentence.
 - **Prefer brevity.** Comments the user sends should be short and specific. Favor giving the user facts and options so they can phrase the comment in their own words over handing them a finished paragraph.
 
 ## Procedure
@@ -54,24 +57,40 @@ Collect:
     9. Generated artifacts, lockfiles, snapshots — skim only; do not deep-read.
   - Path heuristics: `*.lock` / `*.sum` / `dist/` / `generated/` / `__snapshots__/` / `vendor/` / `*.min.js` → generated; `docs/` / `*.md` → doc.
   - When useful, `Read` the base-branch version for comparison.
-- Note links in the PR body (issues, related PRs, docs).
+- **Gather related context to link in the overview** (the user wants filenames/links to prior art, not just the raw diff):
+  - Links in the PR body — issues, related PRs, external docs. Extract them verbatim.
+  - Prior PRs on the same code: `git log --oneline -15 -- <changed-path>` to see recent history; map notable commits to their PR with `gh pr list --search "<sha or keyword>" --state all --json number,title,url`. Surface the 1–3 most relevant.
+  - In-repo docs describing the touched area: `Glob` for `docs/**`, `README*`, `**/*.md` near the changed files, and `rg` for the changed module/symbol names inside `docs/`. List the ones a reviewer should read.
+  - Keep every reference as `名前 + パス or URL` so the user can click through. Do not invent links — only cite what actually exists.
 
-### Phase 3: Present a compact overview
+### Phase 3: Present a reading guide
 
-Keep it **short** — bullets, not prose.
+The goal of this output is to get the user reading the right code fast — **not** to explain the PR in full. Assume they know the project. Keep it short; use the small tables below. Drop any section that has nothing meaningful to say (e.g., no related prior art → omit that table).
 
 ```
-## PR #<N>: <title>
+## PR #<N>: <title>  (+<additions>/-<deletions>, <changedFiles> files ・ <state> ・ <url>)
 
-- Author: <author> ・ Branch: <head> → <base>
-- Size: +<additions> / -<deletions>, <changedFiles> files ・ State: <state>
-- Link: <url>
+### 何を・何のために (intent)
+- 1–2 lines: the problem being solved and the goal. From the PR body; if absent, write "PR本文に記載なし" — do not guess.
 
-### 目的 (why)
-- 2–3 lines from the PR body. If not stated, write "PR本文に記載なし" — do not guess.
+### 実装アプローチ (how)
+- 2–3 bullets: the concrete approach taken (the mechanism, not a file listing). Focus on the non-obvious design choices, since the user knows the basics.
 
-### 主な変更 (what)
-- 3–5 bullets at the level of logical change units, not per-file listings.
+### まず読むべき順 (reading order)
+| # | ファイル | 役割 | 見どころ |
+|---|---|---|---|
+| 1 | `path/to/entry.ext` | この変更の起点/公開面 | <1行: なぜ最初に読むか> |
+| 2 | `path/to/core.ext` | 中核ロジック | <1行> |
+| 3 | `path/to/foo_test.ext` | 振る舞いの仕様 | <1行> |
+（High-signal files のみ、risk order。生成物・lockfile は載せない。3–6行に収める）
+
+### 関連リンク (prior art) — あれば
+| 種別 | 参照 | リンク/パス |
+|---|---|---|
+| PR | #<n> <一言> | <url> |
+| issue | #<n> <一言> | <url> |
+| doc | <title> | `docs/....md` |
+（PR本文のリンク・関連PR・関連docのうち、レビューに効くものだけ。無ければ節ごと省略）
 
 ### 注意を引く点（質問候補）
 - 2–4 objective facts stated as questions to the user, e.g.:
