@@ -36,6 +36,7 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/root/.github/copilot-instructions.md" "${HOME}/.github/copilot-instructions.md"
   link_with_backup "${DOTFILES_DIR}/root/.claude/settings.json" "${HOME}/.claude/settings.json"
   link_with_backup "${DOTFILES_DIR}/root/.claude/hooks" "${HOME}/.claude/hooks"
+  link_with_backup "${DOTFILES_DIR}/root/.claude/statusline-command.sh" "${HOME}/.claude/statusline-command.sh"
   # Link the whole rules dir (not the file inside it): ~/.codex/rules is a
   # directory symlink into the repo, so linking the file through it would resolve
   # dest back onto src and clobber the repo file. Codex owns bundled skills under
