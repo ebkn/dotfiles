@@ -74,6 +74,7 @@ Treat each bucket as a **lens, not a rigid script** — skip N/A items (say so o
 - [ ] Health/readiness endpoint matched to the deploy orchestrator
 - [ ] CORS scoped correctly (no wildcard origin with credentials); request body size limits
 - [ ] Open-redirect protection: user-supplied redirect targets validated against an allowlist
+- [ ] SSRF protection on server-side fetches of user-supplied URLs (link previews, import-by-URL, webhooks): validate against an allowlist, block private/link-local/loopback ranges and cloud metadata endpoints (`169.254.169.254`, `metadata.google.internal`), disable redirect-following to those ranges — otherwise an attacker exfiltrates instance credentials/IMDS tokens
 - [ ] No user input reflected unvalidated into response headers (header injection)
 - [ ] Personalized/private responses are not cached by shared CDN/KV caches (`Cache-Control: private`/`no-store`); only truly public responses are cached
 - [ ] Object storage: buckets/prefixes not publicly listable; only intended objects are public
@@ -250,6 +251,7 @@ Judge against these absolutes. A finding is P1 only if it clears the P1 bar.
 - A critical external/IO call with no timeout (thread/connection exhaustion) or unbounded/infinite retry.
 - A personalized/private response cached by a shared CDN, or an object-storage bucket/prefix publicly listable — leaking one user's data to others.
 - An open redirect or reflected-injection sink reachable from user input on a critical page.
+- An SSRF sink: a server-side fetch of a user-supplied URL that can reach internal services or the cloud metadata endpoint (`169.254.169.254`), enabling instance-credential/IMDS exfiltration.
 - Unbounded query/resource growth on a hot path that will exhaust the instance (no pagination/limits).
 - An irreversible or backward-incompatible migration against a live schema.
 - A critical-path failure that emits no log/metric/error-tracking signal — invisible to operators.
