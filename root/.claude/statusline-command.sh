@@ -1,6 +1,6 @@
 #!/bin/bash
 # Claude Code statusLine — p10k-flavored, two rows.
-#   Row 1: <launch-dir>[ (working at <working-dir>)]
+#   Row 1: <launch-dir>[ (in ./<working-dir-relative-to-launch>)]
 #   Row 2: <branch>[*]                <model>[ (<effort>)][  <pct>% Used]
 # Row 1 names the directory Claude was launched from and, only when the live
 # working directory has moved elsewhere, appends where it is now. Row 2 is
@@ -37,16 +37,21 @@ work_disp="${work_dir/#$HOME/\~}"
 
 # Row 1: just the directory when the working dir matches the launch dir (the
 # common case); otherwise show the launch dir and where work has moved to,
-# relative to it. The quoted prefix in ${work_dir#"$launch_dir"/} matches
-# literally so glob chars in the path aren't treated as patterns; when the
-# working dir isn't under the launch dir the prefix doesn't strip and we fall
-# back to the ~-abbreviated absolute path instead of a "../.."-laden relative.
+# relative to it with a leading ./ so it reads as relative. The quoted prefix in
+# ${work_dir#"$launch_dir"/} matches literally so glob chars in the path aren't
+# treated as patterns; when the working dir isn't under the launch dir the
+# prefix doesn't strip and we fall back to the ~-abbreviated absolute path
+# (no ./, since it isn't relative) instead of a "../.."-laden relative.
 if [ -z "$launch_dir" ] || [ "$launch_dir" = "$work_dir" ]; then
   row1="$work_disp"
 else
   rel="${work_dir#"$launch_dir"/}"
-  [ "$rel" = "$work_dir" ] && rel="$work_disp"
-  row1="$launch_disp (working at $rel)"
+  if [ "$rel" = "$work_dir" ]; then
+    rel="$work_disp"
+  else
+    rel="./$rel"
+  fi
+  row1="$launch_disp (in $rel)"
 fi
 
 # Branch (row 2, left) derived from the live working directory.
