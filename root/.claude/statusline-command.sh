@@ -36,11 +36,17 @@ launch_disp="${launch_dir/#$HOME/\~}"
 work_disp="${work_dir/#$HOME/\~}"
 
 # Row 1: just the directory when the working dir matches the launch dir (the
-# common case); otherwise show the launch dir and where work has moved to.
+# common case); otherwise show the launch dir and where work has moved to,
+# relative to it. The quoted prefix in ${work_dir#"$launch_dir"/} matches
+# literally so glob chars in the path aren't treated as patterns; when the
+# working dir isn't under the launch dir the prefix doesn't strip and we fall
+# back to the ~-abbreviated absolute path instead of a "../.."-laden relative.
 if [ -z "$launch_dir" ] || [ "$launch_dir" = "$work_dir" ]; then
   row1="$work_disp"
 else
-  row1="$launch_disp (working at $work_disp)"
+  rel="${work_dir#"$launch_dir"/}"
+  [ "$rel" = "$work_dir" ] && rel="$work_disp"
+  row1="$launch_disp (working at $rel)"
 fi
 
 # Branch (row 2, left) derived from the live working directory.
