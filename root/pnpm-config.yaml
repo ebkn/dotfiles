@@ -1,0 +1,12 @@
+# pnpm global config (linked to the platform-specific global config.yaml:
+#   macOS -> ~/Library/Preferences/pnpm/config.yaml
+#   Linux -> ~/.config/pnpm/config.yaml
+# unless $XDG_CONFIG_HOME is set, in which case pnpm uses $XDG_CONFIG_HOME/pnpm/).
+#
+# Supply-chain hardening: minimum release age (pnpm >= 10.16). Refuse to install
+# any npm package version published less than 3 days ago, matching the npm
+# min-release-age=3 (~/.npmrc) and yarn npmMinimalAgeGate (~/.yarnrc.yml) windows.
+#
+# Unit is MINUTES: 4320 = 3 days. Use minimumReleaseAgeExclude (names, globs, or
+# specific versions) to exempt a package when a fresh release is genuinely needed.
+minimumReleaseAge: 4320

@@ -57,6 +57,17 @@ link_dotfiles() {
   done
   link_with_backup "${DOTFILES_DIR}/root/opencode" "${HOME}/.config/opencode"
 
+  # Supply-chain cooldown: refuse npm package versions younger than 3 days.
+  # Keeps yarn/pnpm in lockstep with npm's min-release-age=3 (.npmrc). yarn Berry
+  # reads ~/.yarnrc.yml; pnpm's global config path is platform-specific (macOS
+  # keeps it under ~/Library/Preferences, Linux/WSL under ~/.config).
+  link_with_backup "${DOTFILES_DIR}/root/.yarnrc.yml" "${HOME}/.yarnrc.yml"
+  if [ "$(uname)" = "Darwin" ]; then
+    link_with_backup "${DOTFILES_DIR}/root/pnpm-config.yaml" "${HOME}/Library/Preferences/pnpm/config.yaml"
+  else
+    link_with_backup "${DOTFILES_DIR}/root/pnpm-config.yaml" "${HOME}/.config/pnpm/config.yaml"
+  fi
+
   # others
   link_with_backup "${DOTFILES_DIR}/.rgignore" "${HOME}/.rgignore"
   link_with_backup "${DOTFILES_DIR}/.sqliterc" "${HOME}/.sqliterc"
