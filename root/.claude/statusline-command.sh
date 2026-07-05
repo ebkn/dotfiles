@@ -1,7 +1,7 @@
 #!/bin/bash
 # Claude Code statusLine — p10k-flavored, two rows.
-#   Row 1: <launch-dir>[ (in ./<working-dir-relative-to-launch>)]
-#   Row 2: <model>[ (<effort>)][  <pct>% Used]
+#   Row 1: <launch-dir>[ (working in ./<working-dir-relative-to-launch>)]
+#   Row 2: <model>[ ・ <effort>][ ・ <pct>% Used]
 # Row 1 names the directory Claude was launched from and, only when the live
 # working directory has moved elsewhere, appends where it is now. Row 2 lists
 # session info: model, effort, and consumed context. Parsing is a single jq
@@ -63,13 +63,14 @@ else
   else
     rel="./$rel"
   fi
-  row1="$launch_disp (in $rel)"
+  row1="$launch_disp (working in $rel)"
 fi
 
-# Row 2: model, then effort (parenthesized so it doesn't read as part of the
-# model name) and consumed-context percentage, each appended only when present.
+# Row 2: model, effort, and consumed-context percentage joined by " ・ ". Each
+# part is appended only when present, and the separator rides with the part, so
+# an absent field leaves no dangling separator.
 row2="$model"
-[ -n "$effort" ] && row2="$row2 ($effort)"
-[ -n "$used" ] && row2="$row2  ${used}% Used"
+[ -n "$effort" ] && row2="$row2 ・ $effort"
+[ -n "$used" ] && row2="$row2 ・ ${used}% Used"
 
 printf '%s\n%s' "$row1" "$row2"
