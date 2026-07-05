@@ -29,11 +29,24 @@ input=$(cat)
   (.context_window.used_percentage | if . == null then "" else (round | tostring) end)
 ')
 
-# Abbreviate $HOME to ~, mirroring p10k's directory segment. The replacement
-# tilde is escaped: under bash a leading unescaped ~ in a ${var/pat/repl}
-# replacement is special-cased and the substitution no-ops.
-launch_disp="${launch_dir/#$HOME/\~}"
-work_disp="${work_dir/#$HOME/\~}"
+# Abbreviate a path for display: ghq's github.com checkout root collapses to
+# [ghq] (most repos live there, so it's the biggest win); otherwise $HOME
+# collapses to ~, mirroring p10k. ghq is checked first as the more specific
+# prefix. The escaped \~ matters: under bash a leading unescaped ~ in a
+# ${var/pat/repl} replacement is special-cased and the substitution no-ops. The
+# quoted prefix in ${p#"$ghq"/} matches literally so glob chars aren't patterns.
+abbrev_path() {
+  local p=$1 ghq="$HOME/ghq/github.com"
+  if [ "$p" = "$ghq" ]; then
+    printf '[ghq]'
+  elif [ "${p#"$ghq"/}" != "$p" ]; then
+    printf '[ghq]/%s' "${p#"$ghq"/}"
+  else
+    printf '%s' "${p/#$HOME/\~}"
+  fi
+}
+launch_disp=$(abbrev_path "$launch_dir")
+work_disp=$(abbrev_path "$work_dir")
 
 # Row 1: just the directory when the working dir matches the launch dir (the
 # common case); otherwise show the launch dir and where work has moved to,
