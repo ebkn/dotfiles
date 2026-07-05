@@ -40,8 +40,15 @@ link_with_backup() {
     return 0
   fi
 
-  # Already correctly linked — nothing to do in either apply or check mode.
-  if [ -L "$dest" ] && [ -e "$dest" ] && [ "$dest" -ef "$src" ]; then
+  # Already correctly linked, or dest already resolves to src through a symlinked
+  # parent dir — nothing to do in either apply or check mode. The `-ef` test alone
+  # (dest and src are the same file) covers both cases: dropping the earlier
+  # `[ -L "$dest" ]` requirement is deliberate. When a parent dir is itself
+  # symlinked into the repo, dest is a *real* file (not a symlink) that already IS
+  # src; without this guard, backup_path below would `mv` the real repo file out
+  # to ~/backup and `ln -s` would leave a self-referential symlink in the repo — a
+  # data-loss bug.
+  if [ -e "$dest" ] && [ "$dest" -ef "$src" ]; then
     return 0
   fi
 
