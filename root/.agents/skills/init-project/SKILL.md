@@ -1,6 +1,6 @@
 ---
 name: init-project
-description: Scaffold a new project in the current directory — git init, README.md, CLAUDE.md, AGENTS.md, Claude settings.json, and linter config for the specified language (TypeScript, Go, Python). Use this skill when the user wants to initialize or bootstrap a new project from scratch, set up a fresh repo, or scaffold project boilerplate.
+description: Scaffold a new project in the current directory — git init, README.md, CLAUDE.md, AGENTS.md, Claude settings.json, linter/test config, runtime pin, and CI (GitHub Actions + Dependabot) for the specified language (TypeScript, Go, Python), plus optional Next.js boilerplate with error boundaries, security headers, SEO, and a health endpoint. Use this skill when the user wants to initialize or bootstrap a new project from scratch, set up a fresh repo, or scaffold project boilerplate.
 allowed-tools: Bash(git init *), Bash(git init), Bash(git status *), Bash(git rev-parse *), Bash(git add *), Bash(git commit -m *), Bash(npm init *), Bash(npm install *), Bash(ls*), Bash(tree*), Bash(mkdir *), Bash(ln -s *), Read, Write, Glob
 ---
 
@@ -11,6 +11,7 @@ Initialize a new project in the current directory. Ask the user for:
 1. **Project name** — used in README.md heading and CLAUDE.md
 2. **One-line description** — what this project does
 3. **Primary language** — one of: `typescript`, `go`, `python` (or a framework like `next`, `fastapi`, `gin`, etc.)
+4. **Project type** — one of: `public-web` (public, indexable site), `internal-web` (internal tool / dashboard), `api` (backend/HTTP service, no browser UI), or `library`/`cli`. This gates the conditional steps: SEO scaffold (`public-web` only), security headers (any served web UI), and the health endpoint (`api` or any HTTP server).
 
 Then scaffold the project following the steps below. Skip any step where the file already exists — never overwrite.
 
@@ -58,6 +59,15 @@ Generate a project CLAUDE.md. The structure should be:
 ## Implementation Plan
 
 <!-- High-level milestones or phases -->
+
+## Launch Readiness
+
+<!-- Before going public, run /check-production-readiness for a full sweep.
+     Not scaffolded here because each needs an account/DSN or app-specific values:
+     - Error tracking (e.g. Sentry) on frontend + backend, with source-map upload.
+     - Product analytics / metrics.
+     - Content-Security-Policy: baseline security headers are scaffolded in next.config; a real
+       nonce-based CSP is intentionally left as a TODO until script/style sources are known. -->
 ```
 
 Fill in the Development section with concrete commands based on the language/framework chosen (e.g., `npm test`, `go test ./...`, `pytest`). Leave Context, Structure, and Implementation Plan as HTML comments for the user to fill in — these require human judgment.
@@ -91,7 +101,7 @@ Create `.claude/settings.json` with permissions scoped to the project's language
 - `Bash(npx tsc *)` if TypeScript
 
 **Go** — add:
-- `Bash(go test *)`, `Bash(go build *)`, `Bash(go vet *)`, `Bash(golangci-lint *)`
+- `Bash(go test *)`, `Bash(go build *)`, `Bash(go vet *)`, `Bash(golangci-lint *)`, `Bash(go mod init *)`
 
 **Python** — add:
 - `Bash(pytest *)`, `Bash(ruff *)`, `Bash(ruff check *)`, `Bash(ruff format *)`
@@ -182,6 +192,8 @@ First run `npx biome --version` to read the installed CLI version (e.g. `2.4.15`
   }
 }
 ```
+
+For **web / Next.js (JSX)** projects, keep Biome's `recommended` rules on: its accessibility (`a11y`) rules run at error level by default and are the accessibility gate enforced in CI (Step 6.8). Do not disable them — a downgraded a11y rule silently removes that gate.
 
 **Go** — `.golangci.yml`:
 
@@ -287,9 +299,264 @@ npm install next react react-dom
 npm install -D typescript @types/node @types/react @types/react-dom vitest
 ```
 
+#### Error & loading boundaries
+
+`create-next-app` does not add these; without them a runtime error is a white screen. Create minimal, correct-by-default stubs:
+
+`app/error.tsx`:
+
+```tsx
+"use client";
+
+export default function Error({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  return (
+    <div role="alert">
+      <h2>Something went wrong</h2>
+      <button type="button" onClick={() => reset()}>Try again</button>
+    </div>
+  );
+}
+```
+
+`app/global-error.tsx` (catches errors in the root layout; must render its own `<html>`/`<body>`):
+
+```tsx
+"use client";
+
+export default function GlobalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  return (
+    <html lang="en">
+      <body>
+        <h2>Something went wrong</h2>
+        <button type="button" onClick={() => reset()}>Try again</button>
+      </body>
+    </html>
+  );
+}
+```
+
+`app/not-found.tsx`:
+
+```tsx
+import Link from "next/link";
+
+export default function NotFound() {
+  return (
+    <div>
+      <h2>Not found</h2>
+      <Link href="/">Return home</Link>
+    </div>
+  );
+}
+```
+
+`app/loading.tsx`:
+
+```tsx
+export default function Loading() {
+  return <p>Loading…</p>;
+}
+```
+
+#### Security headers
+
+Add a static baseline header set to `next.config.ts`. **Do not add a Content-Security-Policy here** — a permissive/`unsafe-inline` CSP is a false safeguard; a real nonce-based CSP belongs in middleware once the app's script/style sources are known (left as a TODO in the CLAUDE.md Launch Readiness section). HSTS only takes effect over HTTPS, so it is inert in local dev.
+
+```ts
+import type { NextConfig } from "next";
+
+const securityHeaders = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+];
+
+const nextConfig: NextConfig = {
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
+};
+
+export default nextConfig;
+```
+
+#### SEO scaffold — `public-web` only
+
+Skip for `internal-web`, `api`, and `library`/`cli`. For an internal tool, instead consider a `robots.ts` that disallows all crawlers so it is never accidentally indexed.
+
+Replace the default `metadata` export in `app/layout.tsx` (the template already imports `Metadata`) so `metadataBase` and base metadata resolve to the real origin, not the preview/localhost domain:
+
+```ts
+export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  title: { default: "{project-name}", template: "%s | {project-name}" },
+  description: "{one-line description}",
+};
+```
+
+`app/robots.ts`:
+
+```ts
+import type { MetadataRoute } from "next";
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
+export default function robots(): MetadataRoute.Robots {
+  return {
+    rules: { userAgent: "*", allow: "/", disallow: "/api/" },
+    sitemap: `${siteUrl}/sitemap.xml`,
+  };
+}
+```
+
+`app/sitemap.ts`:
+
+```ts
+import type { MetadataRoute } from "next";
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
+export default function sitemap(): MetadataRoute.Sitemap {
+  return [{ url: siteUrl, lastModified: new Date() }];
+}
+```
+
+The scaffolded code reads `NEXT_PUBLIC_SITE_URL`. Create `.env.example` (or append to it) documenting it — without a real value, canonical/OG/sitemap URLs fall back to `localhost`:
+
+```
+NEXT_PUBLIC_SITE_URL=https://example.com
+```
+
 Then run `npm run build` to verify the setup works and generate `next-env.d.ts`.
 
 **Other frameworks** — skip this step.
+
+### Step 6.6: Runtime version pinning
+
+Pin the runtime so local, CI, and deploy agree. CI (Step 6.8) reads these files.
+
+**TypeScript / Node** — create `.nvmrc` containing the exact Node version (match `engines.node` from Step 4.5):
+
+```
+{exact current node version}
+```
+
+**Go** — the `go` directive in `go.mod` pins the toolchain. If `go.mod` does not exist yet, run `go mod init {module-path}` first.
+
+**Python** — create `.python-version` with the target version (e.g. `3.12`); optionally also set `requires-python` in `pyproject.toml`.
+
+### Step 6.7: Health endpoint (conditional)
+
+**Applies when** the project runs an HTTP server or exposes API routes (`api`, or any served web app). Skip for `library`/`cli`. The deploy orchestrator uses it for readiness checks; a trivial 200 is correct-by-default and cheap to add now.
+
+**Next.js (App Router)** — `app/api/health/route.ts`:
+
+```ts
+export const dynamic = "force-dynamic";
+
+export function GET() {
+  return Response.json({ status: "ok" });
+}
+```
+
+**Other servers (FastAPI, Gin, etc.)** — init-project does not scaffold server code for these, so add a `GET /healthz` returning `200 {"status":"ok"}` when you create the server, and note the route in the CLAUDE.md Development section.
+
+### Step 6.8: CI & Dependabot (`.github/`)
+
+init-project writes lint/typecheck/test scripts but nothing enforces them. Add a CI workflow that runs the gates on every push and PR, plus Dependabot for updates. Generate only the block matching the chosen language.
+
+**`.github/workflows/ci.yml` — TypeScript / Next.js:**
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:run
+      - run: npm run build   # Next.js only — drop for a plain TS library with no build script
+```
+
+**Go:**
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - uses: golangci/golangci-lint-action@v6
+      - run: go test ./...
+      - run: go build ./...
+```
+
+**Python:**
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - run: pip install ruff pytest
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest
+```
+
+**`.github/dependabot.yml`** — set `package-ecosystem` to `npm` / `gomod` / `pip` for the project language; the `github-actions` block keeps the workflow actions current. Grouping keeps PR noise down:
+
+```yaml
+version: 2
+updates:
+  - package-ecosystem: "npm" # gomod | pip — match the project language
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      all-dependencies:
+        patterns: ["*"]
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+```
 
 ### Step 7: .gitignore
 
