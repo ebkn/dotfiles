@@ -22,6 +22,19 @@ require("lazy").setup({
   },
   defaults = {
     lazy = false, -- instantly plugins are not lazy by default
+
+    -- Supply-chain hardening: minimum release age.
+    -- lazy.nvim has no native "min release age" yet. Track folke/lazy.nvim#2141;
+    -- the `commit` hook (PR #2165) is the intended home. Once it merges, uncomment
+    -- to skip any commit younger than 7 days on `:Lazy update`, giving the community
+    -- time to catch a compromised push before it reaches this machine.
+    -- commit = function(target)
+    --   local curr = target
+    --   while curr and curr:age() < 7 do
+    --     curr = curr:parent()
+    --   end
+    --   return curr
+    -- end,
   },
   install = {
     missing = true, -- install missing plugins on startup
