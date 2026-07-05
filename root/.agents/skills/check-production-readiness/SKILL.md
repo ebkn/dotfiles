@@ -13,7 +13,14 @@ Check whether a web application is ready to go public, by walking a concrete che
 
 **Boundary of this skill: read and report only.** Make no file changes and no git operations (add / commit / push, etc.). This is enforced by the grant, not just this prose: `allowed-tools` pre-authorizes only read-only `Bash` — read-only git (`git log`/`show`/`diff`/`status`/`blame`/`ls-files`), package audits/inventory (`npm/pnpm/yarn/bun audit`, `ls`, `outdated`), `lighthouse`, and `curl` (for response-header inspection). Read/search/list files through the `Read`/`Grep`/`Glob` tools, not shell. Any other command — including anything that writes or mutates git — is **not** pre-authorized and will prompt for approval; a read-only inspector for another ecosystem (`go list`, `cargo tree`, `pip-audit`, etc.) prompting is expected, but a write/commit/push prompt means something is wrong — do not approve it. `WebSearch`/`WebFetch` are for verifying advisories (CVEs, EOL dates), framework-version-specific behavior, and — importantly — pulling the **current** official best-practice/production docs for the detected stack (see **Best-practice sources** in Phase 1). Applying any fix is a separate request.
 
-**Security scope: common items only, then delegate.** This check covers the everyday security hygiene in the checklist below (hardcoded secrets, secret scanning, HTTPS/cookies, security headers/CSP, input validation, open redirect, `npm audit`, `NEXT_PUBLIC_` leakage). It does **not** attempt a full security audit. When findings suggest deeper exposure — injection surfaces, access-control logic, data handling — recommend running the `security-review` skill rather than going deep here.
+**Security scope: common items only, then delegate.** This check covers the everyday security hygiene in the checklist below (hardcoded secrets, secret scanning, HTTPS/cookies, security headers/CSP, input validation, open redirect, SSRF, `npm audit`, `NEXT_PUBLIC_` leakage). It does **not** attempt a full security audit. When findings suggest deeper exposure — injection surfaces, access-control logic, data handling — recommend running the `security-review` skill rather than going deep here.
+
+**Deliberately-thin areas — verify, don't skip.** Some high-stakes domains are intentionally **not** expanded into fine-grained checklist items here: **payments/billing, authentication & authorization, and legal/compliance** (the legal bucket stays deliberately high-level). Thin coverage is not permission to skim them. If the app actually has them and they are load-bearing, treat their correctness as launch-critical:
+- **Payments/billing** — confirm the money path is safe: server-side amount/price verification (never trust client-sent amounts), webhook signature verification and idempotency, no card data touching your servers unless PCI-scoped, correct handling of failed/duplicate/refunded transactions. Recommend a focused review before launch.
+- **Auth (authentication & authorization)** — confirm session/token handling is sound and, above all, that **every protected route/action enforces authorization server-side** (no missing object-level checks / IDOR, no client-only gating). This is exactly the deep access-control analysis to hand to `security-review` — say so explicitly rather than green-lighting it from this skill.
+- **Legal/compliance** — the jurisdiction- and business-specific obligations (privacy law regime, consent, required notices, data residency/retention) turn on facts the repo can't settle; flag what applies, mark it Needs-confirmation, and recommend qualified (legal) review — do not assert compliance.
+
+For all three: `WebSearch` the current authoritative guidance (payment provider docs, OWASP ASVS/auth cheat sheets, the applicable legal source) rather than relying on general knowledge, and route anything past the basics to the specialist (`security-review`, or a human for legal). When one of these is present but under-examined because it's out of this skill's depth, **say so in the report** — an unexamined payment or authz path is a stated gap, not a silent pass.
 
 ## Core principle: evidence over checklist
 
@@ -85,15 +92,20 @@ Treat each bucket as a **lens, not a rigid script** — skip N/A items (say so o
 - [ ] Bot / spam protection on public forms
 - [ ] URL/text inputs restrict dangerous protocols (`http(s):` only; block `javascript:`); user-supplied HTML escaped/sanitized
 - [ ] File uploads validated (type, size, filename) and stored outside a publicly listable path
+- [ ] Multi-step forms handle browser Back/Forward sanely: going back doesn't lose entered data or desync the step from the URL, and doesn't resubmit a completed step (post/redirect/get or state guard)
 
 **Frontend (general web)**
 - [ ] Error states and error boundaries — no white screen / unhandled rejection on failure
 - [ ] Loading and empty states for async data
+- [ ] Failed `fetch`/query has a retry affordance and a terminal error state — never an infinite spinner; guard against a hung request (timeout / `AbortController`) so a slow network resolves to an error, not a permanent load
 - [ ] Responsive / mobile+tablet layout; long text or URLs don't break layout (`overflow-wrap` / `word-break`); no horizontal shift from always-on scrollbars (`scrollbar-gutter: stable`)
+- [ ] `viewport` meta present (`width=device-width, initial-scale=1`); form inputs use ≥16px font so iOS Safari doesn't auto-zoom on focus; don't disable user zoom (`maximum-scale=1`/`user-scalable=no` — an a11y regression)
 - [ ] `<html lang>` set correctly (e.g. `lang="ja"` for a Japanese site)
 - [ ] Font loading avoids FOIT/CLS (`next/font` or `font-display: swap`; subset large fonts); OS/browser font fallback checked
 - [ ] Image optimization: right formats/sizes (WebP/AVIF), explicit dimensions/`aspect-ratio` + `sizes`, lazy loading; no oversized originals
 - [ ] Third-party/analytics scripts loaded with `async`/`defer` or `next/script` strategy; not blocking render
+- [ ] Ad-blocker resilience: core flows (navigation, form submit, conversion) don't depend on analytics/GTM/pixel scripts loading — 20–40% of users block them, so guard against the script being absent (no unhandled error, no blocked submit when `gtag`/`dataLayer` is undefined)
+- [ ] Deep-link / return-to restoration: an unauthenticated deep link that bounces through an authorization redirect returns the user to the originally requested URL afterward (validated `returnTo`, not an open redirect), not dumped on a generic home/dashboard
 - [ ] Large media (video / large GIFs) served from blob/object storage or a CDN, not bundled or inline
 - [ ] Core Web Vitals sane (LCP < 2.5s, CLS ~0, INP < 200ms, TTFB low); hero/LCP element prioritized; consider real-user/field data (RUM) in addition to synthetic Lighthouse
 - [ ] Custom 404 / error page, branded, returning the correct status code; favicon and apple-touch-icon present; no console errors in the prod build
@@ -123,7 +135,8 @@ Treat each bucket as a **lens, not a rigid script** — skip N/A items (say so o
 - [ ] `loading.tsx`, `error.tsx`, `not-found.tsx`, `global-error.tsx` present where they matter
 - [ ] Route Handlers / Middleware: correct runtime (node/edge) and matcher; error handling
 - [ ] Production build succeeds cleanly; Draft/Preview mode not reachable in prod
-- [ ] Source maps uploaded to the error tracker so prod stack traces are readable; monitoring/tunnel routes (e.g. `/monitoring`) excluded from indexing
+- [ ] Post-deploy version skew handled: a client on the old bundle requesting a now-removed chunk shouldn't dead-end on `ChunkLoadError` — recover (error boundary that hard-reloads on chunk-load failure) and/or enable deployment skew protection where the platform offers it (e.g. Vercel Skew Protection)
+- [ ] Source maps: uploaded to the error tracker so prod stack traces are readable, **but not served publicly** — leaving `productionBrowserSourceMaps: true` (or shipping `.map` files) exposes readable source to anyone; upload then withhold from the public bundle unless public exposure is intended; monitoring/tunnel routes (e.g. `/monitoring`) excluded from indexing
 
 **Frontend (SEO)** (public, indexable sites only — N/A for internal tools / APIs)
 - [ ] `metadataBase` set from the production URL (env-driven) — otherwise OG/canonical URLs resolve to the preview domain and break in prod
@@ -173,6 +186,7 @@ Treat each bucket as a **lens, not a rigid script** — skip N/A items (say so o
 - [ ] Structured logging with request/correlation IDs; **no secrets or PII in logs**; log persistence/retention (drains) for long-running debugging
 - [ ] Error tracking (e.g. Sentry) wired on both frontend and backend, with source maps uploaded; server errors raise a notification/alert
 - [ ] Analytics / product-metrics tool wired (page views, key events/conversions); consent-gated where required
+- [ ] SPA analytics accuracy: page views fire on client-side soft navigations (route changes), not just the initial load, and events aren't double-fired (Strict Mode double-effect, remounts, duplicate script tags) — verify actual payloads, not just that the script loads
 - [ ] Metrics/alerting and uptime monitoring (often cannot-verify — infra); distributed tracing for multi-service/serverless paths
 
 **Ops**
