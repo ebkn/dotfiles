@@ -2,7 +2,7 @@
 name: check-production-readiness
 description: Pre-launch readiness check for a web application before it goes public. Walk a concrete checklist across backend/API, forms, frontend (including a11y, SEO, and AIO/LLMO for AI-search discoverability), Next.js, legal/compliance, observability, ops, toolchain/CI gates, config/deploy, data, and manual launch setup (Search Console, Bing Webmaster, Rich Results Test, Sentry, analytics) — grounding every finding in actual code and config, and pulling the current official best-practice/production docs for the detected stack (Vercel, Next.js, React, web.dev, OWASP, Google Search) rather than relying on a static list. Report blockers and gaps with priorities (P1/P2/P3), and separate what cannot be verified from the repo and needs human confirmation. Security covers only common items here; deeper security auditing is delegated to the security-review skill. Read-and-report only: no code changes, no git operations. Triggered by requests like "production readiness check", "pre-launch checklist", "is this ready to ship", "check before going public", or the `/check-production-readiness` command.
 effort: max
-allowed-tools: Bash, Read, Glob, Grep, WebSearch, WebFetch
+allowed-tools: Read, Glob, Grep, WebSearch, WebFetch, Bash(git log:*), Bash(git show:*), Bash(git diff:*), Bash(git status:*), Bash(git blame:*), Bash(git ls-files:*), Bash(npm audit:*), Bash(npm ls:*), Bash(npm outdated:*), Bash(pnpm audit:*), Bash(pnpm ls:*), Bash(pnpm outdated:*), Bash(yarn audit:*), Bash(yarn npm audit:*), Bash(bun audit:*), Bash(npx lighthouse:*), Bash(lighthouse:*), Bash(curl:*)
 ---
 
 Check whether a web application is ready to go public, by walking a concrete checklist against the repo and reporting gaps with priorities (P1/P2/P3).
@@ -11,7 +11,7 @@ Check whether a web application is ready to go public, by walking a concrete che
 
 **Scope: whole web application / repository** by default, unless the requester narrows it (one app in a monorepo, backend only, frontend only).
 
-**Boundary of this skill: read and report only.** Make no file changes and no git operations (add / commit / push, etc.). Use `Bash` only to gather evidence — read config, inspect the dependency tree, run a dependency/vuln audit, `git log`/`git show` for history — never for writes or destructive actions. `WebSearch`/`WebFetch` are for verifying advisories (CVEs, EOL dates), framework-version-specific behavior, and — importantly — pulling the **current** official best-practice/production docs for the detected stack (see **Best-practice sources** in Phase 1). Applying any fix is a separate request.
+**Boundary of this skill: read and report only.** Make no file changes and no git operations (add / commit / push, etc.). This is enforced by the grant, not just this prose: `allowed-tools` pre-authorizes only read-only `Bash` — read-only git (`git log`/`show`/`diff`/`status`/`blame`/`ls-files`), package audits/inventory (`npm/pnpm/yarn/bun audit`, `ls`, `outdated`), `lighthouse`, and `curl` (for response-header inspection). Read/search/list files through the `Read`/`Grep`/`Glob` tools, not shell. Any other command — including anything that writes or mutates git — is **not** pre-authorized and will prompt for approval; a read-only inspector for another ecosystem (`go list`, `cargo tree`, `pip-audit`, etc.) prompting is expected, but a write/commit/push prompt means something is wrong — do not approve it. `WebSearch`/`WebFetch` are for verifying advisories (CVEs, EOL dates), framework-version-specific behavior, and — importantly — pulling the **current** official best-practice/production docs for the detected stack (see **Best-practice sources** in Phase 1). Applying any fix is a separate request.
 
 **Security scope: common items only, then delegate.** This check covers the everyday security hygiene in the checklist below (hardcoded secrets, secret scanning, HTTPS/cookies, security headers/CSP, input validation, open redirect, `npm audit`, `NEXT_PUBLIC_` leakage). It does **not** attempt a full security audit. When findings suggest deeper exposure — injection surfaces, access-control logic, data handling — recommend running the `security-review` skill rather than going deep here.
 
@@ -37,6 +37,7 @@ Readiness items depend on what the app is. Establish from the repo:
 - **Critical paths** — the flows whose failure is user-visible or loses data (for a lead-gen site, the form submission *is* the conversion). These get the most scrutiny.
 - **Existing signals** — CI checks enforced, prior incident notes, TODO/FIXME markers, existing runbook/readiness docs.
 - **Current best practices (do not rely on this file alone)** — for each framework / platform / major library the app actually uses, `WebFetch` its official production/best-practice guide (see **Best-practice sources** below) and `WebSearch` for version-specific guidance or breaking changes for the versions pinned in `package.json`. **This file's checklist is a floor, not the source of truth** — it dates quickly. **Fast-moving areas especially — SEO / AIO / LLMO ranking and preview behavior, platform features, security advisories — change frequently; `WebSearch` the latest from authoritative sources** (official docs, Google Search Central, web.dev, OWASP, the vendor's own blog/changelog) and prefer that over this file when they differ. Cite the source URL in the finding, and fold any new or changed guidance into the review as extra checks.
+  - **Degraded mode (network unavailable).** If `WebFetch`/`WebSearch` fail or are blocked, do **not** silently fall back and keep claiming the review reflects current official docs. State it plainly in the report — which sources you could not reach — and mark every finding that depended on a live lookup (fast-moving SEO/AIO/LLMO, platform features, advisory/EOL status) as **based on this possibly-stale checklist, not verified against current docs**. A degraded run is valid but must be labeled as such in the Overview.
 
 Then apply only the relevant buckets in Phase 2. The **Frontend (SEO)** and **Frontend (AIO / LLMO)** buckets apply only to public, indexable content sites — skip them (say so once) for internal tools and pure APIs. Skip **Forms** if there are no user submissions. State the selected scope so the report is anchored to it.
 
@@ -219,16 +220,19 @@ Use this format. Omit any priority section with no findings.
 ### Overview
 - Scope: <what was evaluated — which buckets applied, which skipped and why>
 - Stack: <framework, datastores, deploy target, public-facing vs internal>
+- Best-practice sources consulted: <live docs actually fetched, as raw URLs — or "network unavailable: checklist-only run, live docs NOT verified" if in degraded mode (see below)>
 - Verdict: <Ready / Conditional (after P1s) / Not ready> — provisional, evidence-based
 
+Findings carry two references where they apply: `evidence:` the `path:line` in this repo that shows the gap, and `ref:` the external best-practice source URL the judgment rests on (include `ref:` whenever the finding leans on a live doc or a fast-moving-area lookup; omit it for a plain in-repo defect). If the run was degraded, mark any finding whose `ref:` could not be fetched as **unverified against current docs**.
+
 ### P1 (Blocker) — must fix before going public
-- <finding> — evidence: `path:line`. Why it is catastrophic on launch (outage / data loss / breach / silent failure).
+- <finding> — evidence: `path:line`[; ref: <source URL>]. Why it is catastrophic on launch (outage / data loss / breach / silent failure).
 
 ### P2 (Should-fix)
-- <finding> — evidence: `path:line`. Impact on reliability / operability / UX / discoverability.
+- <finding> — evidence: `path:line`[; ref: <source URL>]. Impact on reliability / operability / UX / discoverability.
 
 ### P3 (Nice-to-have)
-- <finding> — evidence: `path:line`.
+- <finding> — evidence: `path:line`[; ref: <source URL>].
 
 ### Needs confirmation (cannot verify from the repo)
 - <item> — why the repo can't settle it / who to ask (e.g. DNS/SSL, branch protection, backups, uptime monitoring, cloud-account MFA, CDN cache config, and Manual setup items: Search Console / Bing Webmaster / Rich Results Test / Sentry project / analytics account).
