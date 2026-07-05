@@ -36,7 +36,7 @@ Readiness items depend on what the app is. Establish from the repo:
 - **Topology** — datastores, object storage, queues, external services called, forms, and how it deploys (Vercel, container, serverless, CI/CD, IaC).
 - **Critical paths** — the flows whose failure is user-visible or loses data (for a lead-gen site, the form submission *is* the conversion). These get the most scrutiny.
 - **Existing signals** — CI checks enforced, prior incident notes, TODO/FIXME markers, existing runbook/readiness docs.
-- **Current best practices** — for each framework / platform / major library the app actually uses, `WebFetch` its official production/best-practice guide (see **Best-practice sources** below) and `WebSearch` for version-specific guidance or breaking changes for the versions pinned in `package.json`. **This file's checklist is a floor, not the source of truth** — official docs drift, and new platform features/gotchas appear; confirm against the live doc each run rather than trusting this snapshot. Fold any new or changed guidance into the review as extra checks.
+- **Current best practices (do not rely on this file alone)** — for each framework / platform / major library the app actually uses, `WebFetch` its official production/best-practice guide (see **Best-practice sources** below) and `WebSearch` for version-specific guidance or breaking changes for the versions pinned in `package.json`. **This file's checklist is a floor, not the source of truth** — it dates quickly. **Fast-moving areas especially — SEO / AIO / LLMO ranking and preview behavior, platform features, security advisories — change frequently; `WebSearch` the latest from authoritative sources** (official docs, Google Search Central, web.dev, OWASP, the vendor's own blog/changelog) and prefer that over this file when they differ. Cite the source URL in the finding, and fold any new or changed guidance into the review as extra checks.
 
 Then apply only the relevant buckets in Phase 2. The **Frontend (SEO)** and **Frontend (AIO / LLMO)** buckets apply only to public, indexable content sites — skip them (say so once) for internal tools and pure APIs. Skip **Forms** if there are no user submissions. State the selected scope so the report is anchored to it.
 
@@ -50,7 +50,7 @@ Then apply only the relevant buckets in Phase 2. The **Frontend (SEO)** and **Fr
 | Core Web Vitals / perf | https://web.dev/explore/learn-core-web-vitals ; Lighthouse docs |
 | Accessibility | WCAG 2.2 quick ref — https://www.w3.org/WAI/WCAG22/quickref/ ; MDN ARIA |
 | Security headers / CSP | OWASP Secure Headers — https://owasp.org/www-project-secure-headers/ ; OWASP Cheat Sheets — https://cheatsheetseries.owasp.org/ ; MDN CSP |
-| SEO / structured data | Google Search Essentials — https://developers.google.com/search/docs/essentials ; Structured data — https://developers.google.com/search/docs/appearance/structured-data |
+| SEO / structured data | Google Search Essentials — https://developers.google.com/search/docs/essentials ; Structured data — https://developers.google.com/search/docs/appearance/structured-data ; robots meta / preview controls (`max-image-preview` etc.) — https://developers.google.com/search/docs/crawling-indexing/robots-meta-tag |
 | AIO / LLMO (AI search) | llms.txt spec — https://llmstxt.org/ ; crawler docs: GPTBot — https://platform.openai.com/docs/gptbot ; Google-Extended — https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers ; ClaudeBot — https://support.anthropic.com/en/articles/8896518 |
 | Datastore / ORM / other host | The official docs of whatever the app actually uses (DB, ORM, queue, CDN) — `WebSearch` "\<lib\>@\<version\> production best practices" |
 
@@ -129,15 +129,17 @@ Treat each bucket as a **lens, not a rigid script** — skip N/A items (say so o
 - [ ] `allowIndexing` actually enabled in production (no stray site-wide `noindex`); no leftover example/sample routes indexed
 - [ ] Error pages return the correct status code and `noindex`; thin/search/filter/duplicate pages set `noindex` or a canonical URL
 - [ ] `openGraph` + `twitter` metadata (og:title/description/url/image, twitter:card); OG image (1200×630)
+- [ ] `max-image-preview:large` in the `robots` directive (production only) so Google shows large image previews in Search / Discover / AI Overview — without it the preview is shrunk to a small thumbnail
 - [ ] `robots.ts` (allow public, disallow `/api` and monitoring/tunnel routes, declare sitemap) and `sitemap.ts` (including dynamically generated pages)
 - [ ] Structured data (JSON-LD): `Organization` / `WebSite` / `FAQPage` — factual only, no exaggeration; pass the CSP nonce if CSP is nonce-based, or it's blocked
 - [ ] Single H1, semantic heading order, meaningful `alt` (decorative images `alt=""`)
 - [ ] (External-console registration and launch validation for the above — GSC/Bing/Rich Results/OGP — live in the **Manual setup** bucket)
 
-**Frontend (AIO / LLMO)** (public content sites that want to be discoverable/citable by AI search — ChatGPT search, Perplexity, Google AI Overviews, Gemini; a.k.a. GEO. Emerging and hard to measure — weigh ROI, and skip for internal tools / APIs)
+**Frontend (AIO / LLMO)** (public content sites that want to be discoverable/citable by AI search — ChatGPT search, Perplexity, Google AI Overviews, Gemini; a.k.a. GEO. Emerging, hard to measure, and **fast-changing** — weigh ROI, confirm current behavior via `WebSearch` of authoritative sources, and skip for internal tools / APIs)
 - [ ] `llms.txt` at the site root: a plain-text, factual summary of the org/product — what it does, services, key facts, tech stack, contact
 - [ ] AI-crawler policy explicit in `robots`: per-UA allow/disallow for GPTBot / OAI-SearchBot / ChatGPT-User / ClaudeBot / PerplexityBot / Google-Extended / Applebot-Extended (block only what you intend, e.g. scrapers); `/api` and monitoring/tunnel routes disallowed
 - [ ] Entity-recognition structured data (JSON-LD): `Organization` / `Service` / `FAQPage` / `Person` (author/founder) with `sameAs` to authoritative profiles — factual only; pass the CSP nonce so it isn't blocked
+- [ ] Representative image pinned for AI Overview / Search thumbnails: Google self-selects the preview image from page signals (often the first/most prominent image on the page), **not** from `og:image` — designate the intended one explicitly via JSON-LD (`WebPage.primaryImageOfPage` → `ImageObject`), or make that image the first prominent one, so an unintended image (e.g. a team-member photo) isn't chosen
 - [ ] Value proposition and key facts are **real machine-readable text**, not locked inside images/canvas; semantic HTML so LLMs can extract them
 - [ ] Citable, concrete facts present: numbers, dates, tech-stack names, quantitative outcomes — LLMs extract and cite statistical claims; FAQ written as question → factual answer
 - [ ] E-E-A-T / authority signals: author/team bios, credentials, experience marked up (`Person`/`author`)
