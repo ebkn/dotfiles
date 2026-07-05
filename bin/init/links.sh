@@ -36,7 +36,12 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/root/.github/copilot-instructions.md" "${HOME}/.github/copilot-instructions.md"
   link_with_backup "${DOTFILES_DIR}/root/.claude/settings.json" "${HOME}/.claude/settings.json"
   link_with_backup "${DOTFILES_DIR}/root/.claude/hooks" "${HOME}/.claude/hooks"
-  link_with_backup "${DOTFILES_DIR}/root/.codex/rules/default.rules" "${HOME}/.codex/rules/default.rules"
+  # Link the whole rules dir (not the file inside it): ~/.codex/rules is a
+  # directory symlink into the repo, so linking the file through it would resolve
+  # dest back onto src and clobber the repo file. Codex owns bundled skills under
+  # ~/.codex/skills/.system but does not scaffold into rules/, so a dir symlink is
+  # safe here (unlike skills, which are linked individually below).
+  link_with_backup "${DOTFILES_DIR}/root/.codex/rules" "${HOME}/.codex/rules"
   # Single source of truth for agent skills: root/.agents/skills.
   # ~/.agents/skills is the emerging cross-tool standard (newer Codex, Cursor,
   # Gemini, Copilot). Claude Code reads ~/.claude/skills. OpenCode reads both, so

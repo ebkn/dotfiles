@@ -206,7 +206,8 @@ link_with_backup "${DOTFILES_DIR}/root/.github/copilot-instructions.md" "${HOME}
 link_with_backup "${DOTFILES_DIR}/root/.claude/settings.json" "${HOME}/.claude/settings.json"
 link_with_backup "${DOTFILES_DIR}/root/.claude/skills" "${HOME}/.claude/skills"
 link_with_backup "${DOTFILES_DIR}/root/.claude/hooks" "${HOME}/.claude/hooks"
-link_with_backup "${DOTFILES_DIR}/root/.codex/rules/default.rules" "${HOME}/.codex/rules/default.rules"
+# Link the whole rules dir, not the file inside it — see bin/init/links.sh for why.
+link_with_backup "${DOTFILES_DIR}/root/.codex/rules" "${HOME}/.codex/rules"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/commit" "${HOME}/.codex/skills/commit"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/create-pr" "${HOME}/.codex/skills/create-pr"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/update-pr" "${HOME}/.codex/skills/update-pr"
