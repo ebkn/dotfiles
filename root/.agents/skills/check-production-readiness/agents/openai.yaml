@@ -1,0 +1,4 @@
+interface:
+  display_name: "Check Production Readiness"
+  short_description: "Pre-launch readiness review of a web app (read-and-report only)"
+  default_prompt: "Use $check-production-readiness to review whether this web app is ready to go public."
