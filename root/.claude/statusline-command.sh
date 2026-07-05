@@ -1,11 +1,11 @@
 #!/bin/bash
 # Claude Code statusLine — p10k-flavored, two rows.
 #   Row 1: <launch-dir>[ (in ./<working-dir-relative-to-launch>)]
-#   Row 2: <branch>[*]                <model>[ (<effort>)][  <pct>% Used]
+#   Row 2: <model>[ (<effort>)][  <pct>% Used][    <branch>[*]]
 # Row 1 names the directory Claude was launched from and, only when the live
-# working directory has moved elsewhere, appends where it is now. Row 2 is
-# justified like p10k's split prompts: git branch flush left, session info
-# flush right. Git is the only external command consulted (no language/tool
+# working directory has moved elsewhere, appends where it is now. Row 2 lists
+# session info (model, effort, context) left to right, then the git branch after
+# a small gap. Git is the only external command consulted (no language/tool
 # version shell-outs) to keep the status line fast on every prompt.
 
 input=$(cat)
@@ -67,7 +67,7 @@ else
   row1="$launch_disp (in $rel)"
 fi
 
-# Branch (row 2, left) derived from the live working directory.
+# Branch (row 2, trailing) derived from the live working directory.
 # --no-optional-locks avoids contending with concurrent git operations
 # (e.g. another shell mid-commit) since this runs on every prompt render.
 branch=""
@@ -82,34 +82,12 @@ if git -C "$work_dir" --no-optional-locks rev-parse --is-inside-work-tree >/dev/
   fi
 fi
 
-# Row 2, right group: model, then effort (parenthesized so it doesn't read as
-# part of the model name) and consumed-context percentage when each is present.
-right="$model"
-[ -n "$effort" ] && right="$right ($effort)"
-[ -n "$used" ] && right="$right  ${used}% Used"
-
-# Justify row 2: branch flush left, session info flush right. Claude Code sets
-# COLUMNS to the terminal width (v2.1.153+); pad the gap with spaces.
-#
-# Reserve the last column: filling exactly $COLUMNS lands a glyph in the final
-# cell, which the terminal treats as a pending wrap and Claude Code then
-# truncates with an ellipsis. Stopping one column short keeps the right group
-# fully visible while still reading as flush-right.
-#
-# Width uses ${#var} (character count); both groups are ASCII in the common
-# case so this equals the on-screen column count. A branch containing
-# multi-column (e.g. CJK) glyphs shifts the right group by a few columns, since
-# such a character occupies two terminal columns but counts as one here — a
-# pure-bash wcwidth is not worth the per-render cost.
-reserve=1
-gap=$(( ${COLUMNS:-0} - ${#branch} - ${#right} - reserve ))
-if [ "$gap" -ge 2 ]; then
-  row2="${branch}$(printf '%*s' "$gap" '')${right}"
-elif [ -n "$branch" ]; then
-  # Too narrow to justify: fall back to a single "·"-joined row.
-  row2="$branch  ·  $right"
-else
-  row2="$right"
-fi
+# Row 2: session info first — model, then effort (parenthesized so it doesn't
+# read as part of the model name) and consumed-context percentage when each is
+# present — then the git branch after a wider gap so it reads as its own group.
+row2="$model"
+[ -n "$effort" ] && row2="$row2 ($effort)"
+[ -n "$used" ] && row2="$row2  ${used}% Used"
+[ -n "$branch" ] && row2="$row2    $branch"
 
 printf '%s\n%s' "$row1" "$row2"
