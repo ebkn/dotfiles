@@ -61,7 +61,13 @@ right="$model"
 # (CJK) or other multi-column glyphs will shift the right group by a few columns
 # since one such character occupies two terminal columns but counts as one here;
 # a pure-bash wcwidth is not worth the per-render cost.
-gap=$(( ${COLUMNS:-0} - ${#segment} - ${#right} ))
+# Reserve the last column: filling exactly $COLUMNS puts a glyph in the final
+# cell, which the terminal treats as a pending wrap and Claude Code then
+# truncates with an ellipsis (the trailing "% Used" gets clipped). Stopping one
+# column short keeps the right group fully visible while still reading as
+# flush-right.
+reserve=1
+gap=$(( ${COLUMNS:-0} - ${#segment} - ${#right} - reserve ))
 if [ "$gap" -ge 2 ]; then
   printf '%s%*s%s' "$segment" "$gap" '' "$right"
 else
