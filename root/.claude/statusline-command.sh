@@ -1,75 +1,91 @@
 #!/bin/bash
-# Claude Code statusLine — p10k-flavored layout.
-# Renders: <dir>  <branch>[*]  ·  <model>[ (<effort>)][  <pct>% Used]
-# Git is the only external command consulted (no language/tool version
-# shell-outs) to keep the status line fast on every prompt.
+# Claude Code statusLine — p10k-flavored, two rows.
+#   Row 1: <launch-dir>[ (working at <working-dir>)]
+#   Row 2: <branch>[*]                <model>[ (<effort>)][  <pct>% Used]
+# Row 1 names the directory Claude was launched from and, only when the live
+# working directory has moved elsewhere, appends where it is now. Row 2 is
+# justified like p10k's split prompts: git branch flush left, session info
+# flush right. Git is the only external command consulted (no language/tool
+# version shell-outs) to keep the status line fast on every prompt.
 
 input=$(cat)
 
 # Pull every field in one jq pass, one value per line. Reading each line whole
 # with `IFS= read -r` preserves empty values (e.g. effort absent on models that
 # don't support it) — a plain space/tab split would collapse them and misalign
-# the rest. Indexing a missing object (.effort / .context_window) yields null in
-# jq, so the // "" / null guards degrade gracefully when a field isn't present.
+# the rest. Indexing a missing object yields null in jq, so the // "" / null
+# guards degrade gracefully when a field isn't present.
 {
-  IFS= read -r dir
+  IFS= read -r launch_dir
+  IFS= read -r work_dir
   IFS= read -r model
   IFS= read -r effort
   IFS= read -r used
 } < <(echo "$input" | jq -r '
-  .workspace.current_dir,
+  (.workspace.project_dir // ""),
+  (.workspace.current_dir // ""),
   .model.display_name,
   (.effort.level // ""),
   (.context_window.used_percentage | if . == null then "" else (round | tostring) end)
 ')
 
-# Abbreviate $HOME to ~, mirroring p10k's directory segment.
-# The replacement tilde is escaped: under bash a leading unescaped ~ in a
-# ${var/pat/repl} replacement is special-cased and the substitution no-ops.
-segment="${dir/#$HOME/\~}"
+# Abbreviate $HOME to ~, mirroring p10k's directory segment. The replacement
+# tilde is escaped: under bash a leading unescaped ~ in a ${var/pat/repl}
+# replacement is special-cased and the substitution no-ops.
+launch_disp="${launch_dir/#$HOME/\~}"
+work_disp="${work_dir/#$HOME/\~}"
 
+# Row 1: just the directory when the working dir matches the launch dir (the
+# common case); otherwise show the launch dir and where work has moved to.
+if [ -z "$launch_dir" ] || [ "$launch_dir" = "$work_dir" ]; then
+  row1="$work_disp"
+else
+  row1="$launch_disp (working at $work_disp)"
+fi
+
+# Branch (row 2, left) derived from the live working directory.
 # --no-optional-locks avoids contending with concurrent git operations
 # (e.g. another shell mid-commit) since this runs on every prompt render.
-if git -C "$dir" --no-optional-locks rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  branch=$(git -C "$dir" --no-optional-locks symbolic-ref --short HEAD 2>/dev/null)
+branch=""
+if git -C "$work_dir" --no-optional-locks rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  branch=$(git -C "$work_dir" --no-optional-locks symbolic-ref --short HEAD 2>/dev/null)
   if [ -z "$branch" ]; then
     # Detached HEAD: fall back to short commit hash.
-    branch=$(git -C "$dir" --no-optional-locks rev-parse --short HEAD 2>/dev/null)
+    branch=$(git -C "$work_dir" --no-optional-locks rev-parse --short HEAD 2>/dev/null)
   fi
-  if [ -n "$branch" ]; then
-    if [ -n "$(git -C "$dir" --no-optional-locks status --porcelain 2>/dev/null)" ]; then
-      branch="${branch}*"
-    fi
-    segment="${segment}  ${branch}"
+  if [ -n "$branch" ] && [ -n "$(git -C "$work_dir" --no-optional-locks status --porcelain 2>/dev/null)" ]; then
+    branch="${branch}*"
   fi
 fi
 
-# Right group: model, then effort (parenthesized so it doesn't read as part of
-# the model name) and consumed-context percentage when each is available.
+# Row 2, right group: model, then effort (parenthesized so it doesn't read as
+# part of the model name) and consumed-context percentage when each is present.
 right="$model"
 [ -n "$effort" ] && right="$right ($effort)"
 [ -n "$used" ] && right="$right  ${used}% Used"
 
-# Justified layout mirroring p10k's split left/right prompts: dir+git flush
-# left, the model group flush right. Claude Code sets COLUMNS to the terminal
-# width (v2.1.153+); pad the gap with spaces to push the right group to the
-# edge. Fall back to a single "·"-joined line when COLUMNS is unset (older
-# client) or too narrow to fit both groups with a gap.
+# Justify row 2: branch flush left, session info flush right. Claude Code sets
+# COLUMNS to the terminal width (v2.1.153+); pad the gap with spaces.
 #
-# Width uses ${#var}, i.e. character count. Both groups are ASCII in the common
-# case so this equals the on-screen column count. A path containing full-width
-# (CJK) or other multi-column glyphs will shift the right group by a few columns
-# since one such character occupies two terminal columns but counts as one here;
-# a pure-bash wcwidth is not worth the per-render cost.
-# Reserve the last column: filling exactly $COLUMNS puts a glyph in the final
+# Reserve the last column: filling exactly $COLUMNS lands a glyph in the final
 # cell, which the terminal treats as a pending wrap and Claude Code then
-# truncates with an ellipsis (the trailing "% Used" gets clipped). Stopping one
-# column short keeps the right group fully visible while still reading as
-# flush-right.
+# truncates with an ellipsis. Stopping one column short keeps the right group
+# fully visible while still reading as flush-right.
+#
+# Width uses ${#var} (character count); both groups are ASCII in the common
+# case so this equals the on-screen column count. A branch containing
+# multi-column (e.g. CJK) glyphs shifts the right group by a few columns, since
+# such a character occupies two terminal columns but counts as one here — a
+# pure-bash wcwidth is not worth the per-render cost.
 reserve=1
-gap=$(( ${COLUMNS:-0} - ${#segment} - ${#right} - reserve ))
+gap=$(( ${COLUMNS:-0} - ${#branch} - ${#right} - reserve ))
 if [ "$gap" -ge 2 ]; then
-  printf '%s%*s%s' "$segment" "$gap" '' "$right"
+  row2="${branch}$(printf '%*s' "$gap" '')${right}"
+elif [ -n "$branch" ]; then
+  # Too narrow to justify: fall back to a single "·"-joined row.
+  row2="$branch  ·  $right"
 else
-  printf '%s  ·  %s' "$segment" "$right"
+  row2="$right"
 fi
+
+printf '%s\n%s' "$row1" "$row2"
