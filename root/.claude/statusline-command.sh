@@ -1,12 +1,11 @@
 #!/bin/bash
 # Claude Code statusLine — p10k-flavored, two rows.
 #   Row 1: <launch-dir>[ (in ./<working-dir-relative-to-launch>)]
-#   Row 2: <model>[ (<effort>)][  <pct>% Used][    <branch>[*]]
+#   Row 2: <model>[ (<effort>)][  <pct>% Used]
 # Row 1 names the directory Claude was launched from and, only when the live
 # working directory has moved elsewhere, appends where it is now. Row 2 lists
-# session info (model, effort, context) left to right, then the git branch after
-# a small gap. Git is the only external command consulted (no language/tool
-# version shell-outs) to keep the status line fast on every prompt.
+# session info: model, effort, and consumed context. Parsing is a single jq
+# pass with no per-field subprocess, keeping the status line fast on every prompt.
 
 input=$(cat)
 
@@ -67,27 +66,10 @@ else
   row1="$launch_disp (in $rel)"
 fi
 
-# Branch (row 2, trailing) derived from the live working directory.
-# --no-optional-locks avoids contending with concurrent git operations
-# (e.g. another shell mid-commit) since this runs on every prompt render.
-branch=""
-if git -C "$work_dir" --no-optional-locks rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  branch=$(git -C "$work_dir" --no-optional-locks symbolic-ref --short HEAD 2>/dev/null)
-  if [ -z "$branch" ]; then
-    # Detached HEAD: fall back to short commit hash.
-    branch=$(git -C "$work_dir" --no-optional-locks rev-parse --short HEAD 2>/dev/null)
-  fi
-  if [ -n "$branch" ] && [ -n "$(git -C "$work_dir" --no-optional-locks status --porcelain 2>/dev/null)" ]; then
-    branch="${branch}*"
-  fi
-fi
-
-# Row 2: session info first — model, then effort (parenthesized so it doesn't
-# read as part of the model name) and consumed-context percentage when each is
-# present — then the git branch after a wider gap so it reads as its own group.
+# Row 2: model, then effort (parenthesized so it doesn't read as part of the
+# model name) and consumed-context percentage, each appended only when present.
 row2="$model"
 [ -n "$effort" ] && row2="$row2 ($effort)"
 [ -n "$used" ] && row2="$row2  ${used}% Used"
-[ -n "$branch" ] && row2="$row2    $branch"
 
 printf '%s\n%s' "$row1" "$row2"
