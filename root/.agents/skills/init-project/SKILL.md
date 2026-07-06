@@ -1,7 +1,7 @@
 ---
 name: init-project
-description: Scaffold a new project in the current directory — git init, README.md, CLAUDE.md, AGENTS.md, Claude settings.json, linter/test config, runtime pin, and CI (GitHub Actions + Dependabot) for the specified language (TypeScript, Go, Python), plus optional Next.js boilerplate with error boundaries, security headers, SEO, and a health endpoint. Use this skill when the user wants to initialize or bootstrap a new project from scratch, set up a fresh repo, or scaffold project boilerplate.
-allowed-tools: Bash(git init *), Bash(git init), Bash(git status *), Bash(git rev-parse *), Bash(git add *), Bash(git commit -m *), Bash(npm init *), Bash(npm install *), Bash(ls*), Bash(tree*), Bash(mkdir *), Bash(ln -s *), Read, Write, Glob
+description: Scaffold a new project in the current directory — git init, README.md, CLAUDE.md, AGENTS.md, Claude settings.json, linter/test config, unused-code detection (knip for TypeScript), runtime pin, and CI (GitHub Actions + Dependabot) for the specified language (TypeScript, Go, Python), plus optional Next.js boilerplate with error boundaries, security headers, SEO, and a health endpoint. Use this skill when the user wants to initialize or bootstrap a new project from scratch, set up a fresh repo, or scaffold project boilerplate.
+allowed-tools: Bash(git init *), Bash(git init), Bash(git status *), Bash(git rev-parse *), Bash(git add *), Bash(git commit -m *), Bash(npm init *), Bash(npm install *), Bash(npx knip*), Bash(npm run knip*), Bash(ls*), Bash(tree*), Bash(mkdir *), Bash(ln -s *), Read, Write, Glob
 ---
 
 ## Instructions
@@ -97,7 +97,7 @@ Create `.claude/settings.json` with permissions scoped to the project's language
 - `Bash(git add *)`, `Bash(git commit -m *)`, `Bash(git diff*)`, `Bash(git log*)`, `Bash(git status*)`
 
 **TypeScript / Node.js** — add:
-- `Bash(npm test *)`, `Bash(npm run test*)`, `Bash(npx biome *)`, `Bash(npm run build*)`, `Bash(npm run lint*)`
+- `Bash(npm test *)`, `Bash(npm run test*)`, `Bash(npx biome *)`, `Bash(npm run build*)`, `Bash(npm run lint*)`, `Bash(npm run knip*)`, `Bash(npx knip*)`
 - `Bash(npx tsc *)` if TypeScript
 
 **Go** — add:
@@ -129,6 +129,7 @@ If `package.json` does not exist, create one:
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
+    "knip": "knip",
     "test": "vitest",
     "test:run": "vitest run --passWithNoTests"
   }
@@ -157,16 +158,16 @@ min-release-age=7
 
 Then install dev dependencies. The exact set depends on the framework:
 
-- **Plain TypeScript**: install biome, vitest, and typescript together so the `lint`, `test`, and `typecheck` scripts work immediately.
+- **Plain TypeScript**: install biome, vitest, typescript, and knip together so the `lint`, `test`, `typecheck`, and `knip` scripts work immediately.
 
   ```bash
-  npm install -D @biomejs/biome vitest typescript
+  npm install -D @biomejs/biome vitest typescript knip
   ```
 
-- **Next.js**: install biome here; vitest and typescript are installed alongside the Next.js runtime deps in Step 6.5.
+- **Next.js**: install biome and knip here; vitest and typescript are installed alongside the Next.js runtime deps in Step 6.5.
 
   ```bash
-  npm install -D @biomejs/biome
+  npm install -D @biomejs/biome knip
   ```
 
 **Go / Python** — skip this step.
@@ -261,7 +262,7 @@ Also add to `.claude/settings.json`:
 }
 ```
 
-After writing the configs, verify the toolchain end-to-end by running `npm run typecheck`, `npm run lint`, and `npm run test:run`. All three should pass on the empty scaffold; if any fails, fix the config before moving on.
+After writing the configs, verify the toolchain end-to-end by running `npm run typecheck`, `npm run lint`, and `npm run test:run` (add `npm run knip` once its config is created in Step 6.4). All should pass on the empty scaffold; if any fails, fix the config before moving on.
 
 **Go** — no config file needed. Go's built-in `go test` works out of the box. Note the test conventions in the CLAUDE.md Development section:
 
@@ -279,6 +280,28 @@ testpaths = ["tests"]
 ```
 
 Also create a `tests/` directory with an empty `__init__.py` (Python only).
+
+### Step 6.4: Unused-code detection
+
+Dead files, unused exports, and unused dependencies accumulate silently — they inflate bundles, widen the dependency attack surface, and mislead readers. Wire a detector now so the project never grows a backlog of them.
+
+**TypeScript / Node.js** — [knip](https://knip.dev). The dev dependency and `knip` script were added in Step 4.5. Create `knip.json`:
+
+```json
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json"
+}
+```
+
+Knip auto-detects entry points and config through built-in plugins (Next.js, Vitest, Biome, etc.), so the empty `$schema`-only config works out of the box — add `entry`/`project`/`ignore` overrides only when a real false positive appears. Knip v6 requires Node ≥ 20.19; the runtime pinned in Step 6.6 already satisfies this.
+
+For a **library** whose whole point is its public exports, set `package.json` `main`/`exports` to the public entry (or declare `entry` in `knip.json`) so knip treats the public API as used rather than flagging every export — otherwise it will report the library's surface as dead code.
+
+Run `npm run knip` as part of the Step 6 verification. It should report **no issues** on the fresh scaffold (every scaffolded file is either an entry point or reached from one). If it flags a legitimately-unused scaffold export as the project is just starting, prefer adjusting `knip.json` over deleting the file.
+
+**Go** — already covered. The `unused` linter enabled in the `.golangci.yml` from Step 5 (part of staticcheck) reports unused constants, variables, functions, and types. For whole-program dead-code detection across packages, note `go run golang.org/x/tools/cmd/deadcode@latest ./...` in the CLAUDE.md Development section as an optional deeper pass — it is not added as a hard gate because it needs a real entry point (`main`) to be meaningful.
+
+**Python** — partially covered. The ruff `F` rules already selected in Step 5 catch unused imports (`F401`) and unused local variables (`F841`). Whole unused functions, classes, and methods need a dedicated tool — [vulture](https://github.com/jendrikseipp/vulture). It is **not** wired as a hard gate here because it is prone to false positives on public APIs and dynamically-referenced code (it needs a whitelist to be usable in CI); instead note `vulture .` in the CLAUDE.md Development section as an optional manual pass the maintainer can adopt once the codebase has shape.
 
 ### Step 6.5: Next.js boilerplate (Next.js only)
 
@@ -488,6 +511,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm run knip     # dead-code / unused-dependency gate; relax knip.json if it blocks legit WIP
       - run: npm run test:run
       - run: npm run build   # Next.js only — drop for a plain TS library with no build script
 ```

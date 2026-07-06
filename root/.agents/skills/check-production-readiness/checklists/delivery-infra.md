@@ -12,6 +12,7 @@ Ground code/config-visible items in `path:line`.
 
 ## Toolchain & CI gates
 - [ ] Lint (with accessibility rules enabled as errors), typecheck (`tsc --noEmit`), unit/component tests, and production build all run and pass in CI
+- [ ] Dead-code / unused-dependency detection wired (knip for JS/TS; golangci-lint `unused` / `deadcode` for Go; ruff `F401`/`F841` + optional vulture for Python) — no unused files, exports, or dependencies shipped. Unused runtime deps are both bundle bloat and extra supply-chain attack surface; if a detector exists, confirm it runs in CI and cite its config, and if none exists flag the gap. If the repo has installed deps, you may run the read-only detector (e.g. `npx knip`) to ground the finding in its actual output
 - [ ] (optional) Lighthouse CI (or equivalent) gating accessibility / SEO / best-practices in CI, and performance measured against a real deployed URL — a manual Lighthouse run (Frontend bucket) stays required regardless
 - [ ] Runtime version pinned and consistent (`engines` / `.nvmrc` / `.tool-versions`) between local, CI, and deploy
 - [ ] Lockfile committed to pin dependencies and speed up cached builds
