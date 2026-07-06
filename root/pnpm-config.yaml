@@ -10,3 +10,15 @@
 # Unit is MINUTES: 4320 = 3 days. Use minimumReleaseAgeExclude (names, globs, or
 # specific versions) to exempt a package when a fresh release is genuinely needed.
 minimumReleaseAge: 4320
+
+# Exact version pins: record `1.2.3`, not `^1.2.3`, when adding a dependency, so
+# an upgrade is always a deliberate, reviewable edit. Mirrors npm save-exact=true
+# and yarn defaultSemverRangePrefix:"". Default is "^".
+savePrefix: ''
+
+# Do not run lifecycle scripts — the most common malware execution vector.
+# Mirrors npm ignore-scripts=true and yarn enableScripts:false. pnpm >= 10 already
+# blocks *dependency* build scripts unless allowlisted via onlyBuiltDependencies;
+# this additionally blocks the project's own install/pre/post scripts. Allow a
+# dependency's build per project via onlyBuiltDependencies in pnpm-workspace.yaml.
+ignoreScripts: true

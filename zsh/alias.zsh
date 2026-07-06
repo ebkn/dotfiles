@@ -533,14 +533,17 @@ update-all() {
   go install github.com/aquasecurity/tfsec/cmd/tfsec@latest
   go install mvdan.cc/gofumpt@latest
   go install tailscale.com/cmd/tailscale{,d}@main
-  npm update --location=global
-  npm i -g diagnostic-languageserver
-  npm i -g dockerfile-language-server-nodejs
-  npm i -g markdownlint-cli
-  npm i -g textlint
-  npm i -g git-delete-squashed
-  npm i -g yarn
-  npm i -g @openai/codex
+  # --ignore-scripts=false overrides ~/.npmrc's global ignore-scripts=true: this
+  # is a curated, trusted list, and some (e.g. @openai/codex) need postinstall
+  # to build/fetch a native binary. Keep in sync with bin/init/macos.sh.
+  npm update --location=global --ignore-scripts=false
+  npm i -g --ignore-scripts=false diagnostic-languageserver
+  npm i -g --ignore-scripts=false dockerfile-language-server-nodejs
+  npm i -g --ignore-scripts=false markdownlint-cli
+  npm i -g --ignore-scripts=false textlint
+  npm i -g --ignore-scripts=false git-delete-squashed
+  npm i -g --ignore-scripts=false yarn
+  npm i -g --ignore-scripts=false @openai/codex
   # Audit the cwd project for known vulnerabilities (skipped outside projects).
   if [ -f package-lock.json ]; then
     npm audit || true
