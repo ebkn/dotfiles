@@ -13,6 +13,7 @@ Ground every judgment in `path:line`.
 - [ ] Injection surfaces handled: no `dangerouslySetInnerHTML` on untrusted input, parameterized queries (no string-built SQL), output escaped/sanitized
 - [ ] **Authorization enforced server-side on every protected route/action** — no missing object-level checks / IDOR, no client-only gating. This is the deep access-control concern: verify the basics here, then **explicitly hand deeper authz analysis to `security-review`** rather than green-lighting it from this skill.
 - [ ] Dependency vulnerabilities checked (`npm audit` / `pnpm audit`) and automated dependency updates configured; no known-exploitable, reachable advisory
+- [ ] Supply-chain surface minimized: dependencies, GitHub Actions, and container base images pinned (exact/SHA/digest); install-script execution considered; updates gated by a release-age cooldown — full checklist lives in `delivery-infra.md` (merge overlaps in Phase 3), and deeper provenance/build-integrity analysis goes to `security-review`
 - [ ] `NEXT_PUBLIC_`/client bundle carries no secret; cloud-provider accounts have MFA (cannot-verify — account setting)
 - [ ] Non-production deployments protected from public/crawler access (deployment protection / auth on preview envs), not just `noindex`
 - [ ] Platform WAF / managed rules and bad-bot blocking configured where available (cannot-verify — platform setting)

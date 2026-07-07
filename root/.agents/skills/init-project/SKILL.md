@@ -1,7 +1,7 @@
 ---
 name: init-project
-description: Scaffold a new project in the current directory — git init, README.md, CLAUDE.md, AGENTS.md, Claude settings.json, linter/test config, unused-code detection (knip for TypeScript), runtime pin, and CI (GitHub Actions + Dependabot) for the specified language (TypeScript, Go, Python), plus optional Next.js boilerplate with error boundaries, security headers, SEO, and a health endpoint. Use this skill when the user wants to initialize or bootstrap a new project from scratch, set up a fresh repo, or scaffold project boilerplate.
-allowed-tools: Bash(git init *), Bash(git init), Bash(git status *), Bash(git rev-parse *), Bash(git add *), Bash(git commit -m *), Bash(npm init *), Bash(npm install *), Bash(npx knip*), Bash(npm run knip*), Bash(ls*), Bash(tree*), Bash(mkdir *), Bash(ln -s *), Read, Write, Glob
+description: Scaffold a new project in the current directory — git init, README.md, CLAUDE.md, AGENTS.md, Claude settings.json, linter/test config, unused-code detection (knip for TypeScript), runtime pin, supply-chain hardening (SHA-pinned GitHub Actions, least-privilege GITHUB_TOKEN, Dependabot cooldown, pinned container base images), and CI (GitHub Actions + Dependabot) for the specified language (TypeScript, Go, Python), plus optional Next.js boilerplate with error boundaries, security headers, SEO, and a health endpoint. Use this skill when the user wants to initialize or bootstrap a new project from scratch, set up a fresh repo, or scaffold project boilerplate.
+allowed-tools: Bash(git init *), Bash(git init), Bash(git status *), Bash(git rev-parse *), Bash(git add *), Bash(git commit -m *), Bash(git ls-remote *), Bash(npm init *), Bash(npm install *), Bash(npx knip*), Bash(npm run knip*), Bash(ls*), Bash(tree*), Bash(mkdir *), Bash(ln -s *), Read, Write, Glob
 ---
 
 ## Instructions
@@ -499,12 +499,17 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read # least-privilege GITHUB_TOKEN; escalate per-job only where a step needs write
+
 jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v4 # pin to a full commit SHA before committing — see the hardening note below
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4 # pin to a full commit SHA
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -526,12 +531,17 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read # least-privilege GITHUB_TOKEN; escalate per-job only where a step needs write
+
 jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v4 # pin to a full commit SHA before committing — see the hardening note below
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5 # pin to a full commit SHA
         with:
           go-version-file: go.mod
       - run: go vet ./...
@@ -550,12 +560,17 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read # least-privilege GITHUB_TOKEN; escalate per-job only where a step needs write
+
 jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v4 # pin to a full commit SHA before committing — see the hardening note below
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5 # pin to a full commit SHA
         with:
           python-version-file: .python-version
       - run: pip install ruff pytest
@@ -564,7 +579,23 @@ jobs:
       - run: pytest
 ```
 
-**`.github/dependabot.yml`** — set `package-ecosystem` to `npm` / `gomod` / `pip` for the project language; the `github-actions` block keeps the workflow actions current. Grouping keeps PR noise down:
+**Supply-chain hardening of the workflow.** The templates above bake in three controls; apply the SHA-pinning step before you commit:
+
+- **Least-privilege `GITHUB_TOKEN`** — the top-level `permissions: contents: read` block means a compromised action can't push, open PRs, or edit issues by default. Add a narrower `permissions:` to a single job only when a step genuinely needs write.
+- **`persist-credentials: false`** on `actions/checkout` — stops the token being written to `.git/config`, where a later step or a built artifact/image could exfiltrate it. Drop it only if a subsequent step must push with the checkout token.
+- **Pin every `uses:` to a full 40-char commit SHA, not a tag.** Tags are mutable — the tj-actions/changed-files compromise (2025) re-pointed a tag and hit tens of thousands of repos. Resolve each action's SHA and rewrite, keeping the version as a trailing comment so humans and Dependabot can still read it:
+
+  ```bash
+  git ls-remote https://github.com/actions/checkout v4.2.2   # prints the SHA the tag points to
+  ```
+
+  ```yaml
+  - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+  ```
+
+  Do this for `actions/checkout`, `actions/setup-node`/`setup-go`/`setup-python`, `golangci/golangci-lint-action`, and any other third-party action. The `github-actions` Dependabot block below then bumps both the SHA and the comment as new releases land, so pinning doesn't rot into a stale (possibly vulnerable) version.
+
+**`.github/dependabot.yml`** — set `package-ecosystem` to `npm` / `gomod` / `pip` for the project language; the `github-actions` block keeps the (SHA-pinned) workflow actions current. `cooldown` mirrors the `.npmrc` `min-release-age` gate so Dependabot doesn't open a PR onto a just-published — possibly hijacked — version. Grouping keeps PR noise down:
 
 ```yaml
 version: 2
@@ -573,14 +604,38 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7 # hold back freshly-published versions (mirrors .npmrc min-release-age)
     groups:
       all-dependencies:
         patterns: ["*"]
-  - package-ecosystem: "github-actions"
+  - package-ecosystem: "github-actions" # keeps SHA pins current; cooldown is NOT supported for this ecosystem
     directory: "/"
     schedule:
       interval: "weekly"
+  # Add this block ONLY if the project ships a Dockerfile (Step 6.9) — keeps the pinned base-image digest fresh:
+  # - package-ecosystem: "docker"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+  #   cooldown:
+  #     default-days: 7
 ```
+
+### Step 6.9: Container image pinning (only if the project ships a Dockerfile)
+
+init-project does not scaffold a Dockerfile. But if this project deploys as a container and you (or the user) add one, pin its supply chain the same way the workflow is pinned — an unpinned base image is a mutable dependency pulled on every build:
+
+- **Pin the base image by tag *and* digest.** A bare tag (`FROM node:22`) is re-pushable; the `@sha256:` digest is the immutable, verifiable reference:
+
+  ```dockerfile
+  FROM node:22.14.0-bookworm-slim@sha256:<digest>
+  ```
+
+  Resolve the digest with `docker buildx imagetools inspect node:22.14.0-bookworm-slim` (or copy it from the registry). Keep the human-readable tag in front so Dependabot's `docker` ecosystem (uncomment the block in Step 6.8) can bump both tag and digest as new releases land — otherwise the pin rots into a stale, possibly-vulnerable image.
+- **Pin OS packages** to explicit versions (`apt-get install -y curl=7.88.1-10+deb12u5`), add `--no-install-recommends`, and clean the apt lists in the same layer.
+- **Install app deps from the lockfile only** — `npm ci`, never `npm install`. `npm ci` fails on a lockfile mismatch and honors the `.npmrc` (`save-exact`, `min-release-age`) from Step 4.5.
+- **Run as a non-root `USER`** and copy only what the build needs (use `.dockerignore`) to shrink the attack surface.
 
 ### Step 7: .gitignore
 
