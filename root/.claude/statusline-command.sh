@@ -1,11 +1,13 @@
 #!/bin/bash
 # Claude Code statusLine — p10k-flavored, two rows.
 #   Row 1: <launch-dir>[ (working in ./<working-dir-relative-to-launch>)]
-#   Row 2: <model>[ ・ <effort>][ ・ <pct>% Used]
+#   Row 2: <model>[ ・ <effort>][ ・ <pct>% Used][ ・ <s>%(session)・<w>%(week)]
 # Row 1 names the directory Claude was launched from and, only when the live
 # working directory has moved elsewhere, appends where it is now. Row 2 lists
-# session info: model, effort, and consumed context. Parsing is a single jq
-# pass with no per-field subprocess, keeping the status line fast on every prompt.
+# session info: model, effort, consumed context, and Claude.ai subscription
+# usage limits (5-hour session window and 7-day weekly window). Parsing is a
+# single jq pass with no per-field subprocess, keeping the status line fast on
+# every prompt.
 
 input=$(cat)
 
@@ -20,12 +22,16 @@ input=$(cat)
   IFS= read -r model
   IFS= read -r effort
   IFS= read -r used
+  IFS= read -r session_pct
+  IFS= read -r week_pct
 } < <(echo "$input" | jq -r '
   (.workspace.project_dir // ""),
   (.workspace.current_dir // ""),
   .model.display_name,
   (.effort.level // ""),
-  (.context_window.used_percentage | if . == null then "" else (round | tostring) end)
+  (.context_window.used_percentage | if . == null then "" else (round | tostring) end),
+  (.rate_limits.five_hour.used_percentage | if . == null then "" else (round | tostring) end),
+  (.rate_limits.seven_day.used_percentage | if . == null then "" else (round | tostring) end)
 ')
 
 # Abbreviate a path for display: ghq's github.com checkout root collapses to
@@ -66,11 +72,24 @@ else
   row1="$launch_disp (working in $rel)"
 fi
 
-# Row 2: model, effort, and consumed-context percentage joined by " ・ ". Each
-# part is appended only when present, and the separator rides with the part, so
-# an absent field leaves no dangling separator.
+# Row 2: model, effort, consumed-context percentage, and usage limits joined by
+# " ・ ". Each part is appended only when present, and the separator rides with
+# the part, so an absent field leaves no dangling separator. The rate_limits
+# object is absent for non-subscribers and until the first API response, so both
+# session/week percentages degrade to empty and drop out silently. Within the
+# limits group the two windows are joined tight (session・week); ${limits:+…}
+# emits the leading separator only when the session part precedes the week part.
+# NOTE: the ・ after ${limits} MUST keep its braces. The shebang is /bin/bash,
+# which on macOS is bash 3.2, where an unbraced "$var" immediately followed by a
+# multibyte literal ("$limits・") corrupts the expansion — eating $var and the
+# char's first byte. The spaced " ・ " separators elsewhere are safe because the
+# space breaks the adjacency; this tight join is only safe in ${limits}・ form.
 row2="$model"
 [ -n "$effort" ] && row2="$row2 ・ $effort"
 [ -n "$used" ] && row2="$row2 ・ ${used}% Used"
+limits=""
+[ -n "$session_pct" ] && limits="${session_pct}%(session)"
+[ -n "$week_pct" ] && limits="${limits:+${limits}・}${week_pct}%(week)"
+[ -n "$limits" ] && row2="$row2 ・ $limits"
 
 printf '%s\n%s' "$row1" "$row2"
