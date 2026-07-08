@@ -169,7 +169,11 @@ for skill_dir in "${DOTFILES_DIR}"/root/.agents/skills/*/; do
   link_with_backup "${skill_dir%/}" "${HOME}/.claude/skills/${skill_name}"
   link_with_backup "${skill_dir%/}" "${HOME}/.codex/skills/${skill_name}"
 done
-link_with_backup "${DOTFILES_DIR}/root/opencode" "${HOME}/.config/opencode"
+# Link the OpenCode config file individually, not the whole dir — a directory
+# symlink lets OpenCode state and skill installers write into this repo. Keeping
+# ~/.config/opencode a real dir confines those writes outside it. OpenCode reads
+# skills from ~/.agents/skills and ~/.claude/skills, so it needs no skills dir here.
+link_with_backup "${DOTFILES_DIR}/root/opencode/opencode.jsonc" "${HOME}/.config/opencode/opencode.jsonc"
 install_or_upgrade_claude
 
 log_step "Installing Node.js toolchain"

@@ -62,7 +62,13 @@ link_dotfiles() {
     link_with_backup "${skill_dir%/}" "${HOME}/.claude/skills/${skill_name}"
     link_with_backup "${skill_dir%/}" "${HOME}/.codex/skills/${skill_name}"
   done
-  link_with_backup "${DOTFILES_DIR}/root/opencode" "${HOME}/.config/opencode"
+  # OpenCode config: link the individual config file, NOT the whole dir. A
+  # directory symlink lets OpenCode (and skill installers) write machine state and
+  # auto-installed skills into ~/.config/opencode straight into this repo — the
+  # same pollution the per-skill links above avoid. Keeping ~/.config/opencode a
+  # real dir confines those writes outside the repo. OpenCode reads skills from
+  # ~/.agents/skills and ~/.claude/skills, so it needs no skills dir of its own.
+  link_with_backup "${DOTFILES_DIR}/root/opencode/opencode.jsonc" "${HOME}/.config/opencode/opencode.jsonc"
 
   # Supply-chain cooldown: refuse npm package versions younger than 3 days.
   # Keeps yarn/pnpm in lockstep with npm's min-release-age=3 (.npmrc). yarn Berry

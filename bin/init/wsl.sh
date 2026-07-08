@@ -211,7 +211,8 @@ link_with_backup "${DOTFILES_DIR}/root/.codex/rules" "${HOME}/.codex/rules"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/commit" "${HOME}/.codex/skills/commit"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/create-pr" "${HOME}/.codex/skills/create-pr"
 link_with_backup "${DOTFILES_DIR}/root/.codex/skills/update-pr" "${HOME}/.codex/skills/update-pr"
-link_with_backup "${DOTFILES_DIR}/root/opencode" "${HOME}/.config/opencode"
+# Link the OpenCode config file individually, not the whole dir — see links.sh.
+link_with_backup "${DOTFILES_DIR}/root/opencode/opencode.jsonc" "${HOME}/.config/opencode/opencode.jsonc"
 install_or_upgrade_claude
 
 log_step "Installing Node.js toolchain"
