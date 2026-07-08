@@ -152,17 +152,22 @@ link_with_backup "${DOTFILES_DIR}/root/.claude/settings.json" "${HOME}/.claude/s
 link_with_backup "${DOTFILES_DIR}/root/.claude/hooks" "${HOME}/.claude/hooks"
 # Link the whole rules dir, not the file inside it — see bin/init/links.sh for why.
 link_with_backup "${DOTFILES_DIR}/root/.codex/rules" "${HOME}/.codex/rules"
-# Single source of truth for agent skills: root/.agents/skills.
-# ~/.agents/skills is the emerging cross-tool standard (newer Codex, Cursor,
-# Gemini, Copilot). Claude Code reads ~/.claude/skills. OpenCode reads both, so
-# it may list each skill twice — accepted for cross-tool coverage.
-link_with_backup "${DOTFILES_DIR}/root/.agents/skills" "${HOME}/.agents/skills"
-link_with_backup "${DOTFILES_DIR}/root/.agents/skills" "${HOME}/.claude/skills"
-# Codex 0.142.x reads ~/.codex/skills and scaffolds bundled skills under
-# ~/.codex/skills/.system, so the whole dir can't be a single symlink — link
-# each skill individually.
+# Agent skills: root/.agents/skills is the single source of truth for the skills
+# this repo OWNS. Link each skill INDIVIDUALLY into every consumer dir — never the
+# whole dir as one symlink. A directory symlink makes tools that auto-install
+# skills (e.g. Cloudflare's installer writing into ~/.agents or ~/.claude) create
+# real dirs straight into this repo through the link, polluting it with untracked
+# skills. With per-skill links the consumer dirs stay real directories: our
+# symlinks sit beside any tool-installed skills, which then land outside the repo.
+#   ~/.agents/skills : emerging cross-tool standard (newer Codex, Cursor, Gemini, Copilot)
+#   ~/.claude/skills : Claude Code
+#   ~/.codex/skills  : Codex (also scaffolds bundled skills under .system)
+# OpenCode reads both .agents and .claude, so it may list each skill twice.
 for skill_dir in "${DOTFILES_DIR}"/root/.agents/skills/*/; do
-  link_with_backup "${skill_dir%/}" "${HOME}/.codex/skills/$(basename "$skill_dir")"
+  skill_name="$(basename "${skill_dir}")"
+  link_with_backup "${skill_dir%/}" "${HOME}/.agents/skills/${skill_name}"
+  link_with_backup "${skill_dir%/}" "${HOME}/.claude/skills/${skill_name}"
+  link_with_backup "${skill_dir%/}" "${HOME}/.codex/skills/${skill_name}"
 done
 link_with_backup "${DOTFILES_DIR}/root/opencode" "${HOME}/.config/opencode"
 install_or_upgrade_claude
