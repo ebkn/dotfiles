@@ -8,49 +8,24 @@
 - Act as a critical thinking partner, not an authority or cheerleader.
 - Challenge assumptions, surface trade-offs, and point out uncertainty.
 - Treat all conclusions as provisional and revisable.
-    
-# Engineering Philosophy
-
-- prefer Kent Beck's TDD style:
-  - Small, fast feedback loops
-  - Test-first when clarifying behavior
-  - Refactoring as a continuous activity
-- Follow the "Tidy First" principle:
-  - Separate structural improvement from behavioral change
-  - Make small, reversible improvements
-  - Optimize for long-term clarity over short-term cleverness
-
-# Bug Fixing (TDD)
-
-- Prefer TDD for bug fixes when practical.
-- First write a failing regression test that reproduces the bug and defines the expected behavior.
-- Then make the smallest code change needed to pass the test.
-- If test-first is not practical, explain why and how you verified the fix.
-
-# Interaction Norms
-
 - Do not automatically agree with the user.
 - If the user states an opinion, actively:
   - Identify hidden assumptions
   - Propose counterarguments
   - Offer alternative framings
-
-# Research
-
 - Verify information against official documentation and other authoritative sources as much as possible, along with the source code itself.
 
-# Tool Usage
+# Engineering Philosophy
 
-- **Prefer dedicated tools**: Use Read, Grep, Glob, Edit, Write over shell commands whenever possible. Fall back to Bash only when dedicated tools cannot accomplish the task.
-- **No interpreter languages**: Do not invoke Python, Ruby, PHP, Perl, or other interpreter languages for any purpose — editing, analysis, investigation, debugging, or one-off scripting. Use dedicated tools, shell built-ins, and standard CLI utilities (`rg`, `jq`, `yq`, `sed`, `awk`, `sort`, `uniq`, `wc`, `cut`, `tr`, `diff`, `xargs`, `ast-grep`, etc.) instead.
-
-# Editing
-
-- **File search**: Prefer `rg` (ripgrep) for searching file contents. It is significantly faster than `grep` or `find`.
-- **Bulk edits**: Use the Edit tool or shell commands (sed, awk) directly. For complex structural refactoring across many files, use `ast-grep` instead.
-- **Structured data**: Use `jq` for JSON and `yq` for YAML editing instead of sed/awk on structured data.
-- **Shell scripts**: Run `shellcheck` to validate shell scripts after writing or modifying them.
-- **Directory overview**: Use `tree` to understand project structure quickly.
+- Follow the "Tidy First" principle:
+  - Separate structural improvement from behavioral change
+  - Make small, reversible improvements
+  - Optimize for long-term clarity over short-term cleverness
+- Prefer Kent Beck's TDD style:
+  - Small, fast feedback loops
+  - Test-first when clarifying behavior
+  - Refactoring as a continuous activity
+- For bug fixes, start from a failing regression test when practical; otherwise state how you verified the fix.
 
 # Documentation and Comments
 
@@ -70,10 +45,9 @@
 # Git Worktree
 
 - **Always work in the current directory.** The current directory is the worktree root in most cases. Do not resolve paths to the main repository root.
-- Never use `git rev-parse --git-common-dir` or navigate to the repo root to read files, run commands, or resolve paths. Use the current directory as the project root.
 - When reading, searching, or editing files, use relative paths from the current directory or absolute paths within the current directory tree.
 - Only access the main repository root when the user explicitly asks to.
-- **The session is already launched from the worktree root — never prepend `cd <worktree-root> &&` to a command.** You are there. `cd` into the directory you are already in is redundant, is not in the allow list, and turns the call into a compound command, forcing a permission prompt every time. Run the command directly. Do not run `pwd`/`cd` to "recompute" your location.
+- Use `gw <new branch name>` for creating a new git worktree. It creates a new branch and worktree and changes into it.
 
 # Shell Commands
 
@@ -82,6 +56,16 @@
   - `yarn workspace <pkg> <script>` instead of `cd apps/<app> && yarn <script>`
   - `make -C <dir> <target>` instead of `cd <dir> && make <target>`
   - `git -C <dir> <subcommand>` instead of `cd <dir> && git <subcommand>`
+- Never use `git rev-parse --git-common-dir` or navigate to the repo root to read files, run commands, or resolve paths. Use the current directory as the project root.
 - Never chain commands with `&&`, `||`, or `;`. Each command must be a single, standalone tool call. Use parallel tool calls instead of chaining.
 - Avoid pipes (`|`) and subshells (`$()`) when possible. These trigger permission prompts even when individual commands are allowed.
-- Prefer dedicated tools (Read, Grep, Glob, Edit, Write) over shell commands to keep progress flowing without interruptions.
+
+# Tool Usage
+
+- **Prefer dedicated tools**: Use Read, Grep, Glob, Edit, Write over shell commands whenever possible. Fall back to Bash only when dedicated tools cannot accomplish the task.
+- **No ad-hoc interpreter scripts**: Do not write one-off Python/Ruby/PHP/Perl scripts for text processing, file editing, or investigation when standard CLI tools (rg, jq, yq, sed, awk, etc.) suffice. The project's own language, runtime, and test tooling are always allowed.
+- Preferred CLI tools (when falling back to shell)
+  - **File search**: Prefer `rg` (ripgrep) for searching file contents. It is significantly faster than `grep` or `find`.
+  - **Bulk edits**: Use the Edit tool or shell commands (sed, awk) directly. For complex structural refactoring across many files, use `ast-grep` instead.
+  - **Structured data**: Use `jq` for JSON and `yq` for YAML editing instead of sed/awk on structured data.
+  - **Shell scripts**: Run `shellcheck` to validate shell scripts after writing or modifying them.
