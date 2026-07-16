@@ -244,18 +244,16 @@ function gw() {
     echo "Fetching PR #$pr_number ($branch_name)..."
     git fetch origin "pull/$pr_number/head:$branch_name" || return 1
 
-    echo "Creating worktree for PR #$pr_number ($branch_name) at '$worktree_path' (skip git-lfs smudge)"
-    GIT_LFS_SKIP_SMUDGE=1 git worktree add "$worktree_path" "$branch_name" || return 1
+    echo "Creating worktree for PR #$pr_number ($branch_name) at '$worktree_path'"
+    git worktree add "$worktree_path" "$branch_name" || return 1
   else
     # Branch name: create a brand-new branch alongside the worktree.
     branch_name="$input"
     worktree_name="${branch_name//\//-}"
     worktree_path="$worktree_dir/$worktree_name"
 
-    # Avoid downloading Git LFS contents when creating the worktree.
-    # Large files remain as LFS pointer files until `git lfs pull` / `checkout`.
-    echo "Creating worktree for branch '$branch_name' at '$worktree_path' (skip git-lfs smudge)"
-    GIT_LFS_SKIP_SMUDGE=1 git worktree add -b "$branch_name" "$worktree_path" || return 1
+    echo "Creating worktree for branch '$branch_name' at '$worktree_path'"
+    git worktree add -b "$branch_name" "$worktree_path" || return 1
   fi
 
   local worktree_copy_file=".worktree-copy"
