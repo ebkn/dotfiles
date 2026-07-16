@@ -131,7 +131,7 @@ return {
   color_scheme = 'Everforest Dark (Gogh)',
 
   show_tab_index_in_tab_bar = false,
-  tab_max_width = 120,
+  tab_max_width = 160,
   -- Disable two-finger swipe / mouse wheel over the tab bar from switching
   -- tabs. macOS trackpad swipes are easy to trigger accidentally.
   mouse_wheel_scrolls_tabs = false,
