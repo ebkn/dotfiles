@@ -136,7 +136,7 @@ return {
   -- tabs. macOS trackpad swipes are easy to trigger accidentally.
   mouse_wheel_scrolls_tabs = false,
   window_frame = {
-    font_size = 12,
+    font_size = 11.5,
     font = wezterm.font({ family = 'JetBrains Mono', weight = 'Medium', stretch = 'Expanded' }),
   },
 
