@@ -665,12 +665,19 @@ init-project does not scaffold a Dockerfile. But if this project deploys as a co
 
 If `.gitignore` does not exist, create one with sensible defaults for the language:
 
-**TypeScript**: `node_modules/`, `dist/`, `.env*.local`, `*.tsbuildinfo`
+**TypeScript**: `node_modules/`, `dist/`, `*.tsbuildinfo`
 **Next.js** (in addition to TypeScript): `.next/`, `out/`
 **Go**: binary name (project name), `vendor/` (optional)
-**Python**: `__pycache__/`, `*.pyc`, `.venv/`, `dist/`, `*.egg-info/`, `.env*.local`
+**Python**: `__pycache__/`, `*.pyc`, `.venv/`, `dist/`, `*.egg-info/`
 
-Always include: `.DS_Store`, `tmp/`
+Always include: `.DS_Store`, `tmp/`, and the env block below (every language — a `.env` shows up as soon as the project has one secret):
+
+```
+.env*
+!.env.example
+```
+
+Ignore `.env*` wholesale rather than only `.env*.local`. Step 6.5 scaffolds `.env.example` and tells the user to put real values in `.env`, so an ignore rule matching only `*.local` leaves the one file that actually holds secrets tracked — that is how a `.env` reaches a commit. The `!.env.example` negation keeps the committed template visible.
 
 ### Step 8: Summary
 
