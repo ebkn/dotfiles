@@ -10,6 +10,33 @@ The `go` directive in `go.mod` pins the toolchain, and CI reads it via `go-versi
 go mod init {module-path}
 ```
 
+## Minimal package — the toolchain needs one to run at all
+
+Go treats a module with no packages as an error rather than an empty success. On a module holding only `go.mod`, `go vet ./...` and `go test ./...` both exit 1 (`matched no packages`) and `golangci-lint run` exits 5 (`no go files to analyze`); only `go build ./...` exits 0. A Go scaffold with no source file therefore commits a CI pipeline that is red on its first run.
+
+Tolerating those codes the way the Python CI tolerates pytest's 5 is not available here: a genuine `go vet` diagnostic also exits 1, so `|| [ $? -eq 1 ]` would swallow real failures along with the empty-scaffold case. Scaffold one file instead.
+
+For `cli` / `api` — `main.go`:
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("{project-name}")
+}
+```
+
+For `library` — `{package-name}.go`, where a package clause and doc comment are enough; the `unused` linter does not flag an empty package:
+
+```go
+// Package {package-name} {one-line description}
+package {package-name}
+```
+
+No test file is needed. Unlike pytest, `go test ./...` prints `[no test files]` and exits 0 once a package exists.
+
 ## .golangci.yml — linter config
 
 ```yaml
@@ -67,3 +94,16 @@ Beyond the shared block in SKILL.md Step 8:
 
 - the compiled binary (the project name)
 - `vendor/` (optional)
+
+## Verification
+
+Run the whole toolchain against the scaffold — all four must pass before moving on. These are the same gates `references/supply-chain.md` puts in CI, so a failure here is a failure that would land red on the first push:
+
+```bash
+go vet ./...
+golangci-lint run
+go test ./...
+go build ./...
+```
+
+If any of them reports `matched no packages` or `no go files to analyze`, the minimal package above is missing — fix that rather than weakening the gate.

@@ -61,6 +61,10 @@ jobs:
       - uses: actions/setup-go@{sha} # {tag}
         with:
           go-version-file: go.mod
+      # These steps require the module to contain at least one package: on a module holding only
+      # go.mod, `go vet`/`go test` exit 1 and golangci-lint exits 5. references/go.md scaffolds a
+      # minimal package for exactly this reason — there is no safe exit-code tolerance for Go,
+      # since a real vet diagnostic exits 1 too.
       - run: go vet ./...
       - uses: golangci/golangci-lint-action@{sha} # {tag}
         with:
