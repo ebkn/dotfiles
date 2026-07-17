@@ -1,0 +1,4 @@
+interface:
+  display_name: "Initialize Project"
+  short_description: "Scaffold a new project with CI, linters, and supply-chain hardening"
+  default_prompt: "Use $init-project to scaffold a new project in this directory."
