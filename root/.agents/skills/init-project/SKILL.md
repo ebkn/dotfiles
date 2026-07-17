@@ -1,7 +1,7 @@
 ---
 name: init-project
 description: Scaffold a new project in the current directory — git init, README.md, CLAUDE.md, AGENTS.md, Claude settings.json, linter/test config, unused-code detection (knip for TypeScript), runtime pin, supply-chain hardening (SHA-pinned GitHub Actions, least-privilege GITHUB_TOKEN, Dependabot cooldown, pinned container base images), and CI (GitHub Actions + Dependabot) for the specified language (TypeScript, Go, Python), plus optional Next.js boilerplate with error boundaries, security headers, SEO, and a health endpoint. Use this skill when the user wants to initialize or bootstrap a new project from scratch, set up a fresh repo, or scaffold project boilerplate.
-allowed-tools: Bash(git init), Bash(git init *), Bash(git status *), Bash(git rev-parse *), Bash(git add *), Bash(git commit -m *), Bash(git ls-remote *), Bash(node -v), Bash(npm -v), Bash(npm install *), Bash(npm run build*), Bash(npm run knip*), Bash(npm run lint*), Bash(npm run test:run*), Bash(npm run typecheck*), Bash(npx biome *), Bash(npx knip*), Bash(go mod init *), Bash(golangci-lint config verify*), Bash(ls*), Bash(tree*), Bash(mkdir *), Bash(ln -s *), Read, Write, Glob, WebFetch(domain:github.com), WebFetch(domain:raw.githubusercontent.com)
+allowed-tools: Bash(git init), Bash(git init *), Bash(git status *), Bash(git rev-parse *), Bash(git add *), Bash(git commit -m *), Bash(git ls-remote *), Bash(node -v), Bash(npm -v), Bash(npm view *), Bash(npm install *), Bash(npm run build*), Bash(npm run knip*), Bash(npm run lint*), Bash(npm run test:run*), Bash(npm run typecheck*), Bash(npx biome *), Bash(npx knip*), Bash(go mod init *), Bash(golangci-lint config verify*), Bash(ls*), Bash(tree*), Bash(mkdir *), Bash(ln -s *), Read, Write, Glob, WebFetch(domain:github.com), WebFetch(domain:raw.githubusercontent.com)
 ---
 
 ## Instructions
@@ -15,6 +15,8 @@ Initialize a new project in the current directory. Ask the user for:
 5. **Service domain(s) and local dev port** — the domain(s) this project serves or calls (e.g. `example.com`, `api.example.com`) and the port the dev server listens on (e.g. `3000`). Used by the service-access permissions in Step 4. Ask only when the project type is not `library`/`cli`; accept "none" and skip that block if the user has no domain yet.
 
 Then scaffold the project following the steps below. Skip any step where the file already exists — never overwrite.
+
+**Never copy a version number or SHA out of this skill.** Anything version-shaped here — `{tag}`, `{sha}`, `{exact current node version}`, `{installed-biome-version}` — is a placeholder to resolve at scaffold time, and any literal version in prose is there to explain a failure, not to be pinned. Resolve the current release yourself (`npm view <pkg> version`, `git ls-remote --tags`, `<tool> --version`), confirm it is problem-free by running the step's verification, and write *that* value into the project. A version baked into this file is only as fresh as the last edit to it; a scaffold that pins it inherits that staleness on day one. The generated project pins hard — exact versions, SHAs, digests — precisely so that the resolving happens here, once, deliberately.
 
 ### Step 1: Git
 
@@ -169,10 +171,20 @@ Also create `.npmrc` with:
 ```
 save-exact=true
 min-release-age=7
+ignore-scripts=true
 ```
 
 - `save-exact=true` — pin dependencies to exact versions (no `^` or `~` prefix)
 - `min-release-age=7` — skip package versions published less than 7 days ago
+- `ignore-scripts=true` — do not run dependencies' `preinstall`/`install`/`postinstall` scripts
+
+`ignore-scripts` is the one with a real cost, so decide it deliberately rather than inheriting it. Lifecycle scripts are how a compromised package actually executes on a developer machine and in CI — they are the payload path in most recent npm worm incidents, and `min-release-age` only narrows that window rather than closing it. The cost: packages that build a native binary or fetch a platform binary on install (`esbuild`, `sharp`, `puppeteer`, some Prisma setups) break, and the failure is usually a confusing runtime error rather than an install error. Nothing in this scaffold needs install scripts; if a dependency later does, allow it narrowly rather than dropping the flag globally:
+
+```bash
+npm rebuild esbuild   # re-run scripts for one package, on purpose
+```
+
+Note this also applies in CI (`npm ci` reads the committed `.npmrc`), which is where an unattended postinstall is most dangerous.
 
 Then install dev dependencies. The exact set depends on the framework:
 
@@ -307,11 +319,13 @@ Dead files, unused exports, and unused dependencies accumulate silently — they
 
 ```json
 {
-  "$schema": "https://unpkg.com/knip@6/schema.json"
+  "$schema": "https://unpkg.com/knip@{installed-knip-major}/schema.json"
 }
 ```
 
-Knip auto-detects entry points and config through built-in plugins (Next.js, Vitest, Biome, etc.), so the empty `$schema`-only config works out of the box — add `entry`/`project`/`ignore` overrides only when a real false positive appears. Knip v6 requires Node ≥ 20.19; the runtime pinned in Step 6.6 already satisfies this.
+Run `npx knip --version` and use that major in the `$schema` URL, the same way Step 5 pins Biome's schema to the installed CLI.
+
+Knip auto-detects entry points and config through built-in plugins (Next.js, Vitest, Biome, etc.), so the empty `$schema`-only config works out of the box — add `entry`/`project`/`ignore` overrides only when a real false positive appears. Knip requires a recent Node (`npm view knip engines.node`); the runtime pinned in Step 6.6 satisfies it as long as you pinned the current LTS.
 
 For a **library** whose whole point is its public exports, set `package.json` `main`/`exports` to the public entry (or declare `entry` in `knip.json`) so knip treats the public API as used rather than flagging every export — otherwise it will report the library's surface as dead code.
 
@@ -323,7 +337,17 @@ Run `npm run knip` as part of the Step 6 verification. It should report **no iss
 
 ### Step 6.5: Next.js boilerplate (Next.js only)
 
-If the chosen framework is Next.js, create the official App Router boilerplate. Fetch the latest template files from the `vercel/next.js` GitHub repo (`packages/create-next-app/templates/app/ts/`) using WebFetch against raw.githubusercontent.com, then create:
+If the chosen framework is Next.js, create the official App Router boilerplate from the `vercel/next.js` template at `packages/create-next-app/templates/app/ts/`.
+
+Fetch it with WebFetch against raw.githubusercontent.com **at the release tag matching the `next` version you are installing**, never from `main`:
+
+```
+https://raw.githubusercontent.com/vercel/next.js/v{next-version}/packages/create-next-app/templates/app/ts/{file}
+```
+
+Run `npm view next version` to resolve the tag. A `main`/`HEAD` URL is a mutable reference — the same supply-chain hole this skill closes for GitHub Actions in Step 6.8 — and it also drifts out of sync with the pinned `next` release. Read what you fetch before writing it; this step copies third-party code into the project.
+
+Create:
 
 - `next.config.ts` — empty Next.js config
 - `tsconfig.json` — TypeScript config with Next.js plugin and `@/*` path alias
@@ -339,6 +363,8 @@ After creating the files, install the runtime dependencies:
 npm install next react react-dom
 npm install -D typescript @types/node @types/react @types/react-dom vitest
 ```
+
+Install the newest TypeScript this Next.js release actually supports — do not assume `latest` is safe. Next.js declares no `typescript` peer dependency, so npm stays silent on a mismatch and a TypeScript major that Next.js has not adopted yet fails only at build, as an opaque error rather than a version complaint (observed with Next.js 16.2.10 + TypeScript 7.0.2: `next build` dies with `The "id" argument must be of type string. Received undefined`, while the same tree builds on 5.x). The `npm run build` at the end of this step is the check. If it fails, install the newest major that does build (`npm install -D typescript@{major}`) and record the constraint in the CLAUDE.md Development section, so the next person does not helpfully bump it back.
 
 #### Error & loading boundaries
 
@@ -507,6 +533,8 @@ export function GET() {
 
 init-project writes lint/typecheck/test scripts but nothing enforces them. Add a CI workflow that runs the gates on every push and PR, plus Dependabot for updates. Generate only the block matching the chosen language.
 
+`{sha}` and `{tag}` in the templates below are placeholders, not literals — resolve each action's current release and its SHA at scaffold time using the hardening note that follows, and write both in. Never copy a version out of this skill: any tag written here is only as fresh as the last edit to this file.
+
 **`.github/workflows/ci.yml` — TypeScript / Next.js:**
 
 ```yaml
@@ -524,10 +552,10 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # pin to a full commit SHA before committing — see the hardening note below
+      - uses: actions/checkout@{sha} # {tag}
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4 # pin to a full commit SHA
+      - uses: actions/setup-node@{sha} # {tag}
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -556,16 +584,16 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # pin to a full commit SHA before committing — see the hardening note below
+      - uses: actions/checkout@{sha} # {tag}
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v5 # pin to a full commit SHA
+      - uses: actions/setup-go@{sha} # {tag}
         with:
           go-version-file: go.mod
       - run: go vet ./...
-      - uses: golangci/golangci-lint-action@v9 # pin to a full commit SHA
+      - uses: golangci/golangci-lint-action@{sha} # {tag}
         with:
-          version: v2.12 # action v9 supports golangci-lint v2 only; v6 cannot read the v2 config above
+          version: {latest golangci-lint 2.x} # must be a v2 release to match the v2 config from Step 5
       - run: go test ./...
       - run: go build ./...
 ```
@@ -587,10 +615,10 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # pin to a full commit SHA before committing — see the hardening note below
+      - uses: actions/checkout@{sha} # {tag}
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5 # pin to a full commit SHA
+      - uses: actions/setup-python@{sha} # {tag}
         with:
           python-version-file: .python-version
       - run: pip install ruff pytest
@@ -607,14 +635,22 @@ jobs:
 
 - **Least-privilege `GITHUB_TOKEN`** — the top-level `permissions: contents: read` block means a compromised action can't push, open PRs, or edit issues by default. Add a narrower `permissions:` to a single job only when a step genuinely needs write.
 - **`persist-credentials: false`** on `actions/checkout` — stops the token being written to `.git/config`, where a later step or a built artifact/image could exfiltrate it. Drop it only if a subsequent step must push with the checkout token.
-- **Pin every `uses:` to a full 40-char commit SHA, not a tag.** Tags are mutable — the tj-actions/changed-files compromise (2025) re-pointed a tag and hit tens of thousands of repos. Resolve each action's SHA and rewrite, keeping the version as a trailing comment so humans and Dependabot can still read it:
+- **Pin every `uses:` to a full 40-char commit SHA, not a tag.** Tags are mutable — the tj-actions/changed-files compromise (2025) re-pointed a tag and hit tens of thousands of repos.
+
+  Resolve the values yourself; the templates above deliberately carry `{sha}`/`{tag}` placeholders rather than real versions. For each action, find the current release, then resolve that tag to its SHA:
 
   ```bash
-  git ls-remote https://github.com/actions/checkout v4.2.2   # prints the SHA the tag points to
+  # current release tag (WebFetch https://github.com/{owner}/{repo}/releases/latest also works)
+  git ls-remote --tags --sort=-v:refname https://github.com/actions/checkout | head -5
+
+  # the SHA that tag points to
+  git ls-remote https://github.com/actions/checkout {tag}
   ```
 
+  Write the SHA in and keep the tag as a trailing comment, so humans and Dependabot can still read it:
+
   ```yaml
-  - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+  - uses: actions/checkout@{resolved 40-char sha} # {resolved tag}
   ```
 
   Do this for `actions/checkout`, `actions/setup-node`/`setup-go`/`setup-python`, `golangci/golangci-lint-action`, and any other third-party action. The `github-actions` Dependabot block below then bumps both the SHA and the comment as new releases land, so pinning doesn't rot into a stale (possibly vulnerable) version.
@@ -653,11 +689,11 @@ init-project does not scaffold a Dockerfile. But if this project deploys as a co
 - **Pin the base image by tag *and* digest.** A bare tag (`FROM node:22`) is re-pushable; the `@sha256:` digest is the immutable, verifiable reference:
 
   ```dockerfile
-  FROM node:22.14.0-bookworm-slim@sha256:<digest>
+  FROM node:{current tag}@sha256:{resolved digest}
   ```
 
-  Resolve the digest with `docker buildx imagetools inspect node:22.14.0-bookworm-slim` (or copy it from the registry). Keep the human-readable tag in front so Dependabot's `docker` ecosystem (uncomment the block in Step 6.8) can bump both tag and digest as new releases land — otherwise the pin rots into a stale, possibly-vulnerable image.
-- **Pin OS packages** to explicit versions (`apt-get install -y curl=7.88.1-10+deb12u5`), add `--no-install-recommends`, and clean the apt lists in the same layer.
+  Resolve the current tag and its digest at the time you write the Dockerfile — `docker buildx imagetools inspect node:{tag}` prints the digest. Keep the human-readable tag in front so Dependabot's `docker` ecosystem (uncomment the block in Step 6.8) can bump both tag and digest as new releases land — otherwise the pin rots into a stale, possibly-vulnerable image.
+- **Pin OS packages** to explicit versions (`apt-get install -y curl={version}`, resolved against the base image's distro), add `--no-install-recommends`, and clean the apt lists in the same layer.
 - **Install app deps from the lockfile only** — `npm ci`, never `npm install`. `npm ci` fails on a lockfile mismatch and honors the `.npmrc` (`save-exact`, `min-release-age`) from Step 4.5.
 - **Run as a non-root `USER`** and copy only what the build needs (use `.dockerignore`) to shrink the attack surface.
 
