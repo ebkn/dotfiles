@@ -43,6 +43,8 @@ Adjust `dev`, `build`, and `start` for the framework:
 
 ## .npmrc
 
+**Write this file before the first `npm install`, not after.** npm reads `.npmrc` at invocation time, so every setting here only governs installs that come after it exists. Scaffolding dependencies first and the `.npmrc` second silently forfeits all three controls for the one install that introduces the entire dependency tree — the install that matters most. That ordering is also why this section precedes the dependency list below.
+
 ```
 save-exact=true
 min-release-age=7
@@ -60,6 +62,8 @@ npm rebuild esbuild   # re-run scripts for one package, on purpose
 ```
 
 Note this also applies in CI (`npm ci` reads the committed `.npmrc`), which is where an unattended postinstall is most dangerous.
+
+Recent npm versions add an `allowScripts` field in package.json plus `npm approve-scripts`, which records per-package (version-pinned) approval to run install scripts. It looks like a more granular replacement for `ignore-scripts`, but do not treat it as one yet: npm's own docs state the field is **advisory in the current release** — unreviewed scripts still run and installs merely print a list — and the `strict-allow-scripts` config that does turn it into a hard failure is undocumented. An older npm silently ignores unknown config keys, so switching to it can also mean losing the protection outright with no error. Keep `ignore-scripts=true`, which also short-circuits the whole mechanism (with it set, nothing runs, so nothing needs approving and `npm rebuild` stays the escape hatch). Revisit once npm blocks unreviewed scripts by default.
 
 ## Dev dependencies
 

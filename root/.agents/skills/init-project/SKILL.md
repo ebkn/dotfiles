@@ -138,7 +138,9 @@ The two `curl` patterns are deliberately loose, and this is a trade-off rather t
 
 ### Step 6: Language setup
 
-Follow the language reference from the table above: dependencies, linter, tests, unused-code detection, runtime pin, and its verification block. For a served web app or API, the reference also covers security headers, SEO, and the health endpoint.
+Follow the language reference from the table above — dependencies, linter, tests, unused-code detection, runtime pin, and its verification block. For a served web app or API, the reference also covers security headers, SEO, and the health endpoint.
+
+**Work through each reference top to bottom; its section order is load-bearing.** The TypeScript path in particular must write `.npmrc` before installing anything, because npm applies those settings only to installs that run after the file exists.
 
 ### Step 7: CI & Dependabot
 
