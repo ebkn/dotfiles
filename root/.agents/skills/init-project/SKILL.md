@@ -594,7 +594,11 @@ jobs:
       - run: pip install ruff pytest
       - run: ruff check .
       - run: ruff format --check .
-      - run: pytest
+      # pytest exits 5 when it collects no tests, which would fail CI on the fresh scaffold.
+      # This is the Python counterpart of vitest's --passWithNoTests; drop `|| [ $? -eq 5 ]`
+      # once a real suite exists so that a silent collection failure fails CI again.
+      # A genuine test failure still exits 1 and fails the step.
+      - run: pytest || [ $? -eq 5 ]
 ```
 
 **Supply-chain hardening of the workflow.** The templates above bake in three controls; apply the SHA-pinning step before you commit:
