@@ -26,6 +26,18 @@ Create:
 - `app/page.module.css` — page-level CSS module
 - `public/` — SVG assets (`file.svg`, `globe.svg`, `next.svg`, `vercel.svg`, `window.svg`)
 
+## package.json scripts
+
+The base template in `references/typescript.md` ships lint/typecheck/knip/test only. Add the three Next.js scripts to it:
+
+```json
+"dev": "next dev --turbopack",
+"build": "next build",
+"start": "next start"
+```
+
+`build` is not optional here — it is what the verification at the bottom of this file runs, and the CI template in `references/supply-chain.md` runs `npm run build` for Next.js.
+
 ## Runtime dependencies
 
 ```bash

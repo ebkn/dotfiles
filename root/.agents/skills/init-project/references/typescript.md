@@ -19,9 +19,6 @@ If `package.json` does not exist, create one. Run `npm -v` and `node -v` to fill
     "node": "{exact current node version}"
   },
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
@@ -36,10 +33,7 @@ If `package.json` does not exist, create one. Run `npm -v` and `node -v` to fill
 Notes on the template:
 - `"type": "module"` — required so `vitest.config.ts` (ESM imports) loads under `verbatimModuleSyntax` in the strict tsconfig below.
 - `--passWithNoTests` — keeps CI green before any tests exist; remove it once a test suite is in place if you prefer strict failure.
-
-Adjust `dev`, `build`, and `start` for the framework:
-- **Next.js**: `next dev --turbopack`, `next build`, `next start`
-- **Plain TypeScript**: remove `dev`, `build`, `start` or set appropriate commands
+- There is deliberately no `dev`/`build`/`start`. A plain TypeScript project has nothing to serve, and the tsconfig below sets `noEmit: true`, so `typecheck` is the only `tsc` invocation and a `build` script would have nothing to do. **Next.js adds its own — see `references/nextjs.md`.** If this project ships compiled JS (a library published to npm), add a `build` script and a second tsconfig that drops `noEmit`; the CI template in `references/supply-chain.md` notes where to enable the build step.
 
 ## .npmrc
 
