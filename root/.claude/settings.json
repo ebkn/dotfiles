@@ -422,6 +422,12 @@
             "type": "command",
             "command": "~/.claude/hooks/strip-redundant-cd.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/curl-guard.sh",
+            "if": "Bash(curl *)",
+            "timeout": 5
           }
         ]
       }
