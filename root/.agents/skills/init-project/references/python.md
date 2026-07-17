@@ -51,6 +51,27 @@ Beyond the shared block in SKILL.md Step 8:
 
 - `__pycache__/`, `*.pyc`, `.venv/`, `dist/`, `*.egg-info/`
 
+## Verification
+
+Run the whole toolchain against the scaffold before moving on. These are the same gates `references/supply-chain.md` puts in CI:
+
+```bash
+ruff check .
+ruff format --check .
+pytest || [ $? -eq 5 ]
+```
+
+The `|| [ $? -eq 5 ]` mirrors the CI step and absorbs only the empty-scaffold case; a real test failure still exits 1. Unlike Go, nothing needs to be scaffolded to make these run: ruff passes on a tree whose only Python file is the empty `tests/__init__.py`.
+
+Both tools must be on `PATH`, and this scaffold does not manage a Python environment (see Known gap below) — so they may simply not be installed. If they are missing, create an environment and install them there rather than into the system Python:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install ruff pytest
+```
+
+then run the commands above as `.venv/bin/ruff` / `.venv/bin/pytest`. `.venv/` is already in the `.gitignore` entries above. This install is deliberately left to prompt for approval: unlike the npm path, there is no `.npmrc` here applying `min-release-age` and `ignore-scripts`, so `pip install` pulls and executes freshly-published package code with no cooldown — the one moment in this scaffold that deserves a human glance.
+
 ## Known gap
 
 This path is thinner than the TypeScript one: no package manager (`uv`), no lockfile, and CI installs `ruff pytest` unpinned — which sits awkwardly beside the pinning discipline the rest of this skill enforces. Consider moving to `uv` with a committed `uv.lock` when this matters.
