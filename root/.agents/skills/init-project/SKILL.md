@@ -217,15 +217,15 @@ For **web / Next.js (JSX)** projects, keep Biome's `recommended` rules on: its a
 **Go** — `.golangci.yml`:
 
 ```yaml
+version: "2"
+
+# `standard` is golangci-lint's default set: errcheck, govet, ineffassign, staticcheck, unused.
+# Add more under `enable:` — see https://golangci-lint.run/docs/linters/
 linters:
-  enable:
-    - govet
-    - errcheck
-    - staticcheck
-    - unused
-    - gosimple
-    - ineffassign
+  default: standard
 ```
+
+The `version: "2"` key is **required**: golangci-lint v2 rejects a config without it (`unsupported version of the configuration`), so a v1-style bare `linters.enable` list fails before any linting runs. `gosimple` and `stylecheck` were merged into `staticcheck` in v2 and are no longer separate linter names — naming them is an error, not a no-op. Verify any edit with `golangci-lint config verify`.
 
 **Python** — `ruff.toml`:
 
@@ -317,7 +317,7 @@ For a **library** whose whole point is its public exports, set `package.json` `m
 
 Run `npm run knip` as part of the Step 6 verification. It should report **no issues** on the fresh scaffold (every scaffolded file is either an entry point or reached from one). If it flags a legitimately-unused scaffold export as the project is just starting, prefer adjusting `knip.json` over deleting the file.
 
-**Go** — already covered. The `unused` linter enabled in the `.golangci.yml` from Step 5 (part of staticcheck) reports unused constants, variables, functions, and types. For whole-program dead-code detection across packages, note `go run golang.org/x/tools/cmd/deadcode@latest ./...` in the CLAUDE.md Development section as an optional deeper pass — it is not added as a hard gate because it needs a real entry point (`main`) to be meaningful.
+**Go** — already covered. The `unused` linter, part of the `standard` set the Step 5 `.golangci.yml` selects, reports unused constants, variables, functions, and types. For whole-program dead-code detection across packages, note `go run golang.org/x/tools/cmd/deadcode@latest ./...` in the CLAUDE.md Development section as an optional deeper pass — it is not added as a hard gate because it needs a real entry point (`main`) to be meaningful.
 
 **Python** — partially covered. The ruff `F` rules already selected in Step 5 catch unused imports (`F401`) and unused local variables (`F841`). Whole unused functions, classes, and methods need a dedicated tool — [vulture](https://github.com/jendrikseipp/vulture). It is **not** wired as a hard gate here because it is prone to false positives on public APIs and dynamically-referenced code (it needs a whitelist to be usable in CI); instead note `vulture .` in the CLAUDE.md Development section as an optional manual pass the maintainer can adopt once the codebase has shape.
 
@@ -563,7 +563,9 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go vet ./...
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v9 # pin to a full commit SHA
+        with:
+          version: v2.12 # action v9 supports golangci-lint v2 only; v6 cannot read the v2 config above
       - run: go test ./...
       - run: go build ./...
 ```
