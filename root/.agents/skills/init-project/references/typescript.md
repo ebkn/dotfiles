@@ -67,7 +67,7 @@ Recent npm versions add an `allowScripts` field in package.json plus `npm approv
   npm install -D @biomejs/biome vitest typescript knip
   ```
 
-- **Next.js** — install only biome and knip here; vitest and typescript come with the runtime deps in `references/nextjs.md`, which pins TypeScript for a reason documented there:
+- **Next.js** — install only biome and knip here; vitest and typescript come with the runtime deps in `references/nextjs.md`, which constrains the TypeScript version for a reason documented there:
 
   ```bash
   npm install -D @biomejs/biome knip
