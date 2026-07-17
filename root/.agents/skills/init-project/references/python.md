@@ -6,6 +6,17 @@ Resolve every version at scaffold time — see the rule in SKILL.md.
 
 Pin the runtime so local, CI, and deploy agree; CI reads this file via `python-version-file`. Create `.python-version` holding the current stable Python the project targets — resolve it rather than copying one from here (`python3 --version` for what is installed locally, or https://www.python.org/downloads/ for what is current). Optionally also set `requires-python` in `pyproject.toml`.
 
+## requirements-dev.txt — pinned dev tooling
+
+CI and local runs both install the dev tooling from this file, so they agree on a version instead of each resolving whatever is newest that day. Resolve the current release of each (`pip index versions ruff`, or PyPI) and pin it exactly:
+
+```
+ruff=={resolved ruff version}
+pytest=={resolved pytest version}
+```
+
+Pin with `==`, the pip counterpart of the `.npmrc` `save-exact=true` in `references/typescript.md`. Do not pin these in the workflow's `run:` line instead: Dependabot never reads shell commands, so such a pin has no updater and rots into a stale version — the exact failure the SHA-pinning section warns about. A requirements file is read by the `pip` Dependabot block in `references/supply-chain.md`, so the pin gets bumped on a schedule and the `cooldown` there gives it the same freshly-published quarantine that `min-release-age` gives npm. (Dependabot treats any `.txt` file whose name contains `requirements` as a requirements file, so this filename is picked up.)
+
 ## ruff.toml — linter config
 
 ```toml
@@ -67,11 +78,13 @@ Both tools must be on `PATH`, and this scaffold does not manage a Python environ
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install ruff pytest
+.venv/bin/pip install -r requirements-dev.txt
 ```
 
-then run the commands above as `.venv/bin/ruff` / `.venv/bin/pytest`. `.venv/` is already in the `.gitignore` entries above. This install is deliberately left to prompt for approval: unlike the npm path, there is no `.npmrc` here applying `min-release-age` and `ignore-scripts`, so `pip install` pulls and executes freshly-published package code with no cooldown — the one moment in this scaffold that deserves a human glance.
+then run the commands above as `.venv/bin/ruff` / `.venv/bin/pytest`. Install from `requirements-dev.txt`, not by naming the packages, so the local environment matches CI. `.venv/` is already in the `.gitignore` entries above. This install is deliberately left to prompt for approval: unlike the npm path, there is no `.npmrc` here applying `ignore-scripts`, so pip executes any package's build/install code — the one moment in this scaffold that deserves a human glance.
 
 ## Known gap
 
-This path is thinner than the TypeScript one: no package manager (`uv`), no lockfile, and CI installs `ruff pytest` unpinned — which sits awkwardly beside the pinning discipline the rest of this skill enforces. Consider moving to `uv` with a committed `uv.lock` when this matters.
+This path is still thinner than the TypeScript one. `requirements-dev.txt` pins the two direct dev tools and Dependabot keeps them fresh, but there is no lockfile, so their transitive dependencies (pytest pulls pluggy, iniconfig, packaging) resolve to whatever is newest at install time and are neither pinned nor hash-verified. Pinning a direct dependency narrows the hijack window for that package only; the npm path closes this properly with a committed `package-lock.json`.
+
+`uv` with a committed `uv.lock` is the fix, and it is now viable rather than aspirational: dependabot-core ships a `uv` ecosystem, and `cooldown` supports it, so the migration keeps the update and quarantine story this skill relies on. That is a rewrite of this path (`uv sync --frozen` in CI as the `npm ci` equivalent, `pyproject.toml` as the manifest), not an edit — treat it as its own task.

@@ -96,7 +96,9 @@ jobs:
       - uses: actions/setup-python@{sha} # {tag}
         with:
           python-version-file: .python-version
-      - run: pip install ruff pytest
+      # Pinned in requirements-dev.txt rather than here: Dependabot reads requirements files but
+      # never shell commands, so a version pinned inline would have no updater and would rot.
+      - run: pip install -r requirements-dev.txt
       - run: ruff check .
       - run: ruff format --check .
       # pytest exits 5 when it collects no tests, which would fail CI on the fresh scaffold.
