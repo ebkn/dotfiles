@@ -93,19 +93,22 @@ jobs:
       - uses: actions/checkout@{sha} # {tag}
         with:
           persist-credentials: false
-      - uses: actions/setup-python@{sha} # {tag}
-        with:
-          python-version-file: .python-version
-      # Pinned in requirements-dev.txt rather than here: Dependabot reads requirements files but
-      # never shell commands, so a version pinned inline would have no updater and would rot.
-      - run: pip install -r requirements-dev.txt
-      - run: ruff check .
-      - run: ruff format --check .
-      # pytest exits 5 when it collects no tests, which would fail CI on the fresh scaffold.
-      # This is the Python counterpart of vitest's --passWithNoTests; drop `|| [ $? -eq 5 ]`
-      # once a real suite exists so that a silent collection failure fails CI again.
+      # setup-uv installs uv itself; uv then provisions the Python pinned in .python-version, so no
+      # actions/setup-python step is needed. The action is SHA-pinned (Dependabot bumps it) and
+      # installs the current uv — the same way setup-node supplies npm. Do not add a version-file /
+      # required-version uv pin: the uv Dependabot ecosystem bumps dependencies, not that constraint,
+      # so it would be an un-updated pin that rots — the failure the SHA-pinning section warns about.
+      - uses: astral-sh/setup-uv@{sha} # {tag}
+      # `uv sync --locked` is the `npm ci` of this path: installs strictly from uv.lock — every
+      # dependency exact-pinned and hashed — and fails if the lock is stale against pyproject.toml.
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      # pytest exits 5 when it collects no tests, which would fail CI on the fresh scaffold, and
+      # `uv run` propagates that 5. This is the Python counterpart of vitest's --passWithNoTests;
+      # drop `|| [ $? -eq 5 ]` once a real suite exists so a silent collection failure fails CI again.
       # A genuine test failure still exits 1 and fails the step.
-      - run: pytest || [ $? -eq 5 ]
+      - run: uv run pytest || [ $? -eq 5 ]
 ```
 
 ## Hardening the workflow
@@ -132,21 +135,21 @@ The templates above bake in three controls. Apply the SHA-pinning step before yo
   - uses: actions/checkout@{resolved 40-char sha} # {resolved tag}
   ```
 
-  Do this for `actions/checkout`, `actions/setup-node`/`setup-go`/`setup-python`, `golangci/golangci-lint-action`, and any other third-party action. The `github-actions` Dependabot block below then bumps both the SHA and the comment as new releases land, so pinning doesn't rot into a stale (possibly vulnerable) version.
+  Do this for `actions/checkout`, `actions/setup-node`/`setup-go`, `astral-sh/setup-uv`, `golangci/golangci-lint-action`, and any other third-party action. The `github-actions` Dependabot block below then bumps both the SHA and the comment as new releases land, so pinning doesn't rot into a stale (possibly vulnerable) version.
 
 ## .github/dependabot.yml
 
-Set `package-ecosystem` to `npm` / `gomod` / `pip` for the project language; the `github-actions` block keeps the SHA-pinned workflow actions current. `cooldown` mirrors the `.npmrc` `min-release-age` gate so Dependabot doesn't open a PR onto a just-published — possibly hijacked — version. Grouping keeps PR noise down:
+Set `package-ecosystem` to `npm` / `gomod` / `uv` for the project language; the `github-actions` block keeps the SHA-pinned workflow actions current. `cooldown` mirrors the per-project publish-age gate (`.npmrc` `min-release-age`, `[tool.uv] exclude-newer`) so Dependabot doesn't open a PR onto a just-published — possibly hijacked — version. Grouping keeps PR noise down:
 
 ```yaml
 version: 2
 updates:
-  - package-ecosystem: "npm" # gomod | pip — match the project language
+  - package-ecosystem: "npm" # gomod | uv — match the project language
     directory: "/"
     schedule:
       interval: "weekly"
     cooldown:
-      default-days: 7 # hold back freshly-published versions (mirrors .npmrc min-release-age)
+      default-days: 7 # hold back freshly-published versions; cooldown supports npm, gomod and uv
     groups:
       all-dependencies:
         patterns: ["*"]
