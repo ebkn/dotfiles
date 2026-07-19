@@ -48,8 +48,21 @@ zinit light MichaelAquilina/zsh-auto-notify
 zinit ice wait lucid atload"bindkey '^j' jq-complete"
 zinit light reegnz/jq-zsh-plugin
 
-# Use -C to skip compaudit security scan (~22ms) and reuse the cached
-# completion dump. The dump is regenerated automatically when
-# zsh-completions or other plugins update completion definitions.
+# `compinit -C` skips the compaudit security scan (~22ms) and, crucially, the
+# $fpath rescan — it trusts ~/.zcompdump as-is and never regenerates it. That is
+# fast, but the dump only autoloads completion functions (_mv, _ignored, …) by
+# name; their files are resolved from the live $fpath at call time. A zsh upgrade
+# removes the previous version's Cellar function dir, so a dump built for the old
+# version keeps pointing at files that are gone, yielding "function definition
+# file not found". The dump's first line records the zsh version it was built
+# for, so rebuild (plain `compinit`) when that no longer matches $ZSH_VERSION and
+# reuse the cache (`compinit -C`) otherwise. (`read` keeps this fork-free.)
 autoload bashcompinit && bashcompinit
-autoload -Uz compinit && compinit -C
+autoload -Uz compinit
+_zdump="${ZDOTDIR:-$HOME}/.zcompdump"
+if [[ -r "$_zdump" ]] && read -r _zdump_head < "$_zdump" && [[ "$_zdump_head" == *"version: $ZSH_VERSION"* ]]; then
+  compinit -C -d "$_zdump"
+else
+  compinit -d "$_zdump"
+fi
+unset _zdump _zdump_head
