@@ -78,9 +78,11 @@ Skip for `library`/`cli`. This skill does not scaffold server code for Python, s
 
 Add to the `allow` list from SKILL.md Step 5:
 
-- `Bash(uv run *)`, `Bash(uv sync *)`, `Bash(uv add *)`, `Bash(uv lock *)`, `Bash(uv python pin *)`
+- `Bash(uv run *)`, `Bash(uv sync *)`
 
 Everything runs through `uv run`, so `Bash(pytest *)` / `Bash(ruff *)` are not needed unless you also invoke the tools outside uv.
+
+Deliberately absent: `uv add`, `uv lock`, `uv python pin` — anything that changes the dependency set or the runtime pin keeps prompting. This matches the TypeScript path, which allows the run scripts but not `npm install`: executing code from the committed lockfile is routine, while changing what the project depends on is a decision worth a prompt.
 
 ## .gitignore entries
 
