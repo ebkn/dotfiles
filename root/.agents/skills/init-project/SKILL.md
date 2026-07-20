@@ -10,7 +10,7 @@ Initialize a new project in the current directory. Ask the user for:
 
 1. **Project name** — used in README.md heading and CLAUDE.md
 2. **One-line description** — what this project does
-3. **Primary language** — one of: `typescript`, `go`, `python` (or a framework like `next`, `fastapi`, `gin`, etc.)
+3. **Primary language** — one of: `typescript`, `go`, `python`, or `next` for Next.js. Next.js is the only framework with its own scaffold; other framework answers (FastAPI, Gin, …) just select their language.
 4. **Project type** — one of: `public-web` (public, indexable site), `internal-web` (internal tool / dashboard), `api` (backend/HTTP service, no browser UI), or `library`/`cli`. This gates the conditional steps: SEO scaffold (`public-web` only), security headers (any served web UI), and the health endpoint (`api` or any HTTP server).
 5. **Service domain(s) and local dev port** — the domain(s) this project serves or calls (e.g. `example.com`, `api.example.com`) and the port the dev server listens on (e.g. `3000`). Used by the service-access permissions in Step 5. Ask only when the project type is not `library`/`cli`; accept "none" and skip that block if the user has no domain yet.
 

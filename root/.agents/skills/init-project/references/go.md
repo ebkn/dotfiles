@@ -80,7 +80,7 @@ It is not a hard gate because it needs a real entry point (`main`) to be meaning
 
 ## Health endpoint — `api` or any HTTP server
 
-Skip for `library`/`cli`. This skill does not scaffold server code for Go, so there is nothing to write yet: when you create the server (Gin, net/http, …), add a `GET /healthz` returning `200 {"status":"ok"}` and note the route in the CLAUDE.md Development section. The deploy orchestrator uses it for readiness checks.
+Skip for `library`/`cli`. This skill does not scaffold server code for Go, so there is nothing to write yet. When the server gets built, start from the standard library: `net/http` (its 1.22+ mux matches method-and-path patterns), reaching for `chi` only if routing genuinely outgrows that — not a heavier framework. Record that policy in the CLAUDE.md Development section now so the first server commit follows it. Then add a `GET /healthz` returning `200 {"status":"ok"}` and note the route there too; the deploy orchestrator uses it for readiness checks.
 
 ## .claude/settings.json entries
 
