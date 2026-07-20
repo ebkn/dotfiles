@@ -2,7 +2,7 @@
 
 Resolve every version at scaffold time — see the rule in SKILL.md.
 
-This path uses [uv](https://docs.astral.sh/uv/) as the package manager, so it reaches the same bar as the TypeScript path: a committed lockfile that pins **every** dependency — direct and transitive — to an exact version with a hash, plus a freshly-published-version quarantine. `uv` must be installed (`uv --version`); if it is not, stop and install it (`brew install uv`, or the official installer) rather than falling back to bare `pip`, which cannot produce the lockfile the rest of this file relies on.
+This path uses [uv](https://docs.astral.sh/uv/) as the package manager, so it reaches the same bar as the TypeScript path: a committed lockfile that pins **every** dependency — direct and transitive — to an exact version with a hash, plus a freshly-published-version quarantine. `uv` must be installed (`uv --version`); if it is not, stop and ask the user to install it rather than falling back to bare `pip`, which cannot produce the lockfile the rest of this file relies on.
 
 ## Project init & runtime pin
 
