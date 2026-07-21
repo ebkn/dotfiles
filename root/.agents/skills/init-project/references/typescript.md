@@ -235,7 +235,7 @@ Pin the runtime so local, CI, and deploy agree; CI reads this file. Match `engin
 
 Add to the `allow` list from SKILL.md Step 5:
 
-- `Bash(npm test *)`, `Bash(npm run test*)`, `Bash(npx biome *)`, `Bash(npm run build*)`, `Bash(npm run lint*)`, `Bash(npm run knip*)`, `Bash(npx knip*)`, `Bash(npx vitest *)`
+- `Bash(npm test *)`, `Bash(npm run test*)`, `Bash(npx biome *)`, `Bash(npm run build*)`, `Bash(npm run lint*)`, `Bash(npm run typecheck*)`, `Bash(npm run knip*)`, `Bash(npx knip*)`, `Bash(npx vitest *)`
 - `Bash(npx tsc *)`
 
 ## Verification
