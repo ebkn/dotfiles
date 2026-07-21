@@ -80,6 +80,11 @@ Run `npx biome --version` to read the installed CLI version and pin `$schema` to
 ```json
 {
   "$schema": "https://biomejs.dev/schemas/{installed-biome-version}/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "linter": {
     "enabled": true
   },
@@ -91,6 +96,8 @@ Run `npx biome --version` to read the installed CLI version and pin `$schema` to
 }
 ```
 
+The `vcs` block makes Biome honor `.gitignore`. **Do not omit it.** Biome 2.x does *not* read `.gitignore` by default, so without this it lints and formats generated build output the moment it exists — `.next/` and `out/` (Next.js), `dist/` (a library build). The failure is invisible at scaffold time and mistimed by CI: the verification block below runs before any build, and CI's lint step happens to run before `build`, so both stay green. But locally, the first `npm run dev` populates `.next/`, and from then on `npm run lint` exits 1 on generated files for both humans and agents. `useIgnoreFile: true` makes `.gitignore` the single source of truth for what tooling ignores, matching how the rest of this scaffold is organized. (This is why Step 1 runs `git init` first — Biome resolves the VCS root from `.git/`; a missing `.gitignore` at verification time is harmless.)
+
 For **web / Next.js (JSX)** projects, keep Biome's `recommended` rules on: its accessibility (`a11y`) rules run at error level by default and are the accessibility gate CI enforces. Do not disable them — a downgraded a11y rule silently removes that gate.
 
 ## vitest.config.ts
@@ -99,11 +106,11 @@ For **web / Next.js (JSX)** projects, keep Biome's `recommended` rules on: its a
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  test: {
-    globals: true,
-  },
+  test: {},
 });
 ```
+
+**Do not set `globals: true`.** It is a trap that surfaces the moment the user writes their *first* test — too late for the verification block below to catch, since no test exists at scaffold time. With globals on, a test using bare `describe`/`it`/`expect` passes `npm run test:run` (Vitest injects the globals at runtime) but fails `npm run typecheck` with `TS2593: Cannot find name 'describe'`, because `tsc` sees no declaration for them. The result is a split-brain baseline: tests green, the CI typecheck gate red, on the user's first test. The documented fix for globals is adding `"types": ["vitest/globals"]` to `tsconfig.json` — but the Next.js path's tsconfig is generated from the official template, and editing it invites drift. Leaving globals off (Vitest's own default) means tests explicitly `import { describe, it, expect } from "vitest"`, which typechecks with no tsconfig change on either path. `test: {}` is kept as an anchor for future config.
 
 ## tsconfig.json — plain TypeScript only
 
