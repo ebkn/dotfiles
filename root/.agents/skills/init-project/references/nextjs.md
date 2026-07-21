@@ -228,6 +228,16 @@ describe("GET /api/health", () => {
 
 `GET` returns a standard `Response`, so the test imports and calls it directly — no Vitest environment, jsdom, or Next.js runtime needed (verified: it passes under plain-Node Vitest). Note the explicit `vitest` imports rather than globals, matching the `vitest.config.ts` in `references/typescript.md`.
 
+### Component tests are deliberately not set up — record the boundary
+
+The health test runs in plain Node precisely *because* `GET` returns a standard `Response`. A React **component** test cannot: it needs a browser-like DOM plus the React test tooling, none of which this scaffold installs. That omission is intentional — it keeps the dependency surface minimal and avoids committing the team to a testing stack they may not want — but it is a surprise waiting for whoever writes the first UI test. Close that surprise with a note rather than by installing the tooling speculatively.
+
+Record it in the generated CLAUDE.md Development → Test section, e.g.:
+
+> Component/UI tests are not scaffolded. The first one needs `jsdom` (the DOM environment), `@testing-library/react` + `@testing-library/jest-dom` (render + DOM assertions), and `@vitejs/plugin-react` (so Vitest transforms JSX/TSX), plus `test.environment: "jsdom"` in `vitest.config.ts`. The health-endpoint test runs in plain Node and needs none of these.
+
+This is the same "record a constraint a future reader would otherwise undo" instruction as the TypeScript-version note above — here the reader would otherwise assume, from one green test, that the test harness already covers components.
+
 ## Verification
 
 ```bash
