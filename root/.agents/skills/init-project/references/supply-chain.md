@@ -167,7 +167,7 @@ The templates above bake in three controls. Apply the SHA-pinning step before yo
 
 ## .github/dependabot.yml
 
-Set `package-ecosystem` to `npm` / `gomod` / `uv` for the project language; the `github-actions` block keeps the SHA-pinned workflow actions current. `cooldown` mirrors the per-project publish-age gate (`.npmrc` `min-release-age`, `[tool.uv] exclude-newer`) so Dependabot doesn't open a PR onto a just-published — possibly hijacked — version. Grouping keeps PR noise down while keeping majors isolated (see the comment on `groups`):
+Set `package-ecosystem` to `npm` / `gomod` / `uv` for the project language; the `github-actions` block keeps the SHA-pinned workflow actions current. `cooldown` mirrors the per-project publish-age gate (`.npmrc` `min-release-age`, `[tool.uv] exclude-newer`) so Dependabot doesn't open a PR onto a just-published — possibly hijacked — version. `cooldown.default-days` is supported for every ecosystem this scaffold uses — the language dependencies, `github-actions`, and (when added) `docker` — so all of them get the same quarantine; only the finer-grained `semver-major/minor/patch-days` fields have narrower ecosystem support (not `github-actions` or `docker`), and this scaffold does not use them ([Dependabot options reference](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference)). Grouping keeps PR noise down while keeping majors isolated (see the comment on `groups`):
 
 ```yaml
 version: 2
@@ -177,7 +177,7 @@ updates:
     schedule:
       interval: "weekly"
     cooldown:
-      default-days: 7 # hold back freshly-published versions; cooldown supports npm, gomod and uv
+      default-days: 7 # hold back freshly-published versions
     groups:
       # Bundle only minor + patch into one low-risk PR. Majors match no group, so each
       # arrives as its own PR (Dependabot's default for ungrouped updates) — a breaking
@@ -187,10 +187,12 @@ updates:
       minor-and-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
-  - package-ecosystem: "github-actions" # keeps SHA pins current; cooldown is NOT supported for this ecosystem
+  - package-ecosystem: "github-actions" # keeps SHA pins current
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7 # delay adopting a just-published action release — the tj-actions compromise (cited above) is exactly this risk
   # Add this block ONLY if the project ships a Dockerfile — keeps the pinned base-image digest fresh:
   # - package-ecosystem: "docker"
   #   directory: "/"
