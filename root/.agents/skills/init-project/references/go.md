@@ -46,9 +46,18 @@ version: "2"
 # Add more under `enable:` — see https://golangci-lint.run/docs/linters/
 linters:
   default: standard
+
+# In v2, gofmt-family formatters live in their own section, NOT under linters.
+# `golangci-lint run` reports unformatted files as issues (and fails), and
+# `golangci-lint fmt` rewrites them — see the note below.
+formatters:
+  enable:
+    - gofmt
 ```
 
 The `version: "2"` key is **required**: golangci-lint v2 rejects a config without it (`unsupported version of the configuration`), so a v1-style bare `linters.enable` list fails before any linting runs. `gosimple` and `stylecheck` were merged into `staticcheck` in v2 and are no longer separate linter names — naming them is an error, not a no-op.
+
+The `formatters` section is **not optional decoration** — it is the project's formatting gate. golangci-lint v2 split formatters (`gofmt`, `goimports`, `gofumpt`, `golines`) out of the `linters` set into their own section, so the `standard` linters above contain **no** format check. Without a `formatters` block, `golangci-lint run` passes on unformatted code — verified: with only `linters`, a misformatted file exits 0; adding `formatters: enable: [gofmt]` makes the same file exit 1 with `File is not properly formatted (gofmt)`. Because the gate lives inside `golangci-lint run`, the existing verification and CI steps enforce it with no extra line. `gofmt` matches what `go fmt` produces, so it never fights a developer's editor; reach for `gofumpt` (a stricter superset) only if the team wants its extra rules. To *apply* the formatting rather than just check it — the write-mode counterpart of `biome format --write` or `ruff format` — run `golangci-lint fmt`; record that in the CLAUDE.md Development section as the format command.
 
 Verify any edit:
 
