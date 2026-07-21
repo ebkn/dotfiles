@@ -120,6 +120,16 @@ Run `npx biome --version` to read the installed CLI version and pin `$schema` to
 }
 ```
 
+**Adjust `noConsole` to the project type before writing this file — the `"error"` above is the web default, and it is wrong for two of the four types.** `console.*` in a browser bundle is almost always a debugging leftover, so `error` is right for `public-web` and `internal-web` (the usual Next.js types). But it fights the other types:
+
+- **`cli`** — the console *is* the program's output; flagging every line the tool prints is nonsensical. Remove the `noConsole` entry entirely. (Intake groups `library`/`cli` into one answer: a `cli` needs it removed; a pure library that never prints to stdout may keep it — decide by which the project actually is.)
+- **`api`** — stdout/stderr logging is standard (12-factor), so don't ban `console`; relax it instead so stray debugging `console.log` is still caught while intentional level-based logging passes:
+
+  ```json
+  "noConsole": { "level": "error", "options": { "allow": ["error", "warn", "info", "debug"] } }
+  ```
+- **`public-web` / `internal-web`** — keep `"noConsole": "error"` as written above.
+
 The `vcs` block makes Biome honor `.gitignore`. **Do not omit it.** Biome 2.x does *not* read `.gitignore` by default, so without this it lints and formats generated build output the moment it exists — `.next/` and `out/` (Next.js), `dist/` (a library build). `useIgnoreFile: true` makes `.gitignore` the single source of truth for what tooling ignores, matching how the rest of this scaffold is organized. For that source of truth to exist before any tool reads it, SKILL.md creates `.gitignore` in Step 6, *before* the language setup and its verification: on the Next.js path the verification (`references/nextjs.md`) runs `npm run build` first, generating `.next/` in-tree, and only then lints — so a `.gitignore` written any later would arrive too late, `biome check` would exit 1 on that generated output, and the fix an agent reaches for (a `biome.json` exclude) would quietly undo this single-source design. (Step 1's `git init` still comes first — Biome resolves the VCS root from `.git/`.)
 
 The `vcs` block's *own* omission surfaces unevenly, so don't trust one green run to prove it's present. Because the Next.js verification builds before it lints, dropping the `vcs` block there makes `biome check` exit 1 at scaffold time — caught. But the plain-TS verification below runs no build, and the `ci.yml` in `references/supply-chain.md` runs `lint` before `build`, so on those paths the omission stays green and bites only later: the first real build (`npm run dev`, `npm run build`) populates the generated dir, and from then on `npm run lint` exits 1 on those files for humans and agents alike.
