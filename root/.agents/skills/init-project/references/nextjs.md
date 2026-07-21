@@ -133,11 +133,19 @@ export default nextConfig;
 
 `preload` commits the apex domain to the HSTS preload list, which is slow and painful to reverse. Keep it only if the project will genuinely serve every subdomain over HTTPS forever; drop it otherwise.
 
+### `internal-web` — also keep it out of search engines
+
+This belongs here, not in the SEO section below, because that section is skipped for `internal-web` — an instruction to hide an internal tool cannot live in a block its own audience is told to skip. An internal tool should never be indexed, and a `robots.ts` (the SEO scaffold's approach) is not enough on its own: `robots.txt` asks crawlers not to *crawl*, but a URL linked from anywhere can still be indexed. The real gate is an `X-Robots-Tag: noindex` **response header**, which the header block above already delivers on every route — add it to `securityHeaders`:
+
+```ts
+{ key: "X-Robots-Tag", value: "noindex" },
+```
+
+This is the deliberate opposite of the `public-web` SEO scaffold, which ships a `robots.ts` that *invites* crawling. Do one or the other per the project type, never both.
+
 ## SEO scaffold — `public-web` only
 
-Skip for `internal-web`, `api`, and `library`/`cli`.
-
-For an **internal tool**, do the opposite: keep crawlers out. `robots.ts` alone is not enough — `robots.txt` asks crawlers not to *crawl*, but a URL linked from elsewhere can still be indexed. Send `X-Robots-Tag: noindex` from the `next.config.ts` header block above for a real gate.
+Skip for `internal-web`, `api`, and `library`/`cli` — an `internal-web` tool instead gets the `noindex` header described in the Security headers section above.
 
 Replace the default `metadata` export in `app/layout.tsx` (the template already imports `Metadata`) so `metadataBase` and base metadata resolve to the real origin, not the preview/localhost domain:
 
