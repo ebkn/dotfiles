@@ -86,7 +86,31 @@ Run `npx biome --version` to read the installed CLI version and pin `$schema` to
     "useIgnoreFile": true
   },
   "linter": {
-    "enabled": true
+    "enabled": true,
+    "rules": {
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noEvolvingTypes": "error",
+        "noConsole": "error",
+        "noArrayIndexKey": "error",
+        "noVar": "error",
+        "noUnnecessaryConditions": "error"
+      },
+      "style": {
+        "noNamespace": "error",
+        "useExportType": "error",
+        "useNumberNamespace": "error",
+        "noUselessElse": "error"
+      },
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
+        "noUndeclaredVariables": "error"
+      },
+      "performance": {
+        "noDelete": "error"
+      }
+    }
   },
   "formatter": {
     "enabled": true,
@@ -99,6 +123,22 @@ Run `npx biome --version` to read the installed CLI version and pin `$schema` to
 The `vcs` block makes Biome honor `.gitignore`. **Do not omit it.** Biome 2.x does *not* read `.gitignore` by default, so without this it lints and formats generated build output the moment it exists — `.next/` and `out/` (Next.js), `dist/` (a library build). The failure is invisible at scaffold time and mistimed by CI: the verification block below runs before any build, and CI's lint step happens to run before `build`, so both stay green. But locally, the first `npm run dev` populates `.next/`, and from then on `npm run lint` exits 1 on generated files for both humans and agents. `useIgnoreFile: true` makes `.gitignore` the single source of truth for what tooling ignores, matching how the rest of this scaffold is organized. (This is why Step 1 runs `git init` first — Biome resolves the VCS root from `.git/`; a missing `.gitignore` at verification time is harmless.)
 
 For **web / Next.js (JSX)** projects, keep Biome's `recommended` rules on: its accessibility (`a11y`) rules run at error level by default and are the accessibility gate CI enforces. Do not disable them — a downgraded a11y rule silently removes that gate.
+
+### The explicit `rules` block
+
+The `rules` above are an opinionated layer *on top of* `recommended`, not a replacement for it. `recommended` stays enabled (nothing sets `"recommended": false`), so its defaults — including the `a11y` error-level gate just described — remain in force; these entries only tighten things it leaves loose. Every rule listed was checked against Biome 2.x's `recommended` set and is there for one of two reasons, so **nothing here merely restates a default**:
+
+- **Promoted `warn` → `error`** (`recommended` enables them, but only as warnings, and `biome check` exits 0 on warnings — so they don't fail CI): `noExplicitAny`, `useExportType`, `noUnusedImports`, `noUnusedVariables`. Raising them to `error` makes each a hard gate.
+- **Not in `recommended` at all** (off by default): the rest — e.g. `noConsole`, `noVar`, `noNamespace`, `noDelete`, `noUselessElse`, `useNumberNamespace`, `noEvolvingTypes`, `noArrayIndexKey`, `noUnnecessaryConditions`.
+
+Rules already at `error` in `recommended` (`noCommentText`, `a11y/noAccessKey`, `a11y/useButtonType`, `a11y/useAltText`) are deliberately **omitted** — adding them would be redundant. Likewise `organizeImports`: it is an assist action that is **on by default** in Biome 2.x, so it needs no `assist` block here.
+
+Two caveats worth knowing:
+
+- **`noUndeclaredVariables` overlaps `tsc`.** The `typecheck` gate (`tsc --noEmit`) already flags undeclared identifiers, with full type information Biome doesn't have. Biome's version can additionally require maintaining a `javascript.globals` allow-list for globals it can't see. It's kept here as a fast editor-time signal, but if it produces false positives on globals, drop it rather than growing an allow-list — `tsc` remains the real gate.
+- **`noUnnecessaryConditions` is type-aware.** It relies on Biome's type inference, which is newer and less complete than `tsc`'s; treat its findings as advisory-quality even though it's set to `error`.
+
+Because this set is calibrated to Biome 2.x's *current* defaults, re-confirm at scaffold time if a much newer Biome is installed: `npx biome explain <rule>` shows a rule's group and default severity, and a rule newly promoted into `recommended` at `error` can be dropped from this block. A stale-but-still-valid entry only costs redundancy, not correctness.
 
 ## vitest.config.ts
 
