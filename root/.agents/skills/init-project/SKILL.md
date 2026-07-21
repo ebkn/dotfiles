@@ -1,7 +1,7 @@
 ---
 name: init-project
 description: Scaffold a new project in the current directory — git init, README.md, CLAUDE.md, AGENTS.md, Claude settings.json, linter/test config, unused-code detection (knip for TypeScript), runtime pin, lockfile (npm for TypeScript, uv for Python), supply-chain hardening (SHA-pinned GitHub Actions, least-privilege GITHUB_TOKEN, Dependabot cooldown, pinned container base images), and CI (GitHub Actions + Dependabot) for the specified language (TypeScript, Go, Python), plus optional Next.js boilerplate with error boundaries, security headers, SEO, and a health endpoint. Use this skill when the user wants to initialize or bootstrap a new project from scratch, set up a fresh repo, or scaffold project boilerplate.
-allowed-tools: Bash(git init), Bash(git init *), Bash(git status *), Bash(git rev-parse *), Bash(git add *), Bash(git commit -m *), Bash(git ls-remote *), Bash(node -v), Bash(npm -v), Bash(npm view *), Bash(npm install *), Bash(npm run build*), Bash(npm run knip*), Bash(npm run lint*), Bash(npm run test:run*), Bash(npm run typecheck*), Bash(npx biome *), Bash(npx knip*), Bash(go mod init *), Bash(go vet *), Bash(go build *), Bash(go test *), Bash(go version), Bash(golangci-lint config verify*), Bash(golangci-lint run*), Bash(golangci-lint --version), Bash(uv --version), Bash(uv init *), Bash(uv python pin *), Bash(uv python list), Bash(uv add *), Bash(uv lock*), Bash(uv sync*), Bash(uv run ruff *), Bash(uv run mypy*), Bash(uv run pytest*), Bash(uv run vulture*), Bash(ls), Bash(ls *), Bash(tree), Bash(tree *), Bash(mkdir *), Bash(ln -s *), Read, Write, Edit, Glob, WebFetch(domain:github.com), WebFetch(domain:raw.githubusercontent.com)
+allowed-tools: Bash(git init), Bash(git init *), Bash(git status *), Bash(git rev-parse *), Bash(git add *), Bash(git commit -m *), Bash(git ls-remote *), Bash(node -v), Bash(npm -v), Bash(npm view *), Bash(npm install *), Bash(npm run build*), Bash(npm run knip*), Bash(npm run lint*), Bash(npm run test:run*), Bash(npm run typecheck*), Bash(npx biome *), Bash(npx knip*), Bash(go mod init *), Bash(go vet *), Bash(go build *), Bash(go test *), Bash(go version), Bash(golangci-lint config verify*), Bash(golangci-lint run*), Bash(golangci-lint --version), Bash(uv --version), Bash(uv init *), Bash(uv python pin *), Bash(uv python list), Bash(uv add *), Bash(uv lock*), Bash(uv sync*), Bash(uv run ruff *), Bash(uv run mypy*), Bash(uv run pytest*), Bash(uv run vulture*), Bash(ls), Bash(ls *), Bash(tree), Bash(tree *), Bash(mkdir *), Bash(ln -s *), Read, Write, Edit, Glob, Skill, WebFetch(domain:github.com), WebFetch(domain:raw.githubusercontent.com)
 ---
 
 ## Instructions
@@ -184,13 +184,16 @@ Run `tree -a -I '.git' --dirsfirst` and show the user what was created. List any
 
 ### Step 10: Initial commit
 
-Stage all created files and make an initial commit:
+Create the initial commit by invoking the **`commit` skill**, so the scaffold's first commit follows the same conventional-commit workflow as every other commit in this environment.
+
+The commit skill decides staging and splitting from `git status`/`git diff` on its own, so pass along the two constraints it would not otherwise infer:
+
+- **Stage only what this skill created.** init-project skips pre-existing files and can run inside a non-empty repo, so the tree may hold files it did not touch — those must stay out of this commit. Never `git add .` / `git add -A`.
+- **One baseline commit, not a split.** A fresh scaffold is a single coupled unit, so override the commit skill's default logical-splitting here — a message like `chore: scaffold project with initial config` covers the whole scaffold.
+
+If the environment has no `commit` skill — init-project is meant to work standalone, and not every environment ships one — fall back to committing directly, staging only the created files:
 
 ```bash
 git add <all created files>
 git commit -m "chore: scaffold project with initial config"
 ```
-
-Only commit the files that were created by this skill. Do not use `git add .` or `git add -A`.
-
-Commit **directly** with `git commit -m` here, even if the environment has a dedicated `commit` skill (a user's global instructions may prefer one). This is deliberate, not an oversight: init-project is a portable, self-contained skill that cannot assume another skill is installed, its `allowed-tools` scopes `git commit -m` for exactly this call, and the scaffold is a single deterministic commit that needs none of a commit skill's diff-reading or logical-splitting. Keep it direct.
