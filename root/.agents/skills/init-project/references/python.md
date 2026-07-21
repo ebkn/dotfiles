@@ -34,13 +34,13 @@ This is the counterpart of the `.npmrc` `min-release-age=7` in `references/types
 
 ## Dev tooling
 
-With the quarantine in place, add the linter and test runner to the `dev` dependency group:
+With the quarantine in place, add the linter, type checker, and test runner to the `dev` dependency group:
 
 ```bash
-uv add --dev ruff pytest
+uv add --dev ruff pytest mypy
 ```
 
-This writes `>=`-style entries under `[dependency-groups]` in `pyproject.toml` and — crucially — pins exact versions of ruff, pytest, **and all their transitive dependencies** with hashes into `uv.lock`. Commit `uv.lock`; it is the `package-lock.json` equivalent and the whole reason this path exists.
+This writes `>=`-style entries under `[dependency-groups]` in `pyproject.toml` and — crucially — pins exact versions of ruff, pytest, mypy, **and all their transitive dependencies** with hashes into `uv.lock`. Commit `uv.lock`; it is the `package-lock.json` equivalent and the whole reason this path exists.
 
 ## ruff.toml — linter config
 
@@ -48,8 +48,41 @@ This writes `>=`-style entries under `[dependency-groups]` in `pyproject.toml` a
 line-length = 88
 
 [lint]
-select = ["E", "F", "I", "W"]
+select = ["E", "F", "I", "W", "B", "UP", "SIM"]
 ```
+
+`E`/`W` (pycodestyle), `F` (Pyflakes), and `I` (isort import ordering) are the baseline; the three additions raise the linting bar toward the TypeScript path's `recommended`-plus-hardening layer:
+
+- **`B`** (flake8-bugbear) — likely-bug patterns the defaults miss: mutable default arguments, loop-variable closures, `except` clauses that swallow errors.
+- **`UP`** (pyupgrade) — rewrites to modern syntax for the pinned interpreter. Ruff infers the target from `requires-python` in `pyproject.toml`, so no `target-version` needs setting here (leaving it inferred also avoids a second copy of the version to keep in sync).
+- **`SIM`** (flake8-simplify) — collapses redundant conditionals and nested `with`/`if`.
+
+All three are autofixable and low-noise on typed code. Type *correctness* is deliberately not in this list — ruff does not type-check; that gate is mypy (below), the same division of labor as Biome-plus-`tsc` on the TypeScript path.
+
+## mypy — type-check gate
+
+Ruff is a linter and formatter, not a type checker, and Python has no compiler step — so without this, the Python path would be the only one shipping with no counterpart to the TypeScript path's `tsc --noEmit` or Go's compiler. mypy (installed with the dev tooling above) is that gate. Configure it in `pyproject.toml`:
+
+```toml
+[tool.mypy]
+strict = true
+exclude = ['\.venv']
+```
+
+`strict = true` is the whole point: a permissive type checker is close to no gate at all, since fully-untyped code passes it trivially. It is the direct analogue of the strict `tsconfig.json` on the TypeScript path. `exclude` stops mypy descending into the virtualenv when it is invoked as `mypy .`.
+
+**The generated entry point must be fully annotated, or the strict gate fails on the scaffold itself.** `uv init --app` writes a `main.py`; if its template leaves `def main()` without a return type, mypy strict rejects it (`Function is missing a return type annotation`). Add the annotation — `def main() -> None:` — so the verification below passes. (`uv init --lib` already emits a typed `hello() -> str`, so the library layout needs no change.) This is the same "a scaffold whose own toolchain does not pass is worse than no scaffold" rule from SKILL.md.
+
+**Record the untyped-dependency boundary in the generated CLAUDE.md.** The empty scaffold passes strict, but the first third-party dependency that ships no type information will not — mypy strict reports `missing library stubs or py.typed marker` for it. That is a surprise waiting for whoever adds the first real dep, so close it with a note in the CLAUDE.md Development section rather than by weakening strict, the same technique as the deferred component-test note on the Next.js path:
+
+> Type checking runs mypy in `strict` mode (`uv run mypy .`). When you add a dependency that ships no types, install its stub package if one exists (`uv add --dev types-<pkg>`); otherwise silence just that import with a per-module override rather than relaxing global strict:
+> ```toml
+> [[tool.mypy.overrides]]
+> module = ["untyped_pkg.*"]
+> ignore_missing_imports = true
+> ```
+
+Why mypy and not the alternatives: astral is building a Rust-native checker (`ty`) that would fit this uv-centric path the way ruff does, but as of scaffold time it is pre-1.0/preview, and this scaffold pins verified-stable gates — treat it as a later swap and revisit once it is stable. `pyright` is the other mature option, but its PyPI package bootstraps a bundled Node runtime on first run, an extra fetch that cuts against this path's supply-chain hardening. mypy is a pure-Python wheel, exact-pinned and hashed into `uv.lock` like everything else, so it is the cleaner default here.
 
 ## pytest config
 
@@ -100,6 +133,7 @@ Run the whole toolchain against the scaffold before moving on. These are the sam
 uv sync --locked
 uv run ruff check .
 uv run ruff format --check .
+uv run mypy .
 uv run pytest || [ $? -eq 5 ]
 ```
 

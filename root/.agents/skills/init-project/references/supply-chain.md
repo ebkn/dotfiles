@@ -131,6 +131,7 @@ jobs:
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      - run: uv run mypy .
       # pytest exits 5 when it collects no tests, which would fail CI on the fresh scaffold, and
       # `uv run` propagates that 5. This is the Python counterpart of vitest's --passWithNoTests;
       # drop `|| [ $? -eq 5 ]` once a real suite exists so a silent collection failure fails CI again.
