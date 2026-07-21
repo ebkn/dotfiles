@@ -192,3 +192,5 @@ git commit -m "chore: scaffold project with initial config"
 ```
 
 Only commit the files that were created by this skill. Do not use `git add .` or `git add -A`.
+
+Commit **directly** with `git commit -m` here, even if the environment has a dedicated `commit` skill (a user's global instructions may prefer one). This is deliberate, not an oversight: init-project is a portable, self-contained skill that cannot assume another skill is installed, its `allowed-tools` scopes `git commit -m` for exactly this call, and the scaffold is a single deterministic commit that needs none of a commit skill's diff-reading or logical-splitting. Keep it direct.
