@@ -27,10 +27,10 @@ Add uv's `exclude-newer` gate to `pyproject.toml` **before** the first `uv add`,
 
 ```toml
 [tool.uv]
-exclude-newer = "7 days ago"
+exclude-newer = "7 days"
 ```
 
-This is the counterpart of the `.npmrc` `min-release-age=7` in `references/typescript.md`: it refuses any release uploaded in the last 7 days, narrowing the window in which a freshly-hijacked version can be pulled. `"7 days ago"` is a **relative** value uv re-evaluates on every resolve, so the window keeps rolling; it is not frozen to scaffold day. (uv accepts an absolute `YYYY-MM-DD` too, but that one does not roll.)
+This is the counterpart of the `.npmrc` `min-release-age=7` in `references/typescript.md`: it refuses any release uploaded in the last 7 days, narrowing the window in which a freshly-hijacked version can be pulled. `"7 days"` is a **relative** value (a uv "friendly duration") that uv re-evaluates on every resolve, so the window keeps rolling; it is not frozen to scaffold day. Write the bare duration — `"7 days"`, matching uv's documented `30 days` / `1 week` examples — **not** `"7 days ago"`; the trailing `ago` is not part of the accepted format ([`exclude-newer` reference](https://docs.astral.sh/uv/reference/settings/#exclude-newer)), and an unparseable value fails `uv lock` outright. (uv also accepts an absolute RFC 3339 timestamp, e.g. `2026-01-01T00:00:00Z`, but that one does not roll.)
 
 ## Dev tooling
 
