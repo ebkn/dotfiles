@@ -16,12 +16,21 @@ on:
     branches: [main]
   pull_request:
 
+# Cancel superseded runs so a burst of pushes doesn't queue up N full pipelines.
+# head_ref groups a PR's own runs together (stale ones get cancelled); the run_id
+# fallback gives each push to main a unique group, so main runs are never cancelled
+# — every commit on main keeps a complete CI result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 permissions:
   contents: read # least-privilege GITHUB_TOKEN; escalate per-job only where a step needs write
 
 jobs:
   ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # cap a hung or runaway job; GitHub's default is 360 (6h). Raise if a real build needs more.
     steps:
       - uses: actions/checkout@{sha} # {tag}
         with:
@@ -48,12 +57,21 @@ on:
     branches: [main]
   pull_request:
 
+# Cancel superseded runs so a burst of pushes doesn't queue up N full pipelines.
+# head_ref groups a PR's own runs together (stale ones get cancelled); the run_id
+# fallback gives each push to main a unique group, so main runs are never cancelled
+# — every commit on main keeps a complete CI result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 permissions:
   contents: read # least-privilege GITHUB_TOKEN; escalate per-job only where a step needs write
 
 jobs:
   ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # cap a hung or runaway job; GitHub's default is 360 (6h). Raise if a real build needs more.
     steps:
       - uses: actions/checkout@{sha} # {tag}
         with:
@@ -83,12 +101,21 @@ on:
     branches: [main]
   pull_request:
 
+# Cancel superseded runs so a burst of pushes doesn't queue up N full pipelines.
+# head_ref groups a PR's own runs together (stale ones get cancelled); the run_id
+# fallback gives each push to main a unique group, so main runs are never cancelled
+# — every commit on main keeps a complete CI result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 permissions:
   contents: read # least-privilege GITHUB_TOKEN; escalate per-job only where a step needs write
 
 jobs:
   ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # cap a hung or runaway job; GitHub's default is 360 (6h). Raise if a real build needs more.
     steps:
       - uses: actions/checkout@{sha} # {tag}
         with:
@@ -139,7 +166,7 @@ The templates above bake in three controls. Apply the SHA-pinning step before yo
 
 ## .github/dependabot.yml
 
-Set `package-ecosystem` to `npm` / `gomod` / `uv` for the project language; the `github-actions` block keeps the SHA-pinned workflow actions current. `cooldown` mirrors the per-project publish-age gate (`.npmrc` `min-release-age`, `[tool.uv] exclude-newer`) so Dependabot doesn't open a PR onto a just-published — possibly hijacked — version. Grouping keeps PR noise down:
+Set `package-ecosystem` to `npm` / `gomod` / `uv` for the project language; the `github-actions` block keeps the SHA-pinned workflow actions current. `cooldown` mirrors the per-project publish-age gate (`.npmrc` `min-release-age`, `[tool.uv] exclude-newer`) so Dependabot doesn't open a PR onto a just-published — possibly hijacked — version. Grouping keeps PR noise down while keeping majors isolated (see the comment on `groups`):
 
 ```yaml
 version: 2
@@ -151,8 +178,14 @@ updates:
     cooldown:
       default-days: 7 # hold back freshly-published versions; cooldown supports npm, gomod and uv
     groups:
-      all-dependencies:
+      # Bundle only minor + patch into one low-risk PR. Majors match no group, so each
+      # arrives as its own PR (Dependabot's default for ungrouped updates) — a breaking
+      # major can't hold the safe minor/patch updates hostage inside a single red batch PR.
+      # If you'd rather minimize PR count, drop `update-types` and group everything with
+      # `patterns: ["*"]` alone — but then accept that one failing major blocks the batch.
+      minor-and-patch:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
   - package-ecosystem: "github-actions" # keeps SHA pins current; cooldown is NOT supported for this ecosystem
     directory: "/"
     schedule:
