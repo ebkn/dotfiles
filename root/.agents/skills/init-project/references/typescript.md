@@ -166,18 +166,34 @@ Next.js generates its own tsconfig; do not create this for Next.js projects. Thi
     "strict": true,
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
+    "incremental": true,
     "noEmit": true
   },
   "include": ["src/**/*", "vitest.config.ts"],
   "exclude": ["node_modules", "dist"]
 }
 ```
+
+Notes on the strictness and build flags added above `noEmit`:
+
+- **`noUnusedLocals` / `noUnusedParameters`** overlap Biome's `noUnusedVariables` (set to `error` in the `rules` block above — it flags unused locals *and* parameters). The overlap is deliberate, not an oversight: these put the check into the **type layer**, so the TS language server surfaces it inline in any editor without the Biome extension, and the `typecheck` gate enforces it independently of `lint`. For a parameter you must keep for signature reasons but don't use (a callback or interface method), prefix it with `_` — TypeScript ignores `_`-prefixed parameters, and so does Biome.
+- **`noFallthroughCasesInSwitch`** has no counterpart in the Biome rules above, so it is the sole gate against an accidental missing `break`. Intentional fallthrough still needs an explicit `// falls through` or a shared block.
+- **`incremental`** writes a `tsconfig.tsbuildinfo` cache so repeated local `npm run typecheck` runs only re-check what changed. It works even under `noEmit` (verified: no `.js`/`.map` is emitted, only the cache). The cache file is already covered by the `*.tsbuildinfo` entry in `.gitignore` (SKILL.md Step 8); CI runs fresh so it gains nothing there, but it costs nothing either.
+
+Four related flags were **not** added, on purpose:
+
+- `noImplicitOverride` and `forceConsistentCasingInFileNames` are already in the config above (the latter has also defaulted to `true` since TypeScript 5.0).
+- `sourceMap` is **inert under `noEmit`** — with nothing emitted there are no `.js` files to map. Source maps belong in the *build* tsconfig (the one that drops `noEmit`, noted in the package.json section), not this typecheck-only config.
+- `preserveWatchOutput` only affects `tsc --watch`, and this scaffold's `typecheck` is a one-shot `tsc --noEmit` with no watch script, so it would do nothing.
 
 ## knip.json — unused-code detection
 
