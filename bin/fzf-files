@@ -23,27 +23,47 @@ fi
 rg_base=(rg --files --hidden --smart-case --glob='!.git/*')
 
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  # Git LFS ファイルは working tree に実体があると、git diff が clean フィルタで
-  # 全内容(数GB規模)を毎回読み直すため変更検知が極端に遅くなる。LFS 追跡ファイルを
-  # pathspec で除外して変更検知の対象外にする。ls-files の出力は repo ルート相対なので、
-  # サブディレクトリからの実行でも噛み合うよう :(top) magic を付ける。
-  lfs_exclude=()
-  while IFS= read -r f; do
-    lfs_exclude+=(":(top,exclude,literal)$f")
-  done < <(git lfs ls-files -n 2>/dev/null || true)
+  # Change detection uses `git status --porcelain`, NOT `git diff`. In a repo whose
+  # Git LFS objects are checked out as real files in the working tree, `git diff`
+  # runs the LFS clean filter over modified tracked files to compare contents —
+  # re-reading multi-GB blobs and taking seconds to tens of seconds. That freeze
+  # is invisible here because fzf-files feeds fzf through a command substitution:
+  # no candidate appears until the git call returns, so the whole picker hangs.
+  # `git status` reports the same untracked/staged/unstaged set via stat, staying
+  # in the tens-of-ms range, so it needs neither the LFS clean-filter read nor the
+  # fragile `git lfs ls-files` pathspec exclusion this script used to carry (that
+  # exclusion silently no-op'd whenever git-lfs was off the caller's PATH — e.g. a
+  # subprocess spawned by the editor — reintroducing the freeze).
+  #
+  # status prints repo-root-relative paths and has no --relative; strip the current
+  # subdir prefix (and drop anything outside it) so the output lines up with
+  # `rg --files`, which is cwd-relative. `git log --relative` is LFS-safe (it diffs
+  # committed trees, never the working copy) so it keeps --relative directly.
+  prefix=$(git rev-parse --show-prefix)
 
   if "$label_mode"; then
     # Build labeled list: [ label    ]\tpath
     # Use HASH: prefix marker to distinguish commit hashes from filenames.
     changed=$(
       {
-        git ls-files --others --exclude-standard \
-          | awk '{printf "[ untracked   ]\t%s\n", $0}'
-        git diff --relative --name-only --cached -- . "${lfs_exclude[@]}" \
-          | awk '{printf "[ staged      ]\t%s\n", $0}'
-        git diff --relative --name-only -- . "${lfs_exclude[@]}" \
-          | awk '{printf "[ unstaged    ]\t%s\n", $0}'
-        git log --relative --name-only --pretty='format:HASH:%h' -5 -- . "${lfs_exclude[@]}" \
+        git status --porcelain -uall -- . 2>/dev/null | awk -v pfx="$prefix" '
+          {
+            xy = substr($0, 1, 2)
+            path = substr($0, 4)
+            i = index(path, " -> "); if (i > 0) path = substr(path, i + 4)  # rename: keep new name
+            if (pfx != "") { if (index(path, pfx) != 1) next; path = substr(path, length(pfx) + 1) }
+            # Bucket by category, emit in priority order (untracked > staged > unstaged)
+            # in END so display order does not depend on git status sort order.
+            if (xy == "??")                   { u[++nu] = path }
+            else if (substr(xy, 1, 1) != " ") { s[++ns] = path }
+            else                              { g[++ng] = path }
+          }
+          END {
+            for (k = 1; k <= nu; k++) printf "[ untracked   ]\t%s\n", u[k]
+            for (k = 1; k <= ns; k++) printf "[ staged      ]\t%s\n", s[k]
+            for (k = 1; k <= ng; k++) printf "[ unstaged    ]\t%s\n", g[k]
+          }'
+        git log --relative --name-only --pretty='format:HASH:%h' -5 -- . \
           | awk '/^HASH:/{n++; hash=$0; sub(/^HASH:/,"",hash); next} NF{printf "[ %-11s ]\t%s\n", hash"(-"n")", $0}'
       }
     )
@@ -59,10 +79,14 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     # Plain mode: no labels
     changed=$(
       {
-        git ls-files --others --exclude-standard
-        git diff --relative --name-only -- . "${lfs_exclude[@]}"
-        git diff --relative --name-only --cached -- . "${lfs_exclude[@]}"
-        git log --relative --name-only --pretty=format: -5 -- . "${lfs_exclude[@]}"
+        git status --porcelain -uall -- . 2>/dev/null | awk -v pfx="$prefix" '
+          {
+            path = substr($0, 4)
+            i = index(path, " -> "); if (i > 0) path = substr(path, i + 4)
+            if (pfx != "") { if (index(path, pfx) != 1) next; path = substr(path, length(pfx) + 1) }
+            print path
+          }'
+        git log --relative --name-only --pretty=format: -5 -- .
       } | awk 'NF && !seen[$0]++'
     )
 
