@@ -84,6 +84,13 @@ jobs:
       # minimal package for exactly this reason — there is no safe exit-code tolerance for Go,
       # since a real vet diagnostic exits 1 too.
       - run: go vet ./...
+      # Unlike the SHA pins above, no Dependabot ecosystem updates this linter-version pin: the
+      # github-actions ecosystem only bumps the action's `uses:` SHA, not its `version:` input, and
+      # golangci-lint upstream discourages the go.mod `tool` route that gomod *would* update
+      # (non-reproducible, "not guaranteed to work" — https://golangci-lint.run/docs/welcome/install/local/).
+      # This differs from setup-uv below, whose version is deliberately left unpinned: uv is a package
+      # manager, but golangci-lint IS the gate, so it stays pinned for reproducible CI and is re-resolved
+      # by hand — naturally when bumping golangci-lint majors or touching .golangci.yml.
       - uses: golangci/golangci-lint-action@{sha} # {tag}
         with:
           version: {latest golangci-lint 2.x} # must be a v2 release to match the v2 config from references/go.md
