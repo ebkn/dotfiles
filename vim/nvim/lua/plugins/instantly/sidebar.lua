@@ -60,21 +60,17 @@ return {
 
         " Store git status hash to detect changes
         let g:fern_git_status_cache = {}
+        " Job id of an in-flight status probe. The 1s reload timer plus the
+        " BufWritePost/FocusGained hooks can all fire s:fern_reload() while a
+        " probe is still running; this guard coalesces them into one job.
+        let s:fern_git_status_job = 0
 
-        " Get git status hash for current directory
-        function! s:get_git_status_hash() abort
-          let l:cwd = getcwd()
-          try
-            let l:status = system('git status --porcelain 2>/dev/null')
-            if v:shell_error == 0
-              return l:cwd . ':' . sha256(l:status)
-            endif
-          catch
-          endtry
-          return l:cwd . ':none'
-        endfunction
-
-        " Auto reload fern when files are created/deleted
+        " Auto reload fern when files are created/deleted.
+        " The git status probe runs asynchronously (jobstart) so it never blocks
+        " the UI. The previous synchronous system('git status') froze Neovim on
+        " every 1s tick, and in a large repo that freeze is what made opening a
+        " file feel slow. Change detection and the actual reload now happen in
+        " s:fern_reload_done() once the job exits.
         function! s:fern_reload() abort
           " Skip if current buffer is fern (to avoid flicker)
           if &filetype ==# 'fern'
@@ -87,16 +83,43 @@ return {
             return
           endif
 
-          " Check if git status actually changed
-          let l:current_hash = s:get_git_status_hash()
+          " Skip if a probe is already in flight (coalesce overlapping calls)
+          if s:fern_git_status_job != 0
+            return
+          endif
+
           let l:cwd = getcwd()
-          if has_key(g:fern_git_status_cache, l:cwd) && g:fern_git_status_cache[l:cwd] ==# l:current_hash
+          let l:lines = []
+          let l:job = jobstart(['git', 'status', '--porcelain'], {
+            \ 'cwd': l:cwd,
+            \ 'stdout_buffered': v:true,
+            \ 'on_stdout': {_j, data, _e -> extend(l:lines, data)},
+            \ 'on_exit': function('s:fern_reload_done', [l:cwd, l:lines]),
+            \ })
+          " Only take the lock when the job actually started; a failed jobstart
+          " (<=0) never invokes on_exit, which would otherwise wedge the guard.
+          if l:job > 0
+            let s:fern_git_status_job = l:job
+          endif
+        endfunction
+
+        " Runs back on the main loop after the async git status exits.
+        function! s:fern_reload_done(cwd, lines, job, code, event) abort
+          let s:fern_git_status_job = 0
+          if a:code != 0
+            return
+          endif
+
+          " Check if git status actually changed
+          let l:current_hash = a:cwd . ':' . sha256(join(a:lines, "\n"))
+          if has_key(g:fern_git_status_cache, a:cwd) && g:fern_git_status_cache[a:cwd] ==# l:current_hash
             " No changes detected, skip reload to prevent flickering
             return
           endif
-          let g:fern_git_status_cache[l:cwd] = l:current_hash
+          let g:fern_git_status_cache[a:cwd] = l:current_hash
 
           " Use win_execute to reload fern without changing window
+          let l:fern_bufnr = filter(range(1, bufnr('$')), 'getbufvar(v:val, "&filetype") ==# "fern"')
           for bufnr in l:fern_bufnr
             let l:win = bufwinnr(bufnr)
             if l:win > 0
