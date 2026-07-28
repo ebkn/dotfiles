@@ -44,13 +44,33 @@ Run `git rev-parse --is-inside-work-tree` to check. If not a git repo, run `git 
 
 ### Step 2: README.md
 
-Create a minimal README:
+Create a short human-facing README — this is the GitHub landing page, so unlike CLAUDE.md (which targets agents) it must stand on its own for a person arriving at the repo cold. Carry the actual run/test/lint commands here rather than pointing a reader at the agent instructions; a landing page that says nothing about how to build or run the thing is the "AI-rich, human-empty" split this scaffold deliberately avoids.
 
-```markdown
+````markdown
 # {project-name}
 
 {one-line description}
+
+## Overview
+
+_What problem this solves and who it's for — fill in._
+
+## Setup
+
+```bash
+{install command}
 ```
+
+## Development
+
+```bash
+{test command}
+{lint command}
+{build command}
+```
+````
+
+Substitute the language's real commands — the same ones the CLAUDE.md Development section carries (Step 3): e.g. TypeScript `npm install` / `npm test` / `npm run lint`, Go `go mod download` / `go test ./...` / `golangci-lint run`, Python `uv sync` / `uv run pytest` / `uv run ruff check`. Write them **identically** in both files and keep them in sync when they change — the two are generated in the same pass so they start aligned, and a README whose commands have drifted from the real ones is worse than a bare title. Leave the `Overview` placeholder for the user; the background needs human judgment, same as CLAUDE.md's Context.
 
 ### Step 3: CLAUDE.md
 
@@ -93,7 +113,7 @@ Generate a project CLAUDE.md. The structure should be:
        nonce-based CSP is intentionally left as a TODO until script/style sources are known. -->
 ```
 
-Fill in the Development section with concrete commands based on the language/framework chosen (e.g., `npm test`, `go test ./...`, `pytest`). Leave Context, Structure, and Implementation Plan as HTML comments for the user to fill in — these require human judgment.
+Fill in the Development section with concrete commands based on the language/framework chosen (e.g., `npm test`, `go test ./...`, `pytest`) — the same commands the README carries (Step 2); keep the two identical. Leave Context, Structure, and Implementation Plan as HTML comments for the user to fill in — these require human judgment.
 
 Also record any constraint discovered during scaffolding that a future reader would otherwise undo — a dependency held back a major version, a linter rule that cannot be enabled yet. The language references call these out where they arise.
 
