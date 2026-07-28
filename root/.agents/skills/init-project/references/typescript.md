@@ -32,6 +32,7 @@ If `package.json` does not exist, create one. Run `npm -v` and `node -v` to fill
 
 Notes on the template:
 - `"type": "module"` — required so `vitest.config.ts` (ESM imports) loads under `verbatimModuleSyntax` in the strict tsconfig below.
+- `"private": true` — this scaffold assumes a **non-published, non-OSS** project (see the stance in SKILL.md). `private` blocks an accidental `npm publish`. Keep it unless the project is genuinely a package to publish; only then remove it and add the publish-time fields (`license`, `files`, `exports`, …).
 - `--passWithNoTests` — keeps CI green before any tests exist; remove it once a test suite is in place if you prefer strict failure.
 - There is deliberately no `dev`/`build`/`start`. A plain TypeScript project has nothing to serve, and the tsconfig below sets `noEmit: true`, so `typecheck` is the only `tsc` invocation and a `build` script would have nothing to do. **Next.js adds its own — see `references/nextjs.md`.** If this project ships compiled JS (a library published to npm), add a `build` script and a second tsconfig that drops `noEmit`; the CI template in `references/supply-chain.md` notes where to enable the build step.
 

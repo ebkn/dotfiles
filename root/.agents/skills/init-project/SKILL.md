@@ -16,7 +16,9 @@ Initialize a new project in the current directory. Ask the user for:
 
 Then work through the steps below. **Skip any step where the file already exists — never overwrite.**
 
-### Two rules that apply to every step
+### Rules that apply to every step
+
+**Private by default — not open-source.** This scaffold assumes a **closed-source, non-published** project. Do not scaffold anything whose only purpose is open-sourcing or publishing unless the user says the project will be: no `LICENSE` (absent one, the work is "all rights reserved" by default — a license *grants* rights, so omitting it is the private-by-default choice), no `CONTRIBUTING`/`CODE_OF_CONDUCT`/issue templates, and keep `"private": true` in `package.json` so an accidental `npm publish` is blocked. If the user later open-sources, add these deliberately then. When intake is ambiguous, assume private and ask before adding any of the above.
 
 **Never copy a version number or SHA out of this skill.** Anything version-shaped in these files — `{tag}`, `{sha}`, `{exact current node version}`, `{installed-biome-version}` — is a placeholder to resolve at scaffold time, and any literal version in prose is there to explain a failure, not to be pinned. Resolve the current release yourself (`npm view <pkg> version`, `git ls-remote --tags`, `<tool> --version`), confirm it is problem-free by running the step's verification, and write *that* value into the project. A version baked into this skill is only as fresh as the last edit to it; a scaffold that pins it inherits that staleness on day one. The generated project pins hard — exact versions, SHAs, digests — precisely so that the resolving happens here, once, deliberately.
 
