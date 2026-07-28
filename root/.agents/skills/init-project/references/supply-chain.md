@@ -96,6 +96,13 @@ jobs:
           version: {latest golangci-lint 2.x} # must be a v2 release to match the v2 config from references/go.md
       - run: go test ./...
       - run: go build ./...
+      # Known-vulnerability gate. govulncheck (golang.org/x/vuln) is NOT a golangci-lint linter, so it
+      # runs as its own step. Its reachability analysis reports only vulns your code actually calls, so
+      # it is low-noise enough to gate on, and it also flags stdlib advisories for the pinned toolchain.
+      # It queries the live vuln DB, so a newly-disclosed advisory can turn this red with no code change
+      # — intended (it is an alert). Move it to a scheduled workflow or add continue-on-error if you do
+      # not want a fresh disclosure blocking unrelated PRs.
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 ```
 
 ### Python

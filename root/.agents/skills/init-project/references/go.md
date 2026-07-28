@@ -87,6 +87,19 @@ go run golang.org/x/tools/cmd/deadcode@latest ./...
 
 It is not a hard gate because it needs a real entry point (`main`) to be meaningful.
 
+## Vulnerability scanning — govulncheck
+
+golangci-lint does **not** cover known-vulnerability scanning. `govulncheck` — the Go team's official scanner from `golang.org/x/vuln` — is a **separate tool**, deliberately *not* one of golangci-lint's linters: it has to build the program and query the vulnerability database, which does not fit golangci-lint's model, so naming it under `.golangci.yml`'s `enable:` is a config error (`golangci-lint config verify` rejects it), not a no-op. Wire it as its own gate:
+
+```bash
+go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+```
+
+Unlike the `deadcode` pass above, this **is** a hard gate: its reachability analysis reports only vulnerabilities your code actually *calls* (transitively), so false positives are rare. It exits 0 when nothing reachable is vulnerable and non-zero when something is — the same contract the other gates use. Two properties to know:
+
+- **It also checks the standard library against the pinned toolchain.** govulncheck analyzes source using the `go` on `PATH`, so it flags stdlib advisories for the exact Go version `go.mod` pins. On the fresh scaffold (minimal package, no third-party deps) it passes on a current stable Go; if it *fails* at scaffold time it is telling you the pinned toolchain itself carries a known vuln — bump the Go patch release rather than weakening the gate, the same "fix the scaffold, don't weaken the gate" rule as elsewhere.
+- **A green run can turn red later with no code change.** It queries the live vulnerability database (network required), so a newly-disclosed advisory against a dependency you already call flips the next run red. That is the point — it is an alert, not a regression — but if you would rather a fresh disclosure not block an unrelated PR, run this on a schedule (a separate `cron` workflow) or as `continue-on-error` rather than inline in the PR gate.
+
 ## Health endpoint — `api` or any HTTP server
 
 Skip for `library`/`cli`. This skill does not scaffold server code for Go, so there is nothing to write yet. When the server gets built, start from the standard library: `net/http` (its 1.22+ mux matches method-and-path patterns), reaching for `chi` only if routing genuinely outgrows that — not a heavier framework. Record that policy in the CLAUDE.md Development section now so the first server commit follows it. Then add a `GET /healthz` returning `200 {"status":"ok"}` and note the route there too; the deploy orchestrator uses it for readiness checks.
@@ -95,7 +108,9 @@ Skip for `library`/`cli`. This skill does not scaffold server code for Go, so th
 
 Add to the `allow` list from SKILL.md Step 5:
 
-- `Bash(go test *)`, `Bash(go build *)`, `Bash(go vet *)`, `Bash(golangci-lint *)`, `Bash(go mod init *)`
+- `Bash(go test *)`, `Bash(go build *)`, `Bash(go vet *)`, `Bash(golangci-lint *)`, `Bash(go mod init *)`, `Bash(go run golang.org/x/vuln/cmd/govulncheck*)`
+
+Scope the govulncheck entry to that module path rather than a blanket `Bash(go run *)`, which would let `go run` execute arbitrary code with no prompt.
 
 ## .gitignore entries
 
@@ -106,13 +121,14 @@ Beyond the shared block in SKILL.md Step 6:
 
 ## Verification
 
-Run the whole toolchain against the scaffold — all four must pass before moving on. These are the same gates `references/supply-chain.md` puts in CI, so a failure here is a failure that would land red on the first push:
+Run the whole toolchain against the scaffold — all five must pass before moving on. These are the same gates `references/supply-chain.md` puts in CI, so a failure here is a failure that would land red on the first push:
 
 ```bash
 go vet ./...
 golangci-lint run
 go test ./...
 go build ./...
+go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 ```
 
-If any of them reports `matched no packages` or `no go files to analyze`, the minimal package above is missing — fix that rather than weakening the gate.
+If any of the first four reports `matched no packages` or `no go files to analyze`, the minimal package above is missing — fix that rather than weakening the gate. `govulncheck` needs network access to fetch the vulnerability database; if it reports a vulnerability against the pinned Go toolchain's standard library, bump the Go patch release rather than dropping the step.
