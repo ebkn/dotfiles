@@ -132,6 +132,11 @@ jobs:
       # installs the current uv — the same way setup-node supplies npm. Do not add a version-file /
       # required-version uv pin: the uv Dependabot ecosystem bumps dependencies, not that constraint,
       # so it would be an un-updated pin that rots — the failure the SHA-pinning section warns about.
+      # No `enable-cache` line is needed: it defaults to `auto`, which caches uv's download cache on
+      # GitHub-hosted runners (this job runs on ubuntu-latest). This is the same default-on caching
+      # setup-go provides; only setup-node above needs an explicit `cache: npm`, because it does not
+      # cache by default. Set `enable-cache: true` only if you move this job to a self-hosted runner,
+      # where `auto` is off.
       - uses: astral-sh/setup-uv@{sha} # {tag}
       # `uv sync --locked` is the `npm ci` of this path: installs strictly from uv.lock — every
       # dependency exact-pinned and hashed — and fails if the lock is stale against pyproject.toml.
