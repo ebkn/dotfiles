@@ -43,7 +43,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run knip     # dead-code / unused-dependency gate; relax knip.json if it blocks legit WIP
-      - run: npm run test:run
+      - run: npm test
       - run: npm run build   # Next.js only — the plain TS scaffold has no build script by default; drop this unless you added one
 ```
 

@@ -38,7 +38,7 @@ The base template in `references/typescript.md` ships lint/typecheck/knip/test o
 
 `build` is not optional here — it is what the verification at the bottom of this file runs, and the CI template in `references/supply-chain.md` runs `npm run build` for Next.js.
 
-Also **drop `--passWithNoTests` from `test:run`**, so the script becomes `"test:run": "vitest run"`. The base in `references/typescript.md` carries that flag because a plain scaffold has nothing to test yet; this path is different — it scaffolds a real, testable health endpoint (below) plus its test, so the "no tests" state should never occur. Keeping the flag would let a future breakage that makes Vitest collect *zero* tests — a bad glob, a moved config, a renamed file — pass CI silently. Removing it turns that silent pass into a red build. This is the Next.js-only counterpart of the tension called out for the Python path, which stays tolerant because its server (and so its first real test) is deferred.
+Also **drop `--passWithNoTests` from `test`**, so the script becomes `"test": "vitest run"`. The base in `references/typescript.md` carries that flag because a plain scaffold has nothing to test yet; this path is different — it scaffolds a real, testable health endpoint (below) plus its test, so the "no tests" state should never occur. Keeping the flag would let a future breakage that makes Vitest collect *zero* tests — a bad glob, a moved config, a renamed file — pass CI silently. Removing it turns that silent pass into a red build. This is the Next.js-only counterpart of the tension called out for the Python path, which stays tolerant because its server (and so its first real test) is deferred.
 
 ## Runtime dependencies
 
@@ -208,7 +208,7 @@ export function GET() {
 
 ### Its test — the one test the scaffold ships
 
-This is what lets `test:run` drop `--passWithNoTests` (see the scripts section above). It also honors the project's TDD philosophy with a *real* behavior test rather than a placeholder: it asserts the endpoint's actual contract (`200` + `{ "status": "ok" }`), so it doesn't rot as the app grows, and it fails loudly the day someone breaks the route.
+This is what lets `test` drop `--passWithNoTests` (see the scripts section above). It also honors the project's TDD philosophy with a *real* behavior test rather than a placeholder: it asserts the endpoint's actual contract (`200` + `{ "status": "ok" }`), so it doesn't rot as the app grows, and it fails loudly the day someone breaks the route.
 
 `app/api/health/route.test.ts`:
 

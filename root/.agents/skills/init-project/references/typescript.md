@@ -24,8 +24,8 @@ If `package.json` does not exist, create one. Run `npm -v` and `node -v` to fill
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
     "knip": "knip",
-    "test": "vitest",
-    "test:run": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest"
   }
 }
 ```
@@ -33,6 +33,7 @@ If `package.json` does not exist, create one. Run `npm -v` and `node -v` to fill
 Notes on the template:
 - `"type": "module"` — required so `vitest.config.ts` (ESM imports) loads under `verbatimModuleSyntax` in the strict tsconfig below.
 - `"private": true` — this scaffold assumes a **non-published, non-OSS** project (see the stance in SKILL.md). `private` blocks an accidental `npm publish`. Keep it unless the project is genuinely a package to publish; only then remove it and add the publish-time fields (`license`, `files`, `exports`, …).
+- `test` runs once (`vitest run`); `test:watch` is the opt-in local watcher. Bare `vitest` defaults to watch in an interactive terminal and only falls back to run mode through a CI/TTY heuristic. Making `test` explicitly `vitest run` drops that dependence, so `npm test` is deterministic in CI and in an agent's non-interactive shell — and `test:watch` is deliberately left out of the generated allow-list (below) so an agent is never routed into a watcher.
 - `--passWithNoTests` — keeps CI green before any tests exist; remove it once a test suite is in place if you prefer strict failure.
 - There is deliberately no `dev`/`build`/`start`. A plain TypeScript project has nothing to serve, and the tsconfig below sets `noEmit: true`, so `typecheck` is the only `tsc` invocation and a `build` script would have nothing to do. **Next.js adds its own — see `references/nextjs.md`.** If this project ships compiled JS (a library published to npm), add a `build` script and a second tsconfig that drops `noEmit`; the CI template in `references/supply-chain.md` notes where to enable the build step.
 
@@ -163,7 +164,7 @@ export default defineConfig({
 });
 ```
 
-**Do not set `globals: true`.** It is a trap that surfaces the moment the user writes their *first* test — too late for the verification block below to catch, since no test exists at scaffold time. With globals on, a test using bare `describe`/`it`/`expect` passes `npm run test:run` (Vitest injects the globals at runtime) but fails `npm run typecheck` with `TS2593: Cannot find name 'describe'`, because `tsc` sees no declaration for them. The result is a split-brain baseline: tests green, the CI typecheck gate red, on the user's first test. The documented fix for globals is adding `"types": ["vitest/globals"]` to `tsconfig.json` — but the Next.js path's tsconfig is generated from the official template, and editing it invites drift. Leaving globals off (Vitest's own default) means tests explicitly `import { describe, it, expect } from "vitest"`, which typechecks with no tsconfig change on either path. `test: {}` is kept as an anchor for future config.
+**Do not set `globals: true`.** It is a trap that surfaces the moment the user writes their *first* test — too late for the verification block below to catch, since no test exists at scaffold time. With globals on, a test using bare `describe`/`it`/`expect` passes `npm test` (Vitest injects the globals at runtime) but fails `npm run typecheck` with `TS2593: Cannot find name 'describe'`, because `tsc` sees no declaration for them. The result is a split-brain baseline: tests green, the CI typecheck gate red, on the user's first test. The documented fix for globals is adding `"types": ["vitest/globals"]` to `tsconfig.json` — but the Next.js path's tsconfig is generated from the official template, and editing it invites drift. Leaving globals off (Vitest's own default) means tests explicitly `import { describe, it, expect } from "vitest"`, which typechecks with no tsconfig change on either path. `test: {}` is kept as an anchor for future config.
 
 ## tsconfig.json — plain TypeScript only
 
@@ -236,8 +237,9 @@ Pin the runtime so local, CI, and deploy agree; CI reads this file. Match `engin
 
 Add to the `allow` list from SKILL.md Step 5:
 
-- `Bash(npm test *)`, `Bash(npm run test*)`, `Bash(npx biome *)`, `Bash(npm run build*)`, `Bash(npm run lint*)`, `Bash(npm run typecheck*)`, `Bash(npm run knip*)`, `Bash(npx knip*)`, `Bash(npx vitest *)`
+- `Bash(npm test)`, `Bash(npm test *)`, `Bash(npx biome *)`, `Bash(npm run build*)`, `Bash(npm run lint*)`, `Bash(npm run typecheck*)`, `Bash(npm run knip*)`, `Bash(npx knip*)`, `Bash(npx vitest run*)`
 - `Bash(npx tsc *)`
+- Deliberately **not** allow-listed: `npm run test:watch` / bare `npx vitest`. Both request watch mode — a long-running interactive process with no reason to be auto-approved (Vitest usually demotes it to run mode in a non-TTY shell, but that is a heuristic, not a guarantee). `npm test` (run-once) and `npx vitest run` cover every agent/CI need. Do not widen these to `Bash(npm run test*)` or `Bash(npx vitest *)` — those globs re-admit the watcher.
 
 ## Verification
 
@@ -247,7 +249,7 @@ Run the whole toolchain against the empty scaffold — all four must pass before
 npm run typecheck
 npm run lint
 npm run knip      # expect no issues: every scaffolded file is an entry point or reached from one
-npm run test:run
+npm test
 ```
 
 If knip flags a legitimately-unused scaffold export this early, prefer adjusting `knip.json` over deleting the file.
