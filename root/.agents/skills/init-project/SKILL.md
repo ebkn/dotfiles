@@ -116,17 +116,22 @@ Create `.claude/settings.json` with permissions scoped to the project's language
     "deny": [
       "Read(.env)",
       "Read(.env.local)",
-      "Read(.env.*.local)"
+      "Read(.env.*.local)",
+      "Edit(.env)",
+      "Edit(.env.local)",
+      "Edit(.env.*.local)"
     ],
     "allow": []
   }
 }
 ```
 
-**Secrets — always deny, all languages.** This scaffold is agent-first, and every stack here reaches for a `.env` (Next.js is told outright to put real values there; Python uses `dotenv`, Go `godotenv`). Without a `deny` rule, a prompt-injection payload in any content Claude reads can have it `cat .env` and exfiltrate the secrets — an `allow` list doesn't stop that, because anything not allowed merely *prompts*, and an unattended or over-eager agent answers the prompt. `deny` is a no-prompt hard block that wins over both `ask` and `allow` ([precedence: deny → ask → allow](https://code.claude.com/docs/en/permissions)), and a `Read` deny also covers the file-reading Bash commands Claude Code recognizes (`cat`, `head`, `tail`, `sed`) and the `Edit` tool on the same path — so it closes the tool read, the shell read, and the overwrite in one rule.
+**Secrets — always deny, all languages.** This scaffold is agent-first, and every stack here reaches for a `.env` (Next.js is told outright to put real values there; Python uses `dotenv`, Go `godotenv`). Without a `deny` rule, a prompt-injection payload in any content Claude reads can have it `cat .env` and exfiltrate the secrets — an `allow` list doesn't stop that, because anything not allowed merely *prompts*, and an unattended or over-eager agent answers the prompt. `deny` is a no-prompt hard block that wins over both `ask` and `allow` ([precedence: deny → ask → allow](https://code.claude.com/docs/en/permissions)), and a `Read` deny also covers the file-reading Bash commands Claude Code recognizes (`cat`, `head`, `tail`, `sed`) — so it closes both the tool read and the shell read.
+
+The read block alone does **not** stop a write, though, and that gap is the same unrecoverable loss this repo already guards elsewhere: `.env` is gitignored, so an agent that rewrites it wholesale destroys secrets git can't restore. A [`Read` deny blocks the `Read` and `Edit` tools but *not* `Write` or `NotebookEdit`](https://code.claude.com/docs/en/permissions) — an agent can still `Write` the whole file over. The fix is a separate `Edit` deny on the same paths: [`Edit` rules apply to every built-in file-editing tool](https://code.claude.com/docs/en/permissions) (Edit, Write, NotebookEdit), so `Edit(.env)` is the one rule that closes the overwrite. Do **not** reach for `Write(.env)` — [file-permission checks match only `Read(path)` and `Edit(path)` rules; a `Write(path)` rule is accepted but never matched and warns at startup](https://code.claude.com/docs/en/permissions).
 
 Two boundaries to know so this isn't mistaken for more than it is:
-- **`.env.example` is deliberately *not* denied.** It holds placeholders, not secrets, and the Next.js path has the agent create and append to it — a `Read(.env.*)` glob would block that `Edit` and hide the one env file meant to be read. gitignore-style patterns have no `!` negation and `deny` can't carry an allow exception, so the secret files are enumerated instead. If this project keeps secrets in a non-`.local` env file too (`.env.production`, `.env.staging`), add `Read(.env.production)` etc. — the enumerated list is the extension point.
+- **`.env.example` is deliberately *not* denied.** It holds placeholders, not secrets, and the Next.js path has the agent create and append to it — a `Read(.env.*)` or `Edit(.env.*)` glob would block that write and hide the one env file meant to be read. gitignore-style patterns have no `!` negation and `deny` can't carry an allow exception, so the secret files are enumerated instead. If this project keeps secrets in a non-`.local` env file too (`.env.production`, `.env.staging`), add **both** `Read(.env.production)` and `Edit(.env.production)` — the two enumerated lists are the extension point, and adding only the `Read` half re-opens the overwrite gap.
 - **It is not OS-level enforcement.** The deny stops Claude's own tools and recognized Bash file commands, but not an arbitrary subprocess that opens the file itself (a `node`/`python` one-liner). For a real boundary against exfiltration, [enable the sandbox](https://code.claude.com/docs/en/sandboxing); the deny rule is the cheap first layer, not the whole wall.
 
 **Always include** (all languages):
