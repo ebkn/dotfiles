@@ -190,7 +190,7 @@ The scaffolded code reads `NEXT_PUBLIC_SITE_URL`. Create `.env.example` (or appe
 NEXT_PUBLIC_SITE_URL=https://example.com
 ```
 
-`.env.example` is the only env file the `.gitignore` keeps tracked; real values belong in `.env`, which is ignored.
+`.env.example` is the only env file the `.gitignore` keeps tracked; real values belong in `.env.local`, which is ignored. `.env.local` is the filename Next.js conventionally uses for secrets and is the one env file it skips when `NODE_ENV=test`, so local secrets never bleed into test runs. (The wholesale `.env*` ignore means a value placed in `.env` would be safe too — but `.env.local` is what to recommend.)
 
 ## Health endpoint
 
