@@ -109,13 +109,18 @@ Skip for `library`/`cli`. This skill does not scaffold server code for Python, s
 
 ## .claude/settings.json entries
 
-Add to the `allow` list from SKILL.md Step 5:
+Add to the `allow` list from SKILL.md Step 5 — **enumerate the tool invocations**, matching this skill's own frontmatter (`Bash(uv run ruff *)` etc.), rather than a blanket `Bash(uv run *)`:
 
-- `Bash(uv run *)`, `Bash(uv sync *)`
+- `Bash(uv run ruff *)`, `Bash(uv run mypy*)`, `Bash(uv run pytest*)`
+- `Bash(uv sync --locked)`
 
-Everything runs through `uv run`, so `Bash(pytest *)` / `Bash(ruff *)` are not needed unless you also invoke the tools outside uv.
+Do not allow `uv run *` wholesale: `uv run <anything>` executes arbitrary code with no prompt, which reopens two gaps this scaffold otherwise closes. `uv run python -c 'open(".env").read()'` reads the secrets the Step 5 `.env` deny explicitly cannot protect against a subprocess (SKILL.md's own caveat). `uv run --with <pkg> ...` fetches and runs a package *outside* the lockfile, routing straight around the "changing what the project depends on is worth a prompt" line drawn just below. Enumerating by tool name costs essentially nothing and keeps the generated project consistent with the frontmatter that governs this skill.
 
-Deliberately absent: `uv add`, `uv lock`, `uv python pin` — anything that changes the dependency set or the runtime pin keeps prompting. This matches the TypeScript path, which allows the run scripts but not `npm install`: executing code from the committed lockfile is routine, while changing what the project depends on is a decision worth a prompt.
+Everything runs through `uv run`, so `Bash(pytest *)` / `Bash(ruff *)` are not needed unless you also invoke the tools outside uv. Be honest about what this does *not* buy: a permitted runner can still run arbitrary code (a hand-written malicious test file, then `uv run pytest`), exactly as `npm test` can on the TypeScript path — that residual is accepted there too. Enumerating only removes the *extra* `uv run <anything>` avenue and the lock-bypassing `--with` fetch, which the TypeScript path never had.
+
+Scope `uv sync` to `--locked` — the install-strictly-from-the-lockfile form used in Verification and CI, the `npm ci` of this path. A blanket `Bash(uv sync *)` would also wave through `uv sync --upgrade`, which rewrites `uv.lock` to newer releases: the exact dependency-set change the next paragraph says should keep prompting.
+
+Deliberately absent: `uv add`, `uv lock`, `uv python pin`, `uv sync --upgrade`, `uv run --with` — anything that changes the dependency set or the runtime pin keeps prompting. This matches the TypeScript path, which allows the run scripts but not `npm install`: executing code from the committed lockfile is routine, while changing what the project depends on is a decision worth a prompt.
 
 ## .gitignore entries
 
