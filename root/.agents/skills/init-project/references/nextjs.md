@@ -119,7 +119,7 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
 ];
 
 const nextConfig: NextConfig = {
@@ -131,7 +131,7 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 ```
 
-`preload` commits the apex domain to the HSTS preload list, which is slow and painful to reverse. Keep it only if the project will genuinely serve every subdomain over HTTPS forever; drop it otherwise.
+HSTS `preload` is intentionally left **off** by default — the irreversible commitment should be opt-in, not opt-out. `includeSubDomains` is kept because it is recoverable: it enforces HTTPS per client on first visit and decays as `max-age` runs down, so lowering `max-age` walks it back. The preload list does not: adding the `preload` directive and submitting the apex at [hstspreload.org](https://hstspreload.org) hardcodes the domain and every subdomain into browsers' built-in HTTPS-only list, and removal takes months and only propagates as browsers ship — some clients may never update. Opt in deliberately, once you are certain every current and future subdomain will serve HTTPS forever, by appending `; preload` to the value above and submitting there. (This mirrors the CSP stance above: don't ship the hard-to-reverse commitment by default — leave it a deliberate, documented step.)
 
 ### `internal-web` — also keep it out of search engines
 
