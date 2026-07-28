@@ -4,17 +4,28 @@ Read `references/typescript.md` first — package.json, `.npmrc`, biome, vitest 
 
 Resolve every version at scaffold time — see the rule in SKILL.md.
 
+## Runtime dependencies
+
+Install these **before** fetching the boilerplate below — the template must be fetched at the tag matching the `next` version you actually install, and that is not always `npm view next version`. The `.npmrc` from `references/typescript.md` sets `min-release-age=7`, so `npm install next` resolves to the newest release older than seven days; whenever `latest` shipped within the last week, the installed version lags it. Install first, then read the exact version npm pinned and fetch the template at *that* tag.
+
+```bash
+npm install next react react-dom
+npm install -D typescript @types/node @types/react @types/react-dom vitest
+```
+
+Install the newest TypeScript this Next.js release actually supports — do not assume `latest` is safe. Next.js declares no `typescript` peer dependency, so npm stays silent on a mismatch and a TypeScript major that Next.js has not adopted yet fails only at build, as an opaque error rather than a version complaint (observed with Next.js 16.2.10 + TypeScript 7.0.2: `next build` dies with `The "id" argument must be of type string. Received undefined`, while the same tree builds on 5.x). The `npm run build` at the end of this file is the check. If it fails, install the newest major that does build (`npm install -D typescript@{major}`) and record the constraint in the CLAUDE.md Development section, so the next person does not helpfully bump it back.
+
 ## Boilerplate
 
 Create the official App Router boilerplate from the `vercel/next.js` template at `packages/create-next-app/templates/app/ts/`.
 
-Fetch it with WebFetch against raw.githubusercontent.com **at the release tag matching the `next` version you are installing**, never from `main`:
+Fetch it with WebFetch against raw.githubusercontent.com **at the release tag matching the `next` version you just installed**, never from `main`:
 
 ```
 https://raw.githubusercontent.com/vercel/next.js/v{next-version}/packages/create-next-app/templates/app/ts/{file}
 ```
 
-Run `npm view next version` to resolve the tag. A `main`/`HEAD` URL is a mutable reference — the same supply-chain hole this skill closes for GitHub Actions — and it drifts out of sync with the pinned `next` release. Read what you fetch before writing it; this step copies third-party code into the project.
+Resolve `{next-version}` from the **installed** version — read `dependencies.next` in `package.json`, which `save-exact=true` (set in `references/typescript.md`'s `.npmrc`) has already pinned to an exact value. Do **not** use `npm view next version`: that returns the published `latest`, which the `min-release-age=7` gate holds the install back from whenever `latest` is under seven days old, so fetching the template at the `latest` tag would reintroduce the exact drift-from-the-pinned-release this rule exists to prevent. A `main`/`HEAD` URL is worse still — a mutable reference, the same supply-chain hole this skill closes for GitHub Actions. Read what you fetch before writing it; this step copies third-party code into the project.
 
 Create:
 
@@ -39,15 +50,6 @@ The base template in `references/typescript.md` ships lint/typecheck/knip/test o
 `build` is not optional here — it is what the verification at the bottom of this file runs, and the CI template in `references/supply-chain.md` runs `npm run build` for Next.js.
 
 Also **drop `--passWithNoTests` from `test`**, so the script becomes `"test": "vitest run"`. The base in `references/typescript.md` carries that flag because a plain scaffold has nothing to test yet; this path is different — it scaffolds a real, testable health endpoint (below) plus its test, so the "no tests" state should never occur. Keeping the flag would let a future breakage that makes Vitest collect *zero* tests — a bad glob, a moved config, a renamed file — pass CI silently. Removing it turns that silent pass into a red build. This is the Next.js-only counterpart of the tension called out for the Python path, which stays tolerant because its server (and so its first real test) is deferred.
-
-## Runtime dependencies
-
-```bash
-npm install next react react-dom
-npm install -D typescript @types/node @types/react @types/react-dom vitest
-```
-
-Install the newest TypeScript this Next.js release actually supports — do not assume `latest` is safe. Next.js declares no `typescript` peer dependency, so npm stays silent on a mismatch and a TypeScript major that Next.js has not adopted yet fails only at build, as an opaque error rather than a version complaint (observed with Next.js 16.2.10 + TypeScript 7.0.2: `next build` dies with `The "id" argument must be of type string. Received undefined`, while the same tree builds on 5.x). The `npm run build` at the end of this file is the check. If it fails, install the newest major that does build (`npm install -D typescript@{major}`) and record the constraint in the CLAUDE.md Development section, so the next person does not helpfully bump it back.
 
 ## Error & loading boundaries
 
