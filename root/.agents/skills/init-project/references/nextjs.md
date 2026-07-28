@@ -122,9 +122,11 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
@@ -132,6 +134,8 @@ const nextConfig: NextConfig = {
 
 export default nextConfig;
 ```
+
+`Permissions-Policy: camera=(), microphone=(), geolocation=()` denies those three powerful features to **every** origin — an empty allowlist `()` is deny-all — so neither the page nor an injected third-party script can silently prompt for the camera, microphone, or location. A feature the app actually needs is opted back in deliberately (e.g. `geolocation=(self)`); starting from deny is the correct-by-default direction. `poweredByHeader: false` drops Next.js's default `X-Powered-By: Next.js` response header, which only advertises the framework to someone fingerprinting the stack — no behavior depends on it. Both are free hardening with no runtime cost.
 
 HSTS `preload` is intentionally left **off** by default — the irreversible commitment should be opt-in, not opt-out. `includeSubDomains` is kept because it is recoverable: it enforces HTTPS per client on first visit and decays as `max-age` runs down, so lowering `max-age` walks it back. The preload list does not: adding the `preload` directive and submitting the apex at [hstspreload.org](https://hstspreload.org) hardcodes the domain and every subdomain into browsers' built-in HTTPS-only list, and removal takes months and only propagates as browsers ship — some clients may never update. Opt in deliberately, once you are certain every current and future subdomain will serve HTTPS forever, by appending `; preload` to the value above and submitting there. (This mirrors the CSP stance above: don't ship the hard-to-reverse commitment by default — leave it a deliberate, documented step.)
 
