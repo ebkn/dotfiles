@@ -137,9 +137,13 @@ Create `.claude/settings.json` with permissions scoped to the project's language
       "Read(.env)",
       "Read(.env.local)",
       "Read(.env.*.local)",
+      "Read(.env.production)",
+      "Read(.env.staging)",
       "Edit(.env)",
       "Edit(.env.local)",
-      "Edit(.env.*.local)"
+      "Edit(.env.*.local)",
+      "Edit(.env.production)",
+      "Edit(.env.staging)"
     ],
     "allow": []
   }
@@ -151,7 +155,7 @@ Create `.claude/settings.json` with permissions scoped to the project's language
 The read block alone does **not** stop a write, though, and that gap is the same unrecoverable loss this repo already guards elsewhere: `.env` is gitignored, so an agent that rewrites it wholesale destroys secrets git can't restore. A [`Read` deny blocks the `Read` and `Edit` tools but *not* `Write` or `NotebookEdit`](https://code.claude.com/docs/en/permissions) — an agent can still `Write` the whole file over. The fix is a separate `Edit` deny on the same paths: [`Edit` rules apply to every built-in file-editing tool](https://code.claude.com/docs/en/permissions) (Edit, Write, NotebookEdit), so `Edit(.env)` is the one rule that closes the overwrite. Do **not** reach for `Write(.env)` — [file-permission checks match only `Read(path)` and `Edit(path)` rules; a `Write(path)` rule is accepted but never matched and warns at startup](https://code.claude.com/docs/en/permissions).
 
 Two boundaries to know so this isn't mistaken for more than it is:
-- **`.env.example` is deliberately *not* denied.** It holds placeholders, not secrets, and the Next.js path has the agent create and append to it — a `Read(.env.*)` or `Edit(.env.*)` glob would block that write and hide the one env file meant to be read. gitignore-style patterns have no `!` negation and `deny` can't carry an allow exception, so the secret files are enumerated instead. If this project keeps secrets in a non-`.local` env file too (`.env.production`, `.env.staging`), add **both** `Read(.env.production)` and `Edit(.env.production)` — the two enumerated lists are the extension point, and adding only the `Read` half re-opens the overwrite gap.
+- **`.env.example` is deliberately *not* denied.** It holds placeholders, not secrets, and the Next.js path has the agent create and append to it — a `Read(.env.*)` or `Edit(.env.*)` glob would block that write and hide the one env file meant to be read. gitignore-style patterns have no `!` negation and `deny` can't carry an allow exception, so the secret files are enumerated instead. The base list pre-denies `.env.production` and `.env.staging` (both `Read` **and** `Edit`) even though the scaffold creates neither: a deny on an absent file is inert, and the wholesale `.env*` gitignore (Step 6) means that if either ever appears it is an untracked secret file — precisely what to block. Pre-listing the two conventional deploy-env names also structurally forecloses the extension footgun this bullet otherwise warns about — the case where someone adds a secret file but remembers only the `Read` half. For any *other* non-`.local` secret file, extend both enumerated lists in lockstep (`Read(.env.<name>)` **and** `Edit(.env.<name>)`); adding only `Read` leaves the `Write`-overwrite gap open.
 - **It is not OS-level enforcement.** The deny stops Claude's own tools and recognized Bash file commands, but not an arbitrary subprocess that opens the file itself (a `node`/`python` one-liner). For a real boundary against exfiltration, [enable the sandbox](https://code.claude.com/docs/en/sandboxing); the deny rule is the cheap first layer, not the whole wall.
 
 **Always include** (all languages):
