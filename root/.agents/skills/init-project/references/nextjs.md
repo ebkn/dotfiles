@@ -39,15 +39,29 @@ Create:
 
 ## package.json scripts
 
-The base template in `references/typescript.md` ships lint/typecheck/knip/test only. Add the three Next.js scripts to it:
+The base template in `references/typescript.md` ships lint/typecheck/knip/test only. Add the three Next.js scripts to it, **and overwrite `typecheck`**:
 
 ```json
 "dev": "next dev --turbopack",
 "build": "next build",
-"start": "next start"
+"start": "next start",
+"typecheck": "next typegen && tsc --noEmit"
 ```
 
 `build` is not optional here — it is what the verification at the bottom of this file runs, and the CI template in `references/supply-chain.md` runs `npm run build` for Next.js.
+
+### Why `typecheck` is not the base `tsc --noEmit`
+
+Two of the declarations the tsconfig `include` array points at are **generated**, not committed, and bare `tsc` generates neither:
+
+- `next-env.d.ts` — `.gitignore`d (SKILL.md Step 6), so it is absent in every fresh checkout. It is what pulls in `next/image-types/global`, the declarations for static asset imports (`*.png`, `*.svg`, …).
+- `.next/types/**/*.ts` — where the route-aware globals `PageProps`, `LayoutProps`, and `RouteContext` are emitted, plus the link table behind `typedRoutes`.
+
+CI runs `typecheck` **before** `build` (see `references/supply-chain.md`), so on a fresh checkout neither exists when `tsc` runs. The scaffolded tree happens to survive this — `layout.tsx`'s `import type { Metadata } from "next"` reaches `next/index.d.ts`, whose `/// <reference types="./types/global" />` forwards the `*.css` / `*.module.css` declarations (verified on a real scaffold). That is luck, not design, and it runs out at the first `import logo from "./logo.png"` or first `PageProps` in a dynamic route: locally those typecheck (dev/build already wrote the files), in CI they fail with `TS2307`/`TS2304`. A green local tree and a red CI on code the author cannot reproduce is precisely the divergence this skill exists to prevent — and it lands on whoever writes that line, not on whoever scaffolded.
+
+`next typegen` (Next.js **≥ 15.5.0**) generates both without a full build, and `next typegen && tsc --noEmit` is [the form the Next.js CLI docs recommend for CI type-checking](https://nextjs.org/docs/app/api-reference/cli/next#next-typegen-options): *"To ensure `next-env.d.ts` is present before type-checking run `next typegen`. The commands `next dev` and `next build` also generate the `next-env.d.ts` file, but it is often undesirable to run these just to type-check, for example in CI/CD environments."*
+
+The cost, so it is a decision and not an accident: `typecheck` stops being a pure `tsc` call. `next typegen` loads `next.config.ts` **using the production build phase**, so the gate now depends on that config loading — a config that later reads a required env var will fail `typecheck`, not just `build`. The scaffolded config is static, so this is free today; if the config grows env-dependent, supply those vars to the CI typecheck step rather than reverting the script.
 
 Also **drop `--passWithNoTests` from `test`**, so the script becomes `"test": "vitest run"`. The base in `references/typescript.md` carries that flag because a plain scaffold has nothing to test yet; this path is different — it scaffolds a real, testable health endpoint (below) plus its test, so the "no tests" state should never occur. Keeping the flag would let a future breakage that makes Vitest collect *zero* tests — a bad glob, a moved config, a renamed file — pass CI silently. Removing it turns that silent pass into a red build. This is the Next.js-only counterpart of the tension called out for the Python path, which stays tolerant because its server (and so its first real test) is deferred.
 
@@ -251,3 +265,12 @@ npm run build
 ```
 
 This both verifies the setup and generates `next-env.d.ts`. Then run the rest of the toolchain from `references/typescript.md`.
+
+Finally, verify the `typecheck` override actually holds under CI conditions — a green run right after `build` proves nothing, because `build` just wrote the generated declarations:
+
+```bash
+rm -rf next-env.d.ts .next
+npm run typecheck   # must pass, and must recreate next-env.d.ts
+```
+
+Both paths are `.gitignore`d, so this deletes nothing tracked. This is the one check that distinguishes the fixed script from the broken one: with the base `tsc --noEmit`, the tree is left without `next-env.d.ts` afterwards — exactly the state a fresh CI checkout starts in.
