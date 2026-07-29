@@ -4,11 +4,14 @@ Resolve every version at scaffold time — see the rule in SKILL.md.
 
 ## go.mod — runtime pin
 
-The `go` directive in `go.mod` pins the toolchain, and CI reads it via `go-version-file`. If `go.mod` does not exist yet:
+CI reads its Go version from `go.mod` via `go-version-file`, so this file is the runtime pin — but the `go` directive `go mod init` writes is the **language** version, not the toolchain you are running (observed: Go 1.26.0 wrote `go 1.25.0`). Left alone, CI provisions the first, unpatched release of an older line, while local verification silently runs the newer ambient toolchain (`GOTOOLCHAIN=auto` accepts any Go ≥ the directive) — so every gate, including govulncheck's stdlib check, would be verified against a different Go than CI uses. This is the one version-shaped value in the Go path that `go mod init` pins *for* you, wrongly; resolve it like everything else. If `go.mod` does not exist yet:
 
 ```bash
 go mod init {module-path}
+go mod edit -go={exact installed version}   # from `go version`, e.g. 1.26.0
 ```
+
+`{module-path}` comes from intake question 6. A bare project name is valid for a private module; do not invent a `github.com/...` prefix the user never gave — the path is expensive to change once imports exist.
 
 ## Minimal package — the toolchain needs one to run at all
 
@@ -124,16 +127,16 @@ Skip for `library`/`cli`. This skill does not scaffold server code for Go, so th
 
 Add to the `allow` list from SKILL.md Step 5:
 
-- `Bash(go test *)`, `Bash(go build *)`, `Bash(go vet *)`, `Bash(golangci-lint *)`, `Bash(go mod init *)`, `Bash(go run golang.org/x/vuln/cmd/govulncheck*)`
+- `Bash(go test *)`, `Bash(go build *)`, `Bash(go vet *)`, `Bash(golangci-lint *)`, `Bash(go mod download)`, `Bash(go list -m *)`, `Bash(go run golang.org/x/vuln/cmd/govulncheck*)`, `Bash(go run golang.org/x/tools/cmd/deadcode*)`
 
-Scope the govulncheck entry to that module path rather than a blanket `Bash(go run *)`, which would let `go run` execute arbitrary code with no prompt.
+Scope the two `go run` entries to those module paths rather than a blanket `Bash(go run *)`, which would let `go run` execute arbitrary code with no prompt. The list must cover every command this scaffold writes into README/CLAUDE.md: `go mod download` is the Setup command, `go list -m *` re-resolves the hand-updated pins, and `deadcode` is the documented optional pass — a documented command that always prompts is a scaffold bug. `go mod init` is deliberately absent: it runs once, at scaffold time, under this skill's own permissions.
 
 ## .gitignore entries
 
 Beyond the shared block in SKILL.md Step 6:
 
-- the compiled binary (the project name)
-- `vendor/` (optional)
+- the compiled binary (the project name) — the verification's own `go build ./...` writes it into the repo root, so this entry must already exist when verification runs (Step 6's ordering guarantees that)
+- `vendor/` — include it unless the project deliberately commits vendored dependencies
 
 ## Verification
 
@@ -150,3 +153,5 @@ go run golang.org/x/vuln/cmd/govulncheck@{resolved version} ./...
 Use the same resolved version here, in the CI workflow, and in the CLAUDE.md Development section — three copies of one pin, so a drifted copy means the gate you verified is not the gate CI runs.
 
 If any of the first four reports `matched no packages` or `no go files to analyze`, the minimal package above is missing — fix that rather than weakening the gate. `govulncheck` needs network access to fetch the vulnerability database; if it reports a vulnerability against the pinned Go toolchain's standard library, bump the Go patch release rather than dropping the step.
+
+On a fresh scaffold expect govulncheck to end with a note like `N vulnerabilities in packages you import and M vulnerabilities in modules you require` even on a zero-dependency module — those are *unreachable* (mostly stdlib) advisories, informational only, and the run still exits 0. Only the `Your code is affected by …` count gates; don't be alarmed by the note or "fix" it.

@@ -1,7 +1,7 @@
 ---
 name: init-project
 description: Scaffold a new project in the current directory — git init, README.md, CLAUDE.md, AGENTS.md, Claude settings.json, linter/test config, unused-code detection (knip for TypeScript), runtime pin, lockfile (npm for TypeScript, uv for Python), supply-chain hardening (SHA-pinned GitHub Actions, least-privilege GITHUB_TOKEN, Dependabot cooldown, pinned container base images), and CI (GitHub Actions + Dependabot) for the specified language (TypeScript, Go, Python), plus optional Next.js boilerplate with error boundaries, security headers, SEO, and a health endpoint. Use this skill when the user wants to initialize or bootstrap a new project from scratch, set up a fresh repo, or scaffold project boilerplate.
-allowed-tools: Bash(git init), Bash(git init *), Bash(git status *), Bash(git rev-parse *), Bash(git add *), Bash(git commit -m *), Bash(git ls-remote *), Bash(node -v), Bash(npm -v), Bash(npm view *), Bash(npm install *), Bash(npm run build*), Bash(npm run knip*), Bash(npm run lint*), Bash(npm test), Bash(npm test *), Bash(npm run typecheck*), Bash(npx biome *), Bash(npx knip*), Bash(go mod init *), Bash(go vet *), Bash(go build *), Bash(go test *), Bash(go version), Bash(go list -m *), Bash(go run golang.org/x/vuln/cmd/govulncheck*), Bash(golangci-lint config verify*), Bash(golangci-lint run*), Bash(golangci-lint fmt*), Bash(golangci-lint --version), Bash(uv --version), Bash(uv init *), Bash(uv python pin *), Bash(uv python list), Bash(uv add *), Bash(uv lock*), Bash(uv sync*), Bash(uv run ruff *), Bash(uv run mypy*), Bash(uv run pytest*), Bash(uv run vulture*), Bash(ls), Bash(ls *), Bash(tree), Bash(tree *), Bash(mkdir *), Bash(ln -s *), Read, Write, Edit, Glob, Skill, WebFetch(domain:github.com), WebFetch(domain:raw.githubusercontent.com)
+allowed-tools: Bash(git init), Bash(git init *), Bash(git status *), Bash(git rev-parse *), Bash(git add *), Bash(git commit -m *), Bash(git ls-remote *), Bash(node -v), Bash(npm -v), Bash(npm view *), Bash(npm install *), Bash(npm run build*), Bash(npm run knip*), Bash(npm run lint*), Bash(npm test), Bash(npm test *), Bash(npm run typecheck*), Bash(npx biome *), Bash(npx knip*), Bash(go mod init *), Bash(go mod edit -go*), Bash(go mod download), Bash(go vet *), Bash(go build *), Bash(go test *), Bash(go version), Bash(go list -m *), Bash(go run golang.org/x/vuln/cmd/govulncheck*), Bash(go run golang.org/x/tools/cmd/deadcode*), Bash(golangci-lint config verify*), Bash(golangci-lint run*), Bash(golangci-lint fmt*), Bash(golangci-lint --version), Bash(uv --version), Bash(uv init *), Bash(uv python pin *), Bash(uv python list), Bash(uv add *), Bash(uv lock*), Bash(uv sync*), Bash(uv run ruff *), Bash(uv run mypy*), Bash(uv run pytest*), Bash(uv run vulture*), Bash(ls), Bash(ls *), Bash(tree), Bash(tree *), Bash(mkdir *), Bash(ln -s *), Bash(rm -rf next-env.d.ts .next tsconfig.tsbuildinfo), Read, Write, Edit, Glob, Skill, WebFetch(domain:github.com), WebFetch(domain:raw.githubusercontent.com)
 ---
 
 ## Instructions
@@ -13,6 +13,7 @@ Initialize a new project in the current directory. Ask the user for:
 3. **Primary language** — one of: `typescript`, `go`, `python`, or `next` for Next.js. Next.js is the only framework with its own scaffold; other framework answers (FastAPI, Gin, …) just select their language.
 4. **Project type** — one of: `public-web` (public, indexable site), `internal-web` (internal tool / dashboard), `api` (backend/HTTP service, no browser UI), or `library`/`cli`. This gates the conditional steps: SEO scaffold (`public-web` only), security headers (any served web UI), and the health endpoint (`api` or any HTTP server).
 5. **Service domain(s) and local dev port** — the domain(s) this project serves or calls (e.g. `example.com`, `api.example.com`) and the port the dev server listens on (e.g. `3000`). Used by the service-access permissions in Step 5. Ask only when the project type is not `library`/`cli`; accept "none" and skip that block if the user has no domain yet.
+6. **Module path** — Go only: the path for `go mod init` (e.g. `github.com/acme/orders-api`). If the user has no repo host yet, default to the bare project name — valid for a private module — and record in the generated CLAUDE.md Constraints section that changing it later rewrites every import. Never invent a hosting prefix the user did not give.
 
 Then work through the steps below. **Skip any step where the file already exists — never overwrite.**
 
@@ -40,7 +41,9 @@ Each language reference covers that language's package/dependency setup, linter 
 
 ### Step 1: Git
 
-Run `git rev-parse --is-inside-work-tree` to check. If not a git repo, run `git init`.
+Run `git rev-parse --show-toplevel` and compare it against the current directory. Run `git init -b main` unless the two are **identical**. Do not test with `git rev-parse --is-inside-work-tree` — it answers "am I inside *any* repo", so in a subdirectory of an existing checkout (a monorepo package, a scratch dir inside a tracked tree) it returns `true`, `git init` gets skipped, and Step 10 then commits the scaffold into the *enclosing* repository. `-b main` fixes the branch name the CI workflow triggers on (`branches: [main]` in `references/supply-chain.md`) regardless of the machine's `init.defaultBranch`.
+
+Remember whether this step created the repo — Step 10's staging rule depends on it.
 
 ### Step 2: README.md
 
@@ -70,7 +73,18 @@ _What problem this solves and who it's for — fill in._
 ```
 ````
 
-Substitute the language's real commands — the same ones the CLAUDE.md Development section carries (Step 3): e.g. TypeScript `npm install` / `npm test` / `npm run lint`, Go `go mod download` / `go test ./...` / `golangci-lint run`, Python `uv sync` / `uv run pytest` / `uv run ruff check`. Write them **identically** in both files and keep them in sync when they change — the two are generated in the same pass so they start aligned, and a README whose commands have drifted from the real ones is worse than a bare title. Leave the `Overview` placeholder for the user; the background needs human judgment, same as CLAUDE.md's Context.
+Substitute the language's real commands — the same ones the CLAUDE.md Development section carries (Step 3), and list **every** gate CI runs, not a three-command subset:
+
+| Language | Setup | Test | Lint / format | Build |
+|---|---|---|---|---|
+| TypeScript | `npm install` | `npm test` | `npm run lint` · `npm run typecheck` · `npm run knip` | — |
+| Next.js | `npm install` | `npm test` | `npm run lint` · `npm run typecheck` · `npm run knip` | `npm run build` |
+| Go | `go mod download` | `go test ./...` | `golangci-lint run` (check) · `golangci-lint fmt` (write) | `go build ./...` |
+| Python | `uv sync` | `uv run pytest` | `uv run ruff check .` · `uv run ruff format --check .` · `uv run mypy .` | — |
+
+Where the Build cell is "—" the language genuinely has no build step (plain TypeScript sets `noEmit: true`, so `typecheck` is the only `tsc` run; Python has no compile). Do not invent one: write "No build step" with the one-line reason under the Build heading instead of leaving it dangling or mislabeling `typecheck` as a build. Go commands that embed a resolved version (`govulncheck@{version}`, `deadcode@{version}`) are resolved in Steps 7–8 — backfill them into both files then rather than resolving out of order here.
+
+Write the command blocks **identically** in both files and keep them in sync when they change — the two are generated in the same pass so they start aligned, and a README whose commands have drifted from the real ones is worse than a bare title. (CLAUDE.md additionally carries scaffold-time constraints the README does not — the identical-commands rule covers the command blocks, not the surrounding prose.) Leave the `Overview` placeholder for the user; the background needs human judgment, same as CLAUDE.md's Context.
 
 ### Step 3: CLAUDE.md
 
@@ -103,6 +117,11 @@ Generate a project CLAUDE.md. The structure should be:
 
 <!-- High-level milestones or phases -->
 
+## Constraints
+
+<!-- Filled during scaffolding: version pins held back, lint-rule exceptions,
+     renames or omissions a future reader would otherwise undo. -->
+
 ## Launch Readiness
 
 <!-- Before going public, run /check-production-readiness for a full sweep.
@@ -113,9 +132,13 @@ Generate a project CLAUDE.md. The structure should be:
        nonce-based CSP is intentionally left as a TODO until script/style sources are known. -->
 ```
 
-Fill in the Development section with concrete commands based on the language/framework chosen (e.g., `npm test`, `go test ./...`, `pytest`) — the same commands the README carries (Step 2); keep the two identical. Leave Context, Structure, and Implementation Plan as HTML comments for the user to fill in — these require human judgment.
+Adapt the template to the intake answers — it is a structure, not a literal:
 
-Also record any constraint discovered during scaffolding that a future reader would otherwise undo — a dependency held back a major version, a linter rule that cannot be enabled yet. The language references call these out where they arise.
+- The Launch Readiness CSP bullet is **Next.js-only** (it names `next.config`). For other languages drop that bullet — or replace it with where headers really live for this project (e.g. the reverse proxy) — and for `library`/`cli` drop the whole Launch Readiness section: nothing in it applies to an unlaunched non-service.
+
+Fill in the Development section with concrete commands based on the language/framework chosen — the same commands the README carries (Step 2, including its no-build rule); keep the two identical. Leave Context, Structure, and Implementation Plan as HTML comments for the user to fill in — these require human judgment.
+
+Record in the Constraints section any constraint discovered during scaffolding that a future reader would otherwise undo — a dependency held back a major version, a linter rule that cannot be enabled yet, a component renamed to satisfy a lint gate. The language references call these out where they arise; every one of them belongs here, not only the convenient ones.
 
 ### Step 4: AGENTS.md
 
@@ -211,15 +234,17 @@ Follow `references/supply-chain.md`.
 
 ### Step 9: Summary
 
-Run `tree -a -I '.git' --dirsfirst` and show the user what was created. List any files that were skipped because they already existed, and any constraint recorded in CLAUDE.md during Step 7.
+Run `tree -a -I '.git|node_modules|.next|.venv' --dirsfirst` and show the user what was created — the dependency/build dirs must be excluded or the summary is thousands of lines. Also list any working files the scaffold process itself left behind (displaced caches, verification leftovers) so nothing undocumented ships. List any files that were skipped because they already existed, and any constraint recorded in CLAUDE.md during Step 7.
 
 ### Step 10: Initial commit
 
 Create the initial commit by invoking the **`commit` skill**, so the scaffold's first commit follows the same conventional-commit workflow as every other commit in this environment.
 
+Before anything is staged, assert `git rev-parse --show-toplevel` prints this project directory. If it prints anything else, stop — the commit would land in an enclosing repository (the failure Step 1 exists to prevent).
+
 The commit skill decides staging and splitting from `git status`/`git diff` on its own, so pass along the two constraints it would not otherwise infer:
 
-- **Stage only what this skill created.** init-project skips pre-existing files and can run inside a non-empty repo, so the tree may hold files it did not touch — those must stay out of this commit. Never `git add .` / `git add -A`.
+- **Stage only what this skill created.** init-project skips pre-existing files and can run inside a non-empty repo, so the tree may hold files it did not touch — those must stay out of this commit. Never `git add .` / `git add -A` in a pre-existing repo. The one exception: if Step 1 created the repo *and* the directory held nothing before this scaffold, `git add .` is both safe and preferable — Step 6's `.gitignore` already excludes generated output, and hand-enumerating a dozen paths risks silently shipping an incomplete baseline.
 - **One baseline commit, not a split.** A fresh scaffold is a single coupled unit, so override the commit skill's default logical-splitting here — a message like `chore: scaffold project with initial config` covers the whole scaffold.
 
 If the environment has no `commit` skill — init-project is meant to work standalone, and not every environment ships one — fall back to committing directly, staging only the created files:

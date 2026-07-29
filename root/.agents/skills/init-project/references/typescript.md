@@ -69,6 +69,8 @@ Recent npm versions add an `allowScripts` field in package.json plus `npm approv
   npm install -D @biomejs/biome vitest typescript knip
   ```
 
+  This resolves whatever TypeScript major is current — 7.x (the native port) typechecks this plain-TS scaffold fine, but the config below was calibrated on 5.x, so the verification block is what validates the config against the major actually installed: run it before adding code, where an unsupported `compilerOptions` key fails cheaply. (Next.js is stricter about the TS major — `references/nextjs.md` pins it there for a build-breaking reason.)
+
 - **Next.js** — install only biome and knip here; vitest and typescript come with the runtime deps in `references/nextjs.md`, which constrains the TypeScript version for a reason documented there:
 
   ```bash
@@ -202,6 +204,7 @@ Notes on the strictness and build flags added above `noEmit`:
 - **`noUnusedLocals` / `noUnusedParameters`** overlap Biome's `noUnusedVariables` (set to `error` in the `rules` block above — it flags unused locals *and* parameters). The overlap is deliberate, not an oversight: these put the check into the **type layer**, so the TS language server surfaces it inline in any editor without the Biome extension, and the `typecheck` gate enforces it independently of `lint`. For a parameter you must keep for signature reasons but don't use (a callback or interface method), prefix it with `_` — TypeScript ignores `_`-prefixed parameters, and so does Biome.
 - **`noFallthroughCasesInSwitch`** has no counterpart in the Biome rules above, so it is the sole gate against an accidental missing `break`. Intentional fallthrough still needs an explicit `// falls through` or a shared block.
 - **`incremental`** writes a `tsconfig.tsbuildinfo` cache so repeated local `npm run typecheck` runs only re-check what changed. It works even under `noEmit` (verified: no `.js`/`.map` is emitted, only the cache). The cache file is already covered by the `*.tsbuildinfo` entry in `.gitignore` (SKILL.md Step 6); CI runs fresh so it gains nothing there, but it costs nothing either.
+- **`include` names `src/**/*` before any `src/` exists.** That is deliberate — this scaffold creates no source file — and it typechecks only because `vitest.config.ts` supplies the one input (`tsc` fails with TS18003 on an empty program). Keep `vitest.config.ts` in `include` until real sources exist; it is the load-bearing entry, not decoration.
 
 Four related flags were **not** added, on purpose:
 
@@ -223,7 +226,7 @@ Run `npx knip --version` and use that major in the `$schema` URL, the same way B
 
 Knip auto-detects entry points and config through built-in plugins (Next.js, Vitest, Biome, etc.), so the `$schema`-only config works out of the box — add `entry`/`project`/`ignore` overrides only when a real false positive appears. Knip requires a recent Node (`npm view knip engines.node`); the `.nvmrc` below satisfies it as long as you pinned the current LTS.
 
-For a **library** whose whole point is its public exports, set `package.json` `main`/`exports` to the public entry (or declare `entry` in `knip.json`) so knip treats the public API as used — otherwise it reports the library's entire surface as dead code.
+For a **library** whose whole point is its public exports, knip needs the public entry declared or it reports the entire public API as dead code — but neither way of declaring it is actionable at scaffold time: no `src/` exists yet, so a `knip.json` `entry` pointing at `src/index.ts` makes knip fail on a missing file, and `package.json` `main`/`exports` are publish-time fields that conflict with the `"private": true` stance. Defer it: leave `knip.json` `$schema`-only and record in the CLAUDE.md Constraints section that `"entry": ["src/index.ts"]` must be added to `knip.json` together with the first source file.
 
 ## .nvmrc — runtime pin
 
@@ -233,12 +236,15 @@ Pin the runtime so local, CI, and deploy agree; CI reads this file. Match `engin
 {exact current node version}
 ```
 
+One rule for which version that is: the installed `node -v`, which should itself be on a current release line — if it is not (an EOL major, an odd-numbered non-LTS), switch first and pin that, since `.nvmrc`, `engines.node`, and the knip engines requirement all read this single value. The exact-patch pin is deliberate (local, CI, and deploy agree to the patch); its cost is that contributors on a different patch see `EBADENGINE` warnings — the same accept-the-cost trade recorded for `ignore-scripts`.
+
 ## .claude/settings.json entries
 
 Add to the `allow` list from SKILL.md Step 5:
 
-- `Bash(npm test)`, `Bash(npm test *)`, `Bash(npx biome *)`, `Bash(npm run build*)`, `Bash(npm run lint*)`, `Bash(npm run typecheck*)`, `Bash(npm run knip*)`, `Bash(npx knip*)`, `Bash(npx vitest run*)`
+- `Bash(npm test)`, `Bash(npm test *)`, `Bash(npx biome *)`, `Bash(npm run lint*)`, `Bash(npm run typecheck*)`, `Bash(npm run knip*)`, `Bash(npx knip*)`, `Bash(npx vitest run*)`
 - `Bash(npx tsc *)`
+- **Next.js only**: `Bash(npm run build*)` — plain TypeScript deliberately has no `build` script (see the package.json notes above), so on that path the entry would be dead permission surface for a script that cannot exist.
 - Deliberately **not** allow-listed: `npm run test:watch` / bare `npx vitest`. Both request watch mode — a long-running interactive process with no reason to be auto-approved (Vitest usually demotes it to run mode in a non-TTY shell, but that is a heuristic, not a guarantee). `npm test` (run-once) and `npx vitest run` cover every agent/CI need. Do not widen these to `Bash(npm run test*)` or `Bash(npx vitest *)` — those globs re-admit the watcher.
 
 ## Verification

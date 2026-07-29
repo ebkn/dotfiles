@@ -47,6 +47,8 @@ jobs:
       - run: npm run build   # Next.js only — the plain TS scaffold has no build script by default; drop this unless you added one
 ```
 
+Deliberately absent from the TypeScript and Python templates: a known-vulnerability gate (`npm audit`, `pip-audit`) as a hard PR check. Unlike Go's `govulncheck` below — reachability-based and low-noise — these flag every advisory anywhere in the tree, fixable or not: a fresh Next.js scaffold has been observed to carry high-severity advisories transitive through `next` itself with no fixable upgrade, which would land the baseline red on day one in violation of the verify-before-moving-on rule. If the project wants one, run it on a schedule or as `continue-on-error` and record that decision in CLAUDE.md — do not put it inline in the PR gate.
+
 ### Go
 
 ```yaml
@@ -148,10 +150,8 @@ jobs:
       # required-version uv pin: the uv Dependabot ecosystem bumps dependencies, not that constraint,
       # so it would be an un-updated pin that rots — the failure the SHA-pinning section warns about.
       # No `enable-cache` line is needed: it defaults to `auto`, which caches uv's download cache on
-      # GitHub-hosted runners (this job runs on ubuntu-latest). This is the same default-on caching
-      # setup-go provides; only setup-node above needs an explicit `cache: npm`, because it does not
-      # cache by default. Set `enable-cache: true` only if you move this job to a self-hosted runner,
-      # where `auto` is off.
+      # GitHub-hosted runners (this job runs on ubuntu-latest). Set `enable-cache: true` only if you
+      # move this job to a self-hosted runner, where `auto` is off.
       - uses: astral-sh/setup-uv@{sha} # {tag}
       # `uv sync --locked` is the `npm ci` of this path: installs strictly from uv.lock — every
       # dependency exact-pinned and hashed — and fails if the lock is stale against pyproject.toml.
@@ -177,14 +177,19 @@ The templates above bake in four controls. Apply the version-resolution steps be
   Resolve the values yourself; the templates above deliberately carry `{sha}`/`{tag}` placeholders rather than real versions. For each action, find the current release **and its publish date**, apply the same 7-day quarantine the rest of this scaffold uses, then resolve the chosen tag to its SHA:
 
   ```bash
-  # recent release tags, newest first
+  # recent release tags, newest first. Rows ending in ^{} are annotated tags peeled
+  # to their commit — that peeled SHA is the one a `uses:` pin needs.
   git ls-remote --tags --sort=-v:refname https://github.com/actions/checkout | head -5
 
-  # the SHA a chosen tag points to
+  # the COMMIT sha a chosen tag points to — always try the peeled form first
+  git ls-remote https://github.com/actions/checkout '{tag}^{}'
+  # empty output means the tag is lightweight — then, and only then, use the bare ref
   git ls-remote https://github.com/actions/checkout {tag}
   ```
 
-  **Quarantine the first pin the same seven days as everything else.** `git ls-remote` lists tags but not their dates, so read the publish dates from the releases page — WebFetch `https://github.com/{owner}/{repo}/releases` (that host is allow-listed for this skill; the `api.github.com` JSON endpoint is a different host and is not). If the newest release is under 7 days old, pin the newest release that is **at least** 7 days old instead. This is the one spot the scaffold's freshness gate was missing: `npm install` has `min-release-age=7`, uv has `exclude-newer = "7 days"`, and Dependabot has a 7-day `cooldown` — but the *initial* SHA resolution, left to grab `releases/latest`, would adopt a just-published — possibly hijacked — release immediately, exactly the window those other gates exist to close. SHA-pinning stops a *later* tag re-point (the tj-actions failure mode); this quarantine stops adopting a compromised release before the community has had a week to catch it. You lose only a few days' freshness, and Dependabot advances the pin later under its own cooldown.
+  The `^{}` is load-bearing: for an **annotated** tag the bare ref returns the tag *object* SHA, not the commit it points to — `uses: owner/repo@{tag-object-sha}` is not a valid pin and is not the SHA Dependabot bumps. The trap is invisible in this example because `actions/checkout` happens to use lightweight tags, but `golangci/golangci-lint-action` — required on the Go path — uses annotated ones, so the bare-ref form breaks exactly there (verified: v9.3.0's bare ref and peeled ref differ).
+
+  **Quarantine the first pin the same seven days as everything else.** `git ls-remote` lists tags but not their dates, so read them from the releases Atom feed — WebFetch `https://github.com/{owner}/{repo}/releases.atom` (same allow-listed host; the `api.github.com` JSON endpoint is a different host and is not). The feed carries an absolute ISO-8601 `<updated>` timestamp per release. Do **not** read the HTML `/releases` page instead: GitHub renders current-year dates there *without a year*, and a summarizing fetch has been observed to invent one — off by two years, in the direction that makes a possibly-hijacked day-old release look safely aged. A date whose year was not read verbatim from an ISO timestamp is not an acceptable input to this gate. If the newest release is under 7 days old, pin the newest release that is **at least** 7 days old instead. This is the one spot the scaffold's freshness gate was missing: `npm install` has `min-release-age=7`, uv has `exclude-newer = "7 days"`, and Dependabot has a 7-day `cooldown` — but the *initial* SHA resolution, left to grab `releases/latest`, would adopt a just-published — possibly hijacked — release immediately, exactly the window those other gates exist to close. SHA-pinning stops a *later* tag re-point (the tj-actions failure mode); this quarantine stops adopting a compromised release before the community has had a week to catch it. You lose only a few days' freshness, and Dependabot advances the pin later under its own cooldown.
 
   Write the SHA in and keep the tag as a trailing comment, so humans and Dependabot can still read it:
 

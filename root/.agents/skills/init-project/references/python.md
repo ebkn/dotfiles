@@ -6,20 +6,18 @@ This path uses [uv](https://docs.astral.sh/uv/) as the package manager, so it re
 
 ## Project init & runtime pin
 
-Create the project skeleton and pin the runtime in one step. Pick the kind from the intake project type:
+Create the project skeleton and pin the runtime in one step. Resolve `{version}` (the current stable Python; skip alphas/betas) first — `uv python list` shows what is available, https://www.python.org/downloads/ shows what is current — then pick the kind from the intake project type:
 
-- `cli` / `api` / `internal-web` / `public-web` → `uv init --app --name {project-name}`
-- `library` → `uv init --lib --name {project-name}` (sets up a build backend so the package is importable and publishable)
+- `cli` / `api` / `internal-web` / `public-web` → `uv init --app --no-workspace --python {version} --name {project-name} .`
+- `library` → `uv init --lib --no-workspace --python {version} --name {project-name} .` (sets up a build backend so the package is importable and publishable)
 
-Then pin the Python version so local, CI, and deploy all read the same `.python-version`:
+Two flags and the explicit path are load-bearing:
 
-```bash
-uv python pin {current stable Python, e.g. 3.14}
-```
+- **`--no-workspace`** — without it, `uv init` walks up the directory tree and, on finding an ancestor `pyproject.toml`, enrolls this project as a **workspace member**: it mutates a file *outside* the project and relocates `uv.lock` to the workspace root, so the committed-lockfile premise of this whole path silently fails (observed live when scaffolding inside a tree that had an ancestor `pyproject.toml`). If the project genuinely belongs to an existing uv workspace, that is a deliberate user decision — ask, don't inherit it.
+- **`--python {version}`** — makes `uv init` write `.python-version` and `requires-python` from the same value in one step, so local, CI, and deploy agree from the start. `uv python pin` is then only needed to *change* the version later; if you do, update `requires-python` in the same edit — ruff infers its lint target from that field.
+- **The trailing `.`** — a bare `uv init` succeeds in whatever directory the shell happens to be in, and its success message does not name the directory; passing the path makes the command self-verifying.
 
-Resolve the version rather than copying one from here — `uv python list` shows what is available, https://www.python.org/downloads/ shows what is current. `uv init` writes `requires-python` into `pyproject.toml`; keep the two consistent.
-
-`uv init` also drops a `main.py` entry point (for `--app`) and, if none exists, a `README.md`. It does **not** overwrite files, so the README from Step 2 and the git repo from Step 1 survive untouched — running it after those steps is safe (verified). Replace the `description = "Add your description here"` it writes with the intake one-line description.
+`uv init` also drops a `main.py` entry point (for `--app`) and, if none exists, a `README.md`. It does **not** overwrite files *inside the project*, so the README from Step 2 and the git repo from Step 1 survive untouched — that no-overwrite guarantee says nothing about ancestor files, which is what `--no-workspace` protects. Replace the `description = "Add your description here"` it writes with the intake one-line description.
 
 ## Freshly-published-version quarantine — do this before adding any dependency
 
@@ -101,7 +99,7 @@ Note that pytest exits 5 — a failure — when it collects no tests, which is e
 
 Partially covered: the ruff `F` rules selected above catch unused imports (`F401`) and unused local variables (`F841`).
 
-Whole unused functions, classes, and methods need a dedicated tool — [vulture](https://github.com/jendrikseipp/vulture). It is **not** wired as a hard gate because it produces false positives on public APIs and dynamically-referenced code, and needs a whitelist to be usable in CI. Instead note `uv run vulture .` in the CLAUDE.md Development section as an optional manual pass the maintainer can adopt once the codebase has shape (add it with `uv add --dev vulture` if they want it available).
+Whole unused functions, classes, and methods need a dedicated tool — [vulture](https://github.com/jendrikseipp/vulture). It is **not** wired as a hard gate because it produces false positives on public APIs and dynamically-referenced code, and needs a whitelist to be usable in CI. Instead note it in the CLAUDE.md Development section as an optional manual pass, phrased as the two-step it really is — `uv add --dev vulture`, then `uv run vulture .` — because it is **not** installed by default, so a bare `uv run vulture .` fails with "Failed to spawn". If you write that note, also add `Bash(uv run vulture*)` to the allow list below so the documented command doesn't prompt forever (this skill's own frontmatter already allows it; the generated project should match).
 
 ## Health endpoint — `api` or any HTTP server
 
@@ -112,7 +110,7 @@ Skip for `library`/`cli`. This skill does not scaffold server code for Python, s
 Add to the `allow` list from SKILL.md Step 5 — **enumerate the tool invocations**, matching this skill's own frontmatter (`Bash(uv run ruff *)` etc.), rather than a blanket `Bash(uv run *)`:
 
 - `Bash(uv run ruff *)`, `Bash(uv run mypy*)`, `Bash(uv run pytest*)`
-- `Bash(uv sync --locked)`
+- `Bash(uv sync --locked)` — an exact-string pattern, so variants (`--locked --no-dev`, `--directory …`) still prompt; accepted, the same fragility trade the curl paragraph in SKILL.md Step 5 documents
 
 Do not allow `uv run *` wholesale: `uv run <anything>` executes arbitrary code with no prompt, which reopens two gaps this scaffold otherwise closes. `uv run python -c 'open(".env").read()'` reads the secrets the Step 5 `.env` deny explicitly cannot protect against a subprocess (SKILL.md's own caveat). `uv run --with <pkg> ...` fetches and runs a package *outside* the lockfile, routing straight around the "changing what the project depends on is worth a prompt" line drawn just below. Enumerating by tool name costs essentially nothing and keeps the generated project consistent with the frontmatter that governs this skill.
 
@@ -128,7 +126,7 @@ Beyond the shared block in SKILL.md Step 6:
 
 - `__pycache__/`, `*.pyc`, `.venv/`, `dist/`, `*.egg-info/`
 
-Do **not** ignore `uv.lock` — it is committed on purpose, exactly like `package-lock.json`.
+Do **not** ignore `uv.lock` — it is committed on purpose, exactly like `package-lock.json`. And do not add `.mypy_cache/`, `.pytest_cache/`, or `.ruff_cache/` even though the verification below creates all three: each tool writes a `.gitignore` containing `*` inside its own cache dir, so git already ignores them — an entry here would be redundant, and its absence is deliberate, not an oversight.
 
 ## Verification
 

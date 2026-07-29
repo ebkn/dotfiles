@@ -10,10 +10,10 @@ Install these **before** fetching the boilerplate below — the template must be
 
 ```bash
 npm install next react react-dom
-npm install -D typescript @types/node @types/react @types/react-dom vitest
+npm install -D typescript@5 @types/node @types/react @types/react-dom vitest
 ```
 
-Install the newest TypeScript this Next.js release actually supports — do not assume `latest` is safe. Next.js declares no `typescript` peer dependency, so npm stays silent on a mismatch and a TypeScript major that Next.js has not adopted yet fails only at build, as an opaque error rather than a version complaint (observed with Next.js 16.2.10 + TypeScript 7.0.2: `next build` dies with `The "id" argument must be of type string. Received undefined`, while the same tree builds on 5.x). The `npm run build` at the end of this file is the check. If it fails, install the newest major that does build (`npm install -D typescript@{major}`) and record the constraint in the CLAUDE.md Development section, so the next person does not helpfully bump it back.
+The `typescript@5` pin is deliberate — do not "fix" it to bare `typescript`. Next.js declares no `typescript` peer dependency, so npm stays silent on a mismatch and installs whatever major is current; a TypeScript major that Next.js has not adopted yet fails only at build, as an opaque error rather than a version complaint (observed with Next.js 16.2.x + TypeScript 7.0.2, the current major at the time: `next build` dies with `The "id" argument must be of type string. Received undefined`, while the same tree builds on 5.x). The `npm run build` at the end of this file is the check. After it passes, you may *try* a newer major (`npm install -D typescript@{major}`) and keep it only if `build` stays green — otherwise revert to `@5`. Either way, record the resulting constraint in the CLAUDE.md Constraints section, so the next person does not helpfully bump it back.
 
 ## Boilerplate
 
@@ -30,12 +30,25 @@ Resolve `{next-version}` from the **installed** version — read `dependencies.n
 Create:
 
 - `next.config.ts` — empty Next.js config (replaced by the security-headers version below)
-- `tsconfig.json` — TypeScript config with Next.js plugin and `@/*` path alias
+- `tsconfig.json` — TypeScript config with Next.js plugin and `@/*` path alias. After copying it, append `"tmp"` to its `exclude` array: the shared `.gitignore` (SKILL.md Step 6) designates `tmp/` as the scratch dir, but the template's `**/*.ts` include would still pull any stray `.ts` left there into the typecheck program (observed: TS2307 on scratch files).
 - `app/layout.tsx` — root layout with Geist fonts
 - `app/page.tsx` — default home page
 - `app/globals.css` — global styles
 - `app/page.module.css` — page-level CSS module
 - `public/` — SVG assets (`file.svg`, `globe.svg`, `next.svg`, `vercel.svg`, `window.svg`)
+
+The five vendor SVGs carry no `<title>`, and Biome 2.5+ parses `.svg` — so `a11y/noSvgWithoutTitle`, part of the `recommended` a11y gate `references/typescript.md` says never to disable, fails on all five. Resolve the conflict with a named, scoped exception in the generated `biome.json`, not a rule downgrade: these are third-party brand assets rendered through `next/image` with an `alt` at the call site, so the accessible name lives there. Scope it to `public/` only — inline SVG in `app/` must keep the rule:
+
+```json
+"overrides": [
+  {
+    "includes": ["public/**/*.svg"],
+    "linter": { "rules": { "a11y": { "noSvgWithoutTitle": "off" } } }
+  }
+]
+```
+
+Record the override's rationale in the CLAUDE.md Constraints section so nobody widens it to `app/` or deletes it and re-reds the gate.
 
 ## package.json scripts
 
@@ -74,15 +87,27 @@ Also **drop `--passWithNoTests` from `test`**, so the script becomes `"test": "v
 ```tsx
 "use client";
 
-export default function Error({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+// Not named `Error`: Biome's recommended `noShadowRestrictedNames` (error level)
+// rejects shadowing the global, and Next.js keys this boundary off the filename,
+// so the export name is free to differ from the docs' example.
+export default function ErrorBoundary({
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
   return (
     <div role="alert">
       <h2>Something went wrong</h2>
-      <button type="button" onClick={() => reset()}>Try again</button>
+      <button type="button" onClick={() => reset()}>
+        Try again
+      </button>
     </div>
   );
 }
 ```
+
+Keep the comment in the generated file and record the rename in the CLAUDE.md Constraints section — a future reader who "fixes" the name back to `Error` to match Next.js's docs reintroduces a lint failure. (`GlobalError` below shadows nothing, so it needs no rename.)
 
 `app/global-error.tsx` (catches errors in the root layout; must render its own `<html>`/`<body>`):
 
@@ -260,17 +285,27 @@ This is the same "record a constraint a future reader would otherwise undo" inst
 
 ## Verification
 
+First normalize formatting once:
+
+```bash
+npm run lint:fix
+```
+
+The lint gate is `biome check .`, which enforces *formatting* as well as rules, and hand-copied snippets — this file's included — are not guaranteed to match Biome's default 80-column formatter. One `lint:fix` pass makes the subsequent gate judge substance, not line width; a formatting diff at this point is expected and fine, a *rule* error is not.
+
+Then:
+
 ```bash
 npm run build
 ```
 
-This both verifies the setup and generates `next-env.d.ts`. Then run the rest of the toolchain from `references/typescript.md`.
+This both verifies the setup and generates `next-env.d.ts`. Then run the rest of the toolchain from `references/typescript.md` — its verification block runs here, at the end of this file, not at the end of that one: before the runtime deps above are installed, `tsc`/`vitest` do not exist yet, so the earlier position cannot pass.
 
 Finally, verify the `typecheck` override actually holds under CI conditions — a green run right after `build` proves nothing, because `build` just wrote the generated declarations:
 
 ```bash
-rm -rf next-env.d.ts .next
+rm -rf next-env.d.ts .next tsconfig.tsbuildinfo
 npm run typecheck   # must pass, and must recreate next-env.d.ts
 ```
 
-Both paths are `.gitignore`d, so this deletes nothing tracked. This is the one check that distinguishes the fixed script from the broken one: with the base `tsc --noEmit`, the tree is left without `next-env.d.ts` afterwards — exactly the state a fresh CI checkout starts in.
+`tsconfig.tsbuildinfo` goes too: `incremental` is on (from the base tsconfig notes in `references/typescript.md`), and a surviving cache can let `tsc` skip exactly the work a fresh CI checkout would do. All three paths are `.gitignore`d, so this deletes nothing tracked. If `rm` is permission-gated in the environment, move the three aside to a gitignored location instead, run the check, then delete the displaced copies once it passes — do not leave them in the tree, and mention any leftover in the Step 9 summary if deletion is impossible. This is the one check that distinguishes the fixed script from the broken one: with the base `tsc --noEmit`, the tree is left without `next-env.d.ts` afterwards — exactly the state a fresh CI checkout starts in.
