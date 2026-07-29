@@ -19,25 +19,27 @@ The `typescript@5` pin is deliberate — do not "fix" it to bare `typescript`. N
 
 Create the official App Router boilerplate from the `vercel/next.js` template at `packages/create-next-app/templates/app/ts/`.
 
-Fetch it with WebFetch against raw.githubusercontent.com **at the release tag matching the `next` version you just installed**, never from `main`:
+Fetch each file from raw.githubusercontent.com **at the release tag matching the `next` version you just installed**, never from `main`:
 
 ```
 https://raw.githubusercontent.com/vercel/next.js/v{next-version}/packages/create-next-app/templates/app/ts/{file}
 ```
 
+Fetch with `curl -sS -o {file} {url}` (the narrow form in `allowed-tools`), **not** WebFetch. WebFetch answers a prompt *about* the page with a small model rather than returning bytes — observed live: 3 of the 5 SVGs came back as prose descriptions ("This is an SVG image file containing a logo…"), and text files came back wrapped in invented code fences. For assets a paraphrase is undetectable until something renders broken; `curl -o` writes the bytes exactly. If you must fall back to WebFetch for a text file, diff-read what was written and strip any added fences before moving on.
+
 Resolve `{next-version}` from the **installed** version — read `dependencies.next` in `package.json`, which `save-exact=true` (set in `references/typescript.md`'s `.npmrc`) has already pinned to an exact value. Do **not** use `npm view next version`: that returns the published `latest`, which the `min-release-age=7` gate holds the install back from whenever `latest` is under seven days old, so fetching the template at the `latest` tag would reintroduce the exact drift-from-the-pinned-release this rule exists to prevent. A `main`/`HEAD` URL is worse still — a mutable reference, the same supply-chain hole this skill closes for GitHub Actions. Read what you fetch before writing it; this step copies third-party code into the project.
 
 Create:
 
-- `next.config.ts` — empty Next.js config (replaced by the security-headers version below)
+- `next.config.ts` — **do not fetch**; the Security headers section below supplies the whole file
 - `tsconfig.json` — TypeScript config with Next.js plugin and `@/*` path alias. After copying it, append `"tmp"` to its `exclude` array: the shared `.gitignore` (SKILL.md Step 6) designates `tmp/` as the scratch dir, but the template's `**/*.ts` include would still pull any stray `.ts` left there into the typecheck program (observed: TS2307 on scratch files).
 - `app/layout.tsx` — root layout with Geist fonts
 - `app/page.tsx` — default home page
 - `app/globals.css` — global styles
 - `app/page.module.css` — page-level CSS module
-- `public/` — SVG assets (`file.svg`, `globe.svg`, `next.svg`, `vercel.svg`, `window.svg`)
+- `public/` — **only the SVG assets `app/page.tsx` actually references** (at recent template versions: `next.svg`, `vercel.svg`). The template dir ships five, but the unreferenced ones are dead vendor assets knip cannot flag (it doesn't track image references) — read the fetched `page.tsx` and fetch exactly what it uses.
 
-The five vendor SVGs carry no `<title>`, and Biome 2.5+ parses `.svg` — so `a11y/noSvgWithoutTitle`, part of the `recommended` a11y gate `references/typescript.md` says never to disable, fails on all five. Resolve the conflict with a named, scoped exception in the generated `biome.json`, not a rule downgrade: these are third-party brand assets rendered through `next/image` with an `alt` at the call site, so the accessible name lives there. Scope it to `public/` only — inline SVG in `app/` must keep the rule:
+The vendor SVGs carry no `<title>`, and Biome 2.5+ parses `.svg` — so `a11y/noSvgWithoutTitle`, part of the `recommended` a11y gate `references/typescript.md` says never to disable, fails on all five. Resolve the conflict with a named, scoped exception in the generated `biome.json`, not a rule downgrade: these are third-party brand assets rendered through `next/image` with an `alt` at the call site, so the accessible name lives there. Scope it to `public/` only — inline SVG in `app/` must keep the rule:
 
 ```json
 "overrides": [
