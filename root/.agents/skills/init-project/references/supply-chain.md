@@ -166,15 +166,17 @@ The templates above bake in three controls. Apply the SHA-pinning step before yo
 - **`persist-credentials: false`** on `actions/checkout` — stops the token being written to `.git/config`, where a later step or a built artifact/image could exfiltrate it. Drop it only if a subsequent step must push with the checkout token.
 - **Pin every `uses:` to a full 40-char commit SHA, not a tag.** Tags are mutable — the tj-actions/changed-files compromise (2025) re-pointed a tag and hit tens of thousands of repos.
 
-  Resolve the values yourself; the templates above deliberately carry `{sha}`/`{tag}` placeholders rather than real versions. For each action, find the current release, then resolve that tag to its SHA:
+  Resolve the values yourself; the templates above deliberately carry `{sha}`/`{tag}` placeholders rather than real versions. For each action, find the current release **and its publish date**, apply the same 7-day quarantine the rest of this scaffold uses, then resolve the chosen tag to its SHA:
 
   ```bash
-  # current release tag (WebFetch https://github.com/{owner}/{repo}/releases/latest also works)
+  # recent release tags, newest first
   git ls-remote --tags --sort=-v:refname https://github.com/actions/checkout | head -5
 
-  # the SHA that tag points to
+  # the SHA a chosen tag points to
   git ls-remote https://github.com/actions/checkout {tag}
   ```
+
+  **Quarantine the first pin the same seven days as everything else.** `git ls-remote` lists tags but not their dates, so read the publish dates from the releases page — WebFetch `https://github.com/{owner}/{repo}/releases` (that host is allow-listed for this skill; the `api.github.com` JSON endpoint is a different host and is not). If the newest release is under 7 days old, pin the newest release that is **at least** 7 days old instead. This is the one spot the scaffold's freshness gate was missing: `npm install` has `min-release-age=7`, uv has `exclude-newer = "7 days"`, and Dependabot has a 7-day `cooldown` — but the *initial* SHA resolution, left to grab `releases/latest`, would adopt a just-published — possibly hijacked — release immediately, exactly the window those other gates exist to close. SHA-pinning stops a *later* tag re-point (the tj-actions failure mode); this quarantine stops adopting a compromised release before the community has had a week to catch it. You lose only a few days' freshness, and Dependabot advances the pin later under its own cooldown.
 
   Write the SHA in and keep the tag as a trailing comment, so humans and Dependabot can still read it:
 
