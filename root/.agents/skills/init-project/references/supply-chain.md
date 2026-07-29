@@ -102,7 +102,15 @@ jobs:
       # It queries the live vuln DB, so a newly-disclosed advisory can turn this red with no code change
       # — intended (it is an alert). Move it to a scheduled workflow or add continue-on-error if you do
       # not want a fresh disclosure blocking unrelated PRs.
-      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      #
+      # Pinned to an exact version, NOT @latest. @latest would run a release the moment it is published
+      # — no quarantine — in the same workflow that SHA-pins and 7-day-quarantines every action above.
+      # Go's checksum DB makes published versions immutable (so the tj-actions tag re-point cannot happen
+      # here), but it cannot detect a hijacked legitimate release; only the quarantine does. Pinning does
+      # not stale the vulnerability data: the advisory DB is fetched from vuln.go.dev at run time.
+      # Like the golangci-lint `version:` above, no Dependabot ecosystem updates a version inside a
+      # `run:` string, so this is re-resolved by hand. references/go.md covers how to resolve it.
+      - run: go run golang.org/x/vuln/cmd/govulncheck@{version} ./...
 ```
 
 ### Python
@@ -160,7 +168,7 @@ jobs:
 
 ## Hardening the workflow
 
-The templates above bake in three controls. Apply the SHA-pinning step before you commit:
+The templates above bake in four controls. Apply the version-resolution steps before you commit — the templates ship `{sha}`/`{tag}`/`{version}` placeholders, never real values:
 
 - **Least-privilege `GITHUB_TOKEN`** — the top-level `permissions: contents: read` block means a compromised action can't push, open PRs, or edit issues by default. Add a narrower `permissions:` to a single job only when a step genuinely needs write.
 - **`persist-credentials: false`** on `actions/checkout` — stops the token being written to `.git/config`, where a later step or a built artifact/image could exfiltrate it. Drop it only if a subsequent step must push with the checkout token.
@@ -185,6 +193,12 @@ The templates above bake in three controls. Apply the SHA-pinning step before yo
   ```
 
   Do this for `actions/checkout`, `actions/setup-node`/`setup-go`, `astral-sh/setup-uv`, `golangci/golangci-lint-action`, and any other third-party action. The `github-actions` Dependabot block below then bumps both the SHA and the comment as new releases land, so pinning doesn't rot into a stale (possibly vulnerable) version.
+
+- **A `run:` step that fetches a tool is a dependency too — resolve and pin it the same way.** `uses:` lines are the obvious supply-chain surface, but a step like `go run some.org/cmd/tool@latest` executes freshly-published third-party code with the job's privileges and gets *none* of the protection above. Every mutable-reference tool invocation in a `run:` step — in CI, in the local verification list, and in the CLAUDE.md Development section — must carry an exact version resolved under the same 7-day quarantine.
+
+  The relevant registry's immutability guarantees do not substitute for the quarantine. Go's checksum database, for instance, makes a published module version immutable, so the tj-actions failure mode (re-pointing an existing tag) genuinely cannot happen — but it is silent on a *hijacked legitimate release*, which is the threat the quarantine addresses. Immutability and quarantine defend different halves; having one is not having both.
+
+  Accept that these pins are updated by hand. No Dependabot ecosystem reads a version string inside a `run:` command, and routing the tool through the package manager to regain automation (a Go 1.24 `tool` directive, an npm `devDependency`) drags the tool's dependency tree into the application's own resolution graph — see the govulncheck note in `references/go.md` for the measured cost. A hand-updated pin on a gate is the accepted trade; the pin is re-resolved when the toolchain or the gate itself is revisited.
 
 ## .github/dependabot.yml
 

@@ -82,18 +82,34 @@ Already covered: the `unused` linter, part of the `standard` set selected above,
 For whole-program dead-code detection across packages, note this in the CLAUDE.md Development section as an optional deeper pass:
 
 ```bash
-go run golang.org/x/tools/cmd/deadcode@latest ./...
+go run golang.org/x/tools/cmd/deadcode@{version} ./...
 ```
 
 It is not a hard gate because it needs a real entry point (`main`) to be meaningful.
+
+Resolve `{version}` the same way as govulncheck below — `go list -m -json golang.org/x/tools@latest`, 7-day quarantine, literal version written in. Being a manual, occasional pass is **not** a reason to leave `@latest` here: it still executes freshly-published third-party code on a developer's machine, with a developer's credentials, and the resolution cost is one command that is already being run for the gate below.
 
 ## Vulnerability scanning — govulncheck
 
 golangci-lint does **not** cover known-vulnerability scanning. `govulncheck` — the Go team's official scanner from `golang.org/x/vuln` — is a **separate tool**, deliberately *not* one of golangci-lint's linters: it has to build the program and query the vulnerability database, which does not fit golangci-lint's model, so naming it under `.golangci.yml`'s `enable:` is a config error (`golangci-lint config verify` rejects it), not a no-op. Wire it as its own gate:
 
 ```bash
-go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+go run golang.org/x/vuln/cmd/govulncheck@{version} ./...
 ```
+
+**Resolve `{version}` at scaffold time and write the literal version in — never ship `@latest`.** `@latest` is a mutable reference that runs a release the instant it is published, with zero quarantine, inside the same workflow that SHA-pins and 7-day-quarantines every GitHub Action. Go's module proxy and checksum database do close the *other* half of the problem — published versions are immutable, so the tj-actions failure mode (re-pointing an existing tag at new code) cannot happen here — but neither defends against a **hijacked legitimate release**, which is exactly the window the 7-day quarantine exists to close. See `references/supply-chain.md` for the general rule.
+
+Resolve it with the toolchain — `go list` reports the publish date alongside the version, so one command covers both steps:
+
+```bash
+go list -m -json golang.org/x/vuln@latest   # -> {"Version": "v1.6.0", "Time": "2026-07-09T17:23:02Z", ...}
+```
+
+If that `Time` is under 7 days old, step back to the newest release that is at least 7 days old (`go list -m -versions golang.org/x/vuln` lists them; re-run `go list -m -json …@vX.Y.Z` for each date). Then pin the chosen version and carry the same manual-update note the `golangci-lint` version pin carries — **no Dependabot ecosystem updates a version string inside a `run:` command**, so this is re-resolved by hand, naturally when bumping the Go toolchain or revisiting the CI gates.
+
+Pinning the scanner does **not** stale the vulnerability data, which is the objection that usually kills this: govulncheck fetches the advisory database from `https://vuln.go.dev` at *run* time, not at build time. Verified — a pinned `govulncheck@v1.6.0` invoked on 2026-07-29 reports `DB updated: 2026-07-27`. You pin the analyzer; the data stays live.
+
+> **Do not** reach for the Go 1.24 `tool` directive (`go get -tool golang.org/x/vuln/cmd/govulncheck`) to get Dependabot updates instead. Verified on a bare module, it injects six `// indirect` requires (`x/mod`, `x/sync`, `x/sys`, `x/telemetry`, `x/tools`, `x/vuln`) into the scaffold's own `go.mod`, putting the scanner's dependency tree into the application's MVS graph — so govulncheck can later force an upgrade of a library the project itself uses. It also does not buy what it promises: Dependabot version updates cover dependencies *explicitly defined in the manifest*, and enabling `dependency-type: indirect` to catch these would open PRs for every transitive dependency in the project. This is the same conclusion `references/supply-chain.md` already reaches for golangci-lint, for the same reason.
 
 Unlike the `deadcode` pass above, this **is** a hard gate: its reachability analysis reports only vulnerabilities your code actually *calls* (transitively), so false positives are rare. It exits 0 when nothing reachable is vulnerable and non-zero when something is — the same contract the other gates use. Two properties to know:
 
@@ -128,7 +144,9 @@ go vet ./...
 golangci-lint run
 go test ./...
 go build ./...
-go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+go run golang.org/x/vuln/cmd/govulncheck@{resolved version} ./...
 ```
+
+Use the same resolved version here, in the CI workflow, and in the CLAUDE.md Development section — three copies of one pin, so a drifted copy means the gate you verified is not the gate CI runs.
 
 If any of the first four reports `matched no packages` or `no go files to analyze`, the minimal package above is missing — fix that rather than weakening the gate. `govulncheck` needs network access to fetch the vulnerability database; if it reports a vulnerability against the pinned Go toolchain's standard library, bump the Go patch release rather than dropping the step.
