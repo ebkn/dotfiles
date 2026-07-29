@@ -69,3 +69,23 @@
   - **Bulk edits**: Use the Edit tool or shell commands (sed, awk) directly. For complex structural refactoring across many files, use `ast-grep` instead.
   - **Structured data**: Use `jq` for JSON and `yq` for YAML editing instead of sed/awk on structured data.
   - **Shell scripts**: Run `shellcheck` to validate shell scripts after writing or modifying them.
+
+# Parallelism and Delegation
+
+Default to the fastest correct execution shape. These are defaults, not mandates — an explicit instruction from the user ("read it yourself", "one step at a time") always wins.
+
+- **Decide the shape before starting.** For multi-step work, first separate what is independent from what is strictly ordered. Split at the smallest granularity where each unit is still independently verifiable.
+- **Batch independent tool calls.** Issue independent reads, searches, and shell commands in a single message so they run concurrently. Never serialize calls whose inputs do not depend on each other.
+- **Background long-running commands.** Run test suites, builds, and installs in the background and continue with unrelated work instead of blocking on them.
+- **Delegate read-heavy fan-out to subagents.** When answering requires sweeping many files, directories, or naming conventions and only the conclusion matters, spawn one subagent per independent area — launched in a single message — instead of pulling everything into the main context.
+- **Keep writes serial and in the main context.** Do not fan out subagents to edit files. Concurrent edits break "small, reversible steps", blur commit boundaries, and create conflicts that cost more than the parallelism saves.
+- State the split briefly when it is non-obvious, then execute. Do not ask for permission to parallelize.
+
+## When not to parallelize
+
+Parallelism is not free: subagents do not see the conversation, return lossy summaries, and add token and latency overhead. Do the work directly when:
+
+- The task is small enough that delegation costs more than it saves.
+- Later steps depend on what earlier steps discover.
+- The work needs conversation context the subagent will not have.
+- The result must be reviewable step by step, not as a summary.
