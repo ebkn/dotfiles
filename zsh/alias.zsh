@@ -603,7 +603,16 @@ ssh() {
   _ssh_parse_argv "$@"
   local host="$_SSH_PARSE_HOST"
 
-  if [ -n "$TMUX" ]; then
+  # Only decorate the terminal when stdout is one. zsh's _remote_files (remote
+  # path completion for scp/sftp) shells out via _call_program, which `eval`s
+  # "ssh <host> ls …" in the *current* shell — so it resolves to this wrapper,
+  # not the binary. With stdout a pipe, the reset sequence below lands in the
+  # captured `ls` output and shows up as a garbage completion candidate, and
+  # the tmux calls repaint the pane on every TAB. Same for `ssh host cmd > f`.
+  local decorate=false
+  [ -t 1 ] && decorate=true
+
+  if $decorate && [ -n "$TMUX" ]; then
     # Everforest dark hard: bg_dim (#1e2326) — slightly darker than bg0
     tmux select-pane -P 'bg=#1e2326'
     tmux set-option -p @ssh_host "${host:-unknown}"
@@ -617,9 +626,9 @@ ssh() {
   # (SGR/X10/button-event/all-mouse tracking, bracketed paste, cursor visibility,
   # text attributes). Without this, mouse scroll produces raw escape sequences
   # like "65;61;46M" instead of actual scrolling.
-  printf '\e[?9l\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?2004l\e[?25h\e[0m'
+  $decorate && printf '\e[?9l\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?2004l\e[?25h\e[0m'
 
-  if [ -n "$TMUX" ]; then
+  if $decorate && [ -n "$TMUX" ]; then
     tmux select-pane -P default
     tmux set-option -p -u @ssh_host
     tmux-pane-titles 2>/dev/null
@@ -650,7 +659,12 @@ myssh() {
     use_autossh=true
   fi
 
-  if [ -n "$TMUX" ]; then
+  # See the ssh() wrapper above: terminal decoration only makes sense when
+  # stdout is a terminal, otherwise the escape sequence corrupts captured output.
+  local decorate=false
+  [ -t 1 ] && decorate=true
+
+  if $decorate && [ -n "$TMUX" ]; then
     # Everforest dark hard: bg_dim (#1e2326) — slightly darker than bg0
     tmux select-pane -P 'bg=#1e2326'
     tmux set-option -p @ssh_host "${host:-unknown}"
@@ -690,9 +704,9 @@ myssh() {
   # (SGR/X10/button-event/all-mouse tracking, bracketed paste, cursor visibility,
   # text attributes). Without this, mouse scroll produces raw escape sequences
   # like "65;61;46M" instead of actual scrolling.
-  printf '\e[?9l\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?2004l\e[?25h\e[0m'
+  $decorate && printf '\e[?9l\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?2004l\e[?25h\e[0m'
 
-  if [ -n "$TMUX" ]; then
+  if $decorate && [ -n "$TMUX" ]; then
     tmux select-pane -P default
     tmux set-option -p -u @ssh_host
     tmux set-option -p -u @ssh_my_machine
