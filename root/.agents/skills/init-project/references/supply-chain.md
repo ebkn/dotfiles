@@ -166,6 +166,10 @@ jobs:
       - run: uv run pytest || [ $? -eq 5 ]
 ```
 
+### Swift
+
+The job body lives in `references/swift.md` (it is inseparable from that path's runner, Xcode-selection, and signing decisions). Wrap it in the same `name`/`on`/`concurrency`/`permissions` scaffolding as the templates above, and apply every rule in the hardening section below to it unchanged — its `actions/checkout` pin resolves here like all the others.
+
 ## Hardening the workflow
 
 The templates above bake in four controls. Apply the version-resolution steps before you commit — the templates ship `{sha}`/`{tag}`/`{version}` placeholders, never real values:
