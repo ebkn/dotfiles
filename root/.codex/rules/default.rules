@@ -1,5 +1,8 @@
 # Codex prefix rules for command-level allow/forbidden/prompt behavior.
 #
+# Run root/.codex/rules/default.rules.test.sh after editing this file. That is
+# not optional hygiene -- see the `match`/`not_match` note below.
+#
 # Notes:
 # - `git -C * <subcommand> *` cannot be represented exactly as a prefix rule,
 #   so `git -C` is handled as `prompt`.
@@ -7,6 +10,23 @@
 #   representable as prefix rules.
 # - Commands include /opt/homebrew/bin/ absolute paths because Codex resolves
 #   commands to full paths on Apple Silicon Macs.
+# - Patterns match whole argv TOKENS, never substrings: `--force` does not
+#   match `--force-with-lease`, and `mkfs` does not match `mkfs.ext4`. Each
+#   dangerous spelling therefore needs its own rule.
+# - `match`/`not_match` hold example commands that Codex asserts when it loads
+#   this file: every `match` must match the rule's pattern and every
+#   `not_match` must not. They are the only executable tests these rules have,
+#   so `forbidden` rules carry them.
+#   IMPORTANT FAILURE MODE (verified against codex-cli 0.144.5): a violated
+#   assertion makes Codex drop the ENTIRE file, silently -- exit status 0, no
+#   stderr, no TUI warning. Every rule here lives in this one file, so a single
+#   bad example removes all of the `forbidden` rules too. It fails OPEN. The
+#   test script exists to turn that silent failure into a loud one.
+# - Assertions are checked against the pattern only, so `*` and `~` are fine as
+#   literal example tokens. This is unrelated to runtime behavior, where Codex
+#   refuses to evaluate a command containing wildcards, redirection,
+#   substitutions, or env-var prefixes against any rule -- such commands can
+#   never be auto-approved, so they fall through to an approval prompt.
 
 prefix_rule(
     pattern = [
@@ -252,138 +272,201 @@ prefix_rule(
     pattern = ["rm", "-rf", ["/", "~", "/*", ".git"]],
     decision = "forbidden",
     justification = "Block destructive recursive remove targets.",
+    match = ["rm -rf /", "rm -rf ~", "rm -rf /*", "rm -rf .git"],
+    # Ordinary recursive removes stay on the `rm` prompt rule below.
+    not_match = ["rm -rf ./tmp", "rm -rf node_modules"],
 )
 
 prefix_rule(
     pattern = ["rm", "-rf", "--no-preserve-root"],
     decision = "forbidden",
     justification = "Block destructive recursive remove with --no-preserve-root.",
+    match = ["rm -rf --no-preserve-root /"],
+    not_match = ["rm -rf ./build"],
 )
 
 prefix_rule(
     pattern = [["sudo", "su", "doas"]],
     decision = "forbidden",
     justification = "Block privilege escalation commands.",
+    match = ["sudo ls", "su -", "doas ls"],
+    # Token match, so the sudo* family members are each their own command.
+    not_match = ["sudoedit /etc/hosts"],
 )
 
 prefix_rule(
     pattern = ["sudo", ["rm", "dd", "mkfs", "fdisk", "mount", "umount"]],
     decision = "forbidden",
     justification = "Block privileged destructive disk/delete commands.",
+    match = ["sudo rm -rf /", "sudo umount /Volumes/data"],
+    not_match = ["sudo ls"],
 )
 
 prefix_rule(
     pattern = [["dd", "mkfs", "fdisk"]],
     decision = "forbidden",
     justification = "Block destructive disk utilities.",
+    match = ["dd if=/dev/zero of=/dev/disk0", "fdisk /dev/disk0"],
+    # `mkfs.ext4` is a different token and needs its own rule if ever wanted.
+    not_match = ["ddrescue src dst", "mkfs.ext4 /dev/sda1"],
 )
 
 prefix_rule(
     pattern = [["diskutil", "parted", "sfdisk", "gdisk", "wipefs", "newfs", "shred"]],
     decision = "forbidden",
     justification = "Block destructive disk/partition/data-wipe utilities.",
+    match = ["diskutil eraseDisk JHFS+ x disk2", "shred -u secrets.txt"],
+    not_match = ["df -h"],
 )
 
 prefix_rule(
     pattern = ["chmod", "777"],
     decision = "forbidden",
     justification = "Block broad chmod patterns.",
+    match = ["chmod 777 /usr/local"],
+    # Only the literal 777 token is blocked; -R 777 is a different argv shape.
+    not_match = ["chmod 755 script.sh", "chmod +x script.sh", "chmod -R 777 dist"],
 )
 
 prefix_rule(
     pattern = ["chown", "root"],
     decision = "forbidden",
     justification = "Block ownership escalation patterns.",
+    match = ["chown root /etc/hosts"],
+    not_match = ["chown me:staff file.txt"],
 )
 
 prefix_rule(
     pattern = ["sudo", "chmod", "777"],
     decision = "forbidden",
     justification = "Block privileged chmod 777.",
+    match = ["sudo chmod 777 /etc"],
+    not_match = ["sudo chmod 755 /etc"],
 )
 
 prefix_rule(
     pattern = ["sudo", "chown"],
     decision = "forbidden",
     justification = "Block privileged chown.",
+    match = ["sudo chown root /etc/hosts"],
+    not_match = ["sudo chmod 755 /etc"],
 )
 
 prefix_rule(
     pattern = ["sudo", "-i"],
     decision = "forbidden",
     justification = "Block privileged shell escalation.",
+    match = ["sudo -i"],
+    not_match = ["sudo ls"],
 )
 
 prefix_rule(
     pattern = ["sudo", "su"],
     decision = "forbidden",
     justification = "Block privileged shell escalation.",
+    match = ["sudo su -"],
+    not_match = ["sudo ls"],
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "push", "--force-with-lease"],
     decision = "forbidden",
     justification = "Block force push.",
+    match = [
+        "git push --force-with-lease origin main",
+        "/opt/homebrew/bin/git push --force-with-lease",
+    ],
+    not_match = ["git push origin main"],
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "push", "--force"],
     decision = "forbidden",
     justification = "Block force push.",
+    match = ["git push --force origin main"],
+    # Token match: --force-with-lease is caught by its own rule above, not this one.
+    not_match = ["git push origin main", "git push --force-with-lease origin main"],
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "push", "-f"],
     decision = "forbidden",
     justification = "Block force push.",
+    match = ["git push -f origin main"],
+    not_match = ["git push origin main"],
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "clean", "-fd"],
     decision = "forbidden",
     justification = "Block destructive git clean.",
+    match = ["git clean -fd"],
+    # -fdx is a separate token, hence the separate rule below.
+    not_match = ["git clean -n", "git clean -fdx"],
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "reset", "--hard"],
     decision = "forbidden",
     justification = "Block destructive git reset.",
+    match = ["git reset --hard HEAD~1"],
+    not_match = ["git reset --soft HEAD~1", "git reset file.txt"],
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "clean", "-fdx"],
     decision = "forbidden",
     justification = "Block destructive git clean -fdx.",
+    match = ["git clean -fdx"],
+    not_match = ["git clean -n"],
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "checkout", "--"],
     decision = "forbidden",
     justification = "Block destructive checkout to overwrite worktree paths.",
+    match = ["git checkout -- src/main.rs"],
+    # Branch switching stays on the `git checkout` prompt rule below.
+    not_match = ["git checkout main"],
 )
 
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "restore", "--worktree"],
     decision = "forbidden",
     justification = "Block destructive restore to overwrite worktree paths.",
+    match = ["git restore --worktree src"],
+    not_match = ["git restore --staged src"],
 )
 
 prefix_rule(
     pattern = ["docker", "system", "prune", "-af"],
     decision = "forbidden",
     justification = "Block destructive docker cleanup.",
+    match = ["docker system prune -af"],
+    not_match = ["docker system prune", "docker system df"],
 )
 
 prefix_rule(
     pattern = ["npm", "publish"],
     decision = "forbidden",
     justification = "Block npm publish.",
+    match = ["npm publish --access public"],
+    not_match = ["npm install"],
 )
 
+# `prompt`, not `forbidden`: a forbidden decision cannot be overridden in-session,
+# which makes legitimate shell-environment debugging impossible without editing
+# this file mid-task. Prompting keeps the guard against casually dumping secrets
+# while leaving an escape hatch, and matches how `rm`/`cp`/`mv` are handled below.
+# Note this does not protect the file contents -- `cat .env` is still allowed by
+# the shell-utility rule at the top. Path-level denial needs a permissions
+# profile (`[permissions.<name>.filesystem]`), not a prefix rule.
 prefix_rule(
     pattern = [["env", "printenv"]],
-    decision = "forbidden",
-    justification = "Block environment variable listing commands.",
+    decision = "prompt",
+    justification = "Prompt for environment variable listing commands.",
+    match = ["env", "printenv PATH"],
+    not_match = ["envsubst template.txt"],
 )
 
 prefix_rule(
