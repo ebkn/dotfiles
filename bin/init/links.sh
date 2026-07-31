@@ -33,6 +33,15 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/root/CLAUDE.md" "${HOME}/CLAUDE.md"
   # Expose alternate instruction filenames used by local agent tools.
   link_with_backup "${HOME}/CLAUDE.md" "${HOME}/AGENTS.md"
+  # Codex reads its GLOBAL instruction layer only from $CODEX_HOME/AGENTS.md
+  # (AGENTS.override.md first, then the first non-empty AGENTS.md). ~/AGENTS.md
+  # above does NOT cover it: the project-scope walk starts at the git root and
+  # descends to cwd, so it never visits $HOME. Without this link Codex runs with
+  # no global instructions at all -- project-level AGENTS.md/CLAUDE.md still load
+  # (see project_doc_fallback_filenames), which is why the gap is easy to miss.
+  # Link the file directly from the repo, not through ~/CLAUDE.md: ~/.codex is a
+  # real dir, so there is no symlink-resolution hazard here.
+  link_with_backup "${DOTFILES_DIR}/root/CLAUDE.md" "${HOME}/.codex/AGENTS.md"
   link_with_backup "${DOTFILES_DIR}/root/.github/copilot-instructions.md" "${HOME}/.github/copilot-instructions.md"
   link_with_backup "${DOTFILES_DIR}/root/.claude/settings.json" "${HOME}/.claude/settings.json"
   link_with_backup "${DOTFILES_DIR}/root/.claude/hooks" "${HOME}/.claude/hooks"
