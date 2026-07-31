@@ -36,7 +36,7 @@ Record in the CLAUDE.md Constraints section which pool/vitest pairing was scaffo
 ```
 
 - **`compatibility_date` is a runtime pin, not decoration** — it freezes which workerd behaviors the Worker sees, the same role `.nvmrc` plays on the Node path. Set it to the scaffold date and treat later bumps as deliberate upgrades.
-- **`nodejs_compat` is deliberately absent.** Add `"compatibility_flags": ["nodejs_compat"]` only when the project actually imports Node built-ins or an npm package that does; enabling it speculatively grows the runtime surface and papers over accidental Node-isms in Worker code.
+- **`nodejs_compat` is deliberately absent.** Add `"compatibility_flags": ["nodejs_compat"]` only when the project actually imports Node built-ins or an npm package that does; enabling it speculatively grows the runtime surface and papers over accidental Node-isms in Worker code. The Sentry overlay (`references/sentry.md`, SKILL.md Step 9) is one package that genuinely does need it — if that overlay was chosen, the flag is present on purpose and CLAUDE.md Constraints records why.
 
 ## Boilerplate from the C3 template
 

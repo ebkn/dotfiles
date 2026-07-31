@@ -65,6 +65,9 @@ targets:
         # removing the sandbox key.
         com.apple.security.app-sandbox: true
         com.apple.security.files.user-selected.read-only: true
+        # Any outbound network call — including error-tracking uploads — also
+        # needs com.apple.security.network.client, or it fails silently.
+        # references/sentry.md adds it when that overlay is chosen.
   {AppName}Tests:
     type: bundle.unit-test
     platform: macOS
