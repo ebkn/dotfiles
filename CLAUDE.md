@@ -10,6 +10,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   ├── alias.zsh       #   Shell aliases
 │   ├── completion.zsh  #   Completion settings
 │   ├── directory.zsh   #   Directory navigation options
+│   ├── gpg.zsh         #   GPG_TTY export for commit signing
 │   ├── history.zsh     #   History settings
 │   ├── lang.zsh        #   Language manager lazy-loading
 │   ├── path.zsh        #   PATH configuration
