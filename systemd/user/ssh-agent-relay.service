@@ -1,0 +1,18 @@
+[Unit]
+Description=Relay the Windows OpenSSH agent into WSL as a UNIX socket
+Documentation=https://github.com/jstarks/npiperelay
+# Without the bridge binary the relay can only fail; skip it instead of
+# entering a restart loop on non-WSL hosts that happen to link this unit.
+ConditionPathExists=%h/.local/bin/npiperelay.exe
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/ssh-agent-relay
+# This relay is the only path to the agent — if it dies, every git push falls
+# back to a passphrase prompt. zsh only restarts it when the socket file is
+# missing, so recovery has to happen here.
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=default.target

@@ -21,3 +21,7 @@ brew 'gh'
 
 # AST-based code search and replace
 brew 'ast-grep'
+
+# socket relay; bridges the Windows OpenSSH agent named pipe into WSL
+# (see bin/wsl/ssh-agent-relay). macOS reaches its agent directly.
+brew 'socat' unless OS.mac?

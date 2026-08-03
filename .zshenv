@@ -28,3 +28,11 @@ export FZF_DEFAULT_OPTS="--style=minimal --ansi --tabstop=1 --delimiter=\\t --nt
 
 export VOLTA_HOME="$HOME/.volta"
 export PATH="$VOLTA_HOME/bin:$PATH"
+
+# WSL: point at the Windows OpenSSH agent relay (see zsh/ssh-agent.zsh).
+# .zshrc exports this too, but only for interactive shells; git hooks, editor
+# integrations and `zsh -c` invocations need it as well. The socket only exists
+# where the relay runs, so this is a no-op on macOS and plain Linux.
+if [ -S "$HOME/.ssh/agent.sock" ]; then
+  export SSH_AUTH_SOCK="$HOME/.ssh/agent.sock"
+fi
