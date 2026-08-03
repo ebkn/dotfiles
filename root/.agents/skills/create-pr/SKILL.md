@@ -7,6 +7,8 @@ allowed-tools: Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git r
 
 ## Pre-fetched context
 
+Pre-fetch runs these and substitutes their output. If you see the raw `!` command lines below instead of their output, this host does not support pre-fetch — run them yourself before continuing.
+
 !`git rev-parse --abbrev-ref HEAD`
 !`git status --short`
 !`git ls-files ':(top,icase).github/pull_request_template.md' ':(top,icase).github/pull_request_template/*.md' ':(top,icase)pull_request_template.md'`
