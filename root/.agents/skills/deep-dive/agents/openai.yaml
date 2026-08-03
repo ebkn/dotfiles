@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deep Dive"
+  short_description: "Interview a topic to a decision, ending in a written document"
+  default_prompt: "Use $deep-dive to think this through with me before I commit to it."

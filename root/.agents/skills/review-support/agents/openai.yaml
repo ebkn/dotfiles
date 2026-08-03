@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Support"
+  short_description: "Understand a pull request through dialogue (never posts a review)"
+  default_prompt: "Use $review-support to help me understand this pull request."

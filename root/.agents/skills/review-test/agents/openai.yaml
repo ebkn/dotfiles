@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Tests"
+  short_description: "Review test code against the public contract (read-only)"
+  default_prompt: "Use $review-test to review the tests in this project."
