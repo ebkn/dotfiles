@@ -204,13 +204,26 @@ link_with_backup "${DOTFILES_DIR}/root/CLAUDE.md" "${HOME}/CLAUDE.md"
 link_with_backup "${HOME}/CLAUDE.md" "${HOME}/AGENTS.md"
 link_with_backup "${DOTFILES_DIR}/root/.github/copilot-instructions.md" "${HOME}/.github/copilot-instructions.md"
 link_with_backup "${DOTFILES_DIR}/root/.claude/settings.json" "${HOME}/.claude/settings.json"
-link_with_backup "${DOTFILES_DIR}/root/.claude/skills" "${HOME}/.claude/skills"
 link_with_backup "${DOTFILES_DIR}/root/.claude/hooks" "${HOME}/.claude/hooks"
 # Link the whole rules dir, not the file inside it — see bin/init/links.sh for why.
 link_with_backup "${DOTFILES_DIR}/root/.codex/rules" "${HOME}/.codex/rules"
-link_with_backup "${DOTFILES_DIR}/root/.codex/skills/commit" "${HOME}/.codex/skills/commit"
-link_with_backup "${DOTFILES_DIR}/root/.codex/skills/create-pr" "${HOME}/.codex/skills/create-pr"
-link_with_backup "${DOTFILES_DIR}/root/.codex/skills/update-pr" "${HOME}/.codex/skills/update-pr"
+# Agent skills: root/.agents/skills is the single source of truth for the skills
+# this repo OWNS. Link each skill INDIVIDUALLY into every consumer dir — never the
+# whole dir as one symlink. A directory symlink makes tools that auto-install
+# skills (e.g. Cloudflare's installer writing into ~/.agents or ~/.claude) create
+# real dirs straight into this repo through the link, polluting it with untracked
+# skills. With per-skill links the consumer dirs stay real directories: our
+# symlinks sit beside any tool-installed skills, which then land outside the repo.
+#   ~/.agents/skills : emerging cross-tool standard (newer Codex, Cursor, Gemini, Copilot)
+#   ~/.claude/skills : Claude Code
+#   ~/.codex/skills  : Codex (also scaffolds bundled skills under .system)
+# OpenCode reads both .agents and .claude, so it may list each skill twice.
+for skill_dir in "${DOTFILES_DIR}"/root/.agents/skills/*/; do
+  skill_name="$(basename "${skill_dir}")"
+  link_with_backup "${skill_dir%/}" "${HOME}/.agents/skills/${skill_name}"
+  link_with_backup "${skill_dir%/}" "${HOME}/.claude/skills/${skill_name}"
+  link_with_backup "${skill_dir%/}" "${HOME}/.codex/skills/${skill_name}"
+done
 # Link the OpenCode config file individually, not the whole dir — see links.sh.
 link_with_backup "${DOTFILES_DIR}/root/opencode/opencode.jsonc" "${HOME}/.config/opencode/opencode.jsonc"
 install_or_upgrade_claude
