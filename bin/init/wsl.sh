@@ -85,6 +85,22 @@ copy_to_windows() {
   printf "copied: %s -> %s\n" "$src" "$dest"
 }
 
+# Build the Windows-side bridge used by bin/wsl/ssh-agent-relay.
+# Pinned rather than @latest: it is a Windows binary that brokers every SSH
+# signature, so upgrades should be a deliberate, reviewed change.
+install_or_upgrade_npiperelay() {
+  local version="v0.1.0"
+
+  if ! command -v go >/dev/null 2>&1; then
+    printf "warning: go is not installed yet (cannot build npiperelay)\n" >&2
+    return 1
+  fi
+
+  # Cross-compiled binaries land in GOPATH/bin/GOOS_GOARCH, not GOPATH/bin.
+  # GOBIN must stay unset — `go install` refuses to cross-compile with it set.
+  GOOS=windows GOARCH=amd64 go install "github.com/jstarks/npiperelay@${version}"
+}
+
 mkdir -p "$BACKUP_DIR"
 
 log_step "Installing base packages"
@@ -204,13 +220,26 @@ link_with_backup "${DOTFILES_DIR}/root/CLAUDE.md" "${HOME}/CLAUDE.md"
 link_with_backup "${HOME}/CLAUDE.md" "${HOME}/AGENTS.md"
 link_with_backup "${DOTFILES_DIR}/root/.github/copilot-instructions.md" "${HOME}/.github/copilot-instructions.md"
 link_with_backup "${DOTFILES_DIR}/root/.claude/settings.json" "${HOME}/.claude/settings.json"
-link_with_backup "${DOTFILES_DIR}/root/.claude/skills" "${HOME}/.claude/skills"
 link_with_backup "${DOTFILES_DIR}/root/.claude/hooks" "${HOME}/.claude/hooks"
 # Link the whole rules dir, not the file inside it — see bin/init/links.sh for why.
 link_with_backup "${DOTFILES_DIR}/root/.codex/rules" "${HOME}/.codex/rules"
-link_with_backup "${DOTFILES_DIR}/root/.codex/skills/commit" "${HOME}/.codex/skills/commit"
-link_with_backup "${DOTFILES_DIR}/root/.codex/skills/create-pr" "${HOME}/.codex/skills/create-pr"
-link_with_backup "${DOTFILES_DIR}/root/.codex/skills/update-pr" "${HOME}/.codex/skills/update-pr"
+# Agent skills: root/.agents/skills is the single source of truth for the skills
+# this repo OWNS. Link each skill INDIVIDUALLY into every consumer dir — never the
+# whole dir as one symlink. A directory symlink makes tools that auto-install
+# skills (e.g. Cloudflare's installer writing into ~/.agents or ~/.claude) create
+# real dirs straight into this repo through the link, polluting it with untracked
+# skills. With per-skill links the consumer dirs stay real directories: our
+# symlinks sit beside any tool-installed skills, which then land outside the repo.
+#   ~/.agents/skills : emerging cross-tool standard (newer Codex, Cursor, Gemini, Copilot)
+#   ~/.claude/skills : Claude Code
+#   ~/.codex/skills  : Codex (also scaffolds bundled skills under .system)
+# OpenCode reads both .agents and .claude, so it may list each skill twice.
+for skill_dir in "${DOTFILES_DIR}"/root/.agents/skills/*/; do
+  skill_name="$(basename "${skill_dir}")"
+  link_with_backup "${skill_dir%/}" "${HOME}/.agents/skills/${skill_name}"
+  link_with_backup "${skill_dir%/}" "${HOME}/.claude/skills/${skill_name}"
+  link_with_backup "${skill_dir%/}" "${HOME}/.codex/skills/${skill_name}"
+done
 # Link the OpenCode config file individually, not the whole dir — see links.sh.
 link_with_backup "${DOTFILES_DIR}/root/opencode/opencode.jsonc" "${HOME}/.config/opencode/opencode.jsonc"
 install_or_upgrade_claude
@@ -250,6 +279,25 @@ link_with_backup "${DOTFILES_DIR}/bin/wsl/notify-send" "${HOME}/.local/bin/notif
 # (AHK can't follow WSL symlinks), so editing in the repo is not
 # enough — the Windows-side copy must be refreshed.
 link_with_backup "${DOTFILES_DIR}/bin/wsl/reload-ahk" "${HOME}/.local/bin/reload-ahk"
+
+# Bridge the Windows OpenSSH agent into WSL so SSH keys survive reboots.
+# The Windows agent stores keys DPAPI-encrypted under HKCU, so the passphrase
+# is entered once ever; keychain's agent only lives as long as the WSL VM.
+# Register the key on the Windows side first:
+#   ssh-add.exe C:\Users\<you>\.ssh\<key>
+log_step "Configuring Windows SSH agent relay"
+install_or_upgrade_npiperelay
+link_with_backup "$(go env GOPATH)/bin/windows_amd64/npiperelay.exe" "${HOME}/.local/bin/npiperelay.exe"
+link_with_backup "${DOTFILES_DIR}/bin/wsl/ssh-agent-relay" "${HOME}/.local/bin/ssh-agent-relay"
+link_with_backup "${DOTFILES_DIR}/systemd/user/ssh-agent-relay.service" \
+  "${HOME}/.config/systemd/user/ssh-agent-relay.service"
+# CI runs on plain Ubuntu containers where the systemd user bus is absent.
+if systemctl --user is-system-running >/dev/null 2>&1; then
+  systemctl --user daemon-reload
+  systemctl --user enable --now ssh-agent-relay.service
+else
+  printf "warning: no systemd user session; start ssh-agent-relay manually\n" >&2
+fi
 
 log_step "Ensuring tmux plugin manager"
 install_or_upgrade_git_repo "https://github.com/tmux-plugins/tpm" "${HOME}/.tmux/plugins/tpm"
