@@ -1,0 +1,52 @@
+#!/bin/sh
+# Expose the Windows OpenSSH agent to WSL as a UNIX-domain socket.
+#
+# Why not keychain: keychain only keeps one ssh-agent alive for the lifetime of
+# the WSL instance. Every `wsl --shutdown`, Windows reboot, or idle VM teardown
+# discards the decrypted key, so the passphrase has to be typed again. The
+# Windows OpenSSH agent instead persists added keys under HKCU, DPAPI-encrypted
+# and ACL'd to SYSTEM, and reloads them when its service starts. That makes the
+# passphrase a one-time cost — the closest Windows equivalent to macOS's login
+# keychain (`ssh-add --apple-use-keychain`).
+#
+# The agent only listens on a Windows named pipe, which WSL cannot open
+# directly. npiperelay.exe bridges the pipe to stdio and socat serves that over
+# a UNIX socket for SSH_AUTH_SOCK to point at.
+#
+# Runs in the foreground so the ssh-agent-relay.service user unit can supervise
+# and restart it. Safe to run by hand for debugging.
+
+set -eu
+
+SOCKET="${SSH_AGENT_RELAY_SOCKET:-$HOME/.ssh/agent.sock}"
+NPIPERELAY="${NPIPERELAY:-$HOME/.local/bin/npiperelay.exe}"
+PIPE='//./pipe/openssh-ssh-agent'
+
+# systemd user units start with a minimal PATH that omits Homebrew, where socat
+# is installed. Mirror the prefixes .zshenv adds.
+for prefix in /home/linuxbrew/.linuxbrew/bin /opt/homebrew/bin; do
+  if [ -d "$prefix" ]; then
+    PATH="$prefix:$PATH"
+  fi
+done
+export PATH
+
+if [ ! -x "$NPIPERELAY" ]; then
+  printf 'error: npiperelay.exe not found at %s\n' "$NPIPERELAY" >&2
+  printf 'hint: GOOS=windows GOARCH=amd64 go install github.com/jstarks/npiperelay@v0.1.0\n' >&2
+  exit 1
+fi
+
+if ! command -v socat >/dev/null 2>&1; then
+  printf 'error: socat is not installed\n' >&2
+  exit 1
+fi
+
+# unlink-early clears the socket file a killed relay leaves behind; without it
+# socat aborts with "Address already in use" on restart.
+# -ei makes npiperelay exit once the client closes its end, so `fork` does not
+# leak one relay process per connection. -s sends the zero-byte message the
+# agent protocol expects after EOF.
+exec socat \
+  "UNIX-LISTEN:${SOCKET},fork,unlink-early" \
+  "EXEC:${NPIPERELAY} -ei -s ${PIPE},nofork"

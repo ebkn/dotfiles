@@ -32,6 +32,27 @@ powershell.exe -ExecutionPolicy Bypass -File ~/dotfiles/bin/init/windows.ps1
 - **Homebrew** — dependency lists split by category in `brewfiles/`
 - **Git / Cursor / Claude Code** — editor and tool settings
 
+## SSH agent on WSL
+
+WSL reuses the **Windows** OpenSSH agent instead of running its own. Windows
+keeps added keys DPAPI-encrypted under `HKCU` and reloads them when the service
+starts, so a key passphrase is entered once and survives reboots — the closest
+equivalent to macOS's login keychain. A `socat` + `npiperelay` relay
+(`ssh-agent-relay.service`) exposes the agent's named pipe at
+`~/.ssh/agent.sock`, which `.zshenv` points `SSH_AUTH_SOCK` at.
+
+`bin/init/wsl.sh` sets up the relay, but the key itself must be registered on
+the Windows host once:
+
+```powershell
+Get-Service ssh-agent | Set-Service -StartupType Automatic
+Start-Service ssh-agent
+ssh-add $env:USERPROFILE\.ssh\<key>
+```
+
+Verify from WSL with `ssh-add -l`. Hosts without the relay fall back to
+`keychain`, which only shares an agent until the WSL instance shuts down.
+
 ## Tmux Keybindings
 
 Prefix: `C-q`
