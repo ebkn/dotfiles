@@ -642,6 +642,8 @@ ssh() {
 # remote tmux session. Sets `@ssh_my_machine` on the local pane so tmux
 # bindings (prefix + p/t/o/u) pass the prefix chord through to the nested
 # remote tmux instead of falling back to running the local popup / copy-mode.
+# Runs a low-rate keepalive ping for the session's lifetime to hold this
+# Wi-Fi-first client's radio out of 802.11 power-save doze (see body).
 #
 # Falls back to plain `command ssh` without setting `@ssh_my_machine` when:
 #   - a remote command is given (e.g. `myssh host 'ls'`) — one-shot
@@ -653,6 +655,7 @@ myssh() {
   local host="$_SSH_PARSE_HOST"
   local ssh_opts=("${_SSH_PARSE_OPTS[@]}")
   local has_remote_cmd="$_SSH_PARSE_HAS_REMOTE_CMD"
+  local keepalive_pid=""
 
   local use_autossh=false
   if ! $has_remote_cmd && (( $+commands[autossh] )); then
@@ -688,6 +691,20 @@ myssh() {
     if [ -n "$TMUX_PANE" ]; then
       remote_session="local-${TMUX_PANE#%}"
     fi
+    # This client stays on Wi-Fi (it roams to the office), and 802.11 power
+    # save lets the radio doze during typing pauses — the first keystroke
+    # after a pause pays the wake-up cost, measured at 70-100ms on the home
+    # LAN. A low-rate ping (~3 pkt/s, ~400 B/s) for the session's lifetime
+    # pins the radio in active mode and keeps Tailscale's UDP NAT mapping
+    # warm for away-from-home direct paths. Pings the ssh-config-resolved
+    # hostname so it exercises the same endpoint the tunnel itself uses.
+    # &! disowns the job so no notification fires when it is killed below.
+    local ping_target
+    ping_target=$(command ssh -G "$host" 2>/dev/null | awk '/^hostname /{print $2; exit}')
+    if [ -n "$ping_target" ]; then
+      ping -i 0.3 -q "$ping_target" >/dev/null 2>&1 &!
+      keepalive_pid=$!
+    fi
     # ControlPath=none: bypass stale ControlMaster sockets that can block reconnection.
     # autossh manages its own reconnection; shared sockets from ControlPersist interfere.
     # tmux-track-session: reattach to the last-used session if the user switched
@@ -699,6 +716,10 @@ myssh() {
     command ssh "$@"
   fi
   local ret=$?
+
+  if [ -n "$keepalive_pid" ]; then
+    kill "$keepalive_pid" 2>/dev/null
+  fi
 
   # Reset terminal state that remote tmux may have left behind on abrupt disconnect
   # (SGR/X10/button-event/all-mouse tracking, bracketed paste, cursor visibility,
