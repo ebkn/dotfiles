@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# lint-shell — static-check every shell script in the repo.
+#
+# Runs shellcheck over the sh/bash scripts and `zsh -n` (parse-only) over the
+# zsh ones, which shellcheck cannot read at all (SC1071).
+#
+# Lives in the repo rather than inline in the CI workflow so the check is
+# reproducible locally — in a dotfiles repo you rarely watch CI, and a lint gate
+# you can only trigger by pushing gets ignored.
+#
+# Targets are discovered by shebang, not from a hardcoded path list: a list rots
+# silently, and a script that falls out of it stops being checked without anyone
+# noticing. Two categories cannot be discovered that way and are named below:
+# sourced fragments (no shebang) and zsh config modules (sourced from .zshrc).
+#
+# Usage: bin/lint-shell        (exit 0 = clean; run from anywhere in the repo)
+set -uo pipefail
+
+cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
+
+status=0
+
+# `\bsh\b` deliberately does not match `zsh` — there is no word boundary between
+# `z` and `s` — so zsh scripts fall through to the zsh pass below.
+sh_targets=()
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  if head -n 1 "$f" | grep -qE '^#!.*\b(bash|sh|dash)\b'; then
+    sh_targets+=("$f")
+  fi
+done < <(git ls-files)
+
+# Sourced by both zsh and bash, so they carry no shebang; each declares
+# `# shellcheck shell=bash` instead.
+sh_targets+=(bin/init/common.sh bin/init/links.sh)
+
+# -x follows `. "${SCRIPT_DIR}/common.sh"` into the sourced fragment instead of
+# reporting SC1091, so the init scripts are checked against the definitions they
+# actually get at runtime. -P SCRIPTDIR is what makes that resolve: the source
+# paths are built from runtime variables shellcheck cannot evaluate, so it needs
+# to be told to look next to the script being checked.
+printf -- '--- shellcheck (%d files) ---\n' "${#sh_targets[@]}"
+if shellcheck -x -P SCRIPTDIR "${sh_targets[@]}"; then
+  printf 'ok\n'
+else
+  status=1
+fi
+
+# The entrypoints have no shebang and live outside zsh/, so name them; the
+# `zsh/*.zsh` case below picks up the modules (including .p10k.zsh — a `case`
+# pattern has no dotfile exclusion, unlike pathname expansion).
+zsh_targets=(.zshrc .zshenv)
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  case "$f" in
+    zsh/*.zsh) zsh_targets+=("$f") ;;
+    *) head -n 1 "$f" | grep -qE '^#!.*\bzsh\b' && zsh_targets+=("$f") ;;
+  esac
+done < <(git ls-files)
+
+printf -- '\n--- zsh -n (%d files) ---\n' "${#zsh_targets[@]}"
+zsh_status=0
+for f in "${zsh_targets[@]}"; do
+  if ! zsh -n "$f"; then
+    printf 'FAIL %s\n' "$f"
+    zsh_status=1
+  fi
+done
+if [ "$zsh_status" -eq 0 ]; then
+  printf 'ok\n'
+else
+  status=1
+fi
+
+exit "$status"

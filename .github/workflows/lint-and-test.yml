@@ -1,0 +1,34 @@
+---
+name: Lint and test
+
+on: [push]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # shellcheck ships with the runner image; zsh does not, and the zsh -n
+      # pass silently covers nothing without it.
+      - name: Install zsh
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
+
+      - name: Lint shell scripts
+        run: bin/lint-shell
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # curl-guard.sh decides whether a curl invocation is auto-approved, so a
+      # regression here widens a permission boundary rather than breaking a
+      # feature — worth gating every push.
+      #
+      # root/.codex/rules/default.rules.test.sh is deliberately NOT run here: it
+      # needs the codex CLI, which is not on the runner, and would exit 0 with
+      # "skipping" — a permanently green check that proves nothing. Run it
+      # locally after editing default.rules, as CLAUDE.md describes.
+      - name: curl-guard hook
+        run: bash root/.claude/hooks/curl-guard.test.sh
