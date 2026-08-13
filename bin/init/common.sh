@@ -1,3 +1,8 @@
+# Sourced by both zsh (macos.sh) and bash (ubuntu.sh/wsl.sh/relink), so it has
+# no shebang. Declare the dialect explicitly or shellcheck refuses the file
+# (SC2148) and CI silently checks nothing.
+# shellcheck shell=bash
+
 # ZERR (zsh) / ERR (bash) — report the failing line before set -e exits.
 if [ -n "${ZSH_VERSION:-}" ]; then
   trap 'printf "error: %s failed at line %d (exit %d)\n" "${0}" ${LINENO} $? >&2' ZERR
