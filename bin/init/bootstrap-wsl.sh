@@ -19,9 +19,20 @@ if ! command -v git >/dev/null 2>&1; then
 fi
 
 # Clone or update dotfiles so wsl.sh always runs the latest code.
+#
+# DOTFILES_SKIP_UPDATE=1 leaves an existing checkout untouched, for callers that
+# decide the revision themselves: CI validating a pushed branch, or a local
+# re-run from a work-in-progress clone. Without it the fetch/merge silently
+# swaps in the default branch, so the run validates code nobody asked for.
 if [ ! -d "$DOTFILES_DIR" ]; then
+  if [ "${DOTFILES_SKIP_UPDATE:-}" = "1" ]; then
+    printf "error: DOTFILES_SKIP_UPDATE=1 but %s does not exist\n" "$DOTFILES_DIR" >&2
+    exit 1
+  fi
   printf "Cloning dotfiles...\n"
   git clone https://github.com/ebkn/dotfiles "$DOTFILES_DIR"
+elif [ "${DOTFILES_SKIP_UPDATE:-}" = "1" ]; then
+  printf "Using existing checkout at %s (DOTFILES_SKIP_UPDATE=1)\n" "$DOTFILES_DIR"
 else
   printf "Updating dotfiles...\n"
   git -C "$DOTFILES_DIR" fetch --all --prune
