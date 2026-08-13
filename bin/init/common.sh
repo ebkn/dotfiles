@@ -128,6 +128,14 @@ install_or_upgrade_homebrew_linux() {
   activate_brew_shellenv
 }
 
+# Refresh Homebrew itself before touching any formula. CI runners ship a
+# preinstalled Homebrew with auto-update disabled, and a Homebrew older than the
+# formula JSON API's schema aborts mid-pour with "unknown install step: run".
+update_homebrew() {
+  brew update
+  brew upgrade
+}
+
 install_or_upgrade_brew_formula() {
   local formula
   formula="$1"
