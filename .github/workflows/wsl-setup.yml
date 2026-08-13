@@ -7,6 +7,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      # See macos-setup.yml for why the checkout is linked into place instead of
+      # letting the bootstrap clone the default branch.
+      - name: Place the checkout at ~/dotfiles
+        run: ln -s "$GITHUB_WORKSPACE" "$HOME/dotfiles"
+
       - name: Run install script
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-wsl.sh | bash
+        run: bash bin/init/bootstrap-wsl.sh
+        env:
+          DOTFILES_SKIP_UPDATE: '1'

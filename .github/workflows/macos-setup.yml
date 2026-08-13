@@ -7,6 +7,17 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
+      - uses: actions/checkout@v4
+
+      # The bootstrap resolves everything under $HOME/dotfiles, so point that at
+      # this checkout. Previously CI curled the script from the main branch and
+      # let it clone the default branch, so every job validated main no matter
+      # which branch was pushed — a green check that could not fail on unmerged
+      # code.
+      - name: Place the checkout at ~/dotfiles
+        run: ln -s "$GITHUB_WORKSPACE" "$HOME/dotfiles"
+
       - name: Run install script
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/ebkn/dotfiles/main/bin/init/bootstrap-macos.sh | zsh
+        run: zsh bin/init/bootstrap-macos.sh
+        env:
+          DOTFILES_SKIP_UPDATE: '1'
