@@ -6,16 +6,25 @@
 # (@claude_state / @claude_glyph / @claude_since / @claude_note); this script
 # only reads them, so it stays correct as long as that contract holds.
 #
-# Argument: the calling client's name (tmux expands #{client_name} in the key
-# binding). Inside a popup there is no attached client to infer, and the jump
-# has to act on the client that pressed the key, not on the popup.
+# Takes no arguments. It still needs the calling client — a popup has no attached
+# client of its own, yet the status messages and the fallback jump have to act on
+# the client that pressed the key — so it derives one from $TMUX instead of being
+# handed it. It cannot be handed it: display-popup expands #{...} formats only in
+# -d, never in the shell-command (see .tmux.conf), so `#{client_name}` would
+# arrive as that literal string and every tmux call taking it would fail quietly.
 #
 # Scope covers this machine plus every host reachable through an open `myssh`
 # pane — the same dotfiles run there, so the remote panes carry the same options.
 
 set -euo pipefail
 
-outer_client="${1:-}"
+# $TMUX is "socket,pid,session-id"; the client attached to that session is the
+# one that opened this popup. `head -1` because a session can carry more than one
+# client, and any of them is a reasonable target for a status message.
+outer_client=""
+if [ -n "${TMUX:-}" ]; then
+  outer_client=$(tmux list-clients -F '#{client_name}' -t "\$${TMUX##*,}" 2>/dev/null | head -1) || true
+fi
 
 # Claude can die without its SessionEnd hook running, leaving a pane stuck on
 # `busy`. Entries older than this are treated as debris and hidden. Deliberately
