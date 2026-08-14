@@ -116,6 +116,16 @@ awk -F'\t' -v now="$now" '
   }
 ' "$tmpdir/ranked" >"$tmpdir/list"
 
+# fzf merges the caller's FZF_DEFAULT_OPTS *ahead* of the flags below, and the
+# global one (.zshenv) is tuned for picking files: --accept-nth=-1 makes fzf
+# print only the last field, silently discarding the key this script parses;
+# --nth=-1 restricts matching to it; and --preview runs bat over what it assumes
+# is a path, which errors on every row here. None of that survives contact with a
+# key/display list, and the first one fails *quietly* — the picker looks fine and
+# the jump just does nothing. So the environment is replaced, not extended.
+export FZF_DEFAULT_OPTS=
+unset FZF_DEFAULT_OPTS_FILE
+
 selection=$(
   fzf --delimiter=$'\t' --with-nth=2.. \
     --no-multi --no-sort --reverse \
