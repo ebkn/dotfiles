@@ -1,3 +1,7 @@
+# Sourced, not executed — see the note in common.sh on why this directive is
+# required for shellcheck to accept the file at all.
+# shellcheck shell=bash
+
 # link_dotfiles — create the platform-common $HOME symlinks that are safe to
 # re-run at any time (order-independent, no side effects beyond the link).
 #

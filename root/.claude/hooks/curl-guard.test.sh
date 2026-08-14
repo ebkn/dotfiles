@@ -5,13 +5,40 @@
 set -uo pipefail
 
 HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/curl-guard.sh"
+
+# The hook reads its allow-list from $HOME/.claude/settings.json. Point HOME at
+# this repo's root/ so it reads the settings.json *in the tree under test*, not
+# whatever happens to be installed on the machine. Without this the test is not
+# hermetic: on a provisioned Mac ~/.claude/settings.json is symlinked here and
+# everything passes, but anywhere else (CI) the file is absent, the hook exits
+# early, and every case defers -- which fails the 8 ALLOW cases and silently
+# turns all 33 DEFER cases into vacuous passes.
+REPO_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SETTINGS="${REPO_HOME}/.claude/settings.json"
+
+if [[ ! -f "$SETTINGS" ]]; then
+  printf 'FAIL: %s not found\n' "$SETTINGS"
+  exit 1
+fi
+
+# Guard against the vacuous-pass mode directly: if the allow-list were empty or
+# lost these entries, the DEFER half of the suite would still report green.
+for host in github.com api.github.com docs.claude.com support.claude.com \
+            developers.google.com docs.perplexity.ai; do
+  if ! jq -e --arg h "WebFetch(domain:${host})" \
+       '.permissions.allow | index($h)' "$SETTINGS" >/dev/null; then
+    printf 'FAIL: settings.json has no WebFetch(domain:%s); ALLOW cases depend on it\n' "$host"
+    exit 1
+  fi
+done
+
 pass=0
 fail=0
 
 check() {
   local expect=$1 cmd=$2 out got
   out=$(printf '%s' "$cmd" | jq -Rn --arg c "$cmd" \
-    '{tool_name:"Bash", tool_input:{command:$c}}' | "$HOOK" 2>/dev/null)
+    '{tool_name:"Bash", tool_input:{command:$c}}' | HOME="$REPO_HOME" "$HOOK" 2>/dev/null)
   if printf '%s' "$out" | grep -q '"permissionDecision": *"allow"'; then
     got=ALLOW
   else

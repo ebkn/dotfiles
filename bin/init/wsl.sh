@@ -131,7 +131,7 @@ install_or_upgrade_git_repo "https://github.com/ebkn/dotfiles" "$DOTFILES_DIR"
 
 log_step "Installing Homebrew"
 install_or_upgrade_homebrew_linux
-brew upgrade
+update_homebrew
 brew doctor || true
 
 log_step "Installing Google Cloud CLI"
@@ -192,6 +192,7 @@ install_go_tool "github.com/mikefarah/yq/v4@latest"
 install_go_tool "github.com/x-motemen/ghq@latest"
 install_go_tool "github.com/cloudspannerecosystem/spanner-cli@latest"
 install_go_tool "github.com/aquasecurity/tfsec/cmd/tfsec@latest"
+install_go_tool "github.com/terraform-linters/tflint@latest"
 install_go_tool "mvdan.cc/gofumpt@latest"
 
 link_with_backup "${DOTFILES_DIR}/.vimrc" "${HOME}/.vimrc"

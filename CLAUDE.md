@@ -34,6 +34,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   ├── tmux-agents     #   Pick a Claude Code agent by state (prefix + a) and jump to its WezTerm tab
 │   ├── fzf-files       #   List git-changed files first for fzf (symlinked to ~/.local/bin)
 │   ├── git-generated   #   Locally hide linguist-generated files from diffs via .git/info/attributes
+│   ├── lint-shell      #   shellcheck + zsh -n over every shell script (same command CI runs)
 │   └── install_minimum_vim.sh
 ├── brewfiles/          #   Homebrew dependency lists by category
 │   ├── Brewfile-shell  #     Shell tools (tmux, fzf, ripgrep, etc.)
@@ -91,6 +92,9 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 
 ## Testing
 
-- GitHub Actions CI runs `bin/init/macos.sh` (`.github/workflows/macos-setup.yml`) and `bin/init/ubuntu.sh` (`.github/workflows/ubuntu-setup.yml`) to verify setup scripts.
+- **`bin/lint-shell`** static-checks every shell script: `shellcheck -x -P SCRIPTDIR` over the sh/bash ones, `zsh -n` over the zsh ones (shellcheck cannot parse zsh — SC1071). Run it before pushing; `.github/workflows/lint-and-test.yml` runs the same command, so local and CI cannot disagree. Targets are discovered by shebang rather than listed, so a new script is covered automatically. The two exceptions are named in the script: sourced fragments (`bin/init/common.sh`, `links.sh` — no shebang, so they carry a `# shellcheck shell=bash` directive) and the `zsh/` modules.
+- GitHub Actions CI runs the platform setup scripts (`.github/workflows/{macos,ubuntu,wsl,windows}-setup.yml`) plus lint and the `curl-guard.sh` hook test (`lint-and-test.yml`).
+- **Setup workflows must test the pushed branch.** They `actions/checkout`, symlink the checkout to `~/dotfiles`, and run the bootstrap with `DOTFILES_SKIP_UPDATE=1` so it does not self-update over the branch under test. The earlier form — `curl .../main/bin/init/bootstrap-*.sh | sh`, letting the bootstrap `git clone` the default branch — meant every job validated `main` regardless of the pushed ref, so the checks could not fail on unmerged code. Do not reintroduce a hardcoded `/main/` raw URL or drop the skip flag.
+- `root/.codex/rules/default.rules.test.sh` is intentionally **not** in CI: it requires the `codex` CLI and exits 0 with "skipping" when absent, which would be a permanently green check proving nothing. Run it locally after editing `default.rules`.
 - After changing shell config, verify with a new shell session or `source ~/.zshrc`.
 - Zsh startup profiling can be enabled by uncommenting `zprof` lines in `.zshenv` and `.zshrc`.
