@@ -89,7 +89,13 @@ awk -F'\t' -v OFS='\t' -v now="$now" -v stale="$stale_seconds" '
 ' "$tmpdir/rows" | sort -t$'\t' -k1,1n -k2,2n | cut -f3- >"$tmpdir/ranked"
 
 if [ ! -s "$tmpdir/ranked" ]; then
-  msg "no Claude agents running"
+  # Exiting straight away closes the popup the instant it opens, which reads as
+  # a crash rather than as "nothing to show". Hold it until a key is pressed.
+  # Guarded on a tty so a non-interactive run (or a pipe) still returns.
+  printf '\n  no Claude agents running\n\n  press any key to close\n'
+  if [ -t 0 ]; then
+    read -r -n 1 -s || true
+  fi
   exit 0
 fi
 
