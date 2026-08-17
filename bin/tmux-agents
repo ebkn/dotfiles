@@ -26,10 +26,13 @@ if [ -n "${TMUX:-}" ]; then
   outer_client=$(tmux list-clients -F '#{client_name}' -t "\$${TMUX##*,}" 2>/dev/null | head -1) || true
 fi
 
-# Claude can die without its SessionEnd hook running, leaving a pane stuck on
-# `busy`. Entries older than this are treated as debris and hidden. Deliberately
-# generous: a long-running agent is a real state, not staleness.
-stale_seconds="${TMUX_AGENTS_STALE_SECONDS:-43200}" # 12h
+# There is deliberately no age cutoff. State lives on the pane, so it cannot
+# outlive the tab that holds it — closing the tab is the eviction. An agent that
+# finished days ago is still a tab you have open on purpose, and hiding it makes
+# the list disagree with the tab bar, which is the one thing this list exists to
+# explain. The residue that survives is a session killed without its SessionEnd
+# hook running, whose pane stays open: it keeps its last state until you close
+# the pane, or until SessionStart clears it when you start Claude there again.
 
 # tmux does not interpret \t in -F, so the separators must be literal tabs;
 # $'' supplies them. The same string is sent to remote hosts verbatim.
@@ -87,10 +90,9 @@ cat "$tmpdir"/remote.* >>"$tmpdir/rows" 2>/dev/null || true
 # Sort key is emitted as two leading numeric columns and stripped after sorting:
 # waiting first (that is the whole point of the list), then oldest within each
 # state, so the session that has been blocked longest floats to the top.
-awk -F'\t' -v OFS='\t' -v now="$now" -v stale="$stale_seconds" '
+awk -F'\t' -v OFS='\t' '
   $6 == "" { next }                                   # no agent in this pane
   $2 ~ /^_/ { next }                                  # _popup_ / _tig_ / _fzf_nvim_ sessions
-  $7 != "" && now - $7 > stale { next }               # debris from a crashed session
   {
     rank = ($6 == "waiting") ? 0 : ($6 == "busy") ? 1 : 2
     print rank, $7, $0
