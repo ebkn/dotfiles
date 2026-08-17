@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lint Docs (ja)"
+  short_description: "Check Japanese prose style with a self-contained textlint toolchain"
+  default_prompt: "Use $lint-docs to check the Japanese documents in this project."

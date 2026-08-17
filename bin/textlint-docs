@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+#
+# textlint-docs — run this repo's Japanese prose rules against any document,
+# without installing anything into the project being checked.
+#
+# Why a wrapper instead of setting textlint up per project:
+#   The rules, the prh dictionary and the exact package versions live in
+#   textlint/ in this repo and are the single source of truth. The target
+#   project gets no .textlintrc, no devDependencies, and no node_modules — so
+#   this can be pointed at a repo you do not own, or one whose toolchain is not
+#   JavaScript at all.
+#
+# Why the toolchain is materialized into a cache dir rather than run in place:
+#   textlint resolves rule packages and the prh `rulePaths` relative to the
+#   config file's directory. Keeping config and node_modules in the same dir
+#   makes both resolve from any working directory. That dir must not be inside
+#   this repo: bin/ is symlinked into ~/.local/bin and the skill dirs are
+#   symlinked into ~/.agents, ~/.claude and ~/.codex, so an npm install here
+#   would write thousands of untracked files into the dotfiles checkout.
+#
+# Usage:
+#   textlint-docs "**/*.md"          # check
+#   textlint-docs --fix docs/foo.md  # auto-fix (see the caveat in SKILL.md)
+#   textlint-docs --format json ...  # any textlint flag is passed through
+#
+# Exit status is textlint's own: 0 clean, 1 lint errors, >1 tool failure.
+#
+# Env:
+#   TEXTLINT_DOCS_HOME  install location (default ${XDG_CACHE_HOME:-~/.cache}/textlint-docs)
+set -uo pipefail
+
+CONFIG_DIR="$(dirname "$(readlink -f "$0")")/../textlint"
+
+if [ ! -f "${CONFIG_DIR}/textlintrc.yml" ]; then
+  printf 'textlint-docs: config not found at %s\n' "${CONFIG_DIR}" >&2
+  exit 2
+fi
+
+if [ "$#" -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+  printf 'usage: textlint-docs [textlint options] <path or glob>...\n' >&2
+  printf '  e.g. textlint-docs "**/*.md"\n' >&2
+  printf '       textlint-docs --fix README.md\n' >&2
+  # No implicit default target: this tool is pointed at repos of unknown size,
+  # and a bare invocation silently walking the whole tree is a footgun.
+  [ "$#" -eq 0 ] && exit 2
+  exit 0
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+  printf 'textlint-docs: npm not found in PATH\n' >&2
+  exit 2
+fi
+
+CACHE_DIR="${TEXTLINT_DOCS_HOME:-${XDG_CACHE_HOME:-${HOME}/.cache}/textlint-docs}"
+mkdir -p "${CACHE_DIR}" || exit 2
+
+# The config travels with every run so edits to textlintrc.yml / prh.yml take
+# effect immediately; only a dependency change triggers a reinstall.
+cp "${CONFIG_DIR}/textlintrc.yml" "${CONFIG_DIR}/prh.yml" "${CONFIG_DIR}/textlintignore" "${CACHE_DIR}/" || exit 2
+
+needs_install=0
+[ -x "${CACHE_DIR}/node_modules/.bin/textlint" ] || needs_install=1
+cmp -s "${CONFIG_DIR}/package.json" "${CACHE_DIR}/package.json" || needs_install=1
+cmp -s "${CONFIG_DIR}/package-lock.json" "${CACHE_DIR}/package-lock.json" || needs_install=1
+
+if [ "${needs_install}" -eq 1 ]; then
+  printf 'textlint-docs: installing toolchain into %s ...\n' "${CACHE_DIR}" >&2
+  # npm needs the manifest under its real name, so the copy happens before the
+  # install; on failure both files are removed again. That keeps the cmp checks
+  # above honest — a half-installed tree always reinstalls on the next run
+  # instead of being mistaken for an up-to-date one.
+  cp "${CONFIG_DIR}/package.json" "${CACHE_DIR}/package.json" || exit 2
+  cp "${CONFIG_DIR}/package-lock.json" "${CACHE_DIR}/package-lock.json" || exit 2
+
+  # --ignore-scripts: none of these packages need lifecycle scripts, and this
+  # runs unattended from an agent skill.
+  if ! npm --prefix "${CACHE_DIR}" ci --ignore-scripts --no-audit --no-fund; then
+    printf 'textlint-docs: install failed\n' >&2
+    rm -f "${CACHE_DIR}/package.json" "${CACHE_DIR}/package-lock.json"
+    exit 2
+  fi
+fi
+
+# The bundled exclusions are a fallback, not a mandate. textlint's own default
+# for --ignore-path is ./.textlintignore, so a project that ships one is stating
+# what it wants excluded; passing ours unconditionally would silently override
+# that. This matters because the bundled list drops **/.agents/**, **/.claude/**
+# and **/CLAUDE.md as "vendored agent config" -- true for a project that merely
+# consumes skills, false for one that authors them, where those files are the
+# documents most worth checking.
+#
+# Note it is a replacement, not a merge: whichever file wins supplies the whole
+# list, so a project file must repeat any bundled entry it still wants.
+use_bundled_ignore=1
+[ -f ".textlintignore" ] && use_bundled_ignore=0
+for arg in "$@"; do
+  case "${arg}" in
+    --ignore-path | --ignore-path=*) use_bundled_ignore=0 ;;
+  esac
+done
+
+if [ "${use_bundled_ignore}" -eq 1 ]; then
+  exec "${CACHE_DIR}/node_modules/.bin/textlint" \
+    --config "${CACHE_DIR}/textlintrc.yml" \
+    --ignore-path "${CACHE_DIR}/textlintignore" \
+    "$@"
+fi
+
+exec "${CACHE_DIR}/node_modules/.bin/textlint" \
+  --config "${CACHE_DIR}/textlintrc.yml" \
+  "$@"
