@@ -75,7 +75,6 @@
       "Bash(wc *)",
       "Bash(whoami*)",
       "Bash(which *)",
-      "Bash(xargs *)",
       "Bash(/opt/homebrew/bin/aws logs get-query-results *)",
       "Bash(/opt/homebrew/bin/aws logs start-query *)",
       "Bash(aws logs get-query-results *)",
@@ -463,6 +462,7 @@
       }
     }
   },
+  "effortLevel": "medium",
   "fastMode": true,
   "autoUpdatesChannel": "latest",
   "tui": "fullscreen",
@@ -478,6 +478,39 @@
   "agentPushNotifEnabled": false,
   "skipAutoPermissionPrompt": true,
   "useAutoModeDuringPlan": true,
+  "autoMode": {
+    "soft_deny": [
+      "$defaults",
+      "Bash(pnpm db:reset:*) in this repo — destructive DB reset script, scope to non-prod confirmation",
+      "Bash(pnpm db:migrate:*) against non-local DATABASE_URL — schema migration should be confirmed before running against shared/preview DB"
+    ],
+    "environment": [
+      "### Org-wide",
+      "**Organization**: None configured",
+      "**Cloud provider(s)**: AWS (Secrets Manager referenced in code) and Vercel (VERCEL_ORG_ID / VERCEL_PROJECT_ID / VERCEL_TOKEN in CI secrets)",
+      "**Repository visibility**: private (eversteel/sanpa-manifest, confirmed via gh)",
+      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Secrets management**: AWS Secrets Manager (aws secretsmanager marker in config); CI secrets DATABASE_URL, GITHUB_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID, VERCEL_TOKEN (names only)",
+      "**Default / protected branches**: main (default; protected via active ruleset per gh)",
+      "**CI/CD deploy targets**: Vercel (VERCEL_ORG_ID / VERCEL_PROJECT_ID / VERCEL_TOKEN present in CI secrets)",
+      "**Network posture**: None configured",
+      "**Source control**: github.com/eversteel/sanpa-manifest (origin) and its remote only — no additional orgs configured",
+      "**Trusted internal domains**: None configured",
+      "**Trusted cloud buckets**: None configured",
+      "**Key internal services**: None configured",
+      "**Internal package registry**: None configured",
+      "**Sensitive data locations & audiences**: apps/api/.env.example, apps/web/.env, apps/web/.env.example (env/credential files); docs/adr/0004-aurora-tcp-iam-db-connection.md (DB connection/IAM design doc); packages/shared/src/manifest-classification.ts (manifest classification logic — likely handles regulated waste-manifest data); share only with audiences cleared at the [named+specifics] bar",
+      "**Data retention / declassification**: None configured",
+      "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment (hyphen/underscore/dot-delimited)",
+      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic",
+      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment (notably docs/adr/0004-aurora-tcp-iam-db-connection.md touches IAM/DB connection design)",
+      "### User-specific",
+      "**Primary use of Claude Code**: software development (Next.js/Hono monorepo — sanpa-manifest, industrial waste manifest management app)",
+      "**Trusted repo**: /Users/kenichiebinuma/ghq/github.com/eversteel/sanpa-manifest (working tree at git-worktrees/feature-compare-apis) and its origin remote github.com/eversteel/sanpa-manifest — private repo, so confidential material is fine here but secrets/sensitive data are never cleared by visibility alone",
+      "**Org-specific CLIs**: None configured",
+      "routine under apps/api/ and apps/web/ prefixes: development, build, lint, typecheck, db:* and ocr:* package.json scripts are routine local operations in this repo"
+    ]
+  },
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
