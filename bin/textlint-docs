@@ -81,7 +81,31 @@ if [ "${needs_install}" -eq 1 ]; then
   fi
 fi
 
+# The bundled exclusions are a fallback, not a mandate. textlint's own default
+# for --ignore-path is ./.textlintignore, so a project that ships one is stating
+# what it wants excluded; passing ours unconditionally would silently override
+# that. This matters because the bundled list drops **/.agents/**, **/.claude/**
+# and **/CLAUDE.md as "vendored agent config" -- true for a project that merely
+# consumes skills, false for one that authors them, where those files are the
+# documents most worth checking.
+#
+# Note it is a replacement, not a merge: whichever file wins supplies the whole
+# list, so a project file must repeat any bundled entry it still wants.
+use_bundled_ignore=1
+[ -f ".textlintignore" ] && use_bundled_ignore=0
+for arg in "$@"; do
+  case "${arg}" in
+    --ignore-path | --ignore-path=*) use_bundled_ignore=0 ;;
+  esac
+done
+
+if [ "${use_bundled_ignore}" -eq 1 ]; then
+  exec "${CACHE_DIR}/node_modules/.bin/textlint" \
+    --config "${CACHE_DIR}/textlintrc.yml" \
+    --ignore-path "${CACHE_DIR}/textlintignore" \
+    "$@"
+fi
+
 exec "${CACHE_DIR}/node_modules/.bin/textlint" \
   --config "${CACHE_DIR}/textlintrc.yml" \
-  --ignore-path "${CACHE_DIR}/textlintignore" \
   "$@"
