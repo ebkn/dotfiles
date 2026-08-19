@@ -7,3 +7,6 @@ vim/.vim/view
 vim/.vim/sessions
 brewfiles/*.lock.json
 .claude/settings.local.json
+# bin/textlint-docs installs into a cache dir outside the repo; this guards
+# against a stray `npm install` inside textlint/ landing in the checkout.
+textlint/node_modules

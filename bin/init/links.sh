@@ -107,4 +107,6 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/bin/fzf-files" "${HOME}/.local/bin/fzf-files"
   link_with_backup "${DOTFILES_DIR}/bin/git-generated" "${HOME}/.local/bin/git-generated"
   link_with_backup "${DOTFILES_DIR}/bin/relink" "${HOME}/.local/bin/relink"
+  # Resolves its rules via the script's own path, so it works through this link.
+  link_with_backup "${DOTFILES_DIR}/bin/textlint-docs" "${HOME}/.local/bin/textlint-docs"
 }
