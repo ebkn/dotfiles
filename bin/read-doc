@@ -1,0 +1,213 @@
+#!/usr/bin/env bash
+#
+# read-doc — typeset a document as HTML and open it in the browser.
+#
+# Why not a terminal pager:
+#   A terminal is a grid of equal-size cells, so a glyph can only ever land at
+#   `column * cell_width`. That is the model, not a missing feature, which is
+#   why no pager — bat, glow, mdcat — can use a proportional face. Long-form
+#   Japanese is much easier to read in one, and once the text is in a browser
+#   the typeface, the measure and the leading are all ours to set. The whole
+#   point of this script is read-doc/style.css; pandoc is just the adapter.
+#
+# Why pandoc rather than the far smaller cmark-gfm:
+#   Syntax highlighting. cmark-gfm emits <pre><code class="language-zsh"> and
+#   stops; colouring that means vendoring highlight.js into this repo, and a
+#   minified blob under version control costs more than the 266MB pandoc
+#   binary saves. pandoc highlights server-side via skylighting, so the output
+#   is a single self-contained file that needs no JavaScript and works offline.
+#   Do not "optimise" this back to cmark-gfm without solving highlighting.
+#
+# Why the output is self-contained (--embed-resources):
+#   The HTML is written to a temp dir, so every relative path in the source
+#   — images especially — would break. Embedding resolves them against the
+#   source file's own directory (--resource-path) and inlines them, which also
+#   inlines style.css, so a rendered page keeps working after this repo moves.
+#
+# Usage:
+#   read-doc README.md            # render and open in the default browser
+#   read-doc notes.txt            # non-Markdown prose is read as Markdown
+#   read-doc main.go              # source files are fenced, so they highlight
+#   read-doc --print README.md    # write the HTML to stdout, open nothing
+#   ssh host cat doc.md | read-doc    # stdin, for documents that are not local
+#
+# Exit status: 0 on success, 2 on tool or usage failure.
+#
+# Env:
+#   READ_DOC_BROWSER  open(1) -a target, e.g. "Safari" (default: system default)
+set -uo pipefail
+
+STYLE="$(dirname "$(readlink -f "$0")")/../read-doc/style.css"
+
+usage() {
+  printf 'usage: read-doc [--print] <file>\n' >&2
+  printf '       <something> | read-doc [--print] [--name NAME]\n' >&2
+}
+
+if [ ! -f "${STYLE}" ]; then
+  printf 'read-doc: stylesheet not found at %s\n' "${STYLE}" >&2
+  exit 2
+fi
+
+if ! command -v pandoc >/dev/null 2>&1; then
+  printf 'read-doc: pandoc not found in PATH (brew install pandoc)\n' >&2
+  exit 2
+fi
+
+print_only=0
+name=""
+src=""
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -p | --print) print_only=1; shift ;;
+    --name) name="${2-}"; [ -n "${name}" ] || { usage; exit 2; }; shift 2 ;;
+    -h | --help) usage; exit 0 ;;
+    -*) printf 'read-doc: unknown option %s\n' "$1" >&2; usage; exit 2 ;;
+    *)
+      [ -z "${src}" ] || { printf 'read-doc: one file at a time\n' >&2; exit 2; }
+      src="$1"; shift ;;
+  esac
+done
+
+if [ -z "${src}" ] && [ -t 0 ]; then
+  usage
+  exit 2
+fi
+
+if [ -n "${src}" ] && [ ! -r "${src}" ]; then
+  printf 'read-doc: cannot read %s\n' "${src}" >&2
+  exit 2
+fi
+
+base="${name:-$([ -n "${src}" ] && basename -- "${src}" || echo "stdin")}"
+title="${base%.*}"
+
+# Which extensions are prose and which are code. A Markdown reader run over
+# source code mangles it — `#` becomes a heading, `*` becomes emphasis — so
+# code is fenced first and handed to the same reader as a single block. That
+# keeps one rendering path instead of two, and gets highlighting for free.
+lang=""
+case "${base}" in
+  *.md | *.markdown | *.mdown | *.mkd | *.mdx) lang="" ;;
+  *.txt | *.text | *.rst | *.org | "") lang="" ;;
+  Dockerfile | Dockerfile.* | *.dockerfile) lang="dockerfile" ;;
+  Makefile | makefile | GNUmakefile | *.mk) lang="makefile" ;;
+  *.zsh | .zshrc | .zshenv | .zprofile | .p10k.zsh) lang="zsh" ;;
+  *.sh | *.bash | .bashrc | .profile) lang="bash" ;;
+  *.go) lang="go" ;;
+  *.ts | *.tsx) lang="typescript" ;;
+  *.js | *.jsx | *.mjs | *.cjs) lang="javascript" ;;
+  *.py) lang="python" ;;
+  *.rb) lang="ruby" ;;
+  *.rs) lang="rust" ;;
+  *.swift) lang="swift" ;;
+  *.lua) lang="lua" ;;
+  *.c | *.h) lang="c" ;;
+  *.cc | *.cpp | *.hpp | *.cxx) lang="cpp" ;;
+  *.java) lang="java" ;;
+  *.php) lang="php" ;;
+  *.json) lang="json" ;;
+  *.yml | *.yaml) lang="yaml" ;;
+  *.toml) lang="toml" ;;
+  *.ini | *.conf | *.cfg) lang="ini" ;;
+  *.sql) lang="sql" ;;
+  *.css) lang="css" ;;
+  *.html | *.htm) lang="html" ;;
+  *.xml) lang="xml" ;;
+  *.diff | *.patch) lang="diff" ;;
+  # Unknown extensions fall through as prose: guessing "code" and fencing a
+  # document is a worse failure than guessing "prose" and rendering source
+  # without colour, because the first hides the text behind a scrollbar.
+  *) lang="" ;;
+esac
+
+# Extensionless executables are the norm here — bin/relink, bin/lint-shell,
+# tmux-restore-tabs — and matching on name alone silently renders them as
+# prose, which is how this was first written and how it first went wrong.
+# bin/lint-shell already discovers its own targets by shebang; do the same.
+if [ -z "${lang}" ] && [ -n "${src}" ] && [ -f "${src}" ]; then
+  case "$(head -n 1 -- "${src}" 2>/dev/null)" in
+    '#!'*zsh*) lang="zsh" ;;
+    '#!'*bash* | '#!'*/sh | '#!'*/sh[[:space:]]*) lang="bash" ;;
+    '#!'*python*) lang="python" ;;
+    '#!'*ruby*) lang="ruby" ;;
+    '#!'*node*) lang="javascript" ;;
+    '#!'*perl*) lang="perl" ;;
+  esac
+fi
+
+# Images and the like resolve against the source's directory, not this script's.
+resource_path="."
+[ -n "${src}" ] && resource_path="$(dirname -- "${src}")"
+
+render() {
+  # -V document-css= empties the template's `$if(document-css)$` guard, which
+  # drops pandoc's built-in page styling while keeping its highlighting rules.
+  # An empty value is required: the guard tests for non-emptiness, so the
+  # documented `document-css=false` is a non-empty string and reads as true.
+  #
+  # tex_math_dollars and tex_math_gfm are both on by default in the gfm
+  # reader, which makes `$` open inline maths. In documents about software
+  # that is nearly always wrong: ${VAR} and $PATH are far commoner than
+  # LaTeX, and a mismatched pair silently swallows the text between them.
+  #
+  # pagetitle rather than title: setting `title` also makes the template emit
+  # a <h1 class="title"> into the body, which duplicates the document's own
+  # first heading. pagetitle fills the browser tab and nothing else.
+  pandoc \
+    --from=gfm-tex_math_dollars-tex_math_gfm \
+    --to=html5 \
+    --standalone \
+    --embed-resources \
+    --resource-path="${resource_path}" \
+    --syntax-highlighting=default \
+    --variable=document-css= \
+    --css="${STYLE}" \
+    --metadata=pagetitle="${title}"
+}
+
+feed() {
+  if [ -n "${lang}" ]; then
+    # A run of eight tildes: long enough that no realistic source file closes
+    # the fence early, and tildes rather than backticks because backtick runs
+    # do occur in shell and Markdown-adjacent sources.
+    printf '~~~~~~~~%s\n' "${lang}"
+    if [ -n "${src}" ]; then cat -- "${src}"; else cat; fi
+    printf '\n~~~~~~~~\n'
+  elif [ -n "${src}" ]; then
+    cat -- "${src}"
+  else
+    cat
+  fi
+}
+
+if [ "${print_only}" -eq 1 ]; then
+  feed | render
+  exit $?
+fi
+
+out_dir="${TMPDIR:-/tmp}/read-doc"
+mkdir -p "${out_dir}" || exit 2
+
+# Keyed on the absolute source path so re-rendering the same document reuses
+# one file (and one browser tab) while two same-named files from different
+# projects stay apart.
+key="stdin"
+if [ -n "${src}" ]; then
+  key="$(cd "$(dirname -- "${src}")" && pwd)/$(basename -- "${src}")"
+fi
+slug="$(printf '%s' "${key}" | shasum | cut -c1-8)"
+out="${out_dir}/${slug}-${title}.html"
+
+if ! feed | render > "${out}"; then
+  printf 'read-doc: render failed\n' >&2
+  rm -f "${out}"
+  exit 2
+fi
+
+if [ -n "${READ_DOC_BROWSER:-}" ]; then
+  open -a "${READ_DOC_BROWSER}" "${out}"
+else
+  open "${out}"
+fi

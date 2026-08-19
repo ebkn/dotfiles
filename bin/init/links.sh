@@ -108,4 +108,6 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/bin/relink" "${HOME}/.local/bin/relink"
   # Resolves its rules via the script's own path, so it works through this link.
   link_with_backup "${DOTFILES_DIR}/bin/textlint-docs" "${HOME}/.local/bin/textlint-docs"
+  # Same idiom: resolves read-doc/style.css relative to its own resolved path.
+  link_with_backup "${DOTFILES_DIR}/bin/read-doc" "${HOME}/.local/bin/read-doc"
 }

@@ -46,6 +46,10 @@ brew 'pinentry-mac' if OS.mac? # signing
 # colorized cat
 brew 'bat'
 
+# document converter (backs bin/read-doc; chosen over cmark-gfm for its
+# built-in syntax highlighting, which avoids vendoring highlight.js here)
+brew 'pandoc'
+
 # better diff
 brew 'difftastic'
 

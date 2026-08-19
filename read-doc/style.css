@@ -1,0 +1,235 @@
+/*
+ * read-doc — typography for reading prose, not for viewing code.
+ *
+ * This file is the whole reason bin/read-doc exists. A terminal is a grid of
+ * equal-size cells, so no pager can place glyphs at proportional advances;
+ * every one of them is stuck with a monospace face. Long-form Japanese is
+ * markedly easier to read in a proportional one, and a browser lets us set
+ * the typeface, the measure and the leading independently.
+ *
+ * pandoc's own stylesheet is suppressed (-V document-css= in bin/read-doc),
+ * so nothing here is fighting a default; only pandoc's syntax-highlighting
+ * classes survive, and they are recoloured at the bottom of this file.
+ *
+ * Colours follow Everforest, matching wezterm.lua and vim/color.vim, so a
+ * document opened from the terminal does not feel like a different machine.
+ */
+
+:root {
+  /* THE knob worth tuning. Render a document you actually read, then swap
+   * this line and reload; everything else is sized in em and follows along.
+   * Alternatives on macOS, roughly in order of how well they hold up over
+   * long passages:
+   *   "Hiragino Mincho ProN"   — the default here; strong stroke contrast
+   *   "Toppan Bunkyu Mincho"   — designed for newsprint legibility
+   *   "YuMincho"               — lighter, more modern
+   *   "Hiragino Sans"          — the system UI face, if you prefer gothic
+   *   "Toppan Bunkyu Gothic"   — gothic counterpart to Bunkyu Mincho
+   */
+  --font-body: "Hiragino Mincho ProN", "Toppan Bunkyu Mincho", "YuMincho", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  /* ~34em is about 38 Japanese characters per line. Comfortable-measure
+   * research is mostly about latin text, but the same ceiling applies: past
+   * roughly 40 zenkaku the eye loses the start of the next line on return. */
+  --measure: 34em;
+  --size: 18px;
+  --leading: 1.9;
+
+  /* Everforest Light — a warm paper ground rather than pure white. */
+  --bg: #fdf6e3;
+  --bg-soft: #f4f0d9;
+  --bg-code: #f4f0d9;
+  --rule: #e0dcc7;
+  --fg: #4a5b63;
+  --fg-dim: #829181;
+  --red: #f85552;
+  --orange: #f57d26;
+  --yellow: #b47d00;
+  --green: #8da101;
+  --aqua: #35a77c;
+  --blue: #3a94c5;
+  --purple: #df69ba;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Everforest Dark. Slightly lifted foreground: the terminal's #d3c6aa is
+     * tuned for monospace at small sizes, and reads thin as body copy. */
+    --bg: #2d353b;
+    --bg-soft: #343f44;
+    --bg-code: #343f44;
+    --rule: #475258;
+    --fg: #d8ceb4;
+    --fg-dim: #9da9a0;
+    --red: #e67e80;
+    --orange: #e69875;
+    --yellow: #dbbc7f;
+    --green: #a7c080;
+    --aqua: #83c092;
+    --blue: #7fbbb3;
+    --purple: #d699b6;
+  }
+}
+
+html {
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 5rem 1.5rem 8rem;
+  font-family: var(--font-body);
+  font-size: var(--size);
+  line-height: var(--leading);
+  text-rendering: optimizeLegibility;
+  font-kerning: normal;
+
+  /* Left off deliberately. `palt` tightens the sidebearings of Japanese
+   * punctuation, which flatters headings and short UI strings but makes long
+   * passages feel cramped — the full-width rhythm is what carries the eye. */
+  font-feature-settings: "palt" 0;
+}
+
+p, li, dd, blockquote {
+  /* Justified text needs strict kinsoku to avoid opening ugly rivers at the
+   * line ends; `anywhere` is the escape hatch for unbreakable latin runs
+   * (long URLs, identifiers) that would otherwise overflow the measure. */
+  text-align: justify;
+  line-break: strict;
+  overflow-wrap: anywhere;
+}
+
+p { margin: 0 0 1.5em; }
+
+/* --- headings ---------------------------------------------------------- */
+
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.5;
+  font-weight: 600;
+  /* Headings sit closer to the text they introduce than to the text above.
+   * Asymmetric margins do more for scannability than size alone. */
+  margin: 2.6em 0 0.9em;
+}
+h1 { font-size: 1.7em; margin-top: 0; }
+h2 { font-size: 1.35em; padding-bottom: .3em; border-bottom: 1px solid var(--rule); }
+h3 { font-size: 1.15em; }
+h4, h5, h6 { font-size: 1em; color: var(--fg-dim); }
+
+/* --- inline ------------------------------------------------------------ */
+
+a { color: var(--blue); text-decoration-thickness: 1px; text-underline-offset: .2em; }
+a:hover { color: var(--aqua); }
+strong { font-weight: 700; }
+em { font-style: italic; }
+del { color: var(--fg-dim); }
+mark { background: var(--bg-soft); color: inherit; }
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 3em 0;
+}
+
+img, svg, video { max-width: 100%; height: auto; }
+
+/* --- lists ------------------------------------------------------------- */
+
+ul, ol { padding-left: 1.6em; margin: 0 0 1.5em; }
+li { margin-bottom: .4em; }
+li > ul, li > ol { margin: .4em 0 0; }
+
+/* --- quotes ------------------------------------------------------------ */
+
+blockquote {
+  margin: 1.8em 0;
+  padding: .2em 0 .2em 1.2em;
+  border-left: 2px solid var(--rule);
+  color: var(--fg-dim);
+}
+blockquote > :last-child { margin-bottom: 0; }
+
+/* --- code -------------------------------------------------------------- */
+
+code, kbd, samp {
+  font-family: var(--font-mono);
+  /* Monospace faces carry a larger apparent size than the body face at the
+   * same px, so step them down rather than matching numerically. */
+  font-size: .84em;
+  font-feature-settings: "calt" 0, "liga" 0;
+}
+
+:not(pre) > code {
+  background: var(--bg-code);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: .1em .35em;
+}
+
+pre {
+  background: var(--bg-code);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 1em 1.1em;
+  margin: 1.8em 0;
+  /* Code is the one thing on the page that must not reflow: wrapping a long
+   * line changes what it means. Give it its own scroll instead of letting it
+   * widen the page. */
+  overflow-x: auto;
+  line-height: 1.6;
+  text-align: left;
+}
+pre code { background: none; border: 0; padding: 0; font-size: .84em; }
+
+/* pandoc wraps every source line in an empty anchor for deep-linking. It has
+ * no content, but it inherits link styling and picks up an underline slot. */
+pre a { color: inherit; text-decoration: none; }
+
+/* --- tables ------------------------------------------------------------ */
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.8em 0;
+  font-size: .92em;
+  display: block;
+  overflow-x: auto;
+}
+th, td { border: 1px solid var(--rule); padding: .5em .8em; text-align: left; }
+th { background: var(--bg-soft); font-weight: 600; }
+
+/* --- syntax highlighting ----------------------------------------------- */
+/*
+ * pandoc emits skylighting's class names; which base --syntax-highlighting
+ * theme is passed barely matters because every colour is reassigned here.
+ * Grouped by role rather than by class so the palette stays coherent when a
+ * language maps its tokens differently than expected.
+ */
+
+code span.co, code span.cv, code span.do { color: var(--fg-dim); font-style: italic; } /* comments */
+code span.st, code span.vs, code span.ss, code span.ch { color: var(--green); }        /* strings */
+code span.kw, code span.cf, code span.im { color: var(--red); }                        /* keywords, control flow */
+code span.dt, code span.ot { color: var(--yellow); }                                   /* types */
+code span.dv, code span.fl, code span.bn, code span.cn, code span.sc { color: var(--purple); } /* literals */
+code span.fu { color: var(--blue); }                                                   /* functions */
+code span.va { color: var(--fg); }                                                     /* variables */
+code span.bu, code span.at { color: var(--aqua); }                                     /* builtins, attributes */
+code span.op { color: var(--orange); }                                                 /* operators */
+code span.pp { color: var(--orange); }                                                 /* preprocessor */
+code span.an, code span.in { color: var(--aqua); }                                     /* annotations */
+code span.wa { color: var(--orange); font-style: italic; }                             /* warnings */
+code span.al, code span.er { color: var(--red); font-weight: 600; }                    /* alerts, errors */
+
+/* --- print ------------------------------------------------------------- */
+
+@media print {
+  html { background: #fff; color: #000; }
+  body { max-width: none; padding: 0; font-size: 10.5pt; }
+  pre, :not(pre) > code { background: #f6f6f6; }
+  a { color: inherit; }
+  h2, h3, h4 { break-after: avoid; }
+  p, li { orphans: 3; widows: 3; }
+}
