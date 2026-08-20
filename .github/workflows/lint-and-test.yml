@@ -32,3 +32,13 @@ jobs:
       # locally after editing default.rules, as CLAUDE.md describes.
       - name: curl-guard hook
         run: bash root/.claude/hooks/curl-guard.test.sh
+
+      # agent-state.sh drives the tab glyph and the prefix+a picker off tmux
+      # pane options. The test runs a throwaway tmux server, so tmux has to be
+      # on the runner -- the test fails rather than skips without it, on
+      # purpose.
+      - name: Install tmux
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq tmux
+
+      - name: agent-state hook
+        run: bash root/.claude/hooks/agent-state.test.sh
