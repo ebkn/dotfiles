@@ -245,7 +245,11 @@ function gw() {
     git fetch origin "pull/$pr_number/head:$branch_name" || return 1
 
     echo "Creating worktree for PR #$pr_number ($branch_name) at '$worktree_path'"
-    git worktree add "$worktree_path" "$branch_name" || return 1
+    # LFS の smudge（巨大ファイルの物理コピー）が worktree 作成を数秒〜十数秒遅くするためスキップする。
+    # LFS ファイルはポインタのまま checkout されるので、必要になった worktree でだけ `git lfs pull` する。
+    # hooksPath も無効化する: リポジトリの post-checkout フック（git lfs post-checkout / dedup）が
+    # ポインタを実体に置き換えてしまい、index の stat が古いまま git status が dirty になるため。
+    GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null worktree add "$worktree_path" "$branch_name" || return 1
   else
     # Branch name: create a brand-new branch alongside the worktree.
     branch_name="$input"
@@ -253,7 +257,8 @@ function gw() {
     worktree_path="$worktree_dir/$worktree_name"
 
     echo "Creating worktree for branch '$branch_name' at '$worktree_path'"
-    git worktree add -b "$branch_name" "$worktree_path" || return 1
+    # LFS smudge / hooksPath をスキップする理由は PR URL 側の分岐のコメントを参照
+    GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null worktree add -b "$branch_name" "$worktree_path" || return 1
   fi
 
   local worktree_copy_file=".worktree-copy"

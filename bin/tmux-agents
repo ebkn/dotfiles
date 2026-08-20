@@ -1,0 +1,215 @@
+#!/usr/bin/env bash
+# tmux-agents: list every Claude Code session by state and jump to the one you pick.
+#
+# Bound to prefix + a, which opens it in a display-popup. The state itself is
+# published by ~/.claude/hooks/agent-state.sh as tmux pane user options
+# (@claude_state / @claude_glyph / @claude_since / @claude_note); this script
+# only reads them, so it stays correct as long as that contract holds.
+#
+# Takes no arguments. It still needs the calling client — a popup has no attached
+# client of its own, yet the status messages and the fallback jump have to act on
+# the client that pressed the key — so it derives one from $TMUX instead of being
+# handed it. It cannot be handed it: display-popup expands #{...} formats only in
+# -d, never in the shell-command (see .tmux.conf), so `#{client_name}` would
+# arrive as that literal string and every tmux call taking it would fail quietly.
+#
+# Scope covers this machine plus every host reachable through an open `myssh`
+# pane — the same dotfiles run there, so the remote panes carry the same options.
+
+set -euo pipefail
+
+# $TMUX is "socket,pid,session-id"; the client attached to that session is the
+# one that opened this popup. `head -1` because a session can carry more than one
+# client, and any of them is a reasonable target for a status message.
+outer_client=""
+if [ -n "${TMUX:-}" ]; then
+  outer_client=$(tmux list-clients -F '#{client_name}' -t "\$${TMUX##*,}" 2>/dev/null | head -1) || true
+fi
+
+# There is deliberately no age cutoff. State lives on the pane, so it cannot
+# outlive the tab that holds it — closing the tab is the eviction. An agent that
+# finished days ago is still a tab you have open on purpose, and hiding it makes
+# the list disagree with the tab bar, which is the one thing this list exists to
+# explain. The residue that survives is a session killed without its SessionEnd
+# hook running, whose pane stays open: it keeps its last state until you close
+# the pane, or until SessionStart clears it when you start Claude there again.
+
+# tmux does not interpret \t in -F, so the separators must be literal tabs;
+# $'' supplies them. The same string is sent to remote hosts verbatim.
+readonly FMT=$'#{session_name}\t#{window_id}\t#{pane_id}\t#{window_name}\t#{@claude_state}\t#{@claude_since}\t#{@claude_note}'
+
+# BSD sed (macOS) does not expand \t in a replacement — it inserts a literal
+# "t". The tab has to be a real character in the script text, so build it here.
+readonly TAB=$'\t'
+
+now=$(date +%s)
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+msg() { tmux display-message ${outer_client:+-c "$outer_client"} "$1" 2>/dev/null || true; }
+
+# --- collect -----------------------------------------------------------------
+
+# Field 1 is the host; empty means this machine, which keeps local and remote
+# rows in one shape for the awk pass below.
+tmux list-panes -a -F "$FMT" 2>/dev/null | sed "s/^/${TAB}/" >"$tmpdir/rows" || true
+
+# Only `myssh` panes are queried: @ssh_my_machine marks a host the user declared
+# to be theirs, i.e. one running tmux and these dotfiles. Plain `ssh` panes may
+# be jump boxes or CI runners where this query is meaningless or unwelcome.
+hosts=$(
+  tmux list-panes -a -F $'#{@ssh_my_machine}\t#{@ssh_host}' 2>/dev/null |
+    awk -F'\t' '$1 != "" && $2 != "" { print $2 }' | sort -u
+) || true
+
+i=0
+for host in $hosts; do
+  i=$((i + 1))
+  # A dedicated ControlMaster socket, never the one myssh uses: myssh runs with
+  # ControlPath=none precisely so autossh owns its own reconnection, and sharing
+  # a socket with it would interfere. ConnectTimeout keeps a host that is asleep
+  # or off-network from stalling the popup.
+  ssh -o BatchMode=yes \
+    -o ConnectTimeout=3 \
+    -o ControlMaster=auto \
+    -o ControlPath="$HOME/.ssh/cm-agents-%r@%h:%p" \
+    -o ControlPersist=60s \
+    "$host" "tmux list-panes -a -F '$FMT'" 2>/dev/null |
+    sed "s/^/${host}${TAB}/" >"$tmpdir/remote.$i" 2>/dev/null &
+done
+wait
+
+cat "$tmpdir"/remote.* >>"$tmpdir/rows" 2>/dev/null || true
+
+# --- filter, rank, render ----------------------------------------------------
+
+# Fields: 1 host, 2 session, 3 window_id, 4 pane_id, 5 window_name, 6 state,
+#         7 since, 8 note.
+#
+# Sort key is emitted as two leading numeric columns and stripped after sorting:
+# waiting first (that is the whole point of the list), then oldest within each
+# state, so the session that has been blocked longest floats to the top.
+awk -F'\t' -v OFS='\t' '
+  $6 == "" { next }                                   # no agent in this pane
+  $2 ~ /^_/ { next }                                  # _popup_ / _tig_ / _fzf_nvim_ sessions
+  {
+    rank = ($6 == "waiting") ? 0 : ($6 == "busy") ? 1 : 2
+    print rank, $7, $0
+  }
+' "$tmpdir/rows" | sort -t$'\t' -k1,1n -k2,2n | cut -f3- >"$tmpdir/ranked"
+
+if [ ! -s "$tmpdir/ranked" ]; then
+  # Exiting straight away closes the popup the instant it opens, which reads as
+  # a crash rather than as "nothing to show". Hold it until a key is pressed.
+  # Guarded on a tty so a non-interactive run (or a pipe) still returns.
+  printf '\n  no Claude agents running\n\n  press any key to close\n'
+  if [ -t 0 ]; then
+    read -r -n 1 -s || true
+  fi
+  exit 0
+fi
+
+# KEY (field 1, hidden from fzf via --with-nth) carries what the jump needs.
+# "|" is safe as its separator: tmux ids are @N / %N and hosts are ssh aliases.
+awk -F'\t' -v now="$now" '
+  function age(s,   d) {
+    if (s == "") return "-"
+    d = now - s
+    if (d < 60)   return d "s"
+    if (d < 3600) return int(d / 60) "m"
+    return int(d / 3600) "h"
+  }
+  {
+    # Same per-glyph spacing rule as agent-state.sh: the emoji ones are
+    # already two cells wide, the narrow ▶ is padded to two, so the
+    # columns after the glyph line up across rows.
+    glyph = ($6 == "waiting") ? "❓" : ($6 == "busy") ? "▶ " : "✅"
+    where = ($1 == "") ? "local" : $1
+    printf "%s|%s|%s\t%s %4s  %-12s %-28s %s\n", $1, $3, $4, glyph, age($7), where, $5, $8
+  }
+' "$tmpdir/ranked" >"$tmpdir/list"
+
+# fzf merges the caller's FZF_DEFAULT_OPTS *ahead* of the flags below, and the
+# global one (.zshenv) is tuned for picking files: --accept-nth=-1 makes fzf
+# print only the last field, silently discarding the key this script parses;
+# --nth=-1 restricts matching to it; and --preview runs bat over what it assumes
+# is a path, which errors on every row here. None of that survives contact with a
+# key/display list, and the first one fails *quietly* — the picker looks fine and
+# the jump just does nothing. So the environment is replaced, not extended.
+export FZF_DEFAULT_OPTS=
+unset FZF_DEFAULT_OPTS_FILE
+
+selection=$(
+  fzf --delimiter=$'\t' --with-nth=2.. \
+    --no-multi --no-sort --reverse \
+    --prompt='agent> ' \
+    --header='enter: jump to the tab' \
+    <"$tmpdir/list"
+) || exit 0
+
+# --- jump --------------------------------------------------------------------
+
+IFS='|' read -r host window_id pane_id <<<"${selection%%$'\t'*}"
+
+remote_note=""
+if [ -n "$host" ]; then
+  # A remote agent lives in the remote tmux, which this client cannot focus.
+  # Jump to the local pane holding that ssh connection instead, and name the
+  # remote window so the last hop is obvious.
+  remote_note=" (remote window: $host)"
+  local_target=$(
+    tmux list-panes -a -F $'#{pane_id}\t#{window_id}\t#{@ssh_host}' 2>/dev/null |
+      awk -F'\t' -v h="$host" '$3 == h { print $2 "\t" $1; exit }'
+  ) || true
+  if [ -z "$local_target" ]; then
+    msg "no local pane is connected to $host"
+    exit 0
+  fi
+  IFS=$'\t' read -r window_id pane_id <<<"$local_target"
+fi
+
+tmux select-pane -t "$pane_id" 2>/dev/null || true
+
+# One WezTerm tab holds one tmux window, each through its own client, so the
+# right move is to raise that tab — not to repoint the current client at another
+# window, which would leave two tabs showing the same thing. tmux's client_tty
+# and WezTerm's tty_name are the same device, which is what links them.
+client_tty=$(
+  tmux list-clients -F $'#{client_tty}\t#{window_id}' 2>/dev/null |
+    awk -F'\t' -v w="$window_id" '$2 == w { print $1; exit }'
+) || true
+
+tab_id=""
+if [ -n "$client_tty" ] && command -v wezterm >/dev/null 2>&1; then
+  tab_id=$(
+    wezterm cli list --format json 2>/dev/null |
+      jq -r --arg t "$client_tty" 'map(select(.tty_name == $t)) | .[0].tab_id // empty'
+  ) || true
+fi
+
+if [ -n "$tab_id" ]; then
+  wezterm cli activate-tab --tab-id "$tab_id" 2>/dev/null || true
+  # activate-tab only re-points the tab bar of the window that owns the tab; it
+  # leaves OS focus where it was, so a jump across WezTerm windows raised nothing
+  # and looked like a no-op. There is no CLI verb for it (checked on 20240203) —
+  # window:focus() is Lua-only — so poke the user-var handler in wezterm.lua by
+  # writing OSC 1337 SetUserVar to the target pane's own tty: WezTerm attributes
+  # it to that pane and hands the handler its window. "MQ==" is base64 "1"; the
+  # value is ignored, only the event matters, and re-setting the same value does
+  # fire again. Harmless when the target is already focused, and inert on any
+  # terminal that is not WezTerm (unknown OSC, discarded).
+  printf '\033]1337;SetUserVar=focus_window=MQ==\007' >"$client_tty" 2>/dev/null || true
+else
+  # No WezTerm tab owns that window — it is detached, or this is a plain
+  # terminal / SSH session. Repointing the calling client is the best available
+  # move there.
+  tmux switch-client -c "$outer_client" -t "$window_id" 2>/dev/null || true
+fi
+
+# Plain `[ ... ] && msg` would make a local jump exit non-zero under set -e.
+if [ -n "$remote_note" ]; then
+  msg "jumped to$remote_note"
+fi
+
+exit 0
