@@ -190,6 +190,16 @@ fi
 
 if [ -n "$tab_id" ]; then
   wezterm cli activate-tab --tab-id "$tab_id" 2>/dev/null || true
+  # activate-tab only re-points the tab bar of the window that owns the tab; it
+  # leaves OS focus where it was, so a jump across WezTerm windows raised nothing
+  # and looked like a no-op. There is no CLI verb for it (checked on 20240203) —
+  # window:focus() is Lua-only — so poke the user-var handler in wezterm.lua by
+  # writing OSC 1337 SetUserVar to the target pane's own tty: WezTerm attributes
+  # it to that pane and hands the handler its window. "MQ==" is base64 "1"; the
+  # value is ignored, only the event matters, and re-setting the same value does
+  # fire again. Harmless when the target is already focused, and inert on any
+  # terminal that is not WezTerm (unknown OSC, discarded).
+  printf '\033]1337;SetUserVar=focus_window=MQ==\007' >"$client_tty" 2>/dev/null || true
 else
   # No WezTerm tab owns that window — it is detached, or this is a plain
   # terminal / SSH session. Repointing the calling client is the best available

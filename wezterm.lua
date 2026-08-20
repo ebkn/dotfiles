@@ -36,6 +36,19 @@ if not is_windows then
   end)
 end
 
+-- Raise the OS window that owns a pane, on demand from outside WezTerm.
+-- `wezterm cli activate-tab` only switches the tab *within* its window; it never
+-- brings that window forward, so a cross-window jump from bin/tmux-agents lands
+-- on a tab the user cannot see. As of 20240203 the CLI has no window-focus verb
+-- and window:focus() is Lua-only, so user-var-changed is the only door in.
+-- bin/tmux-agents writes the OSC 1337 SetUserVar sequence straight to the target
+-- pane's tty, which makes `window` below the window that owns that pane.
+wezterm.on('user-var-changed', function(window, _pane, name, _value)
+  if name == 'focus_window' then
+    window:focus()
+  end
+end)
+
 local keys = {
   { mods = "CTRL", key = "q", action=wezterm.action{ SendString="\x11" } },
   -- Ctrl+T で現在のディレクトリを保持して新しいタブを開く
