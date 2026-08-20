@@ -86,9 +86,9 @@ assert_exit_zero() {
 notify_json() { jq -cn --arg t "$1" --arg m "${2-}" '{notification_type:$t, message:$m}'; }
 
 echo "-- no tmux context: publishes nothing, never fails --"
-out=$(TMUX= TMUX_PANE= "$HOOK" busy 2>&1); assert_exit_zero "TMUX unset" $?
-[[ -z "$out" ]] && ok "no output without tmux" || bad "unexpected output: $out"
-out=$(TMUX="$TMUX_ENV" TMUX_PANE= "$HOOK" busy 2>&1); assert_exit_zero "TMUX_PANE unset" $?
+out=$(TMUX='' TMUX_PANE='' "$HOOK" busy 2>&1); assert_exit_zero "TMUX unset" $?
+if [[ -z "$out" ]]; then ok "no output without tmux"; else bad "unexpected output: $out"; fi
+out=$(TMUX="$TMUX_ENV" TMUX_PANE='' "$HOOK" busy 2>&1); assert_exit_zero "TMUX_PANE unset" $?
 assert_opt @claude_state ''
 
 echo "-- busy --"
@@ -108,7 +108,7 @@ for t in permission_prompt idle_prompt agent_needs_input elicitation_dialog elic
   run clear
   run notify "$(notify_json "$t" "waiting on $t")"
   got=$(get_opt @claude_state)
-  [[ "$got" == waiting ]] && ok "$t -> waiting" || bad "$t -> [$got], want waiting"
+  if [[ "$got" == waiting ]]; then ok "$t -> waiting"; else bad "$t -> [$got], want waiting"; fi
 done
 assert_opt @claude_glyph '❓ '
 
@@ -135,7 +135,7 @@ run clear
 long=$(printf 'x%.0s' {1..300})
 run notify "$(notify_json permission_prompt "$long")"
 note=$(get_opt @claude_note)
-[[ ${#note} -eq 120 ]] && ok "note truncated to 120 chars" || bad "note length ${#note}, want 120"
+if [[ ${#note} -eq 120 ]]; then ok "note truncated to 120 chars"; else bad "note length ${#note}, want 120"; fi
 
 # The PostToolBatch path: once the prompt is answered the note is stale, and a
 # stale note in the picker is worse than none.
@@ -152,8 +152,8 @@ run notify ''; assert_exit_zero "empty stdin" $?
 assert_opt @claude_state busy
 
 echo "-- done --"
-run done; assert_exit_zero "done" $?
-assert_opt @claude_state done
+run 'done'; assert_exit_zero 'done' $?
+assert_opt @claude_state 'done'
 assert_opt @claude_glyph '✅ '
 
 echo "-- clear --"
