@@ -37,16 +37,15 @@ fi
 
 panes=$(tmux list-panes "${target_args[@]}" -F '#{b:pane_current_path}	#{@ssh_host}	#{@git_worktree}	#{@git_branch}' 2>/dev/null) || exit 0
 title=$(printf '%s\n' "$panes" | awk -F'\t' '
-# Abbreviate the type prefix before the first "/" to two chars
-# (feature/x -> fe/x, fix/x -> fi/x, refactor/x -> re/x). Names without
-# a "/" are left intact. Applied to both worktree and branch labels
-# since both display a branch name.
-function abbr(b,   n, type) {
+# Drop the type prefix before the first "/" (feature/x -> /x, fix/x -> /x).
+# The type carries almost no information once the name itself is visible, so
+# spending tab width on even two chars of it is not worth it; the leading "/"
+# is kept so the label still reads as a branch path rather than a bare word.
+# Names without a "/" are left intact. Applied to both worktree and branch
+# labels since both display a branch name.
+function strip_type(b,   n) {
   n = index(b, "/")
-  if (n > 0) {
-    type = substr(b, 1, n - 1)
-    return substr(type, 1, 2) substr(b, n)
-  }
+  if (n > 0) return substr(b, n)
   return b
 }
 {
@@ -54,11 +53,11 @@ function abbr(b,   n, type) {
   ssh = $2
   wt = $3
   br = $4
-  # ssh: host name dropped in favour of a globe glyph to keep the label
+  # ssh: host name dropped in favour of a ∷ marker to keep the label
   # short. Multiple ssh hosts in one window collapse to a single entry.
-  if (ssh != "")     label = "🌐:"
-  else if (wt != "") label = "w:" abbr(wt)
-  else if (br != "") label = "b:" abbr(br)
+  if (ssh != "")     label = "∷"
+  else if (wt != "") label = "w:" strip_type(wt)
+  else if (br != "") label = "b:" strip_type(br)
   else               label = dir
   if (!seen[label]++) { printf sep label; sep = "," }
 }')
