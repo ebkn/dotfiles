@@ -41,9 +41,13 @@ unset_opt() { tmux set-option -p -u -t "$TMUX_PANE" "$1" 2>/dev/null; }
 publish() {
   local state=$1 glyph=$2 note=${3:-}
   set_opt @claude_state "$state"
-  # The trailing space rides with the glyph so the title format can concatenate
-  # it unconditionally — an unset option then contributes nothing at all.
-  set_opt @claude_glyph "$glyph "
+  # @claude_glyph is stored ready to concatenate — separator included —
+  # so a format can prepend it unconditionally and an unset option then
+  # contributes nothing at all. The separator is per-glyph rather than
+  # appended here: ❓ and ✅ carry emoji presentation and already occupy
+  # two terminal cells, so a space after them reads as a gap, while the
+  # narrow ▶ (U+25B6, East Asian Ambiguous, one cell) needs one.
+  set_opt @claude_glyph "$glyph"
   set_opt @claude_since "$(date +%s)"
   if [ -n "$note" ]; then
     set_opt @claude_note "$note"
@@ -60,7 +64,7 @@ case "$mode" in
     unset_opt @claude_note
     ;;
   busy)
-    publish busy '▶'
+    publish busy '▶ '
     ;;
   done)
     # 'done' quoted: bare, it reads as the loop-closing shell keyword.

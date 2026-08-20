@@ -94,6 +94,9 @@ assert_opt @claude_state ''
 echo "-- busy --"
 run busy; assert_exit_zero "busy" $?
 assert_opt @claude_state busy
+# The separator is per-glyph, not uniform: ❓/✅ are emoji-presentation and
+# already two cells wide, so only the narrow ▶ carries a trailing space.
+# Pinned exactly, because the title format concatenates it blind.
 assert_opt @claude_glyph '▶ '
 since=$(get_opt @claude_since)
 now=$(date +%s)
@@ -110,7 +113,7 @@ for t in permission_prompt idle_prompt agent_needs_input elicitation_dialog elic
   got=$(get_opt @claude_state)
   if [[ "$got" == waiting ]]; then ok "$t -> waiting"; else bad "$t -> [$got], want waiting"; fi
 done
-assert_opt @claude_glyph '❓ '
+assert_opt @claude_glyph '❓'
 
 echo "-- notify: informational types must not stick --"
 # Set busy first: the bug this guards is an informational notification
@@ -154,7 +157,7 @@ assert_opt @claude_state busy
 echo "-- done --"
 run 'done'; assert_exit_zero 'done' $?
 assert_opt @claude_state 'done'
-assert_opt @claude_glyph '✅ '
+assert_opt @claude_glyph '✅'
 
 echo "-- clear --"
 run notify "$(notify_json permission_prompt 'something')"
