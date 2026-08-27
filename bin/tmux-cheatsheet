@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# tmux-cheatsheet: show every key binding worth remembering, searchable.
+# tmux-cheatsheet: the key bindings worth remembering, grouped into columns.
 #
-# Bound to prefix + ? (replacing tmux's own list-keys), opened in a
-# display-popup. The status bar carries a "C-q ?:help" hint so the key that
-# opens this is itself discoverable -- the list is useless if you cannot
-# remember how to reach it.
+# Bound to prefix + ?, opened in a display-popup. The status bar carries a
+# "C-q ?:help" hint so the key that opens this is itself discoverable -- a list
+# you cannot remember how to reach is no better than no list.
 #
 # The list is DERIVED from the running tmux server, never hand-maintained:
 # `tmux list-keys -N` prints only bindings that carry a note (`bind -N`), so
@@ -12,28 +11,40 @@
 # and puts it here. A cheatsheet stored as its own list would drift from the
 # config the first time a key moved.
 #
-# Three classes of entry, distinguished by rules that are cheap and explicit:
+# Two classes of entry, separated by rules that are cheap and explicit:
 #
 #   1. Our prefix bindings. tmux ships notes on its own prefix keys too, so the
 #      table alone cannot separate ours. Ours are tagged: the note reads
 #      "<category>: <description>" (lowercase tag, colon, space) and the tag
-#      becomes the category column. tmux's built-in notes are sentence-style
+#      becomes the group heading. tmux's built-in notes are sentence-style
 #      ("Split window vertically") and never match. If upstream ever adds a
-#      note shaped like a tag it lands in the wrong section -- cosmetic only.
+#      note shaped like a tag it lands in the wrong group -- cosmetic only.
 #   2. Our copy-mode-vi bindings. tmux ships NO notes outside the prefix table
 #      (verified: `list-keys -N -T copy-mode-vi` is empty on a stock server),
 #      so everything listed there is ours and needs no tag.
-#   3. Everything else in the prefix table: tmux's own keys, category "tmux".
 #
-# Read-only. It runs `tmux list-keys` and nothing else; picking a line closes
-# the popup rather than executing the binding, deliberately -- a list you open
-# to remember "how do I kill this pane" should not kill the pane.
+# tmux's own ~85 prefix keys are EXCLUDED unless --all is given. They are what
+# makes a single list unreadable, and they are not what gets forgotten -- this
+# exists because your own bindings are the ones with no upstream manual. The
+# footer points at `C-q :list-keys -N` for the complete set.
+#
+# Read-only, by construction: it runs `tmux list-keys` and nothing else. A list
+# you open to remember "how do I kill this pane" must not kill the pane, so
+# there is deliberately no way to execute a binding from here.
 
 set -euo pipefail
 
-# Column widths, shared by the header and every row so they line up.
-readonly KEY_W=13
-readonly CAT_W=10
+# `[ ... ] && x=1` would be the last command of a `set -e` script line and exit
+# it outright when the test fails, so these stay as if-statements.
+show_all=0
+if [ "${1:-}" = "--all" ]; then
+  show_all=1
+fi
+
+# Terminal size inside the popup. tput reads the popup's own tty, so this is
+# the popup geometry (-w/-h in .tmux.conf), not the window behind it.
+cols=$(tput cols 2>/dev/null || echo 80)
+lines=$(tput lines 2>/dev/null || echo 24)
 
 # parse_table TABLE SHOW_PREFIX CATEGORY_MODE
 #
@@ -41,17 +52,20 @@ readonly CAT_W=10
 # prefix for EVERY table, including copy-mode-vi, where the key is reached by
 # being in copy mode and never by pressing C-q. So the key is always the first
 # two tokens, but showing both is only correct for the prefix table:
-# SHOW_PREFIX=0 drops the bogus "C-q " from copy-mode rows. The note is
-# whatever follows; its internal runs of spaces are collapsed, which is only
-# ever tmux's column padding.
+# SHOW_PREFIX=0 drops the misleading "C-q " from copy-mode rows, which would
+# otherwise teach a chord that does not work. The note is whatever follows;
+# its internal runs of spaces are collapsed, which is only ever tmux's padding.
+#
+# Emits TAB-separated "category<TAB>key<TAB>description". Tabs, not columns:
+# the layout below needs the fields apart, and every downstream sort keys on a
+# field rather than a character offset, so nothing depends on padding widths.
 #
 # CATEGORY_MODE:
 #   tagged  - keep notes shaped "cat: desc", split them, drop the rest
 #   builtin - keep only notes NOT shaped that way, category "tmux"
 #   LITERAL - keep every note, use CATEGORY_MODE itself as the category
 parse_table() {
-  tmux list-keys -N -T "$1" 2>/dev/null | awk \
-    -v showpfx="$2" -v mode="$3" -v kw="$KEY_W" -v cw="$CAT_W" '
+  tmux list-keys -N -T "$1" 2>/dev/null | awk -v showpfx="$2" -v mode="$3" '
     {
       key = (showpfx ? $1 " " $2 : $2)
       note = ""
@@ -71,32 +85,102 @@ parse_table() {
         cat = mode
         desc = note
       }
-      printf "%-*s %-*s %s\n", kw, key, cw, cat, desc
+      printf "%s\t%s\t%s\n", cat, key, desc
     }'
 }
 
-render() {
-  # Ours first: the whole point is that the keys you forget are your own.
-  # Grouping by category beats list-keys order, which is tmux's own key order
-  # and says nothing useful. The sort key is field 3, not 2: the rendered key
-  # column is "C-q v", two whitespace-separated fields, so category lands third.
-  # -b is load-bearing: without it sort counts the column padding as part of the
-  # field, so a long key ("C-q C-q") has fewer leading blanks than a short one
-  # and its category sorts out of order.
-  parse_table prefix 1 tagged | sort -b -k3,3 -k2,2
-  parse_table copy-mode-vi 0 copy-mode | sort
-  parse_table prefix 1 builtin
+collect() {
+  # Sorted by category then key so groups form and each group reads in a
+  # stable order; list-keys order is tmux's own key order, which says nothing.
+  # -f folds case, keeping the resize keys (H) next to the focus keys (h)
+  # instead of in a separate uppercase run.
+  {
+    parse_table prefix 1 tagged
+    parse_table copy-mode-vi 0 copy-mode
+    if [ "$show_all" -eq 1 ]; then parse_table prefix 1 builtin; fi
+  } | sort -f -t"$(printf '\t')" -k1,1 -k2,2
 }
 
-header=$(printf "%-*s %-*s %s" "$KEY_W" "key" "$CAT_W" "where" "what it does")
+# Lay the groups out in as many columns as the popup is wide enough for.
+#
+# Balanced packing, not sequential: columns are filled to an even height so the
+# page is as short as it can be. A group is never split across columns -- a
+# heading with its keys elsewhere is worse than an uneven column.
+layout() {
+  awk -F'\t' -v width="$cols" '
+    { cat[NR] = $1; key[NR] = $2; desc[NR] = $3; n = NR }
 
-if command -v fzf >/dev/null 2>&1; then
-  # Enter closes rather than selects: nothing downstream consumes the choice.
-  render | fzf --no-sort --reverse --prompt 'help> ' \
-    --header "$header" --bind 'enter:abort,esc:abort' >/dev/null || true
+    END {
+      if (n == 0) { print "  (no annotated bindings -- add -N notes in .tmux.conf)"; exit }
+
+      # Build the display lines group by group, remembering where each group
+      # starts so the packer can move whole groups.
+      kw = 0
+      for (i = 1; i <= n; i++) if (length(key[i]) > kw) kw = length(key[i])
+
+      nl = 0; ng = 0; prev = ""
+      for (i = 1; i <= n; i++) {
+        if (cat[i] != prev) {
+          if (prev != "") line[++nl] = ""
+          ng++; gstart[ng] = nl + 1
+          line[++nl] = toupper(cat[i])
+          prev = cat[i]
+        }
+        line[++nl] = sprintf("  %-*s  %s", kw, key[i], desc[i])
+        gend[ng] = nl
+      }
+
+      # Column width is the widest line plus a gutter; every column gets the
+      # same width so the grid stays aligned regardless of what lands in it.
+      cw = 0
+      for (i = 1; i <= nl; i++) if (length(line[i]) > cw) cw = length(line[i])
+      gutter = 4
+      ncols = int(width / (cw + gutter))
+      if (ncols < 1) ncols = 1
+      if (ncols > ng) ncols = ng
+
+      target = int(nl / ncols); if (nl % ncols) target++
+
+      # Assign whole groups to columns, starting a new column once the current
+      # one has reached the target height. The last column takes the remainder,
+      # so a group is never dropped even if the estimate was optimistic.
+      col = 1; used = 0; height = 0
+      for (g = 1; g <= ng; g++) {
+        glen = gend[g] - gstart[g] + 1
+        if (used > 0 && used + glen > target && col < ncols) { col++; used = 0 }
+        for (i = gstart[g]; i <= gend[g]; i++) {
+          cell[col, ++used] = line[i]
+          if (i == gend[g] && g < ng) cell[col, ++used] = ""
+        }
+        if (used > height) height = used
+      }
+
+      for (r = 1; r <= height; r++) {
+        out = ""
+        for (c = 1; c <= ncols; c++) {
+          v = ((c, r) in cell) ? cell[c, r] : ""
+          out = out sprintf("%-*s", (c < ncols ? cw + gutter : 0), v)
+        }
+        sub(/ +$/, "", out)
+        print out
+      }
+    }'
+}
+
+page=$(collect | layout)
+if [ "$show_all" -eq 0 ]; then
+  page="$page
+
+  all tmux keys: C-q :list-keys -N     describe one key: C-q /"
+fi
+
+# The popup is a fixed size, so anything taller has to scroll. less quits on q
+# and needs no "press a key" prompt; the short case gets one, because with -E
+# the popup dies the moment this script exits.
+if [ "$(printf '%s\n' "$page" | wc -l)" -ge "$lines" ]; then
+  printf '%s\n' "$page" | "${PAGER:-less}"
 else
-  # fzf is a hard dependency of the other popups, but a bare remote host may
-  # not have it and a scrollable list still beats no list. No -R: render emits
-  # no escape sequences, and appending flags to $PAGER breaks a non-less pager.
-  { printf '%s\n' "$header"; render; } | "${PAGER:-less}"
+  printf '%s\n' "$page"
+  printf '\n  (any key to close) '
+  read -rsn1 || true
 fi
