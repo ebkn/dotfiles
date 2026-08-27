@@ -248,20 +248,47 @@ layout() {
     }'
 }
 
+# Centre the block in the popup and give it a margin. The grid is padded as one
+# unit, from the width of its widest line, so the columns stay aligned and the
+# footer stays anchored to the left edge of the grid rather than drifting to its
+# own centre.
+#
+# The top margin is centred too but capped: the popup is 70% of the window and
+# the page is usually a third of that, so true vertical centring would leave the
+# content floating in the middle of an empty box with nothing to anchor the eye.
+frame() {
+  awk -v cols="$cols" -v lines="$lines" '
+    { l[NR] = $0; w = length($0); if (w > maxw) maxw = w; n = NR }
+    END {
+      pad = int((cols - maxw) / 2); if (pad < 2) pad = 2
+      top = int((lines - n) / 2); if (top > 4) top = 4; if (top < 1) top = 1
+      for (i = 0; i < top; i++) print ""
+      for (i = 1; i <= n; i++) {
+        out = sprintf("%*s%s", pad, "", l[i])
+        sub(/ +$/, "", out)
+        print out
+      }
+    }'
+}
+
 page=$(collect | layout)
 if [ "$show_all" -eq 0 ]; then
   page="$page
 
-  all tmux keys: C-q :list-keys -N     describe one key: C-q /"
+all tmux keys: C-q :list-keys -N     describe one key: C-q /"
 fi
 
-# The popup is a fixed size, so anything taller has to scroll. less quits on q
-# and needs no "press a key" prompt; the short case gets one, because with -E
-# the popup dies the moment this script exits.
-if [ "$(printf '%s\n' "$page" | wc -l)" -ge "$lines" ]; then
-  printf '%s\n' "$page" | "${PAGER:-less}"
+# Decide which closing hint belongs on the page BEFORE framing, so it gets the
+# same indent as the grid instead of clinging to the left edge. +4 covers the
+# top margin frame() can add.
+if [ "$(printf '%s\n' "$page" | wc -l)" -ge $((lines - 4)) ]; then
+  # Taller than the popup, so it has to scroll. less quits on q and needs no
+  # hint of its own.
+  printf '%s\n' "$page" | frame | "${PAGER:-less}"
 else
-  printf '%s\n' "$page"
-  printf '\n  (any key to close) '
+  # With -E the popup dies the moment this script exits, so hold it open.
+  printf '%s\n' "$page
+
+(any key to close)" | frame
   read -rsn1 || true
 fi
