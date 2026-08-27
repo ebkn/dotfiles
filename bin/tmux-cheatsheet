@@ -16,7 +16,8 @@
 #
 #   1. Our prefix bindings. tmux ships notes on its own prefix keys too, so the
 #      table alone cannot separate ours. Ours are tagged: the note reads
-#      "<category>: <description>" (lowercase tag, colon, space) and the tag
+#      "<category>: <description>" (lowercase tag, which may contain spaces,
+#      then a colon and a space) and the tag
 #      becomes the group heading. tmux's built-in notes are sentence-style
 #      ("Split window vertically") and never match. If upstream ever adds a
 #      note shaped like a tag it lands in the wrong group -- cosmetic only.
@@ -95,7 +96,7 @@ parse_table() {
       for (i = 3; i <= NF; i++) note = note (i > 3 ? " " : "") $i
       if (note == "") next
 
-      tagged = match(note, /^[a-z][a-z-]*: /)
+      tagged = match(note, /^[a-z][a-z -]*: /)
       if (mode == "tagged") {
         if (!tagged) next
         cat = substr(note, 1, RLENGTH - 2)
@@ -121,7 +122,8 @@ parse_table() {
 #
 # A category missing from this list still appears; it just sorts to the end,
 # alphabetically among its peers. Ordering degrades, nothing disappears.
-readonly GROUP_ORDER="session pane popup copy copy-mode open agents nested help tmux"
+# Comma-separated, not space-separated: a category may contain a space.
+readonly GROUP_ORDER="session,pane,popup,copy,copy-mode,open github,agents,nested,help,tmux"
 
 # Hard ceiling on columns. Width alone would give five or six on a wide popup,
 # splitting families that belong together (session away from pane, copy away
@@ -147,7 +149,7 @@ collect() {
     if [ "$show_all" -eq 1 ]; then parse_table prefix 1 builtin; fi
   } | awk -F'\t' -v order="$GROUP_ORDER" '
       BEGIN {
-        n = split(order, o, " ")
+        n = split(order, o, ",")
         for (i = 1; i <= n; i++) rank[o[i]] = i
         last = n + 1
       }
