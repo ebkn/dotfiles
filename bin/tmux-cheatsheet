@@ -2,8 +2,9 @@
 # tmux-cheatsheet: the key bindings worth remembering, grouped into columns.
 #
 # Bound to prefix + ?, opened in a display-popup. The status bar carries a
-# "C-q ?:help" hint so the key that opens this is itself discoverable -- a list
-# you cannot remember how to reach is no better than no list.
+# "push C-q+? to show help" hint so the key that opens this is itself
+# discoverable -- a list you cannot remember how to reach is no better than
+# no list.
 #
 # The list is DERIVED from the running tmux server, never hand-maintained:
 # `tmux list-keys -N` prints only bindings that carry a note (`bind -N`), so
