@@ -62,9 +62,16 @@ publish() {
   # @claude_glyph is stored ready to concatenate — separator included —
   # so a format can prepend it unconditionally and an unset option then
   # contributes nothing at all. The separator is per-glyph rather than
-  # appended here: ❓ 🛑 💤 ✅ carry emoji presentation and already occupy
+  # appended here: 🔶 🛑 🔘 ⚪ carry emoji presentation and already occupy
   # two terminal cells, so a space after them reads as a gap, while the
   # narrow ▶ (U+25B6, East Asian Ambiguous, one cell) needs one.
+  #
+  # Every glyph here must have Emoji_Presentation=Yes on its own — never a
+  # base character promoted with VS16 (U+FE0F). Terminals and tmux disagree on
+  # whether such a sequence is one cell or two, and being wrong shifts the tab
+  # title and knocks bin/tmux-agents' columns out of line with no error at all.
+  # ⚠️ (U+26A0 U+FE0F) was tried here and did visibly misalign, which is why
+  # asking is the orange diamond and not the warning sign it wants to be.
   set_opt @claude_glyph "$glyph"
   set_opt @claude_since "$(date +%s)"
   if [ -n "$note" ]; then
@@ -86,7 +93,7 @@ case "$mode" in
     ;;
   done)
     # 'done' quoted: bare, it reads as the loop-closing shell keyword.
-    publish 'done' '✅'
+    publish 'done' '⚪'
     ;;
   ask)
     # The matcher already restricts this to AskUserQuestion, so the tool name is
@@ -95,7 +102,7 @@ case "$mode" in
     # same dialog carries a fixed, contentless message).
     question=$(jq -r '(.tool_input.questions[0].question // "")
                       | gsub("\\s+"; " ")' 2>/dev/null)
-    publish asking '❓' "${question:0:120}"
+    publish asking '🔶' "${question:0:120}"
     ;;
   notify)
     # Only the notification types that mean "this session is blocked on the
@@ -105,9 +112,9 @@ case "$mode" in
     # The split is by how loudly the pane should shout, which is what the two
     # groups below encode:
     #   waiting (🛑) — a modal is open; nothing moves until it is answered.
-    #   stalled (💤) — the turn is over and has been sitting unattended.
+    #   stalled (🔘) — the turn is over and has been sitting unattended.
     # `stalled` deliberately overwrites `done`: idle_prompt fires 60s after the
-    # turn ends, so ✅ ("just finished") ageing into 💤 ("finished, still
+    # turn ends, so ⚪ ("just finished") ageing into 🔘 ("finished, still
     # untouched") is the intended reading, not a lost signal.
     #
     # jq collapses whitespace runs so the message stays on one line (the reader
@@ -136,7 +143,7 @@ case "$mode" in
         case "$(get_opt @claude_state)" in
           asking | waiting) exit 0 ;;
         esac
-        publish stalled '💤' "${message:0:120}"
+        publish stalled '🔘' "${message:0:120}"
         ;;
       *)
         exit 0

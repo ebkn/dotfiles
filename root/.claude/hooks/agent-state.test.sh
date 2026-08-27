@@ -100,7 +100,7 @@ assert_opt @claude_state ''
 echo "-- busy --"
 run busy; assert_exit_zero "busy" $?
 assert_opt @claude_state busy
-# The separator is per-glyph, not uniform: ❓ 🛑 💤 ✅ are emoji-presentation and
+# The separator is per-glyph, not uniform: 🔶 🛑 🔘 ⚪ are emoji-presentation and
 # already two cells wide, so only the narrow ▶ carries a trailing space.
 # Pinned exactly, because the title format concatenates it blind.
 assert_opt @claude_glyph '▶ '
@@ -128,14 +128,14 @@ for t in idle_prompt agent_needs_input; do
   got=$(get_opt @claude_state)
   if [[ "$got" == stalled ]]; then ok "$t -> stalled"; else bad "$t -> [$got], want stalled"; fi
 done
-assert_opt @claude_glyph '💤'
+assert_opt @claude_glyph '🔘'
 
 echo "-- ask: the AskUserQuestion dialog --"
 run clear
 run ask '{"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"Which  glyph\nwins?"},{"question":"ignored"}]}}'
 assert_exit_zero "ask" $?
 assert_opt @claude_state asking
-assert_opt @claude_glyph '❓'
+assert_opt @claude_glyph '🔶'
 # The first question only, whitespace collapsed: @claude_note is read back on a
 # single line by bin/tmux-agents.
 assert_opt @claude_note 'Which glyph wins?'
@@ -156,7 +156,7 @@ run clear
 run ask '{"tool_input":{"questions":[{"question":"keep me"}]}}'
 run notify "$(notify_json permission_prompt 'Claude needs your permission')"
 assert_opt @claude_state asking
-assert_opt @claude_glyph '❓'
+assert_opt @claude_glyph '🔶'
 assert_opt @claude_note 'keep me'
 
 for from in asking waiting; do
@@ -235,7 +235,7 @@ assert_opt @claude_state busy
 echo "-- done --"
 run 'done'; assert_exit_zero 'done' $?
 assert_opt @claude_state 'done'
-assert_opt @claude_glyph '✅'
+assert_opt @claude_glyph '⚪'
 
 echo "-- clear --"
 run notify "$(notify_json permission_prompt 'something')"
@@ -250,6 +250,27 @@ run bogus_mode; assert_exit_zero "unknown mode" $?
 assert_opt @claude_state busy
 TMUX="$TMUX_ENV" TMUX_PANE="$PANE" "$HOOK" </dev/null; assert_exit_zero "no mode" $?
 assert_opt @claude_state busy
+
+echo "-- every glyph is emoji-presentation on its own, never VS16 --"
+# A base character promoted with VS16 (U+FE0F) is one cell in some terminals and
+# two in others. ⚠️ (U+26A0 U+FE0F) was tried for `asking` and visibly misaligned
+# the tab title, so the orange diamond stands in for it. Both consumers bake the
+# separator into the glyph and align columns on its width, so a VS16 sequence
+# slipping back in shifts everything after it with no error anywhere.
+check_no_vs16() {
+  local label=$1 g
+  g=$(get_opt @claude_glyph)
+  if printf '%s' "$g" | LC_ALL=C grep -q $'\xef\xb8\x8f'; then
+    bad "$label glyph carries VS16 (U+FE0F)"
+  else
+    ok "$label glyph needs no VS16"
+  fi
+}
+run busy; check_no_vs16 busy
+run clear; run ask '{"tool_input":{"questions":[{"question":"q"}]}}'; check_no_vs16 asking
+run clear; run notify "$(notify_json permission_prompt 'p')"; check_no_vs16 waiting
+run clear; run notify "$(notify_json idle_prompt 'i')"; check_no_vs16 stalled
+run 'done'; check_no_vs16 'done'
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]
