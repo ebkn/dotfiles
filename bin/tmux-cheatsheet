@@ -37,14 +37,36 @@ set -euo pipefail
 # `[ ... ] && x=1` would be the last command of a `set -e` script line and exit
 # it outright when the test fails, so these stay as if-statements.
 show_all=0
-if [ "${1:-}" = "--all" ]; then
-  show_all=1
-fi
+force_cols=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --all) show_all=1 ;;
+    # Pretend the popup is this wide. Exists so the column packing can be
+    # verified without a pty -- see the testing note in CLAUDE.md.
+    --width) shift; force_cols="${1:-}" ;;
+    *) printf 'usage: %s [--all] [--width N]\n' "${0##*/}" >&2; exit 2 ;;
+  esac
+  shift
+done
 
-# Terminal size inside the popup. tput reads the popup's own tty, so this is
-# the popup geometry (-w/-h in .tmux.conf), not the window behind it.
-cols=$(tput cols 2>/dev/null || echo 80)
-lines=$(tput lines 2>/dev/null || echo 24)
+# Popup geometry, read from the tty itself (TIOCGWINSZ). `$(tput cols)` is the
+# obvious idiom and is WRONG here, verified in a real popup: tput measures the
+# terminal on its stdout, and command substitution makes that a pipe, so it
+# falls back to the terminfo entry and reports 80x24 with exit status 0 -- no
+# error, just every popup packed into the one column this layout exists to
+# avoid. `stty size` reads /dev/tty explicitly and is immune. tput stays only
+# as the fallback for when /dev/tty cannot be opened at all, where its 80 is at
+# least an honest guess.
+if size=$(stty size 2>/dev/null </dev/tty); then
+  lines=${size%% *}
+  cols=${size##* }
+else
+  cols=$(tput cols 2>/dev/null || echo 80)
+  lines=$(tput lines 2>/dev/null || echo 24)
+fi
+if [ -n "$force_cols" ]; then
+  cols=$force_cols
+fi
 
 # parse_table TABLE SHOW_PREFIX CATEGORY_MODE
 #
@@ -101,20 +123,90 @@ collect() {
   } | sort -f -t"$(printf '\t')" -k1,1 -k2,2
 }
 
-# Lay the groups out in as many columns as the popup is wide enough for.
+# Lay the groups out in as many columns as the popup is actually wide enough
+# for. Column widths are measured PER COLUMN, not once for the whole page: a
+# single long description would otherwise set the width of every column and cost
+# a column that the real content had room for.
 #
-# Balanced packing, not sequential: columns are filled to an even height so the
-# page is as short as it can be. A group is never split across columns -- a
-# heading with its keys elsewhere is worse than an uneven column.
+# So the count cannot be computed in one division -- it depends on which groups
+# land where, which depends on the count. The loop tries each candidate from
+# widest down, packs it for real, measures it, and takes the first that fits.
+#
+# Packing is balanced (columns filled to an even height) and never splits a
+# group across columns: a heading with its keys in the next column is worse
+# than an uneven page.
 layout() {
   awk -F'\t' -v width="$cols" '
+    # Length of group g as it is rendered: its heading, its keys, and the blank
+    # line that separates it from the next. Every part of the packer has to
+    # agree on this or a column overflows by exactly the separators it forgot.
+    function glen(g) {
+      return gend[g] - gstart[g] + 1 + (g < ng ? 1 : 0)
+    }
+
+    # Can the groups be laid out in c columns none taller than h? Greedy is
+    # optimal here because groups keep their order and cannot be split.
+    function fits(h, c,   g, col, used, L) {
+      col = 1; used = 0
+      for (g = 1; g <= ng; g++) {
+        L = glen(g)
+        if (L > h) return 0
+        if (used + L > h) { col++; used = 0 }
+        used += L
+      }
+      return (col <= c)
+    }
+
+    # Shortest height that c columns can achieve, by binary search over the
+    # feasibility test above. This is what keeps the columns even: filling them
+    # to a ceil(total / c) target instead makes the first oversized group push
+    # every later group into the final column, which was the whole bug.
+    function minheight(c,   lo, hi, mid, res) {
+      lo = minh; hi = nl; res = nl
+      while (lo <= hi) {
+        mid = int((lo + hi) / 2)
+        if (fits(mid, c)) { res = mid; hi = mid - 1 } else lo = mid + 1
+      }
+      return res
+    }
+
+    # Lay the groups out at height h, filling cell[] and colw[] and returning
+    # the total rendered width. Widths are per column, not one maximum for the
+    # page: a single long description would otherwise widen every column and
+    # cost a column the real content had room for.
+    function pack(h,   g, col, used, i, total, w, L) {
+      for (i in cell) delete cell[i]
+      for (i in colw) delete colw[i]
+      col = 1; used = 0; height = 0
+      for (g = 1; g <= ng; g++) {
+        L = glen(g)
+        if (used > 0 && used + L > h) { col++; used = 0 }
+        for (i = gstart[g]; i <= gend[g]; i++) {
+          # `cell[col SUBSEP ++used]` is NOT equivalent: the one true awk parses
+          # `SUBSEP ++used` as `SUBSEP++ used`, post-incrementing SUBSEP and
+          # never touching the counter, so every cell lands on one key and the
+          # page comes out empty. Increment on its own line and the ambiguity
+          # cannot arise.
+          used++
+          cell[col, used] = line[i]
+          w = length(line[i]); if (w > colw[col]) colw[col] = w
+        }
+        if (g < ng) { used++; cell[col, used] = "" }
+        if (used > height) height = used
+      }
+      ncols = col
+      total = 0
+      for (i = 1; i <= ncols; i++) total += colw[i]
+      return total + GUTTER * (ncols - 1)
+    }
+
+    BEGIN { GUTTER = 4 }
+
     { cat[NR] = $1; key[NR] = $2; desc[NR] = $3; n = NR }
 
     END {
       if (n == 0) { print "  (no annotated bindings -- add -N notes in .tmux.conf)"; exit }
 
-      # Build the display lines group by group, remembering where each group
-      # starts so the packer can move whole groups.
       kw = 0
       for (i = 1; i <= n; i++) if (length(key[i]) > kw) kw = length(key[i])
 
@@ -130,36 +222,25 @@ layout() {
         gend[ng] = nl
       }
 
-      # Column width is the widest line plus a gutter; every column gets the
-      # same width so the grid stays aligned regardless of what lands in it.
-      cw = 0
-      for (i = 1; i <= nl; i++) if (length(line[i]) > cw) cw = length(line[i])
-      gutter = 4
-      ncols = int(width / (cw + gutter))
-      if (ncols < 1) ncols = 1
-      if (ncols > ng) ncols = ng
+      minh = 0
+      for (g = 1; g <= ng; g++) if (glen(g) > minh) minh = glen(g)
 
-      target = int(nl / ncols); if (nl % ncols) target++
-
-      # Assign whole groups to columns, starting a new column once the current
-      # one has reached the target height. The last column takes the remainder,
-      # so a group is never dropped even if the estimate was optimistic.
-      col = 1; used = 0; height = 0
-      for (g = 1; g <= ng; g++) {
-        glen = gend[g] - gstart[g] + 1
-        if (used > 0 && used + glen > target && col < ncols) { col++; used = 0 }
-        for (i = gstart[g]; i <= gend[g]; i++) {
-          cell[col, ++used] = line[i]
-          if (i == gend[g] && g < ng) cell[col, ++used] = ""
-        }
-        if (used > height) height = used
-      }
+      # How many columns is not a free choice. The page can never be shorter
+      # than its tallest group, so ceil(total / tallest) is the count that
+      # reaches that floor and any more is pure whitespace -- a 288-column
+      # popup otherwise lands on six columns, half of them one line deep. Step
+      # down from there until the packing actually fits the popup width.
+      c = int(nl / minh); if (nl % minh) c++
+      if (c > ng) c = ng
+      if (c < 1) c = 1
+      while (c > 1 && pack(minheight(c)) > width) c--
+      pack(minheight(c))
 
       for (r = 1; r <= height; r++) {
         out = ""
-        for (c = 1; c <= ncols; c++) {
-          v = ((c, r) in cell) ? cell[c, r] : ""
-          out = out sprintf("%-*s", (c < ncols ? cw + gutter : 0), v)
+        for (col = 1; col <= ncols; col++) {
+          v = ((col, r) in cell) ? cell[col, r] : ""
+          out = out sprintf("%-*s", (col < ncols ? colw[col] + GUTTER : 0), v)
         }
         sub(/ +$/, "", out)
         print out
