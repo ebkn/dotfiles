@@ -135,7 +135,13 @@
       "Bash(git cat-file *)",
       "Bash(git cherry-pick *)",
       "Bash(git commit -m *)",
-      "Bash(git config *)",
+      "Bash(git config --get *)",
+      "Bash(git config --get-all *)",
+      "Bash(git config --get-regexp *)",
+      "Bash(git config --list*)",
+      "Bash(git config -l*)",
+      "Bash(git config get *)",
+      "Bash(git config list*)",
       "Bash(git describe*)",
       "Bash(git diff*)",
       "Bash(git fetch*)",
@@ -176,7 +182,13 @@
       "Bash(git -C * cat-file *)",
       "Bash(git -C * cherry-pick *)",
       "Bash(git -C * commit -m *)",
-      "Bash(git -C * config *)",
+      "Bash(git -C * config --get *)",
+      "Bash(git -C * config --get-all *)",
+      "Bash(git -C * config --get-regexp *)",
+      "Bash(git -C * config --list*)",
+      "Bash(git -C * config -l*)",
+      "Bash(git -C * config get *)",
+      "Bash(git -C * config list*)",
       "Bash(git -C * describe*)",
       "Bash(git -C * diff*)",
       "Bash(git -C * fetch*)",
@@ -424,6 +436,11 @@
             "type": "command",
             "command": "~/.claude/hooks/curl-guard.sh",
             "if": "Bash(curl *)",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/git-guard.sh",
             "timeout": 5
           }
         ]
