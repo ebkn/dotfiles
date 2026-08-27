@@ -15,9 +15,9 @@
 #
 # The precedence cases matter for the same reason. `asking` and `waiting` are
 # reached by two different hooks that both fire for one AskUserQuestion dialog,
-# and `idle_prompt` can land on top of either — so the order in which states may
-# overwrite each other is real logic, not an implementation detail, and getting
-# it wrong is invisible until a pane shows the wrong glyph at 2am.
+# and `agent_needs_input` can land on top of either — so the order in which
+# states may overwrite each other is real logic, not an implementation detail,
+# and getting it wrong is invisible until a pane shows the wrong glyph at 2am.
 set -uo pipefail
 
 HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/agent-state.sh"
@@ -100,7 +100,7 @@ assert_opt @claude_state ''
 echo "-- busy --"
 run busy; assert_exit_zero "busy" $?
 assert_opt @claude_state busy
-# The separator is per-glyph, not uniform: 🔶 🛑 🔘 ⚪ are emoji-presentation and
+# The separator is per-glyph, not uniform: 🔶 🛑 🔘 are emoji-presentation and
 # already two cells wide, so only the narrow ▶ carries a trailing space.
 # Pinned exactly, because the title format concatenates it blind.
 assert_opt @claude_glyph '▶ '
@@ -121,14 +121,12 @@ for t in permission_prompt elicitation_dialog elicitation_url_dialog; do
 done
 assert_opt @claude_glyph '🛑'
 
-echo "-- notify: types that mean 'the turn is over and untouched' --"
-for t in idle_prompt agent_needs_input; do
-  run clear
-  run notify "$(notify_json "$t" "stalled on $t")"
-  got=$(get_opt @claude_state)
-  if [[ "$got" == stalled ]]; then ok "$t -> stalled"; else bad "$t -> [$got], want stalled"; fi
-done
+echo "-- notify: a background agent blocked on the human --"
+run clear
+run notify "$(notify_json agent_needs_input 'reviewer needs your input')"
+assert_opt @claude_state stalled
 assert_opt @claude_glyph '🔘'
+assert_opt @claude_note 'reviewer needs your input'
 
 echo "-- ask: the AskUserQuestion dialog --"
 run clear
@@ -166,19 +164,30 @@ for from in asking waiting; do
   else
     run notify "$(notify_json permission_prompt 'perm')"
   fi
-  run notify "$(notify_json idle_prompt 'Claude is waiting for your input')"
+  run notify "$(notify_json agent_needs_input 'a worker wants you')"
   got=$(get_opt @claude_state)
   if [[ "$got" == "$from" ]]; then
-    ok "idle_prompt does not demote $from"
+    ok "agent_needs_input does not demote $from"
   else
-    bad "idle_prompt demoted $from -> [$got]"
+    bad "agent_needs_input demoted $from -> [$got]"
   fi
 done
 
-# ...but the turn genuinely ending and then going untouched must still show.
+# idle_prompt is not in the allow-list at all. It fires 60s after a turn ends,
+# by which point Stop has already published `stalled`; republishing would only
+# restamp @claude_since and reset the picker's age column to 0s. Pinned here
+# because "it does nothing" is indistinguishable from "someone deleted the
+# branch" unless a test says the nothing is deliberate.
 run 'done'
+since_before=$(get_opt @claude_since)
 run notify "$(notify_json idle_prompt 'Claude is waiting for your input')"
 assert_opt @claude_state stalled
+if [[ "$(get_opt @claude_since)" == "$since_before" ]]; then
+  ok "idle_prompt leaves @claude_since alone"
+else
+  bad "idle_prompt restamped @claude_since"
+fi
+assert_opt @claude_note ''
 
 # And answering the dialog clears it, whichever state it was in.
 for from in asking waiting; do
@@ -196,7 +205,7 @@ done
 echo "-- notify: informational types must not stick --"
 # Set busy first: the bug this guards is an informational notification
 # overwriting a live state, not merely failing to set one.
-for t in auth_success agent_completed elicitation_result elicitation_url_result '' unknown_future_type; do
+for t in auth_success agent_completed idle_prompt elicitation_result elicitation_url_result '' unknown_future_type; do
   run busy
   run notify "$(notify_json "$t" "informational")"; status=$?
   got=$(get_opt @claude_state)
@@ -232,10 +241,10 @@ run busy
 run notify ''; assert_exit_zero "empty stdin" $?
 assert_opt @claude_state busy
 
-echo "-- done --"
+echo "-- done: the Stop transition publishes stalled --"
 run 'done'; assert_exit_zero 'done' $?
-assert_opt @claude_state 'done'
-assert_opt @claude_glyph '⚪'
+assert_opt @claude_state stalled
+assert_opt @claude_glyph '🔘'
 
 echo "-- clear --"
 run notify "$(notify_json permission_prompt 'something')"
@@ -269,8 +278,7 @@ check_no_vs16() {
 run busy; check_no_vs16 busy
 run clear; run ask '{"tool_input":{"questions":[{"question":"q"}]}}'; check_no_vs16 asking
 run clear; run notify "$(notify_json permission_prompt 'p')"; check_no_vs16 waiting
-run clear; run notify "$(notify_json idle_prompt 'i')"; check_no_vs16 stalled
-run 'done'; check_no_vs16 'done'
+run 'done'; check_no_vs16 stalled
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]

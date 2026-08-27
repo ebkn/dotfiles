@@ -96,8 +96,8 @@ awk -F'\t' -v OFS='\t' '
   {
     # asking/waiting share rank 0: both mean a dialog is open and nothing moves
     # until it is answered, and which one is more urgent is not for this script
-    # to guess. done/stalled share the last rank for the mirror reason — the
-    # age sort below floats the long-untouched one up on its own.
+    # to guess. Everything else lands in the last rank, where the age sort
+    # below floats the longest-untouched one up on its own.
     rank = ($6 == "asking" || $6 == "waiting") ? 0 : ($6 == "busy") ? 1 : 2
     print rank, $7, $0
   }
@@ -130,8 +130,7 @@ awk -F'\t' -v now="$now" '
     # columns after the glyph line up across rows.
     glyph = ($6 == "asking")  ? "🔶" \
           : ($6 == "waiting") ? "🛑" \
-          : ($6 == "stalled") ? "🔘" \
-          : ($6 == "busy")    ? "▶ " : "⚪"
+          : ($6 == "busy")    ? "▶ " : "🔘"
     where = ($1 == "") ? "local" : $1
     printf "%s|%s|%s\t%s %4s  %-12s %-28s %s\n", $1, $3, $4, glyph, age($7), where, $5, $8
   }

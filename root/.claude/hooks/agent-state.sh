@@ -19,6 +19,12 @@
 #   notify  — read stdin, may set     (Notification)
 #   done    — turn finished, unread   (Stop)
 #
+# Modes name the *transition*, states name what is published, and the two need
+# not match: `done` is the Stop transition, and the state it publishes is
+# `stalled`, because a finished turn nobody has read yet is exactly that. Keeping
+# the mode name also means settings.json does not have to change in lockstep,
+# so sessions running an older hook snapshot keep working.
+#
 # The mode comes from argv, not from the stdin JSON's hook_event_name, so that
 # every transition except `ask`/`notify` avoids spawning jq. `busy` in particular
 # runs once per tool batch, and a jq fork there would tax the inner agent loop.
@@ -62,7 +68,7 @@ publish() {
   # @claude_glyph is stored ready to concatenate — separator included —
   # so a format can prepend it unconditionally and an unset option then
   # contributes nothing at all. The separator is per-glyph rather than
-  # appended here: 🔶 🛑 🔘 ⚪ carry emoji presentation and already occupy
+  # appended here: 🔶 🛑 🔘 carry emoji presentation and already occupy
   # two terminal cells, so a space after them reads as a gap, while the
   # narrow ▶ (U+25B6, East Asian Ambiguous, one cell) needs one.
   #
@@ -92,8 +98,7 @@ case "$mode" in
     publish busy '▶ '
     ;;
   done)
-    # 'done' quoted: bare, it reads as the loop-closing shell keyword.
-    publish 'done' '⚪'
+    publish stalled '🔘'
     ;;
   ask)
     # The matcher already restricts this to AskUserQuestion, so the tool name is
@@ -109,13 +114,18 @@ case "$mode" in
     # human" publish anything. auth_success / agent_completed and the
     # elicitation_* result types are informational and must not stick.
     #
-    # The split is by how loudly the pane should shout, which is what the two
-    # groups below encode:
+    # The split is by how loudly the pane should shout:
     #   waiting (🛑) — a modal is open; nothing moves until it is answered.
-    #   stalled (🔘) — the turn is over and has been sitting unattended.
-    # `stalled` deliberately overwrites `done`: idle_prompt fires 60s after the
-    # turn ends, so ⚪ ("just finished") ageing into 🔘 ("finished, still
-    # untouched") is the intended reading, not a lost signal.
+    #   stalled (🔘) — nothing is happening and the next move is the human's.
+    #
+    # `idle_prompt` is deliberately absent from both lists. It fires 60s after a
+    # turn ends, which is a state the Stop hook has already published — so all
+    # it could do is republish the same thing, and `publish` restamps
+    # @claude_since every time. That would reset the age column in
+    # bin/tmux-agents to 0s exactly 60s after the turn finished, i.e. make the
+    # one number in the picker lie. It earned its keep only while `done` and
+    # `stalled` were separate glyphs; once they merged it became a no-op with a
+    # side effect.
     #
     # jq collapses whitespace runs so the message stays on one line (the reader
     # below is line-based), and one pass emits both fields in a fixed order.
@@ -135,11 +145,12 @@ case "$mode" in
         [ "$(get_opt @claude_state)" = "asking" ] && exit 0
         publish waiting '🛑' "${message:0:120}"
         ;;
-      idle_prompt | agent_needs_input)
-        # idle_prompt is "no input for 60s", which is also true of a dialog the
-        # human has walked away from — so it can arrive while one is still open.
-        # Letting it through would relabel a genuinely blocked pane as merely
-        # unattended, which is the one direction that loses information.
+      agent_needs_input)
+        # A background/worker agent is blocked. Unlike the Stop transition this
+        # carries a useful message ("<agent> needs your input"), so it publishes
+        # rather than being folded into the Stop path. It must still not relabel
+        # a pane whose own dialog is open as merely idle — that is the one
+        # direction that loses information.
         case "$(get_opt @claude_state)" in
           asking | waiting) exit 0 ;;
         esac
