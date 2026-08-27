@@ -112,14 +112,22 @@ parse_table() {
     }'
 }
 
-# Reading order for the groups, most-reached-for first. Alphabetical is the
-# obvious default and is worthless here -- it opens on "agents" and buries
-# "pane", the group with half the bindings in it. Groups are laid out down the
-# first column and then across, so this is literally the order you read them in.
+# Reading order for the groups. Groups are laid out down the first column and
+# then across, so this is literally the order you read them in, and with
+# MAX_COLS below it is what puts session+pane in the first column, the popup and
+# copy family in the second, and the one-liners in the third. Alphabetical --
+# the obvious default -- opens on "agents" and buries "pane", the group holding
+# half the bindings.
 #
 # A category missing from this list still appears; it just sorts to the end,
 # alphabetically among its peers. Ordering degrades, nothing disappears.
-readonly GROUP_ORDER="pane popup copy copy-mode session open agents nested help tmux"
+readonly GROUP_ORDER="session pane popup copy copy-mode open agents nested help tmux"
+
+# Hard ceiling on columns. Width alone would give five or six on a wide popup,
+# splitting families that belong together (session away from pane, copy away
+# from copy-mode) purely because a column filled up. Three columns is the
+# arrangement that keeps them intact; a narrower popup still gets fewer.
+readonly MAX_COLS=3
 
 collect() {
   # Two-level ordering, both of which have to be imposed here: list-keys emits
@@ -165,7 +173,7 @@ collect() {
 # group across columns: a heading with its keys in the next column is worse
 # than an uneven page.
 layout() {
-  awk -F'\t' -v width="$cols" '
+  awk -F'\t' -v width="$cols" -v maxcol="$MAX_COLS" '
     # Length of group g as it is rendered: its heading, its keys, and the blank
     # line that separates it from the next. Every part of the packer has to
     # agree on this or a column overflows by exactly the separators it forgot.
@@ -231,12 +239,12 @@ layout() {
       # splitting groups, and the order is the point.
       #
       # The height limit starts at the tallest group -- the page can never be
-      # shorter, since a group is never split -- and grows until the resulting
-      # columns fit the popup width. A taller limit means fewer columns, so
-      # this terminates at one column in the worst case.
+      # shorter, since a group is never split -- and grows until the columns
+      # both fit the popup width and stop exceeding maxcol. A taller limit
+      # means fewer columns, so this terminates at one column in the worst case.
       minh = 0
       for (g = 1; g <= ng; g++) if (glen(g) > minh) minh = glen(g)
-      for (h = minh; h < nl && pack(h) > width; h++) { }
+      for (h = minh; h < nl && (pack(h) > width || ncols > maxcol); h++) { }
       pack(h)
 
       for (r = 1; r <= height; r++) {
