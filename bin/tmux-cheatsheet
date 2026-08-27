@@ -111,16 +111,44 @@ parse_table() {
     }'
 }
 
+# Reading order for the groups, most-reached-for first. Alphabetical is the
+# obvious default and is worthless here -- it opens on "agents" and buries
+# "pane", the group with half the bindings in it. Groups are laid out down the
+# first column and then across, so this is literally the order you read them in.
+#
+# A category missing from this list still appears; it just sorts to the end,
+# alphabetically among its peers. Ordering degrades, nothing disappears.
+readonly GROUP_ORDER="pane popup copy copy-mode session open agents nested help tmux"
+
 collect() {
-  # Sorted by category then key so groups form and each group reads in a
-  # stable order; list-keys order is tmux's own key order, which says nothing.
-  # -f folds case, keeping the resize keys (H) next to the focus keys (h)
-  # instead of in a separate uppercase run.
+  # Two-level ordering, both of which have to be imposed here: list-keys emits
+  # tmux's own key order, which says nothing about how anything reads.
+  #
+  # Between groups: GROUP_ORDER above.
+  #
+  # Within a group: by the description's leading verb, then by key. Sorting by
+  # key alone interleaves two different actions -- focus left, grow left, focus
+  # down, grow down -- because the resize keys are the shifted focus keys.
+  # Sorting by the whole description is worse: it turns h/j/k/l into "focus
+  # down, focus left, focus right, focus up". Verb first keeps each kind of
+  # action together, and the key sort inside it restores the vim order.
   {
     parse_table prefix 1 tagged
     parse_table copy-mode-vi 0 copy-mode
     if [ "$show_all" -eq 1 ]; then parse_table prefix 1 builtin; fi
-  } | sort -f -t"$(printf '\t')" -k1,1 -k2,2
+  } | awk -F'\t' -v order="$GROUP_ORDER" '
+      BEGIN {
+        n = split(order, o, " ")
+        for (i = 1; i <= n; i++) rank[o[i]] = i
+        last = n + 1
+      }
+      {
+        r = ($1 in rank) ? rank[$1] : last
+        verb = tolower($3); sub(/ .*/, "", verb)
+        printf "%d\t%s\t%s\t%s\t%s\t%s\t%s\n", r, $1, verb, tolower($2), $1, $2, $3
+      }' |
+    sort -t"$(printf '\t')" -k1,1n -k2,2 -k3,3 -k4,4 |
+    cut -f5-
 }
 
 # Lay the groups out in as many columns as the popup is actually wide enough
@@ -142,32 +170,6 @@ layout() {
     # agree on this or a column overflows by exactly the separators it forgot.
     function glen(g) {
       return gend[g] - gstart[g] + 1 + (g < ng ? 1 : 0)
-    }
-
-    # Can the groups be laid out in c columns none taller than h? Greedy is
-    # optimal here because groups keep their order and cannot be split.
-    function fits(h, c,   g, col, used, L) {
-      col = 1; used = 0
-      for (g = 1; g <= ng; g++) {
-        L = glen(g)
-        if (L > h) return 0
-        if (used + L > h) { col++; used = 0 }
-        used += L
-      }
-      return (col <= c)
-    }
-
-    # Shortest height that c columns can achieve, by binary search over the
-    # feasibility test above. This is what keeps the columns even: filling them
-    # to a ceil(total / c) target instead makes the first oversized group push
-    # every later group into the final column, which was the whole bug.
-    function minheight(c,   lo, hi, mid, res) {
-      lo = minh; hi = nl; res = nl
-      while (lo <= hi) {
-        mid = int((lo + hi) / 2)
-        if (fits(mid, c)) { res = mid; hi = mid - 1 } else lo = mid + 1
-      }
-      return res
     }
 
     # Lay the groups out at height h, filling cell[] and colw[] and returning
@@ -222,19 +224,19 @@ layout() {
         gend[ng] = nl
       }
 
+      # Columns are filled in reading order and are NOT levelled: a group goes
+      # into the current column if it fits under the height limit, otherwise it
+      # starts the next one. Evening the columns out would mean reordering or
+      # splitting groups, and the order is the point.
+      #
+      # The height limit starts at the tallest group -- the page can never be
+      # shorter, since a group is never split -- and grows until the resulting
+      # columns fit the popup width. A taller limit means fewer columns, so
+      # this terminates at one column in the worst case.
       minh = 0
       for (g = 1; g <= ng; g++) if (glen(g) > minh) minh = glen(g)
-
-      # How many columns is not a free choice. The page can never be shorter
-      # than its tallest group, so ceil(total / tallest) is the count that
-      # reaches that floor and any more is pure whitespace -- a 288-column
-      # popup otherwise lands on six columns, half of them one line deep. Step
-      # down from there until the packing actually fits the popup width.
-      c = int(nl / minh); if (nl % minh) c++
-      if (c > ng) c = ng
-      if (c < 1) c = 1
-      while (c > 1 && pack(minheight(c)) > width) c--
-      pack(minheight(c))
+      for (h = minh; h < nl && pack(h) > width; h++) { }
+      pack(h)
 
       for (r = 1; r <= height; r++) {
         out = ""
