@@ -88,13 +88,17 @@ cat "$tmpdir"/remote.* >>"$tmpdir/rows" 2>/dev/null || true
 #         7 since, 8 note.
 #
 # Sort key is emitted as two leading numeric columns and stripped after sorting:
-# waiting first (that is the whole point of the list), then oldest within each
-# state, so the session that has been blocked longest floats to the top.
+# the blocked ones first (that is the whole point of the list), then oldest
+# within each rank, so the session blocked longest floats to the top.
 awk -F'\t' -v OFS='\t' '
   $6 == "" { next }                                   # no agent in this pane
   $2 ~ /^_/ { next }                                  # _popup_ / _tig_ / _fzf_nvim_ sessions
   {
-    rank = ($6 == "waiting") ? 0 : ($6 == "busy") ? 1 : 2
+    # asking/waiting share rank 0: both mean a dialog is open and nothing moves
+    # until it is answered, and which one is more urgent is not for this script
+    # to guess. done/stalled share the last rank for the mirror reason — the
+    # age sort below floats the long-untouched one up on its own.
+    rank = ($6 == "asking" || $6 == "waiting") ? 0 : ($6 == "busy") ? 1 : 2
     print rank, $7, $0
   }
 ' "$tmpdir/rows" | sort -t$'\t' -k1,1n -k2,2n | cut -f3- >"$tmpdir/ranked"
@@ -124,7 +128,10 @@ awk -F'\t' -v now="$now" '
     # Same per-glyph spacing rule as agent-state.sh: the emoji ones are
     # already two cells wide, the narrow ▶ is padded to two, so the
     # columns after the glyph line up across rows.
-    glyph = ($6 == "waiting") ? "❓" : ($6 == "busy") ? "▶ " : "✅"
+    glyph = ($6 == "asking")  ? "❓" \
+          : ($6 == "waiting") ? "🛑" \
+          : ($6 == "stalled") ? "💤" \
+          : ($6 == "busy")    ? "▶ " : "✅"
     where = ($1 == "") ? "local" : $1
     printf "%s|%s|%s\t%s %4s  %-12s %-28s %s\n", $1, $3, $4, glyph, age($7), where, $5, $8
   }

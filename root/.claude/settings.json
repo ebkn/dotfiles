@@ -444,6 +444,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/agent-state.sh ask",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostToolBatch": [

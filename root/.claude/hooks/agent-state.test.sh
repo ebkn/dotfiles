@@ -11,7 +11,13 @@
 # The cases that matter most are the `notify` ones: the notification_type
 # allow-list is a hard-coded string list against an upstream vocabulary, so it
 # is the part most likely to rot silently. A type dropping off the list downgrades
-# a blocked session to invisible; a type wrongly added makes ❓ stick forever.
+# a blocked session to invisible; a type wrongly added makes a glyph stick forever.
+#
+# The precedence cases matter for the same reason. `asking` and `waiting` are
+# reached by two different hooks that both fire for one AskUserQuestion dialog,
+# and `idle_prompt` can land on top of either — so the order in which states may
+# overwrite each other is real logic, not an implementation detail, and getting
+# it wrong is invisible until a pane shows the wrong glyph at 2am.
 set -uo pipefail
 
 HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/agent-state.sh"
@@ -94,7 +100,7 @@ assert_opt @claude_state ''
 echo "-- busy --"
 run busy; assert_exit_zero "busy" $?
 assert_opt @claude_state busy
-# The separator is per-glyph, not uniform: ❓/✅ are emoji-presentation and
+# The separator is per-glyph, not uniform: ❓ 🛑 💤 ✅ are emoji-presentation and
 # already two cells wide, so only the narrow ▶ carries a trailing space.
 # Pinned exactly, because the title format concatenates it blind.
 assert_opt @claude_glyph '▶ '
@@ -106,14 +112,86 @@ else
   bad "@claude_since not a fresh epoch: [$since]"
 fi
 
-echo "-- notify: types that mean 'blocked on the human' --"
-for t in permission_prompt idle_prompt agent_needs_input elicitation_dialog elicitation_url_dialog; do
+echo "-- notify: types that mean 'a dialog is open' --"
+for t in permission_prompt elicitation_dialog elicitation_url_dialog; do
   run clear
   run notify "$(notify_json "$t" "waiting on $t")"
   got=$(get_opt @claude_state)
   if [[ "$got" == waiting ]]; then ok "$t -> waiting"; else bad "$t -> [$got], want waiting"; fi
 done
+assert_opt @claude_glyph '🛑'
+
+echo "-- notify: types that mean 'the turn is over and untouched' --"
+for t in idle_prompt agent_needs_input; do
+  run clear
+  run notify "$(notify_json "$t" "stalled on $t")"
+  got=$(get_opt @claude_state)
+  if [[ "$got" == stalled ]]; then ok "$t -> stalled"; else bad "$t -> [$got], want stalled"; fi
+done
+assert_opt @claude_glyph '💤'
+
+echo "-- ask: the AskUserQuestion dialog --"
+run clear
+run ask '{"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"Which  glyph\nwins?"},{"question":"ignored"}]}}'
+assert_exit_zero "ask" $?
+assert_opt @claude_state asking
 assert_opt @claude_glyph '❓'
+# The first question only, whitespace collapsed: @claude_note is read back on a
+# single line by bin/tmux-agents.
+assert_opt @claude_note 'Which glyph wins?'
+
+run clear
+run ask 'not json at all'; assert_exit_zero "ask with malformed stdin" $?
+# Still publishes: the dialog *is* open regardless of what jq made of the input,
+# and a missing glyph is a worse failure than a missing note.
+assert_opt @claude_state asking
+assert_opt @claude_note ''
+
+echo "-- precedence: nothing may demote an open dialog --"
+# One AskUserQuestion dialog fires PreToolUse *and*, after a delay, a
+# permission_prompt Notification indistinguishable from a tool's. Verified
+# against 2.1.247: both send {"notification_type":"permission_prompt",
+# "message":"Claude needs your permission"}. The richer state must survive.
+run clear
+run ask '{"tool_input":{"questions":[{"question":"keep me"}]}}'
+run notify "$(notify_json permission_prompt 'Claude needs your permission')"
+assert_opt @claude_state asking
+assert_opt @claude_glyph '❓'
+assert_opt @claude_note 'keep me'
+
+for from in asking waiting; do
+  run clear
+  if [[ "$from" == asking ]]; then
+    run ask '{"tool_input":{"questions":[{"question":"q"}]}}'
+  else
+    run notify "$(notify_json permission_prompt 'perm')"
+  fi
+  run notify "$(notify_json idle_prompt 'Claude is waiting for your input')"
+  got=$(get_opt @claude_state)
+  if [[ "$got" == "$from" ]]; then
+    ok "idle_prompt does not demote $from"
+  else
+    bad "idle_prompt demoted $from -> [$got]"
+  fi
+done
+
+# ...but the turn genuinely ending and then going untouched must still show.
+run 'done'
+run notify "$(notify_json idle_prompt 'Claude is waiting for your input')"
+assert_opt @claude_state stalled
+
+# And answering the dialog clears it, whichever state it was in.
+for from in asking waiting; do
+  run clear
+  if [[ "$from" == asking ]]; then
+    run ask '{"tool_input":{"questions":[{"question":"q"}]}}'
+  else
+    run notify "$(notify_json permission_prompt 'perm')"
+  fi
+  run busy
+  got=$(get_opt @claude_state)
+  if [[ "$got" == busy ]]; then ok "busy clears $from"; else bad "busy left $from as [$got]"; fi
+done
 
 echo "-- notify: informational types must not stick --"
 # Set busy first: the bug this guards is an informational notification
