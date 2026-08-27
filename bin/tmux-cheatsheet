@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# tmux-cheatsheet: show every key binding worth remembering, searchable.
+#
+# Bound to prefix + ? (replacing tmux's own list-keys), opened in a
+# display-popup. The status bar carries a "C-q ?:help" hint so the key that
+# opens this is itself discoverable -- the list is useless if you cannot
+# remember how to reach it.
+#
+# The list is DERIVED from the running tmux server, never hand-maintained:
+# `tmux list-keys -N` prints only bindings that carry a note (`bind -N`), so
+# adding a note in .tmux.conf is the single act that both documents a binding
+# and puts it here. A cheatsheet stored as its own list would drift from the
+# config the first time a key moved.
+#
+# Three classes of entry, distinguished by rules that are cheap and explicit:
+#
+#   1. Our prefix bindings. tmux ships notes on its own prefix keys too, so the
+#      table alone cannot separate ours. Ours are tagged: the note reads
+#      "<category>: <description>" (lowercase tag, colon, space) and the tag
+#      becomes the category column. tmux's built-in notes are sentence-style
+#      ("Split window vertically") and never match. If upstream ever adds a
+#      note shaped like a tag it lands in the wrong section -- cosmetic only.
+#   2. Our copy-mode-vi bindings. tmux ships NO notes outside the prefix table
+#      (verified: `list-keys -N -T copy-mode-vi` is empty on a stock server),
+#      so everything listed there is ours and needs no tag.
+#   3. Everything else in the prefix table: tmux's own keys, category "tmux".
+#
+# Read-only. It runs `tmux list-keys` and nothing else; picking a line closes
+# the popup rather than executing the binding, deliberately -- a list you open
+# to remember "how do I kill this pane" should not kill the pane.
+
+set -euo pipefail
+
+# Column widths, shared by the header and every row so they line up.
+readonly KEY_W=13
+readonly CAT_W=10
+
+# parse_table TABLE SHOW_PREFIX CATEGORY_MODE
+#
+# `list-keys -N` prints "<prefix> <key><padding><note>" -- and it prepends the
+# prefix for EVERY table, including copy-mode-vi, where the key is reached by
+# being in copy mode and never by pressing C-q. So the key is always the first
+# two tokens, but showing both is only correct for the prefix table:
+# SHOW_PREFIX=0 drops the bogus "C-q " from copy-mode rows. The note is
+# whatever follows; its internal runs of spaces are collapsed, which is only
+# ever tmux's column padding.
+#
+# CATEGORY_MODE:
+#   tagged  - keep notes shaped "cat: desc", split them, drop the rest
+#   builtin - keep only notes NOT shaped that way, category "tmux"
+#   LITERAL - keep every note, use CATEGORY_MODE itself as the category
+parse_table() {
+  tmux list-keys -N -T "$1" 2>/dev/null | awk \
+    -v showpfx="$2" -v mode="$3" -v kw="$KEY_W" -v cw="$CAT_W" '
+    {
+      key = (showpfx ? $1 " " $2 : $2)
+      note = ""
+      for (i = 3; i <= NF; i++) note = note (i > 3 ? " " : "") $i
+      if (note == "") next
+
+      tagged = match(note, /^[a-z][a-z-]*: /)
+      if (mode == "tagged") {
+        if (!tagged) next
+        cat = substr(note, 1, RLENGTH - 2)
+        desc = substr(note, RLENGTH + 1)
+      } else if (mode == "builtin") {
+        if (tagged) next
+        cat = "tmux"
+        desc = note
+      } else {
+        cat = mode
+        desc = note
+      }
+      printf "%-*s %-*s %s\n", kw, key, cw, cat, desc
+    }'
+}
+
+render() {
+  # Ours first: the whole point is that the keys you forget are your own.
+  # Grouping by category beats list-keys order, which is tmux's own key order
+  # and says nothing useful. The sort key is field 3, not 2: the rendered key
+  # column is "C-q v", two whitespace-separated fields, so category lands third.
+  # -b is load-bearing: without it sort counts the column padding as part of the
+  # field, so a long key ("C-q C-q") has fewer leading blanks than a short one
+  # and its category sorts out of order.
+  parse_table prefix 1 tagged | sort -b -k3,3 -k2,2
+  parse_table copy-mode-vi 0 copy-mode | sort
+  parse_table prefix 1 builtin
+}
+
+header=$(printf "%-*s %-*s %s" "$KEY_W" "key" "$CAT_W" "where" "what it does")
+
+if command -v fzf >/dev/null 2>&1; then
+  # Enter closes rather than selects: nothing downstream consumes the choice.
+  render | fzf --no-sort --reverse --prompt 'help> ' \
+    --header "$header" --bind 'enter:abort,esc:abort' >/dev/null || true
+else
+  # fzf is a hard dependency of the other popups, but a bare remote host may
+  # not have it and a scrollable list still beats no list. No -R: render emits
+  # no escape sequences, and appending flags to $PAGER breaks a non-less pager.
+  { printf '%s\n' "$header"; render; } | "${PAGER:-less}"
+fi
