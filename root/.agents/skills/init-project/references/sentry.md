@@ -767,3 +767,25 @@ Two additions specific to this overlay:
 
 - `npm run knip` (TypeScript stacks) must be clean. The instrumentation files are framework/flag-loaded and are the likely failures; the fix is the `entry` declaration shown per stack, never deleting the file.
 - Confirm the SDK is genuinely inert without a DSN by running the app's entry point once (`npm run build`, `… --help`, `npm test`) and checking that nothing warns about a failed transport. A "No DSN provided" debug line is expected and correct.
+
+### Then prove the SDK is wired, not just harmless
+
+Everything above verifies that Sentry does no damage when the DSN is unset. None of it verifies that Sentry does anything when the DSN *is* set — and those two are indistinguishable in a scaffold where `Sentry.init` is never actually reached (an instrumentation file that no entry point imports, an `--import` flag dropped from the wrong script, a Next.js instrumentation hook in the wrong filename). The scaffold would pass every check above and ship error tracking that silently reports nothing, which is worse than having none: it is a monitoring gap the team believes is covered.
+
+Test it without a Sentry account, using a **syntactically valid but unroutable** DSN:
+
+```bash
+SENTRY_DSN='https://examplePublicKey@o0.ingest.sentry.io/0' <run the entry point, and make it throw>
+```
+
+The expected result is a **transport failure** — a failed send, a network/DNS error, or a debug line showing an event was queued and dispatched. That failure is the pass: it proves `init` ran, took the DSN, and installed a real transport. Silence is the failure, because silence is exactly what an unreached `Sentry.init` produces.
+
+Use the SDK's debug switch to see this rather than guessing (`debug: true` in the init options, or the stack's `SENTRY_DEBUG`/`--debug` equivalent), and remove it afterwards. Do **not** substitute a real DSN to make this louder — the intake question promises this overlay costs no signup, and a scaffold-time event lands in someone's real issue stream as noise.
+
+Then re-run the entry point once more with the DSN unset, and confirm it is silent again. Both directions, or neither result means anything.
+
+### What this overlay leaves unverified — say so in the summary
+
+- **Source-map / dSYM upload.** It needs an auth token and a real project, so nothing here proves symbolication works. An unsymbolicated stack trace is the failure mode, and it is only visible on the first production error. Record it as an outstanding launch step with the exact commands, not as done.
+- **Alert rules and the console-side project.** Same category. `check-production-readiness`'s `manual-setup.md` bucket asks for exactly these; leaving them as named questions here is what lets that check pick them up later instead of assuming them.
+- **CLAUDE.md's error-tracking bullet.** Re-run SKILL.md Step 3's conditional-section check now: the "not scaffolded here" wording must be **gone** and the replacement wording present. This step is the only thing that rewrites it, so the assertion is only meaningful after this point — and a tree containing `Sentry.init` next to a note saying error tracking is unscaffolded misleads every later reader, human or agent.

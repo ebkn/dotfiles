@@ -176,3 +176,29 @@ npm run typecheck   # must pass, and must recreate worker-configuration.d.ts
 ```
 
 If `npm test` fails on the pool/vitest pairing (peer-range mismatch, or a config API that doesn't match the installed pool generation), fix the versions or re-fetch the template files at the correct tag — do not hand-patch the vitest config into a hybrid of the two generations.
+
+### Then prove each gate rejects something
+
+Run the negative tests from `references/typescript.md` — they apply unchanged. One is specific to this path:
+
+```bash
+# the typegen pairing must survive a clean tree, and must REGENERATE, not just pass
+rm -rf worker-configuration.d.ts tsconfig.tsbuildinfo
+npm run typecheck
+ls worker-configuration.d.ts    # must exist again
+```
+
+A `typecheck` script that dropped its `wrangler types` prefix passes on a warm tree — the declarations are already there from the previous run — and fails only on a fresh CI checkout. Deleting first is the entire test; running it on a warm tree proves nothing.
+
+### Then serve it and check the response
+
+`npm test` runs inside workerd, which is a genuine runtime check and covers more than a plain-Node test suite would. It still does not exercise `wrangler dev`'s own routing and bindings resolution, which is what a deploy uses. Confirm the Worker answers over HTTP:
+
+```bash
+npx wrangler dev &
+curl -sS -D - http://localhost:8787/health
+```
+
+Expect a 200 and the health body. A binding named in `wrangler.jsonc` but not provisioned fails here — at startup, with a clear message — rather than at deploy time, and that difference is the reason to run it. Stop the dev server afterwards (`kill %1`).
+
+Deployment itself is deliberately **not** part of this verification: `wrangler deploy` publishes to a real account, which is not something a scaffold should do on the user's behalf. Note it in the summary as the remaining unverified step, with the command, so it is a decision rather than an omission.

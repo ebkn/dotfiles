@@ -250,3 +250,25 @@ node --env-file-if-exists=.env src/index.ts --help
 ```
 
 All five must pass **without any `.env` present** — that is the state a fresh checkout and CI start in. The last line is the one that validates the runtime decisions stack end-to-end: Node executing `.ts` directly, `.ts`-extension imports resolving, env-file flag tolerating absence, and the `--help` path exiting before any credential is needed. If it fails on type stripping (older pinned Node), apply the `tsx` fallback from the scripts section and re-run; if it fails inside the SDK import, re-check the helper names against the installed SDK version as noted above.
+
+### Then prove each gate rejects something
+
+Run the negative tests from `references/typescript.md` — they apply unchanged. Two are specific to this overlay, and both concern what happens when a credential is missing, which is the state every fresh checkout and every CI run is in:
+
+```bash
+# a missing API key must fail with a clear message, not a stack trace
+node src/index.ts        # with ANTHROPIC_API_KEY unset and no .env
+```
+
+It must exit non-zero with a message naming the missing variable. A raw `TypeError` or an SDK stack trace is a failure of this gate even though it "correctly" refused to run: the first thing a new contributor sees should tell them what to set, and env handling is the one part of this scaffold whose whole job is to make that message good.
+
+That is a different assertion from the `--help` run in the block above, which must exit **zero** with no credential at all. Run both. Together they pin the boundary: `--help` works uncredentialed, real execution refuses uncredentialed, and neither crashes. A scaffold that gets one of those right and the other wrong looks fine from whichever side you happen to test.
+
+```bash
+# the test suite must stay offline
+npm test        # with ANTHROPIC_API_KEY unset
+```
+
+Passing with no key is the assertion. A test that quietly reaches the live API passes on the author's machine, fails in CI, and bills real credits on every run — and it does not announce which of those it is doing. If `npm test` needs a key, the suite is not offline; fix the test rather than adding the key to CI.
+
+Confirm `git status --porcelain` is clean before moving on — in particular that no `.env` was created during these runs.

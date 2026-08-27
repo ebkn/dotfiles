@@ -310,4 +310,42 @@ rm -rf next-env.d.ts .next tsconfig.tsbuildinfo
 npm run typecheck   # must pass, and must recreate next-env.d.ts
 ```
 
-`tsconfig.tsbuildinfo` goes too: `incremental` is on (from the base tsconfig notes in `references/typescript.md`), and a surviving cache can let `tsc` skip exactly the work a fresh CI checkout would do. All three paths are `.gitignore`d, so this deletes nothing tracked. If `rm` is permission-gated in the environment, move the three aside to a gitignored location instead, run the check, then delete the displaced copies once it passes — do not leave them in the tree, and mention any leftover in the Step 10 summary if deletion is impossible. This is the one check that distinguishes the fixed script from the broken one: with the base `tsc --noEmit`, the tree is left without `next-env.d.ts` afterwards — exactly the state a fresh CI checkout starts in.
+`tsconfig.tsbuildinfo` goes too: `incremental` is on (from the base tsconfig notes in `references/typescript.md`), and a surviving cache can let `tsc` skip exactly the work a fresh CI checkout would do. All three paths are `.gitignore`d, so this deletes nothing tracked. If `rm` is permission-gated in the environment, move the three aside to a gitignored location instead, run the check, then delete the displaced copies once it passes — do not leave them in the tree, and mention any leftover in the Step 11 summary if deletion is impossible. This is the one check that distinguishes the fixed script from the broken one: with the base `tsc --noEmit`, the tree is left without `next-env.d.ts` afterwards — exactly the state a fresh CI checkout starts in.
+
+### Then prove each gate rejects something
+
+The four toolchain gates are the ones from `references/typescript.md` — run that file's negative tests, which apply unchanged here. Two more matter only on this path:
+
+```bash
+# next.config must not be masking failures
+grep -nE 'ignoreBuildErrors|ignoreDuringBuilds' next.config.ts   # must print nothing
+
+# the typecheck override must survive a clean tree — the check above already
+# does this; confirm next-env.d.ts is REGENERATED rather than merely present
+rm -rf next-env.d.ts .next tsconfig.tsbuildinfo
+npm run typecheck
+ls next-env.d.ts    # must exist again
+```
+
+`ignoreBuildErrors` / `ignoreDuringBuilds` are the two switches that turn `npm run build` from a gate into a formality, and both are single lines someone adds under deadline pressure. Asserting their absence costs nothing and the failure they hide is a P1 in `check-production-readiness`'s own criteria.
+
+### Then serve it and check the responses
+
+Everything above inspects source. None of it proves the app answers, that the headers in `next.config.ts` reach a client, or that the health endpoint is routable — a `headers()` function with a `source` pattern that matches nothing builds, typechecks, lints, and serves zero headers. Build, start, and look at the wire:
+
+```bash
+npm run build
+npm start &        # serves the production build on :3000
+curl -sS -D - -o /dev/null http://localhost:3000/
+curl -sS http://localhost:3000/api/health
+```
+
+Assert on the actual response, not on the absence of an error:
+
+- **Headers.** Every key from `securityHeaders` must appear in the `curl -D -` dump — `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Strict-Transport-Security`, `Permissions-Policy`. `X-Powered-By` must be **absent** (`poweredByHeader: false`). For `internal-web`, `X-Robots-Tag: noindex` must be present too; for `public-web` it must be absent — asserting the wrong one of that pair is how a public site ships unindexable.
+- **Health.** `{"status":"ok"}` with a 200. Add `-D -` if the status code is in doubt; a Next.js 404 also returns a body.
+- **SEO scaffold, `public-web` only.** `curl -sS http://localhost:3000/robots.txt` and `.../sitemap.xml` must both return content, not 404. These are generated from `robots.ts` / `sitemap.ts` at request time, so a file that exists in the tree is not evidence the route resolves.
+
+Stop the server when done (`kill %1`) and confirm nothing is still listening on the port — a stray `next start` holds :3000 and makes the next run look broken for an unrelated reason.
+
+`Strict-Transport-Security` is worth one note: it is delivered over plain HTTP here, and browsers ignore it on a non-HTTPS origin. Its presence in this dump proves the header is configured, not that HSTS is in effect — that can only be checked against the deployed origin, and belongs in the launch checklist rather than here.

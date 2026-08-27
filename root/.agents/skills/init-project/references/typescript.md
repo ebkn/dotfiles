@@ -259,3 +259,47 @@ npm test
 ```
 
 If knip flags a legitimately-unused scaffold export this early, prefer adjusting `knip.json` over deleting the file.
+
+### Then prove each gate rejects something
+
+All four passing tells you nothing on its own: an empty scaffold with no linter configured at all passes exactly the same way. Feed each gate a violation and confirm it exits **non-zero**, then delete the violation. Work one at a time — a single file breaking all four makes it impossible to tell which gate spoke.
+
+```bash
+# typecheck — a type error must be caught
+printf 'export const n: number = "not a number";\n' > src/__gate.ts
+npm run typecheck   # must FAIL (TS2322)
+rm src/__gate.ts
+
+# lint — a formatting violation must be caught
+printf 'export const x={a:1,   b:2}\n' > src/__gate.ts
+npm run lint        # must FAIL (biome format)
+rm src/__gate.ts
+
+# knip — an unreferenced file must be caught
+printf 'export const used = 1;\n' > src/index.ts
+printf 'export const orphan = 2;\n' > src/orphan.ts
+npm run knip        # must FAIL, reporting src/orphan.ts as an unused file
+rm src/index.ts src/orphan.ts
+
+# test — a failing test must be caught
+printf 'import { it, expect } from "vitest";\nit("fails", () => { expect(1).toBe(2); });\n' > src/__gate.test.ts
+npm test            # must FAIL
+rm src/__gate.test.ts
+```
+
+Verified on a scaffold of this shape: knip exits 1 with `Unused files (1) src/orphan.ts` and 0 once the file is removed. The knip case needs **both** files — with no entry point in the tree, a lone `src/orphan.ts` is auto-detected *as* the entry and reported clean, so the one-file version of this test passes for the wrong reason.
+
+### And prove the `vcs` block is actually in force
+
+This is the gate whose absence is invisible on the plain-TypeScript path — the verification above runs no build, so nothing generated exists for Biome to trip over, and a `biome.json` missing its `vcs` block stays green here and bites the user at their first real build (see the note under `biome.json` above). Test it directly:
+
+```bash
+mkdir -p dist
+printf 'export const x={a:1,   b:2}\n' > dist/bad.ts
+npm run lint        # must PASS — dist/ is gitignored, so Biome must not see this file
+rm -rf dist
+```
+
+This one is a **positive** control: the pass is the result. Measured both ways on a real tree — with `vcs.enabled: true` + `useIgnoreFile: true` Biome reported `Checked 5 files` and said nothing about `dist/bad.ts`; with `vcs.enabled: false` the same tree reported `Checked 7 files` and flagged `dist/bad.ts format`. If `npm run lint` fails here, the `vcs` block is missing or `.gitignore` was written after `biome.json` — fix that, and do **not** silence it by adding an exclude to `biome.json`, which is the reflex that undoes the single-source-of-truth design.
+
+Confirm `git status --porcelain` is clean before moving on; every file created above must be gone.

@@ -260,3 +260,47 @@ This skill does not scaffold a Dockerfile. But if the project deploys as a conta
 - **Pin OS packages** to explicit versions (`apt-get install -y curl={version}`, resolved against the base image's distro), add `--no-install-recommends`, and clean the apt lists in the same layer.
 - **Install app deps from the lockfile only** — `npm ci`, never `npm install`. `npm ci` fails on a lockfile mismatch and honors the `.npmrc` (`save-exact`, `min-release-age`, `ignore-scripts`) from `references/typescript.md`.
 - **Run as a non-root `USER`** and copy only what the build needs (use `.dockerignore`) to shrink the attack surface.
+
+## Verification
+
+CI is the one part of this scaffold that cannot be tested by running it locally, and every failure mode here is quiet: a workflow that never triggers, a pin that is not the SHA it claims to be, and a token with more rights than it needs all look exactly like a correctly configured repo until the day they matter. Run all of the following.
+
+**The workflow parses and every action is pinned.**
+
+```bash
+yq '.' .github/workflows/ci.yml > /dev/null            # exits 0 only if the YAML parses
+grep -nE 'uses:.*@' .github/workflows/ci.yml | grep -vE '@[0-9a-f]{40}'   # must print nothing
+grep -nE '@(latest|main|master)\b' .github/workflows/ci.yml               # must print nothing
+```
+
+The second finds any `uses:` still on a tag or branch; the third also covers `run:` steps that fetch a tool, which the pinning rule above extends to and which a `uses:`-only check misses entirely. Both are inverted greps, so read the exit status as well: `grep` exiting 1 with no output is the pass.
+
+**Each pin is the *peeled* commit, not a tag object.** For every `uses: owner/repo@{sha} # {tag}` line, re-resolve the tag and compare:
+
+```bash
+git ls-remote https://github.com/{owner}/{repo} '{tag}^{}'
+```
+
+The SHA it prints must equal the pinned one. If the peeled form prints nothing the tag is lightweight, and the bare `git ls-remote … {tag}` value is correct instead. Do this per action rather than trusting the resolution done a few minutes earlier: the annotated-tag trap produces a 40-hex string that passes every syntactic check above while pointing at a tag object that no commit checkout will ever match, and `golangci/golangci-lint-action` — on the Go path — is annotated (verified: `v9.3.0` bare `d583c34f…` vs peeled `ba0d7d2e…`, two different objects). Nothing catches this until the workflow runs.
+
+**The token is least-privilege and not persisted.**
+
+```bash
+yq '.permissions' .github/workflows/ci.yml          # must be: contents: read
+grep -n 'persist-credentials' .github/workflows/ci.yml   # must appear on every actions/checkout step
+```
+
+A missing top-level `permissions:` block is not neutral — it falls back to the repository default, which on many repos is read/write for the whole token. Absence must be asserted against, not skimmed past.
+
+**CI runs the same gates the documents advertise.** List the commands in the workflow's `run:` steps and compare them against the Development block in README.md and CLAUDE.md (SKILL.md Step 2 keeps those two identical to each other; this check ties both to CI). They must match as a set. A gate that exists locally but not in CI is an unenforced convention, and a gate in CI that no document mentions is a failure the author cannot reproduce — the divergence this scaffold exists to prevent, arriving from the opposite direction.
+
+**Dependabot is configured for the language actually chosen.**
+
+```bash
+yq '.updates[].package-ecosystem' .github/dependabot.yml   # one must match the project language
+yq '.updates[].cooldown.default-days' .github/dependabot.yml   # every entry must print 7
+```
+
+The ecosystem string is copied from a template whose comment lists three alternatives, so a Go project shipping `npm` here is the expected mistake; it produces a valid file that silently updates nothing. A `null` from the second command means the quarantine was dropped from that block.
+
+**Finally, run it for real.** Everything above is static. The workflow triggering at all, the runtime pin resolving on a clean runner, and the pinned actions actually being fetchable are only proven by a push — see SKILL.md Step 12, which runs `git push` and `gh run watch` once a remote exists. Treat this section as passed only when that run is green; until then, a green local tree says nothing about CI.

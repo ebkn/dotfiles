@@ -155,3 +155,29 @@ Use the same resolved version here, in the CI workflow, and in the CLAUDE.md Dev
 If any of the first four reports `matched no packages` or `no go files to analyze`, the minimal package above is missing — fix that rather than weakening the gate. `govulncheck` needs network access to fetch the vulnerability database; if it reports a vulnerability against the pinned Go toolchain's standard library, bump the Go patch release rather than dropping the step.
 
 On a fresh scaffold expect govulncheck to end with a note like `N vulnerabilities in packages you import and M vulnerabilities in modules you require` even on a zero-dependency module — those are *unreachable* (mostly stdlib) advisories, informational only, and the run still exits 0. Only the `Your code is affected by …` count gates; don't be alarmed by the note or "fix" it.
+### Then prove each gate rejects something
+
+Five green runs are also what a project with no linter config at all produces. Provoke each gate in turn, confirm it exits **non-zero**, and delete the violation before the next one.
+
+```bash
+# vet — a format-string mismatch must be caught
+printf 'package main\n\nimport "fmt"\n\nfunc vetbad() { fmt.Printf("%%d", "not a number") }\n' > vetbad.go
+go vet ./...          # must FAIL
+rm vetbad.go
+
+# golangci-lint — formatting must be caught, not just logic
+printf 'package main\n\nfunc helper()   {\n}\n' > fmtbad.go
+golangci-lint run     # must FAIL: "File is not properly formatted (gofmt)"
+rm fmtbad.go
+
+# go test — a failing test must be caught
+printf 'package main\n\nimport "testing"\n\nfunc TestGate(t *testing.T) { t.Fatal("gate") }\n' > gate_test.go
+go test ./...         # must FAIL
+rm gate_test.go
+```
+
+The `golangci-lint` case is the one that earns its place. Measured on a module of this shape: with the `formatters` block present, a misformatted file exits 1 with `File is not properly formatted (gofmt)`; with the block absent, the same file exits 0. Nothing else in the run distinguishes those two configurations, and the `linters` set alone contains no format check — so this is the only evidence that the project has a formatting gate at all. Note the violation must be *purely* a formatting one: an unused function trips the `unused` linter first and the run then fails for a reason that proves nothing about `formatters`.
+
+**`govulncheck` is the one gate here that cannot be cheaply provoked** — doing it honestly means adding a genuinely vulnerable dependency, which is network-bound and leaves a real advisory in `go.mod` if the cleanup is imperfect. Check instead that it reached the database rather than silently degrading: its output must carry a recent `DB updated:` date. A run that cannot reach `https://vuln.go.dev` is not a passing scan, and it does not announce itself as anything else.
+
+Confirm `git status --porcelain` is clean before moving on; every file created above must be gone, and so must the binary `go build ./...` wrote into the repo root if `.gitignore` does not yet cover it.
