@@ -580,7 +580,12 @@ _ssh_parse_argv() {
       continue
     fi
     case "$arg" in
-      -[bcDEeFIiJLlmOopQRSWw])
+      # Every ssh(1) option that takes a SEPARATE argument, so the argument is
+      # not mistaken for the host. Kept in the manual's own order (upper before
+      # lower per letter) to make it diffable against `man ssh` when openssh
+      # adds one — the only way this list rots. Pinned by
+      # zsh/ssh-parse-argv.test.zsh.
+      -[BbcDEeFIiJLlmOoPpQRSWw])
         skip_next=true
         _SSH_PARSE_OPTS+=("$arg")
         ;;

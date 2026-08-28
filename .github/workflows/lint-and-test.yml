@@ -36,9 +36,17 @@ jobs:
       # agent-state.sh drives the tab glyph and the prefix+a picker off tmux
       # pane options. The test runs a throwaway tmux server, so tmux has to be
       # on the runner -- the test fails rather than skips without it, on
-      # purpose.
-      - name: Install tmux
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq tmux
+      # purpose. zsh is needed by the argv-parser test below, and neither ships
+      # with the runner image.
+      - name: Install tmux and zsh
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq tmux zsh
 
       - name: agent-state hook
         run: bash root/.claude/hooks/agent-state.test.sh
+
+      # _ssh_parse_argv decides which argv element is the host. Its option list
+      # is a hand-copied subset of ssh(1), so it rots silently whenever openssh
+      # adds an option that takes an argument -- the parse then reads that
+      # argument as the host and myssh reconnects somewhere else entirely.
+      - name: ssh argv parser
+        run: zsh zsh/ssh-parse-argv.test.zsh
