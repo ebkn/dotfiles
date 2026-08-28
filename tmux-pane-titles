@@ -3,39 +3,25 @@
 # tmux-pane-titles
 #
 # Collect unique directory basenames from all panes in the current tmux window
-# and set as the window name. Called by tmux hooks and zsh chpwd.
+# and set as the window name.
+#
+# Called only from zsh (chpwd and precmd hooks in zsh/directory.zsh, and the
+# ssh/myssh wrappers in zsh/alias.zsh), always with no arguments, so it acts on
+# the caller's own window. It used to also run from tmux server-side hooks
+# (after-new-window / after-split-window / window-layout-changed), which passed
+# a window id and needed a debounce because a layout change fires them in
+# bursts. Those hooks caused a SIGSEGV in tty_keys_next -- run-shell forking
+# while tty input was being processed -- and were replaced by the zsh-side pane
+# count check; .tmux.conf now unsets them explicitly on reload. With no caller
+# left that can burst, both the window-id argument and the debounce were dead
+# code, so they are gone. Restoring either means restoring a caller that needs
+# it, not just the flag.
 #
 
-target_window=""
-target_args=()
-should_debounce=false
-
-# Background tmux hooks pass a window id explicitly. This avoids relying on the
-# current client/window at execution time, which may already have changed.
-# Debounce: when called with --debounce (e.g. from window-layout-changed hook),
-# wait briefly and skip if a newer invocation has started. This prevents redundant
-# runs during rapid pane closes or resize operations.
-if [[ "$1" == "--debounce" ]]; then
-  should_debounce=true
-  shift
-fi
-
-target_window="$1"
-if [[ -n "$target_window" ]]; then
-  target_args=(-t "$target_window")
-fi
-
-if $should_debounce; then
-  _debounce_dir="/tmp/tmux-pane-titles"
-  mkdir -p "$_debounce_dir" 2>/dev/null
-  _win_id=$(tmux display-message -p "${target_args[@]}" '#{session_id}-#{window_id}' 2>/dev/null) || exit 0
-  _stamp="$$"
-  echo "$_stamp" > "$_debounce_dir/$_win_id" 2>/dev/null
-  sleep 0.15
-  [[ "$(cat "$_debounce_dir/$_win_id" 2>/dev/null)" == "$_stamp" ]] || exit 0
-fi
-
-panes=$(tmux list-panes "${target_args[@]}" -F '#{b:pane_current_path}	#{@ssh_host}	#{@git_worktree}	#{@git_branch}' 2>/dev/null) || exit 0
+# The optional -t is deliberately absent: with no argument tmux resolves the
+# current window from $TMUX_PANE, which is exactly the window the calling shell
+# lives in.
+panes=$(tmux list-panes -F '#{b:pane_current_path}	#{@ssh_host}	#{@git_worktree}	#{@git_branch}' 2>/dev/null) || exit 0
 title=$(printf '%s\n' "$panes" | awk -F'\t' '
 # Drop the type prefix before the first "/" (feature/x -> /x, fix/x -> /x).
 # The type carries almost no information once the name itself is visible, so
@@ -61,5 +47,5 @@ function strip_type(b,   n) {
   else               label = dir
   if (!seen[label]++) { printf sep label; sep = "," }
 }')
-[[ -n "$title" ]] && tmux rename-window "${target_args[@]}" -- "$title" 2>/dev/null
+[[ -n "$title" ]] && tmux rename-window -- "$title" 2>/dev/null
 exit 0
