@@ -105,6 +105,7 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/tmux-track-session" "${HOME}/.local/bin/tmux-track-session"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-agents" "${HOME}/.local/bin/tmux-agents"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-cheatsheet" "${HOME}/.local/bin/tmux-cheatsheet"
+  link_with_backup "${DOTFILES_DIR}/bin/tmux-tig" "${HOME}/.local/bin/tmux-tig"
   link_with_backup "${DOTFILES_DIR}/bin/fzf-files" "${HOME}/.local/bin/fzf-files"
   link_with_backup "${DOTFILES_DIR}/bin/git-generated" "${HOME}/.local/bin/git-generated"
   link_with_backup "${DOTFILES_DIR}/bin/relink" "${HOME}/.local/bin/relink"

@@ -1,0 +1,32 @@
+#!/bin/sh
+# tmux-tig — run tig, but keep the terminal open when it fails.
+#
+# Exists only for the `prefix + t` popup in .tmux.conf. A popup dies the instant
+# its command exits, so tig's own diagnostics ("tig: Not a git repository" when
+# the pane is outside a work tree) flash past unread and the popup looks like it
+# simply refused to open. Pausing on a non-zero exit turns that into a readable
+# error.
+#
+# The check is tig's exit status rather than a `git rev-parse` probe on purpose:
+# not-a-repository is only the common case, and tig writes a better message for
+# every other failure than a guard here could.
+set -eu
+
+tig "$@" && exit 0
+status=$?
+
+printf '\n  tig exited with status %s. Press any key to close. ' "$status"
+
+# Read one keystroke without requiring Enter. -icanon (not `raw`) so Ctrl-C
+# still signals; reading from /dev/tty rather than stdin because the popup's
+# stdin is not guaranteed to be the terminal.
+if saved=$(stty -g </dev/tty 2>/dev/null); then
+  stty -icanon -echo min 1 time 0 </dev/tty
+  dd bs=1 count=1 </dev/tty >/dev/null 2>&1 || true
+  stty "$saved" </dev/tty
+else
+  # No controlling terminal to put in raw mode; fall back to a line read.
+  read -r _ || true
+fi
+
+exit "$status"
