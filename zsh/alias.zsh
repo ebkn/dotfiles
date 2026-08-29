@@ -58,12 +58,66 @@ alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|volumes" -N -
 rm() {
   (( $+commands[trash] )) || { command rm "$@"; return; }
 
-  # Strip flags so that rm -r / rm -rf still go through trash.
-  local args=()
+  # Flags are dropped rather than forwarded, so that `rm -rf dir` still reaches
+  # trash instead of being refused for an option trash does not have -- moving a
+  # directory to the trash is already recursive, and there is nothing to force.
+  # Two of them cannot simply be dropped, though, because they change which
+  # operands there are:
+  #
+  #   --  ends the options. Everything after it is a filename even if it starts
+  #       with a dash, which is the whole reason to type it.
+  #   -f  means "ignore operands that do not exist, and never prompt". Handing a
+  #       missing path to trash makes it fail instead, which breaks -f in
+  #       exactly the case it exists for.
+  local -a paths
+  local arg force=0 opts_done=0
   for arg in "$@"; do
-    [[ "$arg" == -* ]] || args+=("$arg")
+    if (( opts_done )); then
+      paths+=("$arg")
+      continue
+    fi
+    case "$arg" in
+      --)          opts_done=1 ;;
+      --force)     force=1 ;;
+      # Long options are matched whole. A substring test would read the "f" in
+      # GNU's --one-file-system as -f and silently start dropping operands.
+      --*)         ;;
+      -*f*)        force=1 ;;      # bundled short flags: -f, -rf, -fr
+      -*)          ;;              # any other flag: drop
+      *)           paths+=("$arg") ;;
+    esac
   done
-  trash "${args[@]}"
+
+  if (( force )); then
+    local -a existing
+    # -e is false for a dangling symlink, which is still something rm removes.
+    for arg in "${paths[@]}"; do
+      [[ -e "$arg" || -L "$arg" ]] && existing+=("$arg")
+    done
+    paths=("${existing[@]}")
+    # -f asks for silence when there is nothing left, and calling trash with no
+    # operands would instead print its usage.
+    (( ${#paths} )) || return 0
+  fi
+
+  # No operands and no -f: let the real rm produce the usage error rather than
+  # inventing a second wording for it. Only flags are left in "$@" here, so it
+  # cannot delete anything.
+  (( ${#paths} )) || { command rm "$@"; return; }
+
+  # An operand starting with a dash would be read back as an option by whatever
+  # receives it. "./" is prepended instead of relying on the receiver
+  # understanding "--", so this holds for trash and for the command rm fallback
+  # alike. Absolute paths already begin with "/" and are left alone.
+  local -a safe
+  for arg in "${paths[@]}"; do
+    case "$arg" in
+      -*) safe+=("./$arg") ;;
+      *)  safe+=("$arg") ;;
+    esac
+  done
+
+  trash "${safe[@]}"
 }
 
 # terminal image viewer (sixel via ImageMagick, works over SSH+tmux)

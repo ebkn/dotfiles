@@ -110,6 +110,56 @@ check 'keeps every operand when several are given' \
 $work/b" \
   "$(touch "$work/a" "$work/b"; with_trash "$work/a" "$work/b")"
 
+# --- operands that look like options -----------------------------------------
+
+# `rm -- -foo` is the standard way to delete a file whose name starts with a
+# dash. Dropping every dash-prefixed argument threw away both the -- and the
+# filename, so trash was called with no operands and the file survived. The
+# operand is passed as ./-foo rather than after a --, because that needs nothing
+# from the receiving command and so holds for the real rm fallback too.
+check 'delimits an operand that starts with a dash' \
+  './-dash' \
+  "$(cd "$work" && touch -- -dash && with_trash -- -dash)"
+
+check 'leaves an absolute path alone' \
+  "$work/a" \
+  "$(touch "$work/a"; with_trash -- "$work/a")"
+
+# --- -f ----------------------------------------------------------------------
+
+# -f means "ignore operands that do not exist, and never prompt". Passing a
+# missing path to trash instead makes it complain and fail, so `rm -f x` broke
+# in exactly the case -f exists to make quiet.
+check '-f drops operands that do not exist' \
+  '' \
+  "$(with_trash -f "$work/gone")"
+
+check '-f keeps the operands that do exist' \
+  "$work/a" \
+  "$(touch "$work/a"; with_trash -f "$work/a" "$work/gone")"
+
+check '-f inside a bundled flag is still seen' \
+  '' \
+  "$(with_trash -rf "$work/gone")"
+
+check 'GNU --force is seen too' \
+  '' \
+  "$(with_trash --force "$work/gone")"
+
+# The boundary of the -f test: a long option that merely contains an "f" is not
+# -f. Both operands reaching trash is the proof that force did not fire -- had
+# it, the missing one would have been filtered out and trash would complain
+# about nothing at all.
+check '--one-file-system is not read as -f' \
+  "$work/a
+$work/gone" \
+  "$(touch "$work/a"; with_trash --one-file-system "$work/a" "$work/gone")"
+
+# With every operand gone there is nothing to delete, and -f says to be quiet
+# about it. Calling trash with no operands would make it print its usage.
+rm -f "$work/gone" >/dev/null 2>&1
+check '-f with nothing left to delete succeeds quietly' '0' "$?"
+
 teardown
 
 if (( failures )); then
