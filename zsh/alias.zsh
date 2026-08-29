@@ -40,9 +40,25 @@ function scrapbox() {
 # requires tree
 alias tree='tree -a -I "\.DS_Store|\.git|\.svn|node_modules|vendor|volumes" -N -A -C'
 
-# requires trash
-# Strip flags so that rm -r / rm -rf still go through trash.
+# Route rm through `trash` so a mistake is recoverable from the Finder trash.
+#
+# Recent macOS ships its own /usr/bin/trash (confirmed on 26.1), so this
+# normally needs nothing installed; Homebrew's trash formula is deliberately
+# NOT a dependency, since it only shadows the system one with an unmaintained
+# 0.9.2 and the wrapper passes nothing but paths, which both accept.
+#
+# There is no trash on Linux, though, and none on macOS old enough to predate
+# the system binary. Without the guard the wrapper resolved to nothing and `rm`
+# answered "command not found" on those hosts -- a shell where rm does not work
+# at all is worse than one where it does not go to the trash.
+#
+# The fallback is deliberately silent (a warning on every rm would be noise),
+# which does mean rm deletes for real there. That trade-off is the reason this
+# comment exists.
 rm() {
+  (( $+commands[trash] )) || { command rm "$@"; return; }
+
+  # Strip flags so that rm -r / rm -rf still go through trash.
   local args=()
   for arg in "$@"; do
     [[ "$arg" == -* ]] || args+=("$arg")

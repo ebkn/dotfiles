@@ -36,7 +36,7 @@ jobs:
       # agent-state.sh drives the tab glyph and the prefix+a picker off tmux
       # pane options. The test runs a throwaway tmux server, so tmux has to be
       # on the runner -- the test fails rather than skips without it, on
-      # purpose. zsh is needed by the argv-parser test below, and neither ships
+      # purpose. zsh is needed by the zsh unit tests below, and neither ships
       # with the runner image.
       - name: Install tmux and zsh
         run: sudo apt-get update -qq && sudo apt-get install -y -qq tmux zsh
@@ -50,3 +50,10 @@ jobs:
       # argument as the host and myssh reconnects somewhere else entirely.
       - name: ssh argv parser
         run: zsh zsh/ssh-parse-argv.test.zsh
+
+      # rm() routes deletions through trash. Both of its failure modes look
+      # like a successful delete from the shell, so they can only be caught
+      # here: losing the fallback leaves Linux with no working rm, and handing
+      # the wrong argv to trash deletes the wrong thing.
+      - name: rm wrapper
+        run: zsh zsh/rm.test.zsh
