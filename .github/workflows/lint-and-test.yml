@@ -57,3 +57,8 @@ jobs:
       # the wrong argv to trash deletes the wrong thing.
       - name: rm wrapper
         run: zsh zsh/rm.test.zsh
+
+      # fd()'s only observable behaviour is which directory the shell ends up
+      # in, so a misplaced cd is invisible until it lands somewhere wrong.
+      - name: fd directory picker
+        run: zsh zsh/fd.test.zsh

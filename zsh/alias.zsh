@@ -19,12 +19,16 @@ alias cpu='procs --watch --sortd cpu'
 
 # interactive cd
 # requires fzf
+#
+# The cd runs once. It used to run twice -- once in the && chain and again in an
+# if -- which mostly went unnoticed because the pick is a path relative to the
+# starting directory, so the second cd simply failed from the new one. It only
+# does harm where that path resolves again from inside itself (a/a, src/src),
+# and then it lands a level too deep with no error. Pinned by zsh/fd.test.zsh.
 fd() {
   local dir
-  dir=$(find "${1:-.}" -type d 2> /dev/null | fzf --reverse +m) && cd "$dir"
-  if [ "$dir" != "" ]; then
-    cd "$dir"
-  fi
+  dir=$(find "${1:-.}" -type d 2> /dev/null | fzf --reverse +m) || return
+  [[ -n "$dir" ]] && cd "$dir"
 }
 
 # create Scrapbox page from text
