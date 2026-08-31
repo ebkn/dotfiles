@@ -12,7 +12,7 @@
 #
 # Why pandoc rather than the far smaller cmark-gfm:
 #   Syntax highlighting. cmark-gfm emits <pre><code class="language-zsh"> and
-#   stops; colouring that means vendoring highlight.js into this repo, and a
+#   stops; colouring it means vendoring highlight.js into this repo, and a
 #   minified blob under version control costs more than the 266MB pandoc
 #   binary saves. pandoc highlights server-side via skylighting, so the output
 #   is a single self-contained file that needs no JavaScript and works offline.
@@ -24,43 +24,55 @@
 #   source file's own directory (--resource-path) and inlines them, which also
 #   inlines style.css, so a rendered page keeps working after this repo moves.
 #
+# Three ways to run it, and why there are three:
+#   local      read-doc FILE            renders here, opens the browser here
+#   pull       read-doc HOST:FILE       fetches over ssh, renders and opens here
+#   forward    read-doc FILE  (in ssh)  ships the SOURCE to the terminal's own
+#                                       machine, which renders and opens it
+#
+#   `forward` is the interesting one. Inside an ssh session `open` would launch
+#   a browser on the machine you are logged in to — invisible to you. So the
+#   source is written to the terminal as an OSC 1337 SetUserVar sequence and
+#   picked up by the user-var-changed handler in wezterm.lua, which renders it
+#   with the *local* read-doc. Deliberately the source and not the HTML: it
+#   means the remote needs no pandoc (nothing to install on a box you do not
+#   own), ships fewer bytes, and keeps read-doc/style.css a single source of
+#   truth instead of letting a stale remote checkout decide the typography.
+#
 # Usage:
 #   read-doc README.md            # render and open in the default browser
 #   read-doc notes.txt            # non-Markdown prose is read as Markdown
 #   read-doc main.go              # source files are fenced, so they highlight
+#   read-doc mbp2026:notes/a.md   # pull over ssh, render here
 #   read-doc --print README.md    # write the HTML to stdout, open nothing
-#   ssh host cat doc.md | read-doc    # stdin, for documents that are not local
+#   read-doc --here README.md     # in an ssh session, open on THIS machine
+#   ssh host cat doc.md | read-doc    # stdin
 #
 # Exit status: 0 on success, 2 on tool or usage failure.
 #
 # Env:
-#   READ_DOC_BROWSER  open(1) -a target, e.g. "Safari" (default: system default)
+#   READ_DOC_BROWSER   open(1) -a target, e.g. "Safari" (default: system default)
+#   READ_DOC_MAX_BYTES forwarding size cap (default 262144); see the note below
 set -uo pipefail
 
-STYLE="$(dirname "$(readlink -f "$0")")/../read-doc/style.css"
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+STYLE="${SELF_DIR}/../read-doc/style.css"
 
 usage() {
-  printf 'usage: read-doc [--print] <file>\n' >&2
-  printf '       <something> | read-doc [--print] [--name NAME]\n' >&2
+  printf 'usage: read-doc [--print|--here] <file>\n' >&2
+  printf '       read-doc [--print|--here] <host>:<file>\n' >&2
+  printf '       <something> | read-doc [--print|--here] [--name NAME]\n' >&2
 }
 
-if [ ! -f "${STYLE}" ]; then
-  printf 'read-doc: stylesheet not found at %s\n' "${STYLE}" >&2
-  exit 2
-fi
-
-if ! command -v pandoc >/dev/null 2>&1; then
-  printf 'read-doc: pandoc not found in PATH (brew install pandoc)\n' >&2
-  exit 2
-fi
-
 print_only=0
+force_here=0
 name=""
 src=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -p | --print) print_only=1; shift ;;
+    --here) force_here=1; shift ;;
     --name) name="${2-}"; [ -n "${name}" ] || { usage; exit 2; }; shift 2 ;;
     -h | --help) usage; exit 0 ;;
     -*) printf 'read-doc: unknown option %s\n' "$1" >&2; usage; exit 2 ;;
@@ -75,6 +87,41 @@ if [ -z "${src}" ] && [ -t 0 ]; then
   exit 2
 fi
 
+# --- pull: HOST:FILE ---------------------------------------------------------
+#
+# Only treated as remote when no local file of that name exists, so a literal
+# path containing a colon still wins. The host pattern is deliberately narrow
+# (ssh_config aliases and hostnames) to keep "./a:b" and "C:/x" out of it.
+fetched=""
+if [ -n "${src}" ] && [ ! -e "${src}" ] && printf '%s' "${src}" | grep -qE '^[A-Za-z0-9_][A-Za-z0-9_.-]*:'; then
+  remote_host="${src%%:*}"
+  remote_path="${src#*:}"
+  [ -n "${name}" ] || name="$(basename -- "${remote_path}")"
+
+  # Quote for the remote shell, but leave a leading ~ unquoted so that
+  # `read-doc host:~/notes/a.md` expands there rather than looking for a
+  # directory literally named "~".
+  # SC2088 is the point, not a bug: the tilde must reach the REMOTE shell
+  # unexpanded, so it deliberately stays outside the quotes and is not $HOME
+  # (which would be this machine's home, not the far end's).
+  # shellcheck disable=SC2088
+  case "${remote_path}" in
+    '~/'*) remote_arg="~/'$(printf '%s' "${remote_path#\~/}" | sed "s/'/'\\\\''/g")'" ;;
+    *) remote_arg="'$(printf '%s' "${remote_path}" | sed "s/'/'\\\\''/g")'" ;;
+  esac
+
+  fetched="$(mktemp -t read-doc)" || exit 2
+  trap 'rm -f "${fetched}"' EXIT
+  # SC2029: client-side expansion is intended — remote_arg was quoted above
+  # precisely so that this side decides what the remote shell receives.
+  # shellcheck disable=SC2029
+  if ! ssh "${remote_host}" "cat -- ${remote_arg}" > "${fetched}"; then
+    printf 'read-doc: failed to fetch %s\n' "${src}" >&2
+    exit 2
+  fi
+  src="${fetched}"
+fi
+
 if [ -n "${src}" ] && [ ! -r "${src}" ]; then
   printf 'read-doc: cannot read %s\n' "${src}" >&2
   exit 2
@@ -82,6 +129,96 @@ fi
 
 base="${name:-$([ -n "${src}" ] && basename -- "${src}" || echo "stdin")}"
 title="${base%.*}"
+
+# --- forward: hand the source to the terminal's own machine -------------------
+#
+# In an ssh session `open` would launch a browser on the far end, where nobody
+# is looking — which is the whole bug this branch exists to fix.
+if [ -n "${SSH_CONNECTION:-}" ] && [ "${print_only}" -eq 0 ] && [ "${force_here}" -eq 0 ]; then
+  if [ -n "${src}" ]; then payload_src="$(cat -- "${src}")"; else payload_src="$(cat)"; fi
+
+  # The name travels with the body so the receiving side keeps the extension,
+  # which is what drives language detection and the page title.
+  payload="$(printf '%s\n%s' "${base}" "${payload_src}" | base64 | tr -d '\n')"
+
+  # Neither WezTerm nor tmux documents a maximum length for these sequences,
+  # and tmux has a history of truncating long passthrough (tmux#1502). An
+  # undocumented ceiling that corrupts silently is worse than a refusal, so
+  # cap it and say what to run instead. Raise READ_DOC_MAX_BYTES if measurement
+  # on your own path says you can.
+  #
+  # Measured on the ENCODED payload, which is what actually reaches the
+  # terminal, and because ${#var} counts characters rather than bytes: a
+  # Japanese document is ~3 bytes per character, so checking the source that
+  # way under-counts by a third and let a 308KB file straight through.
+  # base64 is ASCII, so here the two agree.
+  max="${READ_DOC_MAX_BYTES:-262144}"
+  if [ "${#payload}" -gt "${max}" ]; then
+    printf 'read-doc: %s encodes to %s bytes, over the %s-byte forwarding cap.\n' \
+      "${base}" "${#payload}" "${max}" >&2
+    printf 'read-doc: run this from the terminal'"'"'s own machine instead\n' >&2
+    # A pulled document must be advised by its ORIGINAL location: ${src} is a
+    # local temp path by then, which would be useless on the other machine.
+    if [ -n "${fetched}" ]; then
+      printf 'read-doc: (that host already holds it):\n  read-doc %s:%s\n' \
+        "${remote_host}" "${remote_path}" >&2
+    else
+      # The host below is only what this machine calls itself. Nothing here can
+      # know the alias the *client* resolves it by — that lives in the other
+      # end's ssh_config — so it is a hint to correct, not a command to paste.
+      abs="${src}"
+      case "${abs}" in
+        /* | "") ;;
+        *) abs="$(cd "$(dirname -- "${src}")" && pwd)/$(basename -- "${src}")" ;;
+      esac
+      printf 'read-doc: (adjust the host to whatever your ssh config calls it):\n' >&2
+      printf '  read-doc %s:%s\n' "$(hostname -s)" "${abs:-<file>}" >&2
+    fi
+    exit 2
+  fi
+
+  esc=$(printf '\033')
+  bel=$(printf '\007')
+  seq="${esc}]1337;SetUserVar=read_doc=${payload}${bel}"
+
+  # Each tmux between here and the terminal emulator strips exactly one DCS
+  # passthrough wrapper, and this side cannot know how many there are: $TMUX
+  # reveals the local one, never the one running next to the terminal. Guessing
+  # wrong fails silently, so every plausible depth is emitted. Exactly one can
+  # survive — a wrapper that arrives one layer short is eaten by the last tmux,
+  # and one that arrives too deep reaches WezTerm as an unknown DCS, which it
+  # ignores. Requires `allow-passthrough on` (already set in .tmux.conf).
+  out="${seq}"
+  for _ in 1 2; do
+    seq="${esc}Ptmux;${seq//${esc}/${esc}${esc}}${esc}\\"
+    out="${out}${seq}"
+  done
+
+  # Straight to the terminal, not stdout: this must not land in a pipe or a
+  # redirect when read-doc is used inside one. Attempt the write rather than
+  # testing -w first — /dev/tty passes a permission test even where there is
+  # no controlling terminal, then fails at write time with ENXIO, which made
+  # an earlier version exit 0 having emitted nothing at all.
+  # The braces matter: a bare `cmd > /dev/tty 2>/dev/null` still lets the
+  # shell print its own "Device not configured" to stderr, because that
+  # message is emitted by the redirect, not by the command.
+  if ! { printf '%s' "${out}" > /dev/tty; } 2>/dev/null; then
+    printf '%s' "${out}"
+  fi
+  exit 0
+fi
+
+# --- render ------------------------------------------------------------------
+
+if [ ! -f "${STYLE}" ]; then
+  printf 'read-doc: stylesheet not found at %s\n' "${STYLE}" >&2
+  exit 2
+fi
+
+if ! command -v pandoc >/dev/null 2>&1; then
+  printf 'read-doc: pandoc not found in PATH (brew install pandoc)\n' >&2
+  exit 2
+fi
 
 # Which extensions are prose and which are code. A Markdown reader run over
 # source code mangles it — `#` becomes a heading, `*` becomes emphasis — so
@@ -93,7 +230,7 @@ case "${base}" in
   *.txt | *.text | *.rst | *.org | "") lang="" ;;
   Dockerfile | Dockerfile.* | *.dockerfile) lang="dockerfile" ;;
   Makefile | makefile | GNUmakefile | *.mk) lang="makefile" ;;
-  *.zsh | .zshrc | .zshenv | .zprofile | .p10k.zsh) lang="zsh" ;;
+  *.zsh | .zshrc | .zshenv | .zprofile) lang="zsh" ;;
   *.sh | *.bash | .bashrc | .profile) lang="bash" ;;
   *.go) lang="go" ;;
   *.ts | *.tsx) lang="typescript" ;;
@@ -192,9 +329,12 @@ mkdir -p "${out_dir}" || exit 2
 
 # Keyed on the absolute source path so re-rendering the same document reuses
 # one file (and one browser tab) while two same-named files from different
-# projects stay apart.
+# projects stay apart. A pulled or forwarded document keys on its name instead,
+# since its temp path is different on every run.
 key="stdin"
-if [ -n "${src}" ]; then
+if [ -n "${fetched}" ]; then
+  key="${base}"
+elif [ -n "${src}" ]; then
   key="$(cd "$(dirname -- "${src}")" && pwd)/$(basename -- "${src}")"
 fi
 slug="$(printf '%s' "${key}" | shasum | cut -c1-8)"

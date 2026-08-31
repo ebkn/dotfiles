@@ -43,10 +43,64 @@ end
 -- and window:focus() is Lua-only, so user-var-changed is the only door in.
 -- bin/tmux-agents writes the OSC 1337 SetUserVar sequence straight to the target
 -- pane's tty, which makes `window` below the window that owns that pane.
-wezterm.on('user-var-changed', function(window, _pane, name, _value)
+-- Receive a document forwarded by `read-doc` running inside an ssh session and
+-- render it HERE. Inside ssh, read-doc cannot call open(1) — that would launch
+-- a browser on the far end, where nobody is looking — so it writes the source
+-- to the terminal as OSC 1337 SetUserVar and this side does the rendering.
+--
+-- The SOURCE crosses the wire, not the HTML: the remote then needs no pandoc,
+-- and read-doc/style.css on THIS machine stays the single source of truth for
+-- the typography rather than whichever checkout the far end happens to have.
+--
+-- Note the trust boundary this opens. Any process that can write to a pane —
+-- including `cat` on a file from somewhere else — can now cause a file write
+-- and a browser launch here. That is the same class of exposure as the OSC 52
+-- clipboard writes tmux is already configured to forward, but the action is
+-- larger, so the name is stripped to a bare filename and the body is capped.
+local READ_DOC_MAX = 1024 * 1024
+
+wezterm.on('user-var-changed', function(window, _pane, name, value)
   if name == 'focus_window' then
     window:focus()
+    return
   end
+
+  if name ~= 'read_doc' then
+    return
+  end
+
+  -- Payload is "<basename>\n<content>"; the name travels so the extension
+  -- survives, which is what drives read-doc's language detection and title.
+  local doc_name, body = value:match('^([^\n]*)\n(.*)$')
+  if not doc_name or #body == 0 or #body > READ_DOC_MAX then
+    wezterm.log_error('read_doc: rejected payload')
+    return
+  end
+
+  -- Strip path separators and control characters rather than allow-listing
+  -- word characters: an allow-list would mangle every Japanese filename,
+  -- while removing "/" and C0 is what actually prevents escaping the dir.
+  doc_name = doc_name:gsub('[/%z\1-\31]', '_'):sub(1, 120)
+  if doc_name == '' or doc_name:match('^%.+$') then
+    doc_name = 'document.md'
+  end
+
+  local dir = (os.getenv('TMPDIR') or '/tmp') .. '/read-doc-inbox'
+  -- Synchronous: the write below must not race the directory's creation.
+  wezterm.run_child_process({ '/bin/mkdir', '-p', dir })
+
+  local path = dir .. '/' .. doc_name
+  local f = io.open(path, 'wb')
+  if not f then
+    wezterm.log_error('read_doc: cannot write ' .. path)
+    return
+  end
+  f:write(body)
+  f:close()
+
+  -- Backgrounded: read-doc shells out to pandoc and then to open(1), which is
+  -- far too slow to run on the UI thread.
+  wezterm.background_child_process({ wezterm.home_dir .. '/.local/bin/read-doc', path })
 end)
 
 local keys = {
