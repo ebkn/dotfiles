@@ -34,16 +34,19 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   ├── init/           #   Platform setup scripts (macos.sh, ubuntu.sh, wsl.sh, windows.ps1)
 │   │   ├── common.sh   #     Shared setup helpers (link_with_backup, etc.)
 │   │   └── links.sh    #     link_dotfiles(): re-syncable $HOME symlinks (shared by macos.sh + relink)
-│   ├── wsl/            #   WSL-only helper scripts (e.g. notify-send OSC 9 shim)
-│   ├── relink          #   Re-sync symlinks from link_dotfiles() (drift check + prompt; called by update-all)
-│   ├── tmux-agents     #   Pick a Claude Code agent by state (prefix + a) and jump to its WezTerm tab
-│   ├── tmux-cheatsheet #   Annotated key bindings, grouped into columns (prefix + ?)
-│   ├── tmux-tig        #   Run tig, holding the popup open on failure (prefix + t)
-│   ├── fzf-files       #   List git-changed files first for fzf (symlinked to ~/.local/bin)
-│   ├── git-generated   #   Locally hide linguist-generated files from diffs via .git/info/attributes
-│   ├── lint-shell      #   shellcheck + zsh -n over every shell script (same command CI runs)
-│   ├── textlint-docs   #   Run textlint/ rules on any repo (symlinked to ~/.local/bin; backs the lint-docs skill)
-│   ├── read-doc        #   Typeset a document as HTML and open it in the browser (symlinked to ~/.local/bin)
+│   ├── wsl/               #   WSL-only helper scripts (e.g. notify-send OSC 9 shim)
+│   ├── relink             #   Re-sync symlinks from link_dotfiles() (drift check + prompt; called by update-all)
+│   ├── tmux-agents        #   Pick a Claude Code agent by state (prefix + a) and jump to its WezTerm tab
+│   ├── tmux-cheatsheet    #   Annotated key bindings, grouped into columns (prefix + ?)
+│   ├── tmux-tig           #   Run tig, holding the popup open on failure (prefix + t)
+│   ├── tmux-pane-titles   #   Name the window after its panes' dirs/branches (called from zsh hooks)
+│   ├── tmux-restore-tabs  #   Re-open a WezTerm tab per orphaned tmux session
+│   ├── tmux-track-session #   Remember the remote session an ssh pane was in, for autossh reconnect
+│   ├── fzf-files          #   List git-changed files first for fzf (symlinked to ~/.local/bin)
+│   ├── git-generated      #   Locally hide linguist-generated files from diffs via .git/info/attributes
+│   ├── lint-shell         #   shellcheck + zsh -n over every shell script (same command CI runs)
+│   ├── textlint-docs      #   Run textlint/ rules on any repo (symlinked to ~/.local/bin; backs the lint-docs skill)
+│   ├── read-doc           #   Typeset a document as HTML and open it in the browser (symlinked to ~/.local/bin)
 │   └── install_minimum_vim.sh
 ├── brewfiles/          #   Homebrew dependency lists by category
 │   ├── Brewfile-shell  #     Shell tools (tmux, fzf, ripgrep, etc.)
@@ -72,7 +75,6 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 ├── .tmux.conf          #   Tmux configuration
 ├── .gitconfig          #   Git configuration (includes .gitconfig-ebkn)
 ├── wezterm.lua         #   WezTerm terminal configuration
-├── tmux-restore-tabs   #   Script symlinked to ~/.local/bin/
 └── .*                  #   Other dotfiles (.tigrc, .ideavimrc, etc.)
 ```
 
@@ -94,6 +96,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 - **New dotfiles**: For a plain, order-independent `$HOME` symlink, add a `link_with_backup` line to `link_dotfiles()` in `bin/init/links.sh` — that is the single source of truth shared by `bin/init/macos.sh` and `bin/relink`, so `update-all` picks it up on already-provisioned machines (no init re-run needed). For `ubuntu.sh`/`wsl.sh` add the line inline (they are not yet migrated to `link_dotfiles`). Keep order-sensitive links (`.zshrc`/`.zshenv`, `.npmrc`) or links wrapped in special logic inline in the platform init script.
 - **Re-syncing symlinks**: `update-all` runs `relink` at the end; it reports drift and asks before creating/fixing links. Run `relink` directly anytime to sync.
 - **Platform-specific binaries**: Helper scripts that only make sense on one OS go under `bin/<platform>/` (e.g. `bin/wsl/`). Cross-platform helpers stay at `bin/` root. Symlink them from the matching `bin/init/<platform>.{sh,ps1}`.
+- **Executables live in `bin/`, never at the repo root.** The root is for files that get symlinked into `$HOME` as-is (`.zshrc`, `.tmux.conf`, `wezterm.lua`); a script that ends up on `$PATH` belongs in `bin/` regardless of what it drives. `tmux-pane-titles`, `tmux-restore-tabs` and `tmux-track-session` sat at the root for historical reasons and were moved. **Moving a `bin/` script breaks running machines until `relink` is run**: `~/.local/bin/<name>` becomes a dangling symlink, and every caller here redirects stderr to `/dev/null`, so the only symptom is a feature quietly not happening (tab titles stop updating). `relink` does detect it — `link_with_backup`'s `[ -e "$dest" ] && [ "$dest" -ef "$src" ]` guard is false for a dangling link, so it reports drift and re-points it — but it has to actually be run.
 - **Home directory agent config**: Global Claude Code/Codex settings live in `root/` and are symlinked to `~/` by the setup script.
 - **Global agent instructions**: `root/CLAUDE.md` is linked to three destinations, and all three are load-bearing. `~/CLAUDE.md` (Claude Code) and `~/AGENTS.md` (generic `AGENTS.md` readers) are the obvious two. The third, `~/.codex/AGENTS.md`, is required because [Codex reads its global layer only from `$CODEX_HOME`](https://learn.chatgpt.com/docs/agent-configuration/agents-md) — `AGENTS.override.md`, then the first **non-empty** `AGENTS.md` — while its project scope walks from the git root down to cwd and therefore never visits `$HOME`. An empty `~/.codex/AGENTS.md` is skipped, not treated as "no instructions", so the failure is silent: project-level docs keep loading (Codex is pointed at `CLAUDE.md` via `project_doc_fallback_filenames` in the machine-local `~/.codex/config.toml`) and only the global layer goes missing. Verify with `codex debug prompt-input`, which dumps the exact prompt Codex builds — grep it for a phrase unique to `root/CLAUDE.md`. Note the content is Claude-flavoured (tool names like Read/Grep/Edit, `AskUserQuestion`, the subagent guidance); Codex ignores what it cannot map. `~/.codex/config.toml` is deliberately **not** version-controlled — Codex writes per-project `trust_level` and `[notice]` state into it ([upstream issue](https://github.com/openai/codex/issues/14601)).
 - **Codex prefix rules**: `root/.codex/rules/default.rules` is linked to `~/.codex/rules` and is the Codex counterpart to `settings.json` permissions. `forbidden` rules carry [`match`/`not_match`](https://learn.chatgpt.com/docs/agent-configuration/rules) example commands that Codex asserts at load time — the only executable tests the rules have. **Run `root/.codex/rules/default.rules.test.sh` after editing.** A violated assertion makes Codex drop the *entire file* silently (exit 0, empty stderr, no TUI warning), so one bad example disables every `forbidden` rule at once — it fails **open**. The test script turns that into a loud failure by asserting known-allowed prefixes are present, and gated ones absent, in `codex debug prompt-input`. Patterns match whole argv **tokens**, never substrings: `--force` does not match `--force-with-lease`, `-fd` does not match `-fdx`, `mkfs` does not match `mkfs.ext4` — each spelling needs its own rule. `env`/`printenv` are `prompt` rather than `forbidden` because a `forbidden` decision cannot be overridden in-session, which would block legitimate shell-environment debugging; note this does not protect file contents, since `cat .env` remains allowed — path-level denial requires a permissions profile (`[permissions.<name>.filesystem]`), not a prefix rule.
