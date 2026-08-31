@@ -1,0 +1,90 @@
+<!--
+  read-doc — behaviour injected at the end of <body> by bin/read-doc (-A).
+
+  This is the one thing on the page that needs JavaScript. Everything else is
+  static HTML plus read-doc/style.css, and the page stays self-contained and
+  offline-capable: the script is inline, loads nothing, and both features
+  degrade to a perfectly readable document if it never runs.
+
+  Kept as a separate file rather than a heredoc inside bin/read-doc so that
+  editors treat it as HTML/JS, and so the shell script stays about transport.
+-->
+<script>
+(function () {
+  'use strict';
+
+  var COPY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 3.5v-1a1 1 0 0 0-1-1h-7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h1"/></svg>';
+  var DONE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.5 3.5L13 5"/></svg>';
+
+  // execCommand is deprecated but still the only path when the Clipboard API
+  // is unavailable or rejects. A page opened from file:// is a secure context
+  // in Safari and Chrome, so navigator.clipboard normally works; this exists
+  // for the case where it does not rather than as the primary route.
+  function legacyCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  function flash(btn, ok) {
+    btn.innerHTML = ok ? DONE : COPY;
+    btn.classList.toggle('done', ok);
+    if (!ok) { return; }
+    clearTimeout(btn._t);
+    btn._t = setTimeout(function () {
+      btn.innerHTML = COPY;
+      btn.classList.remove('done');
+    }, 1400);
+  }
+
+  function copy(pre, btn) {
+    var code = pre.querySelector('code') || pre;
+    // innerText rather than textContent: it respects the line breaks the
+    // renderer produced, and pandoc's per-line anchors are empty so they
+    // contribute nothing either way.
+    var text = code.innerText;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () { flash(btn, true); },
+        function () { flash(btn, legacyCopy(text)); }
+      );
+    } else {
+      flash(btn, legacyCopy(text));
+    }
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('pre'), function (pre) {
+    var wrap = document.createElement('div');
+    wrap.className = 'codeblock';
+    pre.parentNode.insertBefore(wrap, pre);
+    wrap.appendChild(pre);
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'copy';
+    btn.title = 'Copy';
+    btn.setAttribute('aria-label', 'Copy code');
+    btn.innerHTML = COPY;
+    btn.addEventListener('click', function () { copy(pre, btn); });
+    wrap.appendChild(btn);
+  });
+
+  // Open links in a new tab — but never in-page fragments. A <base
+  // target="_blank"> would have been simpler and needs no script, except it
+  // applies to "#section" links too, so a table-of-contents entry would open
+  // a second copy of the document instead of scrolling within this one.
+  Array.prototype.forEach.call(document.querySelectorAll('a[href]'), function (a) {
+    var href = a.getAttribute('href');
+    if (!href || href.charAt(0) === '#') { return; }
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+  });
+})();
+</script>

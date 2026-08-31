@@ -29,10 +29,13 @@
   --font-body: "Hiragino Mincho ProN", "Toppan Bunkyu Mincho", "YuMincho", serif;
   --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
 
-  /* ~34em is about 38 Japanese characters per line. Comfortable-measure
-   * research is mostly about latin text, but the same ceiling applies: past
-   * roughly 40 zenkaku the eye loses the start of the next line on return. */
-  --measure: 34em;
+  /* Matched to a GitHub README's content column (~900px) by request. Note
+   * the trade-off this makes deliberately: at 18px that is about 50 Japanese
+   * characters per line, past the ~40 zenkaku where the eye starts losing the
+   * beginning of the next line on the return sweep. It buys a great deal for
+   * code blocks and tables, which do not reflow and were the thing actually
+   * cramped at 34em. Drop back to ~40em if long prose starts to tire. */
+  --measure: 900px;
   --size: 18px;
   --leading: 1.9;
 
@@ -71,6 +74,8 @@
     --purple: #d699b6;
   }
 }
+
+*, *::before, *::after { box-sizing: border-box; }
 
 html {
   background: var(--bg);
@@ -169,11 +174,16 @@ code, kbd, samp {
   padding: .1em .35em;
 }
 
+/* The wrapper is created by read-doc/after-body.html so that a plain <pre>
+ * and pandoc's <div class="sourceCode"> both get the same positioning
+ * context for the copy button. */
+.codeblock { position: relative; margin: 1.8em 0; }
+.codeblock pre { margin: 0; }
+
 pre {
   background: var(--bg-code);
   border: 1px solid var(--rule);
   border-radius: 4px;
-  padding: 1em 1.1em;
   margin: 1.8em 0;
   /* Code is the one thing on the page that must not reflow: wrapping a long
    * line changes what it means. Give it its own scroll instead of letting it
@@ -181,8 +191,59 @@ pre {
   overflow-x: auto;
   line-height: 1.6;
   text-align: left;
+  /* No padding here on purpose — see pre > code below. */
+  padding: 0;
 }
-pre code { background: none; border: 0; padding: 0; font-size: .84em; }
+
+pre > code {
+  display: block;
+  background: none;
+  border: 0;
+  font-size: .84em;
+  /* The padding lives on the inner element, not on the scroll container.
+   * padding-right on a scrolling box is NOT part of its scrollable overflow
+   * area, so with `padding` on <pre> the last characters of a long line sat
+   * flush against the right edge once scrolled — the reported overflow.
+   * width:max-content makes this element as wide as the longest line so its
+   * own padding travels with the scroll; min-width keeps short blocks from
+   * collapsing narrower than the box. */
+  padding: 1em 1.1em;
+  width: max-content;
+  min-width: 100%;
+  tab-size: 2;
+}
+
+/* --- copy button ------------------------------------------------------- */
+
+.copy {
+  position: absolute;
+  top: .5em;
+  right: .5em;
+  display: grid;
+  place-items: center;
+  width: 2em;
+  height: 2em;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg-dim);
+  cursor: pointer;
+  /* Hidden until the block is hovered so it does not compete with the code,
+   * but always present for keyboard users, who reach it by focus. */
+  opacity: 0;
+  transition: opacity .12s ease, color .12s ease;
+}
+.codeblock:hover .copy,
+.copy:focus-visible { opacity: 1; }
+.copy:hover { color: var(--fg); }
+.copy.done { color: var(--green); opacity: 1; }
+.copy svg { width: 1em; height: 1em; display: block; }
+
+@media (hover: none) {
+  /* No hover to reveal it on a touch screen. */
+  .copy { opacity: 1; }
+}
 
 /* pandoc wraps every source line in an empty anchor for deep-linking. It has
  * no content, but it inherits link styling and picks up an underline slot. */
@@ -228,6 +289,7 @@ code span.al, code span.er { color: var(--red); font-weight: 600; }             
 @media print {
   html { background: #fff; color: #000; }
   body { max-width: none; padding: 0; font-size: 10.5pt; }
+  .copy { display: none; }
   pre, :not(pre) > code { background: #f6f6f6; }
   a { color: inherit; }
   h2, h3, h4 { break-after: avoid; }

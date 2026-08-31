@@ -14,9 +14,14 @@
 #   Syntax highlighting. cmark-gfm emits <pre><code class="language-zsh"> and
 #   stops; colouring it means vendoring highlight.js into this repo, and a
 #   minified blob under version control costs more than the 266MB pandoc
-#   binary saves. pandoc highlights server-side via skylighting, so the output
-#   is a single self-contained file that needs no JavaScript and works offline.
+#   binary saves. pandoc highlights server-side via skylighting, so the colours
+#   are baked into the markup and survive with scripting off.
 #   Do not "optimise" this back to cmark-gfm without solving highlighting.
+#
+# What the page loads: nothing. It is one self-contained file that works
+#   offline. read-doc/after-body.html adds a small inline script for the copy
+#   buttons and for retargeting links; both degrade to a perfectly readable
+#   document if it never runs, and the syntax colours do not depend on it.
 #
 # Why the output is self-contained (--embed-resources):
 #   The HTML is written to a temp dir, so every relative path in the source
@@ -57,6 +62,7 @@ set -uo pipefail
 
 SELF_DIR="$(dirname "$(readlink -f "$0")")"
 STYLE="${SELF_DIR}/../read-doc/style.css"
+AFTER="${SELF_DIR}/../read-doc/after-body.html"
 
 usage() {
   printf 'usage: read-doc [--print|--here] <file>\n' >&2
@@ -188,10 +194,10 @@ if [ -n "${SSH_CONNECTION:-}" ] && [ "${print_only}" -eq 0 ] && [ "${force_here}
   # survive — a wrapper that arrives one layer short is eaten by the last tmux,
   # and one that arrives too deep reaches WezTerm as an unknown DCS, which it
   # ignores. Requires `allow-passthrough on` (already set in .tmux.conf).
-  out="${seq}"
+  emit="${seq}"
   for _ in 1 2; do
     seq="${esc}Ptmux;${seq//${esc}/${esc}${esc}}${esc}\\"
-    out="${out}${seq}"
+    emit="${emit}${seq}"
   done
 
   # Straight to the terminal, not stdout: this must not land in a pipe or a
@@ -202,9 +208,14 @@ if [ -n "${SSH_CONNECTION:-}" ] && [ "${print_only}" -eq 0 ] && [ "${force_here}
   # The braces matter: a bare `cmd > /dev/tty 2>/dev/null` still lets the
   # shell print its own "Device not configured" to stderr, because that
   # message is emitted by the redirect, not by the command.
-  if ! { printf '%s' "${out}" > /dev/tty; } 2>/dev/null; then
-    printf '%s' "${out}"
+  if ! { printf '%s' "${emit}" > /dev/tty; } 2>/dev/null; then
+    printf '%s' "${emit}"
   fi
+
+  # No URL to print here: the receiving machine chooses where the rendered
+  # page lands and there is no channel back to learn it. Re-running this
+  # command re-renders and re-opens it, which is cheaper than plumbing one.
+  printf 'read-doc: sent %s to the terminal'"'"'s machine\n' "${base}" >&2
   exit 0
 fi
 
@@ -212,6 +223,11 @@ fi
 
 if [ ! -f "${STYLE}" ]; then
   printf 'read-doc: stylesheet not found at %s\n' "${STYLE}" >&2
+  exit 2
+fi
+
+if [ ! -f "${AFTER}" ]; then
+  printf 'read-doc: after-body include not found at %s\n' "${AFTER}" >&2
   exit 2
 fi
 
@@ -301,6 +317,7 @@ render() {
     --syntax-highlighting=default \
     --variable=document-css= \
     --css="${STYLE}" \
+    --include-after-body="${AFTER}" \
     --metadata=pagetitle="${title}"
 }
 
@@ -351,3 +368,8 @@ if [ -n "${READ_DOC_BROWSER:-}" ]; then
 else
   open "${out}"
 fi
+
+# On stderr, not stdout: --print writes the document itself to stdout, and
+# read-doc is meant to stay usable inside a pipeline. The path is stable for a
+# given source (see the key above), so this URL reopens the same page later.
+printf 'read-doc: file://%s\n' "${out}" >&2
