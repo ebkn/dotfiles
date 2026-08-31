@@ -13,7 +13,7 @@ export HOMEBREW_NO_INSECURE_REDIRECT=1
 # User-local scripts PATH and VOLTA_HOME are set in .zshenv
 
 case `uname` in
-  "Darwin" ) # requires gnu-sed
+  "Darwin" )
     # Homebrew
     export PATH="/opt/homebrew/bin:$PATH"
 
