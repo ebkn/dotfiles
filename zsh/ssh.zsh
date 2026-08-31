@@ -53,6 +53,53 @@ _ssh_parse_argv() {
   done
 }
 
+# Pane decoration, shared by both wrappers below. Kept together because the two
+# halves have to stay symmetrical: anything _on sets, _off has to put back, and
+# when they were written out twice each the pairing was four places to keep in
+# step rather than one.
+#
+# Neither is guarded on `[ -t 1 ]` — the caller decides that, since it also
+# decides whether to decorate at all. See the comment on `decorate` in ssh().
+
+# _ssh_decorate_on <host> [my_machine]
+#
+# @ssh_host is read by .tmux.conf (status-left, the purple pane border) and by
+# bin/tmux-agents (which local pane holds a given host). @ssh_my_machine is set
+# only for `myssh`, and means "tmux and these dotfiles are on the far end", which
+# is what makes .tmux.conf pass prefix + p/t/o/u through to the nested remote
+# tmux instead of running the local popup.
+_ssh_decorate_on() {
+  local host=$1 my_machine=${2:-}
+  [ -n "$TMUX" ] || return 0
+
+  # Everforest dark hard: bg_dim (#1e2326) — slightly darker than bg0
+  tmux select-pane -P 'bg=#1e2326'
+  tmux set-option -p @ssh_host "${host:-unknown}"
+  [ -n "$my_machine" ] && tmux set-option -p @ssh_my_machine 1
+  tmux-pane-titles 2>/dev/null
+}
+
+# _ssh_decorate_off
+#
+# The terminal reset comes first and happens even outside tmux: it undoes state
+# a remote tmux may have left behind on an abrupt disconnect (SGR/X10/
+# button-event/all-mouse tracking, bracketed paste, cursor visibility, text
+# attributes). Without it, mouse scroll produces raw escape sequences like
+# "65;61;46M" instead of scrolling.
+#
+# @ssh_my_machine is cleared unconditionally, including on the plain `ssh` path
+# that never sets it. Unsetting an option that was never set is a silent no-op
+# (verified), and clearing both is what keeps this the exact inverse of _on.
+_ssh_decorate_off() {
+  printf '\e[?9l\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?2004l\e[?25h\e[0m'
+  [ -n "$TMUX" ] || return 0
+
+  tmux select-pane -P default
+  tmux set-option -p -u @ssh_host
+  tmux set-option -p -u @ssh_my_machine
+  tmux-pane-titles 2>/dev/null
+}
+
 # ssh wrapper: lightweight tmux visual indicator for any remote.
 # Makes no assumption about what is installed on the remote — safe to use
 # against foreign hosts, CI runners, jump boxes, etc. For interactive work
@@ -72,27 +119,12 @@ ssh() {
   local decorate=false
   [ -t 1 ] && decorate=true
 
-  if $decorate && [ -n "$TMUX" ]; then
-    # Everforest dark hard: bg_dim (#1e2326) — slightly darker than bg0
-    tmux select-pane -P 'bg=#1e2326'
-    tmux set-option -p @ssh_host "${host:-unknown}"
-    tmux-pane-titles 2>/dev/null
-  fi
+  $decorate && _ssh_decorate_on "$host"
 
   command ssh "$@"
   local ret=$?
 
-  # Reset terminal state that remote tmux may have left behind on abrupt disconnect
-  # (SGR/X10/button-event/all-mouse tracking, bracketed paste, cursor visibility,
-  # text attributes). Without this, mouse scroll produces raw escape sequences
-  # like "65;61;46M" instead of actual scrolling.
-  $decorate && printf '\e[?9l\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?2004l\e[?25h\e[0m'
-
-  if $decorate && [ -n "$TMUX" ]; then
-    tmux select-pane -P default
-    tmux set-option -p -u @ssh_host
-    tmux-pane-titles 2>/dev/null
-  fi
+  $decorate && _ssh_decorate_off
 
   return $ret
 }
@@ -127,15 +159,12 @@ myssh() {
   local decorate=false
   [ -t 1 ] && decorate=true
 
-  if $decorate && [ -n "$TMUX" ]; then
-    # Everforest dark hard: bg_dim (#1e2326) — slightly darker than bg0
-    tmux select-pane -P 'bg=#1e2326'
-    tmux set-option -p @ssh_host "${host:-unknown}"
-    if $use_autossh; then
-      tmux set-option -p @ssh_my_machine 1
-    fi
-    tmux-pane-titles 2>/dev/null
-  fi
+  # @ssh_my_machine only when autossh is actually taking over: the option
+  # promises a nested remote tmux for prefix + p/t/o/u to reach, and the
+  # fallback path below is a plain one-shot ssh with nothing to reach.
+  local my_machine=""
+  $use_autossh && my_machine=1
+  $decorate && _ssh_decorate_on "$host" "$my_machine"
 
   if $use_autossh; then
     # Interactive: auto-reconnect with per-pane remote tmux session.
@@ -181,18 +210,7 @@ myssh() {
     kill "$keepalive_pid" 2>/dev/null
   fi
 
-  # Reset terminal state that remote tmux may have left behind on abrupt disconnect
-  # (SGR/X10/button-event/all-mouse tracking, bracketed paste, cursor visibility,
-  # text attributes). Without this, mouse scroll produces raw escape sequences
-  # like "65;61;46M" instead of actual scrolling.
-  $decorate && printf '\e[?9l\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?2004l\e[?25h\e[0m'
-
-  if $decorate && [ -n "$TMUX" ]; then
-    tmux select-pane -P default
-    tmux set-option -p -u @ssh_host
-    tmux set-option -p -u @ssh_my_machine
-    tmux-pane-titles 2>/dev/null
-  fi
+  $decorate && _ssh_decorate_off
 
   return $ret
 }

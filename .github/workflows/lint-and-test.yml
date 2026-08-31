@@ -73,6 +73,12 @@ jobs:
       - name: ssh argv parser
         run: zsh zsh/ssh-parse-argv.test.zsh
 
+      # The pane decoration must be symmetrical. A pane left carrying
+      # @ssh_my_machine swallows prefix + p forever, sending it to a remote tmux
+      # that is not there -- with no error.
+      - name: ssh pane decoration
+        run: zsh zsh/ssh-decorate.test.zsh
+
       # rm() routes deletions through trash. Both of its failure modes look
       # like a successful delete from the shell, so they can only be caught
       # here: losing the fallback leaves Linux with no working rm, and handing
