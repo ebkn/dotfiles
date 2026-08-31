@@ -106,6 +106,10 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/bin/tmux-agents" "${HOME}/.local/bin/tmux-agents"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-cheatsheet" "${HOME}/.local/bin/tmux-cheatsheet"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-tig" "${HOME}/.local/bin/tmux-tig"
+  # Named by the prefix + p/t/o bindings in .tmux.conf, so an unlinked one makes
+  # the popup open and close again with nothing in it.
+  link_with_backup "${DOTFILES_DIR}/bin/tmux-popup" "${HOME}/.local/bin/tmux-popup"
+  link_with_backup "${DOTFILES_DIR}/bin/fzf-nvim" "${HOME}/.local/bin/fzf-nvim"
   link_with_backup "${DOTFILES_DIR}/bin/fzf-files" "${HOME}/.local/bin/fzf-files"
   link_with_backup "${DOTFILES_DIR}/bin/git-generated" "${HOME}/.local/bin/git-generated"
   link_with_backup "${DOTFILES_DIR}/bin/relink" "${HOME}/.local/bin/relink"

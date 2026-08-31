@@ -1,0 +1,46 @@
+#!/bin/sh
+# tmux-popup: run a tmux session inside a display-popup, one per WezTerm tab.
+#
+# Called as the shell-command of the `display-popup -E` bindings in .tmux.conf
+# (prefix + p / t / o). It exists so that the two rules those bindings share --
+# how the session is named, and where it starts -- live in one place instead of
+# being repeated, with shell quoting, in three tmux config lines.
+#
+# Usage: tmux-popup <name> [command...]
+#
+# The session is named "_<name>_<id>", and both halves are load-bearing:
+#
+#   leading "_"  marks the session as a popup. The bindings in .tmux.conf refuse
+#                to open a popup when `#{session_name}` already matches `_*`,
+#                because a popup runs a real session on the same server and so
+#                sees the same bindings -- without the guard, prefix + p inside
+#                a popup stacks another popup on top of it. Real sessions are
+#                never named this way (tmux-track-session uses the ssh conn id).
+#                Renaming the scheme here means changing that guard too.
+#
+#   <id>         makes the name unique per tmux session, i.e. per WezTerm tab.
+#                Without it every tab attaches to the same popup session and
+#                shows the other tabs' popup.
+#
+# The id cannot come from a `#{...}` format: display-popup expands formats only
+# in `-d`, never in the shell-command, so `_popup_#{pane_id}` was passed through
+# verbatim as one shared literal name. It is therefore derived here from $TMUX,
+# whose third comma-separated field is the numeric session id (tmux never reuses
+# one). $PWD stands in for #{pane_current_path} for the same reason -- `-d` has
+# already put this shell in the pane's directory.
+set -eu
+
+if [ $# -lt 1 ]; then
+  echo "usage: ${0##*/} <name> [command...]" >&2
+  exit 2
+fi
+
+if [ -z "${TMUX:-}" ]; then
+  echo "${0##*/}: not inside tmux" >&2
+  exit 1
+fi
+
+name=$1
+shift
+
+exec tmux new-session -A -s "_${name}_${TMUX##*,}" -c "$PWD" "$@"

@@ -1,0 +1,24 @@
+#!/bin/sh
+# fzf-nvim: pick a file with fzf and open it in nvim.
+#
+# Run inside the prefix + o popup (see .tmux.conf), as the command handed to
+# bin/tmux-popup. It lives here rather than inline in the binding because it is
+# the one popup command that is a shell script rather than a program name, and
+# inline it had to survive three levels of quoting -- tmux's `{ }` block, then
+# display-popup's shell, then the shell `tmux new-session` starts -- which is
+# what `\\\$` and `\\\"` were for. A file needs none of that.
+#
+# `{-1}` in the preview is not a typo: FZF_DEFAULT_OPTS (.zshenv) sets
+# --delimiter=\t and --nth=-1 so the list can carry a hidden label column, and
+# {-1} is the last field, i.e. the path.
+#
+# Cancelling fzf opens nvim with no file rather than doing nothing: the popup
+# closes the moment its command exits, so returning early would read as the
+# chord having failed.
+file=$(fzf --preview 'bat --color=always --style=numbers --line-range=:500 {-1}') || true
+
+if [ -n "$file" ]; then
+  exec nvim -- "$file"
+fi
+
+exec nvim

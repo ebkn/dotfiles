@@ -44,6 +44,13 @@ jobs:
       - name: agent-state hook
         run: bash root/.claude/hooks/agent-state.test.sh
 
+      # tmux-popup names the popup session, and the prefix + p/t/o guards in
+      # .tmux.conf match that name with `_*`. Breaking the naming makes the
+      # guard stop recognising popups and the chord starts stacking them, with
+      # no error anywhere.
+      - name: tmux-popup
+        run: bash bin/tmux-popup.test.sh
+
       # _ssh_parse_argv decides which argv element is the host. Its option list
       # is a hand-copied subset of ssh(1), so it rots silently whenever openssh
       # adds an option that takes an argument -- the parse then reads that
