@@ -159,10 +159,10 @@ local keys = {
   -- { mods = "LEADER", key = 'u', action = wezterm.action.ActivateCopyMode },
 }
 
--- Windows 流儀の Ctrl+C / Ctrl+V を有効化。WezTerm の既定は Ctrl+Shift+C /
+-- Windows 流儀の Ctrl+C / Ctrl+V を有効化。WezTerm のデフォルトは Ctrl+Shift+C /
 -- Ctrl+Shift+V だが、Windows ユーザーには馴染みが薄い。Ctrl+C は選択がある
 -- ときだけコピーし、無ければ通常通り SIGINT を送るので vim や実行中プロセス
--- を壊さない。macOS では Cmd+C/V が既定なので Windows ターゲット時のみ。
+-- を壊さない。macOS では Cmd+C/V がデフォルトなので Windows ターゲット時のみ。
 -- Windows: Ctrl+C/V for copy/paste (macOS uses Cmd+C/V natively).
 -- Ctrl+C copies when there is a terminal selection; otherwise SIGINT is
 -- sent so vim/shell Ctrl+C still works.  Ctrl+V always pastes — vim's

@@ -33,7 +33,7 @@ allowed-tools: Bash(gh pr view *), Bash(gh pr diff *), Bash(gh pr status *), Bas
 
 ### 1. 対象PRを把握する
 
-- 既定では、レビュワーは対象PRのブランチを checkout 済みとする。`gh pr status --json number,title,headRefName,url` で現在のブランチのPRを特定する。
+- デフォルトでは、レビュワーは対象PRのブランチを checkout 済みとする。`gh pr status --json number,title,headRefName,url` で現在のブランチのPRを特定する。
 - 特定できない場合（detached、別のワークスペース等）に限り、PR番号か URL をレビュワーに尋ねる。
 - PRの基本情報と diff を取得する。
   - `gh pr view <N> --json number,title,body,author,baseRefName,headRefName,additions,deletions,changedFiles,labels,state,url`
