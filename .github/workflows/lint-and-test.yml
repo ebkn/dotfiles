@@ -51,6 +51,21 @@ jobs:
       - name: tmux-popup
         run: bash bin/tmux-popup.test.sh
 
+      # .tmux.conf is never re-read on a working machine, so a bad line sits
+      # there unnoticed; and a bind that lost its -N note keeps working while
+      # disappearing from the cheatsheet.
+      - name: tmux config and cheatsheet
+        run: bash bin/tmux-conf.test.sh
+
+      # Both of these turn pane options into something a person reads -- a tab
+      # label and the prefix + a list. Every mistake renders a plausible wrong
+      # answer rather than an error.
+      - name: tmux-pane-titles
+        run: bash bin/tmux-pane-titles.test.sh
+
+      - name: tmux-agents
+        run: bash bin/tmux-agents.test.sh
+
       # _ssh_parse_argv decides which argv element is the host. Its option list
       # is a hand-copied subset of ssh(1), so it rots silently whenever openssh
       # adds an option that takes an argument -- the parse then reads that
