@@ -100,7 +100,19 @@ wezterm.on('user-var-changed', function(window, _pane, name, value)
 
   -- Backgrounded: read-doc shells out to pandoc and then to open(1), which is
   -- far too slow to run on the UI thread.
-  wezterm.background_child_process({ wezterm.home_dir .. '/.local/bin/read-doc', path })
+  --
+  -- Spawned through sh purely to repair PATH. A GUI app on macOS inherits the
+  -- launchd environment -- /usr/bin:/bin:/usr/sbin:/sbin -- with no Homebrew
+  -- prefix, so read-doc launched straight from here cannot find pandoc and
+  -- dies with "pandoc not found in PATH" where nothing shows the message.
+  -- background_child_process takes no env argument, hence the wrapper.
+  wezterm.background_child_process({
+    '/bin/sh', '-c',
+    'PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" exec "$1" "$2"',
+    'read-doc',
+    wezterm.home_dir .. '/.local/bin/read-doc',
+    path,
+  })
 end)
 
 local keys = {
