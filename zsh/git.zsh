@@ -36,7 +36,9 @@ gpushf() {
 # create a new git worktree, fuzzy-pick an existing one when called without args,
 # or check out a GitHub PR into a new worktree when given a PR URL.
 function gw() {
-  local input="$1"
+  # ${1:-} rather than $1: gw with no argument is the documented picker path,
+  # and a bare $1 makes it an error under `set -u`.
+  local input="${1:-}"
 
   if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "Error: not inside a git repository" >&2
