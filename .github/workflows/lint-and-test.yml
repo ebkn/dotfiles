@@ -103,3 +103,8 @@ jobs:
       # regression here is a process pinging at 3 packets a second until reboot.
       - name: ssh keepalive lifetime
         run: zsh zsh/ssh-keepalive.test.zsh
+
+      # .zshrc resolves its own directory to find zsh/. Getting that expansion
+      # wrong does not error -- the shell simply starts with no configuration.
+      - name: zshrc module resolution
+        run: zsh zsh/zshrc-resolve.test.zsh
