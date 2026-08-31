@@ -39,9 +39,9 @@ function strip_type(b,   n) {
   ssh = $2
   wt = $3
   br = $4
-  # ssh: host name dropped in favour of a ∷ marker to keep the label
+  # ssh: host name dropped in favour of a ≫ marker to keep the label
   # short. Multiple ssh hosts in one window collapse to a single entry.
-  if (ssh != "")     label = "∷"
+  if (ssh != "")     label = "≫"
   else if (wt != "") label = "w:" strip_type(wt)
   else if (br != "") label = "b:" strip_type(br)
   else               label = dir

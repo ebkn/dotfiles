@@ -126,7 +126,7 @@ check 'a branch with no / is left alone' 'b:hotfix' "$(title_of "$t5")"
 # worth the tab width. Then worktree, then branch, then the directory.
 t6=$(new_window "$work/alpha")
 set_opts "$t6" 0 '@ssh_host=somehost' '@git_worktree=feature/x' '@git_branch=feature/y'
-check 'ssh outranks worktree and branch' '∷' "$(title_of "$t6")"
+check 'ssh outranks worktree and branch' '≫' "$(title_of "$t6")"
 
 t7=$(new_window "$work/alpha")
 set_opts "$t7" 0 '@git_worktree=feature/x' '@git_branch=feature/y'
@@ -138,13 +138,13 @@ check 'worktree outranks branch' 'w:/x' "$(title_of "$t7")"
 t8=$(new_window "$work/alpha")
 set_opts "$t8" 0 '@git_branch=fix/local'
 add_pane "$t8" "$work/bravo" '@ssh_host=remote1'
-check 'mixes labels of different kinds in pane order' 'b:/local,∷' "$(title_of "$t8")"
+check 'mixes labels of different kinds in pane order' 'b:/local,≫' "$(title_of "$t8")"
 
 # Several ssh panes collapse to one marker, since the host name is not shown.
 t9=$(new_window "$work/alpha")
 set_opts "$t9" 0 '@ssh_host=remote1'
 add_pane "$t9" "$work/bravo" '@ssh_host=remote2'
-check 'several ssh panes collapse to one marker' '∷' "$(title_of "$t9")"
+check 'several ssh panes collapse to one marker' '≫' "$(title_of "$t9")"
 
 if [ "$failures" -ne 0 ]; then
   printf '\n%d test(s) failed\n' "$failures"
