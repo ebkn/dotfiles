@@ -4,10 +4,6 @@
 # Anything that reads or writes a repository belongs here rather than in
 # alias.zsh. gw and gdmerged between them are most of this file.
 #
-# `gs` (fzf branch switch) is deliberately NOT here: it sits in the `uname` case
-# at the end of alias.zsh because it needs gsed on macOS and sed on Linux, and
-# moving it would add a third `uname` fork to shell startup. It stays there
-# until that duplication is dealt with on its own.
 
 # git
 alias gti='git' # typo
@@ -22,6 +18,18 @@ alias gd='git diff --word-diff-regex="\w+"'
 alias gf='git fetch'
 alias current_branch='git rev-parse --abbrev-ref HEAD'
 alias gsc='git switch -c'
+
+# Fuzzy-switch branches, local or remote.
+#
+# This lived in alias.zsh's `uname` case until the gsed/sed split that put it
+# there was removed -- both substitutions are basic REs that every sed accepts,
+# so there was never anything platform-specific about it.
+gs() {
+  local branches branch
+  branches=$(git branch --all | grep -v HEAD) &&
+  branch=$(echo "$branches" | fzf) &&
+  git switch $(echo "$branch" | sed "s/.* //" | sed "s#remotes/[^/]*/##")
+}
 alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD` --recurse-submodules'
 alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
 gpushf() {

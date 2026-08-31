@@ -108,3 +108,10 @@ jobs:
       # wrong does not error -- the shell simply starts with no configuration.
       - name: zshrc module resolution
         run: zsh zsh/zshrc-resolve.test.zsh
+
+      # his() and gs() were one definition per platform until `sed -E` replaced
+      # the gsed/sed split. This job runs them against GNU sed; the same file
+      # run on macOS covers BSD sed, and the pair is the only check that the
+      # two really agree.
+      - name: his and gs
+        run: zsh zsh/his.test.zsh
