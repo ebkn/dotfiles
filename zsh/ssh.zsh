@@ -129,13 +129,68 @@ ssh() {
   return $ret
 }
 
+# Wi-Fi keepalive.
+#
+# This client stays on Wi-Fi (it roams to the office), and 802.11 power save
+# lets the radio doze during typing pauses — the first keystroke after a pause
+# pays the wake-up cost, measured at 70-100ms on the home LAN. A low-rate ping
+# (~3 pkt/s, ~400 B/s) for the session's lifetime pins the radio in active mode
+# and keeps Tailscale's UDP NAT mapping warm for away-from-home direct paths.
+#
+# The ping must be disowned (&!): as an ordinary job it would announce itself
+# ("[1] 12345") on every connection and report "terminated" on every
+# disconnect. But disowning also puts it out of reach of the SIGHUP a shell
+# sends its jobs on the way out, and myssh's own kill is only reached when
+# myssh *returns* — so closing the pane mid-session, or killing the shell, left
+# a ping running at three packets a second with nothing left to stop it.
+#
+# The supervisor is what bounds it. It is the disowned process; the ping is its
+# child; it wakes every few seconds to check the shell that asked for the
+# keepalive is still alive, and kills the ping when it is not. So a leak now
+# costs at most one poll interval instead of lasting until reboot.
+#
+# The interval is a variable so the tests do not have to sleep for real
+# seconds; nothing else should set it.
+: ${_SSH_KEEPALIVE_POLL:=5}
+typeset -g _SSH_KEEPALIVE_PID=""
+
+# _ssh_keepalive_start <target> [owner-pid]
+# Sets _SSH_KEEPALIVE_PID, or leaves it empty when there is nothing to ping.
+_ssh_keepalive_start() {
+  local target=$1 owner=${2:-$$}
+  _SSH_KEEPALIVE_PID=""
+  [ -n "$target" ] || return 0
+  (( $+commands[ping] )) || return 0
+
+  {
+    ping -i 0.3 -q "$target" >/dev/null 2>&1 &
+    local ping_pid=$!
+    # The trap covers the ordinary path (myssh kills this supervisor when the
+    # connection ends); the loop covers the shell dying without myssh ever
+    # returning. `sleep` is interruptible, so the trap runs promptly.
+    trap 'kill $ping_pid 2>/dev/null; exit' TERM INT HUP
+    while kill -0 $owner 2>/dev/null && kill -0 $ping_pid 2>/dev/null; do
+      sleep "$_SSH_KEEPALIVE_POLL"
+    done
+    kill $ping_pid 2>/dev/null
+  } >/dev/null 2>&1 &!
+  _SSH_KEEPALIVE_PID=$!
+}
+
+_ssh_keepalive_stop() {
+  [ -n "$_SSH_KEEPALIVE_PID" ] || return 0
+  kill "$_SSH_KEEPALIVE_PID" 2>/dev/null
+  _SSH_KEEPALIVE_PID=""
+}
+
 # myssh: ssh into "my machines" — hosts where tmux + tmux-track-session
 # are deployed. Adds auto-reconnect via autossh and attaches to a per-pane
 # remote tmux session. Sets `@ssh_my_machine` on the local pane so tmux
 # bindings (prefix + p/t/o/u) pass the prefix chord through to the nested
 # remote tmux instead of falling back to running the local popup / copy-mode.
 # Runs a low-rate keepalive ping for the session's lifetime to hold this
-# Wi-Fi-first client's radio out of 802.11 power-save doze (see body).
+# Wi-Fi-first client's radio out of 802.11 power-save doze
+# (see _ssh_keepalive_start above).
 #
 # Falls back to plain `command ssh` without setting `@ssh_my_machine` when:
 #   - a remote command is given (e.g. `myssh host 'ls'`) — one-shot
@@ -147,7 +202,6 @@ myssh() {
   local host="$_SSH_PARSE_HOST"
   local ssh_opts=("${_SSH_PARSE_OPTS[@]}")
   local has_remote_cmd="$_SSH_PARSE_HAS_REMOTE_CMD"
-  local keepalive_pid=""
 
   local use_autossh=false
   if ! $has_remote_cmd && (( $+commands[autossh] )); then
@@ -180,20 +234,10 @@ myssh() {
     if [ -n "$TMUX_PANE" ]; then
       remote_session="local-${TMUX_PANE#%}"
     fi
-    # This client stays on Wi-Fi (it roams to the office), and 802.11 power
-    # save lets the radio doze during typing pauses — the first keystroke
-    # after a pause pays the wake-up cost, measured at 70-100ms on the home
-    # LAN. A low-rate ping (~3 pkt/s, ~400 B/s) for the session's lifetime
-    # pins the radio in active mode and keeps Tailscale's UDP NAT mapping
-    # warm for away-from-home direct paths. Pings the ssh-config-resolved
-    # hostname so it exercises the same endpoint the tunnel itself uses.
-    # &! disowns the job so no notification fires when it is killed below.
-    local ping_target
-    ping_target=$(command ssh -G "$host" 2>/dev/null | awk '/^hostname /{print $2; exit}')
-    if [ -n "$ping_target" ]; then
-      ping -i 0.3 -q "$ping_target" >/dev/null 2>&1 &!
-      keepalive_pid=$!
-    fi
+    # Ping the ssh-config-resolved hostname, so the keepalive exercises the
+    # same endpoint the tunnel itself uses. See _ssh_keepalive_start.
+    _ssh_keepalive_start \
+      "$(command ssh -G "$host" 2>/dev/null | awk '/^hostname /{print $2; exit}')"
     # ControlPath=none: bypass stale ControlMaster sockets that can block reconnection.
     # autossh manages its own reconnection; shared sockets from ControlPersist interfere.
     # tmux-track-session: reattach to the last-used session if the user switched
@@ -206,9 +250,7 @@ myssh() {
   fi
   local ret=$?
 
-  if [ -n "$keepalive_pid" ]; then
-    kill "$keepalive_pid" 2>/dev/null
-  fi
+  _ssh_keepalive_stop
 
   $decorate && _ssh_decorate_off
 

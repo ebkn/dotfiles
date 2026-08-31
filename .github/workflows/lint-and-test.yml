@@ -97,3 +97,9 @@ jobs:
       # git ends up holding.
       - name: git worktree workflow
         run: zsh zsh/git-worktree.test.zsh
+
+      # The keepalive ping is disowned, so nothing else would ever stop it: the
+      # supervisor that kills it when its shell dies is the only bound. A
+      # regression here is a process pinging at 3 packets a second until reboot.
+      - name: ssh keepalive lifetime
+        run: zsh zsh/ssh-keepalive.test.zsh
