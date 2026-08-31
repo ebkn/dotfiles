@@ -90,3 +90,10 @@ jobs:
       # in, so a misplaced cd is invisible until it lands somewhere wrong.
       - name: fd directory picker
         run: zsh zsh/fd.test.zsh
+
+      # gw() and gdmerged() are the destructive pair: gdmerged deletes branches
+      # and removes worktrees, gw checks out other people's PRs. The cases run
+      # against real repositories in a temp dir, because the contract is what
+      # git ends up holding.
+      - name: git worktree workflow
+        run: zsh zsh/git-worktree.test.zsh
