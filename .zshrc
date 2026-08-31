@@ -5,6 +5,13 @@ ENABLE_CORRECTION="true"
 # tmuxを自動起動し、tmux終了時にシェルも終了する
 [[ -z "$TMUX" ]] && tmux -u && exit
 
+# Module order is mostly alphabetical, but three lines below are not free to
+# move. ssh-agent/gpg/path come first because later modules and the prompt need
+# what they export. And alias.zsh must precede git.zsh: zsh expands aliases when
+# it *parses* a function body, so `alias mkdir='mkdir -p'` is what turns the
+# `mkdir -p` calls inside gw() into `mkdir -p -p`. Load git.zsh first and those
+# functions are defined differently -- silently, and only visible in
+# `print -r -- $functions[gw]`.
 source "$HOME/dotfiles/zsh/ssh-agent.zsh"
 source "$HOME/dotfiles/zsh/gpg.zsh"
 source "$HOME/dotfiles/zsh/path.zsh"
@@ -12,9 +19,12 @@ source "$HOME/dotfiles/zsh/.p10k.zsh"
 source "$HOME/dotfiles/zsh/alias.zsh"
 source "$HOME/dotfiles/zsh/completion.zsh"
 source "$HOME/dotfiles/zsh/directory.zsh"
+source "$HOME/dotfiles/zsh/git.zsh"
 source "$HOME/dotfiles/zsh/history.zsh"
 source "$HOME/dotfiles/zsh/lang.zsh"
 source "$HOME/dotfiles/zsh/plugin.zsh"
+source "$HOME/dotfiles/zsh/ssh.zsh"
+source "$HOME/dotfiles/zsh/update.zsh"
 
 # display
 setopt print_exit_value

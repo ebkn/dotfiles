@@ -18,7 +18,7 @@ set -u
 
 # Sourcing the whole module is deliberate: the test should exercise the
 # function as the shell actually gets it, not a copy pasted in here.
-source "${0:A:h}/alias.zsh"
+source "${0:A:h}/ssh.zsh"
 
 typeset -i failures=0
 
