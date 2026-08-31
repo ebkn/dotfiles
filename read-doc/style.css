@@ -177,10 +177,35 @@ code, kbd, samp {
 /* The wrapper is created by read-doc/after-body.html so that a plain <pre>
  * and pandoc's <div class="sourceCode"> both get the same positioning
  * context for the copy button. */
-.codeblock { position: relative; margin: 1.8em 0; }
-.codeblock pre { margin: 0; }
+/*
+ * SPECIFICITY WARNING, and the reason two attempts at this failed.
+ *
+ * pandoc puts class="sourceCode" on BOTH the wrapper div and the <pre>, and
+ * its surviving stylesheet says `.sourceCode { overflow: visible }` plus, in
+ * @media screen, `div.sourceCode { overflow: auto }`. A bare `pre { … }` rule
+ * here is specificity (0,0,1) and loses to that (0,1,0) no matter how late it
+ * appears — silently, since CSS reports nothing. So `pre` was never the scroll
+ * container: the outer div scrolled while the background and border sat on a
+ * <pre> only as wide as the column, and a long line simply travelled out of
+ * the box. Every selector below therefore matches the class too.
+ *
+ * Measured before the fix: pre.clientWidth 706, pre.scrollWidth 2256,
+ * computed overflow-x "visible".
+ */
 
-pre {
+/* Hand the scrolling to <pre> so the background and border belong to the
+ * element that actually clips, and drop pandoc's margin: it does not collapse
+ * with .codeblock's (overflow: auto suppresses collapsing), which stacked
+ * 18px + 32.4px of dead space above and below every block. */
+div.sourceCode {
+  overflow: visible;
+  margin: 0;
+}
+
+.codeblock { position: relative; margin: 1.8em 0; }
+.codeblock pre, .codeblock pre.sourceCode { margin: 0; }
+
+pre, pre.sourceCode {
   background: var(--bg-code);
   border: 1px solid var(--rule);
   border-radius: 4px;
@@ -195,18 +220,17 @@ pre {
   padding: 0;
 }
 
-pre > code {
+pre > code, pre > code.sourceCode {
   display: block;
   background: none;
   border: 0;
   font-size: .84em;
   /* The padding lives on the inner element, not on the scroll container.
-   * padding-right on a scrolling box is NOT part of its scrollable overflow
-   * area, so with `padding` on <pre> the last characters of a long line sat
-   * flush against the right edge once scrolled — the reported overflow.
-   * width:max-content makes this element as wide as the longest line so its
-   * own padding travels with the scroll; min-width keeps short blocks from
-   * collapsing narrower than the box. */
+   * padding-right on a scrolling box is not part of its scrollable overflow
+   * area, so padding on <pre> would leave the last characters flush against
+   * the edge once scrolled. width:max-content makes this element as wide as
+   * the longest line so its own padding travels with the scroll; min-width
+   * keeps short blocks from collapsing narrower than the box. */
   padding: 1em 1.1em;
   width: max-content;
   min-width: 100%;
