@@ -23,11 +23,24 @@
 #   buttons and for retargeting links; both degrade to a perfectly readable
 #   document if it never runs, and the syntax colours do not depend on it.
 #
-# Why the output is self-contained (--embed-resources):
-#   The HTML is written to a temp dir, so every relative path in the source
-#   — images especially — would break. Embedding resolves them against the
-#   source file's own directory (--resource-path) and inlines them, which also
-#   inlines style.css, so a rendered page keeps working after this repo moves.
+# Why the output is self-contained, and why it is no longer --embed-resources:
+#   read-doc renders documents that arrive from elsewhere — pulled over ssh,
+#   forwarded from a remote pane — so the input is untrusted. pandoc therefore
+#   runs under --sandbox, which limits reader and writer IO to the files named
+#   on the command line and is what upstream tells anyone feeding pandoc
+#   untrusted input to use. That also blocks --embed-resources (a writer-side
+#   fetch), so style.css is read by this script and passed in as an inline
+#   <style> via header-includes instead. The consequence to know: a
+#   document-relative image no longer renders. That is the accepted price —
+#   the documents this exists for are prose, and a forwarded one has no
+#   readable path on this machine anyway.
+#
+# Why the page also carries a Content-Security-Policy <meta>:
+#   The gfm reader passes raw HTML through, so a document can carry markup we
+#   never wrote. `default-src 'none'` means none of it can reach the network,
+#   so a page cannot phone home about what it was rendered next to.
+#   `script-src 'unsafe-inline'` is the one relaxation, and it is required by
+#   read-doc/after-body.html; see the note at the policy itself.
 #
 # Three ways to run it, and why there are three:
 #   local      read-doc FILE            renders here, opens the browser here
@@ -290,9 +303,35 @@ if [ -z "${lang}" ] && [ -n "${src}" ] && [ -f "${src}" ]; then
   esac
 fi
 
-# Images and the like resolve against the source's directory, not this script's.
-resource_path="."
-[ -n "${src}" ] && resource_path="$(dirname -- "${src}")"
+# The policy the rendered page carries. `default-src 'none'` is the part that
+# matters: whatever raw HTML a document smuggled through the reader, it cannot
+# fetch, XHR, or open a socket, so nothing about this machine leaks outward.
+#
+# The two relaxations are exactly what our own output needs. `style-src
+# 'unsafe-inline'` covers pandoc's highlighting rules and the <style> below;
+# `script-src 'unsafe-inline'` covers read-doc/after-body.html, which is inline
+# by design (the page must work offline, loading nothing).
+#
+# Known gap, stated rather than hidden: 'unsafe-inline' also permits a script
+# the *document* brought with it, and CSP has no directive here that stops a
+# script navigating the top-level page. So this stops silent exfiltration, not
+# a visible redirect. Closing it means dropping 'unsafe-inline' for a sha256
+# hash of after-body.html's script, which is the next step if it ever matters.
+CSP="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
+
+# header-includes rather than --css: --sandbox blocks the writer-side fetch
+# --embed-resources used to do, so a <link> would be left pointing at a path
+# CSP then refuses to load. Reading the file here keeps the theme inline.
+# The placement is the same one --embed-resources gave us and is load-bearing:
+# the html5 template emits $styles.html()$ (pandoc's highlighting rules) before
+# $for(header-includes)$, so ours come last and win. Reordering the template
+# would break the theme with no error.
+header_includes="$(
+  printf '<meta http-equiv="Content-Security-Policy" content="%s">\n' "${CSP}"
+  printf '<style>\n'
+  cat -- "${STYLE}"
+  printf '\n</style>\n'
+)"
 
 render() {
   # -V document-css= empties the template's `$if(document-css)$` guard, which
@@ -308,15 +347,18 @@ render() {
   # pagetitle rather than title: setting `title` also makes the template emit
   # a <h1 class="title"> into the body, which duplicates the document's own
   # first heading. pagetitle fills the browser tab and nothing else.
+  #
+  # --sandbox limits reader/writer IO to the files named on the command line.
+  # --include-after-body is read by the CLI itself and so still works; the
+  # stylesheet is not, which is why it arrives via header-includes above.
   pandoc \
+    --sandbox \
     --from=gfm-tex_math_dollars-tex_math_gfm \
     --to=html5 \
     --standalone \
-    --embed-resources \
-    --resource-path="${resource_path}" \
     --syntax-highlighting=default \
     --variable=document-css= \
-    --css="${STYLE}" \
+    --variable=header-includes="${header_includes}" \
     --include-after-body="${AFTER}" \
     --metadata=pagetitle="${title}"
 }
