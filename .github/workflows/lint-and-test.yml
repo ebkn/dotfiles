@@ -33,6 +33,12 @@ jobs:
       - name: curl-guard hook
         run: bash root/.claude/hooks/curl-guard.test.sh
 
+      # approve-multiline-commands.sh is the only hook here that emits "allow",
+      # so a regression widens a permission boundary silently -- the command
+      # just runs. Gated on every push for the same reason as curl-guard.
+      - name: approve-multiline-commands hook
+        run: bash root/.claude/hooks/approve-multiline-commands.test.sh
+
       # agent-state.sh drives the tab glyph and the prefix+a picker off tmux
       # pane options. The test runs a throwaway tmux server, so tmux has to be
       # on the runner -- the test fails rather than skips without it, on
