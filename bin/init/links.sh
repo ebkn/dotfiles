@@ -121,6 +121,7 @@ link_dotfiles() {
   # a pair: linking the plist without this one leaves launchd calling a path
   # that does not exist, and it reports that only in its own log.
   link_with_backup "${DOTFILES_DIR}/bin/pr-review-watch" "${HOME}/.local/bin/pr-review-watch"
+  link_with_backup "${DOTFILES_DIR}/bin/pr-review-dispatch" "${HOME}/.local/bin/pr-review-dispatch"
   # macOS-only, but linked unconditionally like the Cursor paths above:
   # link_with_backup just creates a directory nobody reads on Linux, whereas a
   # platform guard here would have to be duplicated in relink's drift report.
@@ -128,4 +129,8 @@ link_dotfiles() {
   # (the plist header spells it out), so a fresh link polls nothing until then.
   link_with_backup "${DOTFILES_DIR}/launchd/com.ebkn.pr-review-watch.plist" \
     "${HOME}/Library/LaunchAgents/com.ebkn.pr-review-watch.plist"
+  # Two agents rather than one job running both, so the half that types into
+  # your sessions can be booted out on its own while notifications keep coming.
+  link_with_backup "${DOTFILES_DIR}/launchd/com.ebkn.pr-review-dispatch.plist" \
+    "${HOME}/Library/LaunchAgents/com.ebkn.pr-review-dispatch.plist"
 }

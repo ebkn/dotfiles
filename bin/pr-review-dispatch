@@ -1,0 +1,272 @@
+#!/usr/bin/env bash
+# pr-review-dispatch — hand queued PR review feedback to the Claude Code session
+# working on that branch, but only when that session is not in the middle of
+# something.
+#
+# Stage 2 of the pipeline (`bin/pr-review-watch` is stage 1). The split exists
+# because "a review arrived" and "this session may be interrupted right now" are
+# unrelated facts. This program answers only the second one, and its default
+# answer is no: a job stays queued until the session is demonstrably idle. A poll
+# that finds every session busy is a successful run that delivers nothing.
+#
+# Delivery is `tmux send-keys` into the session's own pane rather than
+# `claude --resume <id> --bg`, and that is the central decision here. --help is
+# explicit that --bg "starts a copy and says so when the session is already
+# running", so resuming a session that is open in a tab forks the conversation
+# and puts a second writer on the same worktree. send-keys keeps one process,
+# one conversation and one writer; the TUI queues the input itself if a turn is
+# still finishing. The --bg path survives only as an opt-in fallback for a PR
+# whose session has exited (PR_REVIEW_DISPATCH_RESUME=1), off by default because
+# starting an unattended session that edits code is the most surprising thing
+# this pipeline can do.
+#
+# Two independent gates gate the send, deliberately from two different sources:
+#
+#   1. `claude agents --json` status must be `idle`. This is Claude Code's own
+#      registry, and it also reports `waiting` (a modal is open).
+#   2. the pane's `@claude_state`, published by root/.claude/hooks/agent-state.sh,
+#      must be unset or `stalled`. This repo owns that hook, and it is read
+#      immediately before the keystrokes to shrink the race in (1).
+#
+# Gate 2 is not redundant. Typing into a pane with a permission dialog open does
+# not queue text -- the keys are consumed as the dialog's answer, so an
+# unlucky send-keys silently picks somebody's permission for them. `asking` and
+# `waiting` are exactly the states agent-state.sh exists to distinguish.
+#
+# The delivered prompt is ONE LINE that points at a file. A multi-line
+# send-keys would submit at the first newline and leave the rest as a second
+# prompt, and review bodies are arbitrary user text full of newlines, backticks
+# and quotes. Writing the feedback to a file sidesteps all of it and keeps the
+# keystrokes short.
+#
+# Usage:
+#   pr-review-dispatch             deliver every deliverable job
+#   pr-review-dispatch --dry-run   report what would be delivered, send nothing
+#
+# Environment:
+#   PR_REVIEW_WATCH_STATE_DIR    queue location (shared with pr-review-watch)
+#   PR_REVIEW_DISPATCH_RESUME    1 to resume exited sessions with `claude --bg`
+#
+# Requires: jq, tmux, claude.
+set -uo pipefail
+
+STATE_DIR=${PR_REVIEW_WATCH_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/pr-review-watch}
+RESUME=${PR_REVIEW_DISPATCH_RESUME:-0}
+SESSIONS_DIR=${CLAUDE_SESSIONS_DIR:-$HOME/.claude/sessions}
+
+dry_run=0
+
+die() { printf 'pr-review-dispatch: %s\n' "$*" >&2; exit 1; }
+usage() { sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//; $d'; }
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    --dry-run) dry_run=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+
+for cmd in jq tmux claude; do
+  command -v "$cmd" >/dev/null 2>&1 || die "$cmd is required but not installed"
+done
+
+[ -d "$STATE_DIR/jobs" ] || exit 0
+
+# Same lock discipline as the watcher: launchd does not care that the previous
+# run is still going, and two dispatchers racing would deliver one job twice.
+lock="$STATE_DIR/.dispatch-lock"
+if ! mkdir "$lock" 2>/dev/null; then
+  if [ -n "$(find "$lock" -maxdepth 0 -mmin +10 2>/dev/null)" ]; then
+    rmdir "$lock" 2>/dev/null && mkdir "$lock" 2>/dev/null || exit 0
+  else
+    exit 0
+  fi
+fi
+trap 'rmdir "$lock" 2>/dev/null' EXIT
+
+# Queried once: the same snapshot decides every job in this run, and a job that
+# loses the race just waits for the next one.
+agents_json=$(claude agents --json 2>/dev/null || printf '[]')
+
+# The live session for a worktree, as {sessionId,pid,status}. Resolved from the
+# worktree rather than from the id the watcher stored: a session that was
+# restarted since the job was queued has a new id but is still the right target,
+# and the stored id would point at a process that no longer exists.
+agent_for_worktree() {
+  printf '%s' "$agents_json" | jq -c --arg wt "$1" '
+    [ .[]
+      | select(.kind == "interactive")
+      | select(.cwd == $wt or (.cwd | startswith($wt + "/"))) ]
+    | sort_by(.startedAt) | last // empty'
+}
+
+# pid -> tmux pane. `claude agents --json` does not carry the pane, so this
+# reads Claude Code's per-process session file, whose `tmux` field is
+# "<session>:<window_id>.<pane_id>" (verified: the pane_id half equals the
+# session's own $TMUX_PANE). That file is an UNDOCUMENTED surface, so every
+# failure here is treated as "no pane" and the job simply stays queued -- never
+# as a reason to guess a target. If it ever goes away, the replacement is to
+# publish the session id from agent-state.sh as another pane option, which would
+# put the whole lookup on a surface this repo owns.
+pane_for_pid() {
+  local pid=$1
+  local file="$SESSIONS_DIR/$pid.json"
+  local pane
+  [ -f "$file" ] || return 1
+  pane=$(jq -r '.tmux // empty | split(".") | last // empty' "$file" 2>/dev/null)
+  case "$pane" in
+    %[0-9]*) ;;
+    *) return 1 ;;
+  esac
+  # A session file outlives the process that wrote it, so the pane it names may
+  # belong to somebody else by now -- or to nobody.
+  tmux list-panes -a -F '#{pane_id}' 2>/dev/null | grep -qx "$pane" || return 1
+  printf '%s' "$pane"
+}
+
+# The second gate. Unset means idle (agent-state.sh clears on SessionStart and
+# SessionEnd); `stalled` means a finished turn nobody has read yet, which is
+# also safe to type into. Everything else -- busy, asking, waiting -- is not.
+pane_accepts_input() {
+  local state
+  state=$(tmux show-options -p -t "$1" -qv @claude_state 2>/dev/null)
+  case "$state" in
+    ''|stalled) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# The feedback itself, as a file the session is told to read. Kept beside the
+# job so a delivery that goes wrong can be inspected after the fact.
+write_prompt_file() {
+  local job=$1 out=$2
+  {
+    printf '# Review feedback on %s\n\n' "$(jq -r .url "$job")"
+    printf -- '- PR: %s#%s — %s\n' "$(jq -r .repo "$job")" "$(jq -r .pr "$job")" "$(jq -r .title "$job")"
+    printf -- '- Branch: %s\n\n' "$(jq -r .branch "$job")"
+    jq -r '.pending[] |
+      "## " + .author + " (" + .kind + (if .state then ", " + .state else "" end) + ")" + "\n" +
+      (if .path then "`" + .path + (if .line then ":" + (.line|tostring) else "" end) + "`\n" else "" end) +
+      "\n" + (if (.body | length) > 0 then .body else "_(no body — the verdict is the message)_" end) + "\n"' "$job"
+  } > "$out"
+}
+
+# One line, no newlines, no shell metacharacters that matter: everything
+# variable is a path or a number. See the header on why this is not the
+# feedback itself.
+prompt_line() {
+  local job=$1 file=$2 n
+  n=$(jq -r '.pending | length' "$job")
+  printf 'New review feedback (%s items) arrived on PR %s. Read %s and address it.' \
+    "$n" "$(jq -r .url "$job")" "$file"
+}
+
+mark_delivered() {
+  local job=$1 how=$2
+  jq --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg how "$how" '
+    # `seen` is untouched: it is the watcher high-water and must survive
+    # delivery, or the same feedback is queued again on the next poll.
+    .deliveredAt = $now
+    | .deliveredVia = $how
+    | .deliveredCount = ((.deliveredCount // 0) + (.pending | length))
+    | .status = "delivered"
+    | .pending = []' "$job" > "$job.tmp" && mv "$job.tmp" "$job"
+}
+
+# --- main -------------------------------------------------------------------
+
+delivered=0
+held=0
+
+for job in "$STATE_DIR"/jobs/*.json; do
+  [ -f "$job" ] || continue
+  [ "$(jq -r '.pending | length' "$job" 2>/dev/null || echo 0)" -gt 0 ] || continue
+
+  repo=$(jq -r .repo "$job"); pr=$(jq -r .pr "$job")
+  worktree=$(jq -r .worktree "$job")
+  label="$repo#$pr"
+
+  agent=$(agent_for_worktree "$worktree")
+
+  if [ -z "$agent" ]; then
+    # No live session for this worktree. The conversation that wrote the code is
+    # the one that should answer the review, so the fallback resumes it rather
+    # than starting fresh -- but only when asked to, and never while a TUI is
+    # open, which is the case that reaches here at all.
+    session=$(jq -r '.sessionId // empty' "$job")
+    if [ "$RESUME" != 1 ] || [ -z "$session" ] || [ ! -d "$worktree" ]; then
+      printf 'hold  %s: no live session (set PR_REVIEW_DISPATCH_RESUME=1 to resume it)\n' "$label"
+      held=$((held + 1))
+      continue
+    fi
+    prompt_file="${job%.json}.prompt.md"
+    printf 'send  %s: resuming %s in the background\n' "$label" "$session"
+    [ "$dry_run" -eq 0 ] || continue
+    write_prompt_file "$job" "$prompt_file"
+    line=$(prompt_line "$job" "$prompt_file")
+    if (cd "$worktree" && claude --bg --resume "$session" "$line" >/dev/null 2>&1); then
+      mark_delivered "$job" "resume"
+      delivered=$((delivered + 1))
+    else
+      printf 'hold  %s: claude --bg --resume failed\n' "$label"
+      held=$((held + 1))
+    fi
+    continue
+  fi
+
+  status=$(printf '%s' "$agent" | jq -r '.status // "unknown"')
+  pid=$(printf '%s' "$agent" | jq -r '.pid')
+
+  # Gate 1. Anything that is not positively idle is left queued -- including a
+  # status this script does not recognise, since a new state name upstream must
+  # not be read as permission to type.
+  if [ "$status" != "idle" ]; then
+    printf 'hold  %s: session is %s\n' "$label" "$status"
+    held=$((held + 1))
+    continue
+  fi
+
+  pane=$(pane_for_pid "$pid") || {
+    printf 'hold  %s: session %s has no resolvable tmux pane\n' "$label" "$pid"
+    held=$((held + 1))
+    continue
+  }
+
+  printf 'send  %s: %s items -> pane %s\n' "$label" "$(jq -r '.pending|length' "$job")" "$pane"
+  [ "$dry_run" -eq 0 ] || continue
+
+  prompt_file="${job%.json}.prompt.md"
+  write_prompt_file "$job" "$prompt_file"
+  line=$(prompt_line "$job" "$prompt_file")
+
+  # Gate 2, read as late as possible: the window between this and the keystrokes
+  # is the whole remaining race. It cannot be closed -- tmux offers no atomic
+  # test-and-send -- but the worst case is text appended to something the human
+  # was typing, which is visible and recoverable, not a wrong action.
+  if ! pane_accepts_input "$pane"; then
+    printf 'hold  %s: pane %s stopped accepting input\n' "$label" "$pane"
+    held=$((held + 1))
+    continue
+  fi
+
+  # -l sends the string literally, and -- keeps a leading dash from being read
+  # as an option. Enter is a second call so the literal text can never be
+  # mistaken for a key name.
+  if ! tmux send-keys -t "$pane" -l -- "$line" 2>/dev/null; then
+    printf 'hold  %s: send-keys to %s failed\n' "$label" "$pane"
+    held=$((held + 1))
+    continue
+  fi
+  # A failure here has already typed the text, so the job is delivered either
+  # way: retrying would type it a second time. The human sees an unsent prompt.
+  tmux send-keys -t "$pane" Enter 2>/dev/null ||
+    printf 'warn  %s: text delivered to %s but Enter failed\n' "$label" "$pane"
+
+  mark_delivered "$job" "send-keys"
+  delivered=$((delivered + 1))
+done
+
+[ "$delivered" -gt 0 ] && printf 'delivered %d job(s)\n' "$delivered"
+[ "$held" -gt 0 ] && printf 'held %d job(s)\n' "$held"
+exit 0

@@ -80,6 +80,13 @@ jobs:
       - name: pr-review-watch
         run: bash bin/pr-review-watch.test.sh
 
+      # pr-review-dispatch types into live Claude sessions. Its failure mode is
+      # not "nothing happens" but "something happens at the wrong moment" -- a
+      # send-keys into a pane with a permission dialog open answers that dialog.
+      # The suite runs a throwaway tmux server, so tmux must be on the runner.
+      - name: pr-review-dispatch
+        run: bash bin/pr-review-dispatch.test.sh
+
       # _ssh_parse_argv decides which argv element is the host. Its option list
       # is a hand-copied subset of ssh(1), so it rots silently whenever openssh
       # adds an option that takes an argument -- the parse then reads that
