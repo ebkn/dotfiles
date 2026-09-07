@@ -61,9 +61,11 @@ check DENY 'echo hi; git -c a=b status'
 check DENY 'ls && git -c a=b status'
 check DENY "git -C '/unterminated status"
 
-echo "-- must PASS: the monorepo's everyday git -C usage --"
+# Paths here are placeholders on purpose: this repository is public, so a real
+# private-repo path in a test fixture would publish it.
+echo "-- must PASS: a monorepo's everyday git -C usage --"
 check PASS 'git -C /tmp add .'
-check PASS 'git -C /Users/x/ghq/github.com/eversteel/tetsunavi-monorepo/git-worktrees/fix-claude-settings add apps/eaf-frontend'
+check PASS 'git -C /Users/x/ghq/github.com/acme/example-monorepo/git-worktrees/some-branch add apps/frontend'
 check PASS 'git -C "/path with space" add .'
 check PASS 'git -C /tmp commit -m "fix: something"'
 check PASS 'git -C /tmp'
