@@ -72,6 +72,14 @@ jobs:
       - name: tmux-agents
         run: bash bin/tmux-agents.test.sh
 
+      # pr-review-watch queues review feedback for the session working on the
+      # branch. Both of its failure modes are silence: a filter that matches
+      # nothing looks exactly like "no reviews arrived", and one that stops
+      # dropping the token's own comments builds a reply loop. gh, ghq, claude
+      # and terminal-notifier are stubbed, so nothing here touches the network.
+      - name: pr-review-watch
+        run: bash bin/pr-review-watch.test.sh
+
       # _ssh_parse_argv decides which argv element is the host. Its option list
       # is a hand-copied subset of ssh(1), so it rots silently whenever openssh
       # adds an option that takes an argument -- the parse then reads that

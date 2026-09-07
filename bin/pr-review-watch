@@ -1,0 +1,318 @@
+#!/usr/bin/env bash
+# pr-review-watch — detect new review activity on your PRs and queue it for the
+# Claude Code session that is working on that branch.
+#
+# Stage 1 of the review-automation pipeline, and deliberately the *only* stage
+# that talks to GitHub. It DETECTS and QUEUES. It never edits code, never runs
+# git-write commands, and never hands anything to a session. Delivery is a
+# separate program because the decision "may this session be interrupted right
+# now" has nothing to do with "has a review arrived": a session that is mid-turn
+# must not be typed into, and merging the two steps would make that
+# unenforceable. A job sitting in the queue is the representation of "a review
+# arrived while you were busy".
+#
+# Polling, not webhooks: a webhook would need a public endpoint on a laptop.
+# The notifications API is the cheap fan-in — one request covers every PR in
+# every repo — and GitHub documents the conditional-request contract that makes
+# a 60s poll free:
+#
+#   "There is an X-Poll-Interval header that specifies how often (in seconds)
+#    you are allowed to poll."
+#   "If there are no new notifications, you will see a 304 Not Modified
+#    response, leaving your current rate limit untouched."
+#   -- https://docs.github.com/en/rest/activity/notifications
+#
+# So the Last-Modified round-trip below is not an optimisation, it is what keeps
+# this off the rate limit entirely while idle. Note `gh api -i` exits *non-zero*
+# on a 304 (verified), so the HTTP status must be read from the status line and
+# never inferred from the exit code.
+#
+# `all=true` is deliberate: without it the API returns only *unread*
+# notifications, which makes GitHub's read state a load-bearing part of this
+# tool. Opening the PR in a browser would then silently drop the job. Idempotence
+# comes from our own high-water mark instead (the `seen` id set in each job), so
+# reading a notification anywhere changes nothing here.
+#
+# Usage:
+#   pr-review-watch            poll once and queue whatever is new
+#   pr-review-watch --print    dump the current queue as JSON, poll nothing
+#   pr-review-watch --force    ignore the stored Last-Modified (re-scan)
+#   pr-review-watch --dry-run  report what would be queued, write nothing
+#
+# Environment:
+#   PR_REVIEW_WATCH_STATE_DIR   queue + poll state (default $XDG_STATE_HOME/pr-review-watch)
+#   PR_REVIEW_WATCH_EXTRA_REPOS colon-separated checkouts outside ghq (default ~/dotfiles)
+#   PR_REVIEW_WATCH_NOTIFY      0 to suppress the desktop notification
+#
+# Requires: gh (authenticated), jq, git. terminal-notifier is optional.
+set -uo pipefail
+
+STATE_DIR=${PR_REVIEW_WATCH_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/pr-review-watch}
+EXTRA_REPOS=${PR_REVIEW_WATCH_EXTRA_REPOS:-$HOME/dotfiles}
+NOTIFY=${PR_REVIEW_WATCH_NOTIFY:-1}
+
+# Reasons that can carry a human or bot review. `ci_activity` is excluded on
+# purpose: a red check is not review feedback, and routing it here would make
+# every flaky build wake a session.
+REASONS='["author","review_requested","mention","comment","team_mention","assign"]'
+
+force=0
+dry_run=0
+
+die() { printf 'pr-review-watch: %s\n' "$*" >&2; exit 1; }
+
+usage() { sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//; $d'; }
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    --print) shift; mkdir -p "$STATE_DIR/jobs"
+      # `jq -s . </dev/null` yields [] , so an empty queue prints [] not an error.
+      find "$STATE_DIR/jobs" -name '*.json' -exec cat {} + 2>/dev/null | jq -s '.'
+      exit 0 ;;
+    --force) force=1; shift ;;
+    --dry-run) dry_run=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+
+for cmd in gh jq git; do
+  command -v "$cmd" >/dev/null 2>&1 || die "$cmd is required but not installed"
+done
+
+mkdir -p "$STATE_DIR/jobs"
+
+# launchd fires on a fixed interval and does not care that the previous run is
+# still going, so two polls can overlap and interleave their writes to the same
+# job file. mkdir is the portable atomic test-and-set (macOS ships no flock(1)).
+lock="$STATE_DIR/.lock"
+if ! mkdir "$lock" 2>/dev/null; then
+  # A run killed mid-flight leaves the directory behind forever, which would
+  # silently stop all polling. Anything older than 10 minutes is wreckage: a
+  # poll that honest takes that long has bigger problems than a stolen lock.
+  if [ -n "$(find "$lock" -maxdepth 0 -mmin +10 2>/dev/null)" ]; then
+    rmdir "$lock" 2>/dev/null && mkdir "$lock" 2>/dev/null || exit 0
+  else
+    exit 0
+  fi
+fi
+trap 'rmdir "$lock" 2>/dev/null' EXIT
+
+# --- identity ---------------------------------------------------------------
+# Cached because it never changes and a poll every 60s should not spend a
+# request on it. Own comments must be excluded or every reply this pipeline
+# eventually posts would re-trigger it.
+login_file="$STATE_DIR/login"
+if [ ! -s "$login_file" ]; then
+  gh api user --jq .login > "$login_file" 2>/dev/null || die "gh is not authenticated"
+fi
+me=$(cat "$login_file")
+[ -n "$me" ] || die "could not determine the authenticated login"
+
+# --- poll -------------------------------------------------------------------
+ims_file="$STATE_DIR/poll.last-modified"
+api_args=(-i "notifications?all=true&per_page=50")
+if [ "$force" -eq 0 ] && [ -s "$ims_file" ]; then
+  api_args+=(-H "If-Modified-Since: $(cat "$ims_file")")
+fi
+
+raw=$(gh api "${api_args[@]}" 2>/dev/null)
+# `gh api -i` writes the status line first whatever the outcome, and exits 1 on
+# a 304, so the exit code says nothing useful here.
+raw=$(printf '%s\n' "$raw" | tr -d '\r')
+code=$(printf '%s\n' "$raw" | sed -n '1s/^[^ ]* \([0-9]*\).*/\1/p')
+
+case "$code" in
+  304) exit 0 ;;
+  200) : ;;
+  '') die "no response from the notifications API (is gh authenticated?)" ;;
+  *) die "notifications API returned HTTP $code" ;;
+esac
+
+headers=$(printf '%s\n' "$raw" | sed -n '1,/^$/p')
+body=$(printf '%s\n' "$raw" | sed -n '/^$/,$p' | sed '1d')
+last_modified=$(printf '%s\n' "$headers" | sed -n 's/^[Ll]ast-[Mm]odified: //p' | head -1)
+
+# --- resolution helpers -----------------------------------------------------
+
+# owner/name -> local checkout. ghq owns almost everything; EXTRA_REPOS covers
+# the checkouts that predate it (dotfiles itself, notably) and is matched on the
+# remote URL rather than on the directory name, since the two need not agree.
+repo_path() {
+  local full=$1 p
+  p=$(ghq list --full-path --exact "github.com/$full" 2>/dev/null | head -1)
+  if [ -n "$p" ] && [ -d "$p" ]; then printf '%s' "$p"; return 0; fi
+  local IFS=:
+  for p in $EXTRA_REPOS; do
+    [ -d "$p" ] || continue
+    # The insteadOf rewrite in .gitconfig means the stored URL may be either
+    # transport, so match on the owner/name tail rather than the whole URL.
+    case "$(git -C "$p" remote get-url origin 2>/dev/null)" in
+      *"$full" | *"$full.git") printf '%s' "$p"; return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# A branch is checked out in at most one worktree, so this is unambiguous. The
+# main checkout is a worktree too, which is why no special case is needed for a
+# PR built without `gw`.
+worktree_for_branch() {
+  local repo=$1 branch=$2 path=""
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) path=${line#worktree } ;;
+      "branch refs/heads/$branch") printf '%s' "$path"; return 0 ;;
+    esac
+  done < <(git -C "$repo" worktree list --porcelain 2>/dev/null)
+  return 1
+}
+
+# `claude agents --json` is Claude Code's own view of which sessions exist and
+# what each is doing ("for scripting; does not require a TTY"). It is the same
+# state the dispatcher will read to decide whether a session may be interrupted,
+# so resolving the id from it here keeps both stages on one source of truth.
+# Queried once per run: it is the most expensive lookup in this script.
+agents_json=$(claude agents --json 2>/dev/null || printf '[]')
+
+session_for_worktree() {
+  printf '%s' "$agents_json" | jq -r --arg wt "$1" '
+    [ .[]
+      | select(.kind == "interactive")
+      | select(.cwd == $wt or (.cwd | startswith($wt + "/"))) ]
+    | sort_by(.startedAt) | last | .sessionId // empty' 2>/dev/null
+}
+
+# --- review items -----------------------------------------------------------
+# Three endpoints, because GitHub splits review feedback across three shapes and
+# a PR can receive all three for one logical review: the review itself (its
+# summary body and verdict), its inline file comments, and plain conversation
+# comments. Dropping any one of them loses feedback silently.
+#
+# Only reached for a PR that actually appeared in the notification delta, so the
+# cost is three requests per *active* PR, not per watched PR.
+fetch_items() {
+  local repo=$1 pr=$2
+  {
+    gh api --paginate "repos/$repo/pulls/$pr/reviews" --jq '.[] | {
+      id: ("review:" + (.id|tostring)), kind: "review", author: .user.login,
+      state: .state, path: null, line: null, body: (.body // ""), at: .submitted_at }'
+    gh api --paginate "repos/$repo/pulls/$pr/comments" --jq '.[] | {
+      id: ("inline:" + (.id|tostring)), kind: "inline", author: .user.login,
+      state: null, path: .path, line: (.line // .original_line), body: (.body // ""), at: .created_at }'
+    gh api --paginate "repos/$repo/issues/$pr/comments" --jq '.[] | {
+      id: ("issue:" + (.id|tostring)), kind: "issue", author: .user.login,
+      state: null, path: null, line: null, body: (.body // ""), at: .created_at }'
+  } 2>/dev/null | jq -s --arg me "$me" '
+    [ .[]
+      # A PENDING review has no submitted_at: it is a draft only its author can
+      # see, and it must not be queued as though it had been posted.
+      | select(.at != null)
+      | select(.author != $me)
+      # An empty body is an "Approve" with no words, which carries nothing to
+      # act on. CHANGES_REQUESTED is kept even when wordless: the verdict itself
+      # is the signal.
+      | select((.body | length) > 0 or .state == "CHANGES_REQUESTED") ]
+    | sort_by(.at)'
+}
+
+# --- main -------------------------------------------------------------------
+# Collapse the delta to one row per PR, keeping the EARLIEST notification time
+# for each. That timestamp is the first-sight cutoff below, and taking the
+# earliest is what stops a burst of reviews being partly swallowed.
+candidates=$(printf '%s' "$body" | jq -r --argjson reasons "$REASONS" '
+  [ .[]
+    | select(.subject.type == "PullRequest")
+    | select(.reason as $r | $reasons | index($r))
+    | { repo: .repository.full_name,
+        pr: (.subject.url | split("/") | last),
+        at: .updated_at } ]
+  | group_by(.repo + "#" + .pr)
+  | map(min_by(.at))
+  | .[] | [.repo, .pr, .at] | @tsv' 2>/dev/null)
+
+queued_total=0
+
+while IFS=$'\t' read -r repo pr cutoff; do
+  [ -n "${repo:-}" ] || continue
+
+  path=$(repo_path "$repo") || { printf 'skip %s#%s: no local checkout\n' "$repo" "$pr"; continue; }
+
+  meta=$(gh api "repos/$repo/pulls/$pr" --jq '{branch: .head.ref, url: .html_url, title: .title}' 2>/dev/null)
+  [ -n "$meta" ] || { printf 'skip %s#%s: could not read the PR\n' "$repo" "$pr"; continue; }
+  branch=$(printf '%s' "$meta" | jq -r .branch)
+  html_url=$(printf '%s' "$meta" | jq -r .url)
+  title=$(printf '%s' "$meta" | jq -r .title)
+
+  # No worktree means no session to route to, so there is nothing this pipeline
+  # can do with the job. GitHub has already notified the human by its own means;
+  # queueing an undeliverable job would only grow the queue forever.
+  worktree=$(worktree_for_branch "$path" "$branch") || {
+    printf 'skip %s#%s: branch %s is not checked out in any worktree\n' "$repo" "$pr" "$branch"
+    continue
+  }
+
+  session=$(session_for_worktree "$worktree")
+  job="$STATE_DIR/jobs/${repo//\//__}__${pr}.json"
+
+  items=$(fetch_items "$repo" "$pr")
+  [ -n "$items" ] || continue
+
+  if [ -f "$job" ]; then
+    seen=$(jq -c '.seen // []' "$job")
+    prev_pending=$(jq -c '.pending // []' "$job")
+  else
+    # First sight of this PR. Everything already there when the notification was
+    # raised is history, not feedback to act on -- otherwise adopting a PR that
+    # has been under review for a week would dump a week of comments into one
+    # prompt. The notification's own timestamp is the cutoff, so the review that
+    # triggered this run still lands in `pending`.
+    seen=$(printf '%s' "$items" | jq -c --arg cutoff "$cutoff" '[ .[] | select(.at < $cutoff) | .id ]')
+    prev_pending='[]'
+  fi
+
+  new=$(printf '%s' "$items" | jq -c --argjson seen "$seen" '[ .[] | select(.id as $i | $seen | index($i) | not) ]')
+  new_count=$(printf '%s' "$new" | jq 'length')
+  [ "$new_count" -gt 0 ] || continue
+
+  printf 'queue %s#%s (%s new) -> %s\n' "$repo" "$pr" "$new_count" "${session:-no live session}"
+  queued_total=$((queued_total + new_count))
+  [ "$dry_run" -eq 0 ] || continue
+
+  # `pending` accumulates rather than replaces: a review that arrived while the
+  # session was busy is still owed delivery when the next one lands, and the two
+  # should reach the session as one prompt. `seen` is every id ever classified,
+  # which is what makes a re-poll idempotent no matter what the dispatcher has
+  # done with `pending` in the meantime.
+  jq -n \
+    --arg repo "$repo" --argjson pr "$pr" --arg url "$html_url" --arg title "$title" \
+    --arg branch "$branch" --arg worktree "$worktree" --arg session "$session" \
+    --argjson seen "$seen" --argjson prev "$prev_pending" --argjson new "$new" \
+    --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+    { repo: $repo, pr: $pr, url: $url, title: $title,
+      branch: $branch, worktree: $worktree,
+      sessionId: (if $session == "" then null else $session end),
+      status: "pending",
+      seen: ($seen + ($new | map(.id))),
+      pending: ($prev + $new),
+      updatedAt: $now }' > "$job.tmp" && mv "$job.tmp" "$job"
+
+  if [ "$NOTIFY" != 0 ] && command -v terminal-notifier >/dev/null 2>&1; then
+    authors=$(printf '%s' "$new" | jq -r '[ .[].author ] | unique | join(", ")')
+    terminal-notifier \
+      -title "PR review: ${repo}#${pr}" \
+      -subtitle "$title" \
+      -message "$new_count new from $authors" \
+      -open "$html_url" >/dev/null 2>&1
+  fi
+done <<< "$candidates"
+
+# Advanced only after the whole batch is queued. Storing it earlier would mean a
+# crash mid-batch is indistinguishable from a clean run, and the 304 on the next
+# poll would hide the notifications this run never processed.
+if [ "$dry_run" -eq 0 ] && [ -n "$last_modified" ]; then
+  printf '%s' "$last_modified" > "$ims_file"
+fi
+
+[ "$queued_total" -gt 0 ] && printf 'queued %d item(s)\n' "$queued_total"
+exit 0
