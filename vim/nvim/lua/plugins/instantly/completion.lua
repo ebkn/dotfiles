@@ -6,7 +6,15 @@ return {
     "neoclide/coc.nvim",
     branch = "release",
     event = "VimEnter",
+    -- init, not config: coc reads g:coc_start_at_startup when plugin/coc.vim is
+    -- sourced, which lazy.nvim does before it runs config. See coc_trust.lua for
+    -- what is being gated and why coc cannot gate it itself.
+    init = function()
+      require("coc_trust").gate_startup()
+    end,
     config = function()
+      require("coc_trust").setup()
+
       -- Auto-install on startup if missing. Keep in sync with vim/coc/package.json.
       vim.g.coc_global_extensions = {
         "@yaegassy/coc-ruff",
