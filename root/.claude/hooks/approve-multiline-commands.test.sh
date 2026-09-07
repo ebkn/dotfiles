@@ -209,6 +209,28 @@ b"'
 check DEFER 'non-git non-gh command word' 'gitfoo commit -m "a
 
 b"'
+
+# A `*/git` glob was here to tolerate /usr/bin/git and matched any path ending
+# in /git, so a repo shipping `scripts/git` was approved outright. The command
+# word must be the bare name and nothing else; $PATH does the resolving.
+check DEFER 'relative path ending in /git' './evil/git add "line1
+
+line2"'
+check DEFER 'subdirectory path ending in /git' 'scripts/git commit -m "a
+
+b"'
+check DEFER 'absolute path to git' '/usr/bin/git commit -m "a
+
+b"'
+check DEFER 'relative path ending in /gh' './evil/gh pr create --body "a
+
+b"'
+# The unexpanded tilde is the point: the hook sees the raw string Claude Code
+# sends, and the shell would only expand it at exec time.
+# shellcheck disable=SC2088
+check DEFER 'home-relative path ending in /gh' '~/x/gh pr edit --body "a
+
+b"'
 check DEFER 'gh subcommand outside the safelist' 'gh pr merge --body "a
 
 b"'

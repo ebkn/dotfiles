@@ -80,9 +80,15 @@ segment_is_approved() {
   local n=$#
   local i cmd sub
 
+  # Bare names only, resolved through $PATH, which is trusted. A `*/git` glob
+  # here would read as "tolerate /usr/bin/git" but actually match *any* path
+  # ending in /git -- `./evil/git`, `scripts/gh` -- so a repo that merely ships
+  # an executable with the right basename gets approved with no prompt. Note
+  # the asymmetry with git-guard.sh, which matches `*/git` on purpose: a hook
+  # that denies must match broadly, one that approves must match narrowly.
   case "${argv[0]}" in
-    git | */git) cmd=git ;;
-    gh | */gh) cmd=gh ;;
+    git) cmd=git ;;
+    gh) cmd=gh ;;
     *) return 1 ;;
   esac
 
