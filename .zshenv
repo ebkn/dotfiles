@@ -21,7 +21,17 @@ export LC_ALL="en_US.UTF-8"
 export BAT_THEME="ansi"
 
 [ -d /opt/homebrew/bin ] && export PATH="/opt/homebrew/bin:$PATH"
-[ -d /home/linuxbrew/.linuxbrew/bin ] && export PATH="/home/linuxbrew/.linuxbrew/sbin:/home/linuxbrew/.linuxbrew/bin:$PATH"
+# Guarded on the platform rather than probing straight away, because on macOS
+# /etc/auto_master maps /home to autofs: any stat under it wakes automountd and
+# costs ~16ms, every single time, for a directory that by definition cannot be
+# there. That is the largest item in zsh startup on this machine -- and .zshenv
+# is read by every non-interactive `zsh -c` too, so it lands on every git hook
+# and on every `display-popup`, which is what made prefix + a feel sluggish.
+# $OSTYPE is set by zsh itself, so the guard costs no process. Pinned by
+# zsh/zshenv-autofs.test.zsh.
+if [[ "$OSTYPE" != darwin* ]] && [ -d /home/linuxbrew/.linuxbrew/bin ]; then
+  export PATH="/home/linuxbrew/.linuxbrew/sbin:/home/linuxbrew/.linuxbrew/bin:$PATH"
+fi
 export PATH="$HOME/.local/bin:$PATH"
 export FZF_DEFAULT_COMMAND="fzf-files --label"
 export FZF_DEFAULT_OPTS="--style=minimal --ansi --tabstop=1 --delimiter=\\t --nth=-1 --accept-nth=-1 --preview='if [ -d {-1} ]; then ls -1 --color=always {-1}; else bat --color=always --style=numbers --line-range=:500 {-1}; fi' --bind=ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up"
