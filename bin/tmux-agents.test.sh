@@ -220,6 +220,69 @@ else
   fail "local panes are labelled local" "$(awk '{ print $3 }' <<<"$displayed" | sort -u)"
 fi
 
+# --- remote hosts -------------------------------------------------------------
+
+# The remote path had no coverage while it was an awk pass over a second pane
+# listing. It is now a shell loop over the rows already in hand, and its failure
+# is the quiet kind: remote agents simply stop appearing, on a machine where you
+# rarely have a remote pane open to notice.
+#
+# Two things are asserted that the local cases cannot reach. The host is carried
+# into the row by the *remote* tmux, through the format string this script hands
+# it -- there is no longer a local sed adding the column -- so the stub derives
+# the prefix from the -F argument it was given rather than hard-coding it; get
+# the format wrong and the host column comes out empty and the row reads
+# "local". And a host is queried once however many panes are connected to it,
+# which is the dedup the `case` in that loop exists for.
+cat >"$work/stub/ssh" <<STUB
+#!/bin/sh
+# Stands in for the remote tmux. The last argument is the remote command; the
+# text between "-F '" and the first #{ is the host column this script asked the
+# far end to prefix, which is exactly what is under test here.
+for a in "\$@"; do cmd=\$a; done
+echo "\$cmd" >>"$work/ssh-calls"
+fmt=\${cmd#*-F \'}
+prefix=\${fmt%%#\{*}
+printf '%s%s\t@9\t%%9\tremote-win\tasking\t%s\tremote note\n' "\$prefix" remote-sess $((now - 900))
+STUB
+chmod +x "$work/stub/ssh"
+
+# Two panes on the same host, so the dedup has something to collapse.
+: >"$work/ssh-calls"
+for w in ssh-pane-a ssh-pane-b; do
+  tmux -L "$socket" new-window -t work -n "$w" "$IDLE"
+  p=$(tmux -L "$socket" list-panes -t "work:$w" -F '#{pane_id}' | head -1)
+  tmux -L "$socket" set-option -p -t "$p" @ssh_my_machine 1
+  tmux -L "$socket" set-option -p -t "$p" @ssh_host bakery
+done
+
+if run_picker; then
+  remote_row=$(cut -f2- "$work/list" | grep 'remote-win' || true)
+  case "$remote_row" in
+    *bakery*) pass "a remote agent is listed against its host, not as local" ;;
+    *) fail "a remote agent is listed against its host, not as local" "row: ${remote_row:-<missing>}" ;;
+  esac
+
+  case "$remote_row" in
+    *"remote note"*) pass "the remote row keeps every column, note included" ;;
+    *) fail "the remote row keeps every column, note included" "row: ${remote_row:-<missing>}" ;;
+  esac
+
+  calls=$(wc -l <"$work/ssh-calls" | tr -d ' ')
+  if [ "$calls" = 1 ]; then
+    pass "two panes on one host are queried once, not twice"
+  else
+    fail "two panes on one host are queried once, not twice" "ssh ran $calls time(s)"
+  fi
+else
+  fail "the remote path produces a list" "fzf stub was never reached"
+fi
+
+# Back to a local-only fixture so the empty case below starts from a known state.
+tmux -L "$socket" kill-window -t work:ssh-pane-a 2>/dev/null
+tmux -L "$socket" kill-window -t work:ssh-pane-b 2>/dev/null
+rm -f "$work/stub/ssh"
+
 # --- the empty case ----------------------------------------------------------
 
 # It must not exit instantly: in a popup that reads as a crash rather than as
