@@ -11,6 +11,19 @@
 # tty-to-conn_id mapping), this avoids race conditions from stale tty
 # mappings when PTY numbers are reused on reconnect.
 #
+# The binding must stay single-valued in BOTH directions: one conn_id names one
+# session, and one session is named by at most one conn_id. Nothing enforced
+# that, and switching sessions on the remote (prefix + w) is exactly what breaks
+# it — the monitor records the new session under this conn_id while the conn_id
+# that was already there keeps its own record. Both then resolve to the same
+# session on the next autossh reconnect, tmux puts two clients on it, and the two
+# WezTerm tabs mirror each other while the session one of them came from sits
+# orphaned. Observed here as `local-5023 attached=2` with `local-2` and
+# `local-259` both pointing at it. So the monitor now releases a session from any
+# other conn_id when it claims it (last visitor wins, and the released tab falls
+# back to its own conn_id session), and attach refuses to join a session that
+# already has a client rather than mirroring it.
+#
 # State directory: $XDG_STATE_HOME/tmux-track-session/
 #   session/  — {conn_id} files containing last session name
 #   pid/      — {conn_id} files containing monitor PID
@@ -43,13 +56,47 @@ case "${1:-}" in
       rm -f "$pid_file"
     fi
 
+    # Two listings, not one has-session per record: this runs on every autossh
+    # reconnect, and 177 records (the count found here for 10 live sessions)
+    # times a ~5ms tmux round-trip is most of a second of reconnect latency.
+    # Both are newline-delimited on both sides so a match cannot be a prefix of
+    # a longer name ("local-5" against "local-50").
+    all_sessions="
+$(tmux list-sessions -F '#{session_name}' 2>/dev/null)
+"
+    free_sessions="
+$(tmux list-sessions -f '#{==:#{session_attached},0}' -F '#{session_name}' 2>/dev/null)
+"
+
+    # Drop records naming a session that no longer exists. They already had no
+    # effect (the lookup below rejects them), but they accumulate forever, and a
+    # tmux pane id is only unique within one server lifetime — so a stale record
+    # outliving its server can be handed to a new connection that reuses the id.
+    for f in "$SESSION_DIR"/*; do
+      [ -f "$f" ] || continue
+      case "$all_sessions" in
+        *"
+$(cat "$f")
+"*) ;;
+        *) rm -f "$f" ;;
+      esac
+    done
+
     target="$conn_id"
     state_file="$SESSION_DIR/$conn_id"
     if [ -f "$state_file" ]; then
       saved=$(cat "$state_file")
-      if tmux has-session -t "=$saved" 2>/dev/null; then
-        target="$saved"
-      fi
+      # Only follow the record when the session is actually free. A session with
+      # a client belongs to another connection: joining it would mirror that tab
+      # rather than restore this one. Falling back to $conn_id gives this
+      # connection its own session back (new-session -A creates it if needed),
+      # which is the state it would have had if it had never switched.
+      case "$free_sessions" in
+        *"
+$saved
+"*) target="$saved" ;;
+        *) rm -f "$state_file" ;;
+      esac
     fi
 
     # Attach (or create) the target session, then start a monitor.
@@ -92,6 +139,15 @@ case "${1:-}" in
       fi
 
       if [ "$session" != "$prev" ]; then
+        # Claim the session exclusively: whoever visited last owns it. Without
+        # this the previous owner keeps its record and both connections restore
+        # onto the same session. The released connection has no record left, so
+        # it falls back to its own $conn_id session.
+        for f in "$SESSION_DIR"/*; do
+          [ -f "$f" ] || continue
+          [ "$f" = "$SESSION_DIR/$conn_id" ] && continue
+          [ "$(cat "$f")" = "$session" ] && rm -f "$f"
+        done
         printf '%s' "$session" > "$SESSION_DIR/$conn_id"
         prev="$session"
       fi
