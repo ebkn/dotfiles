@@ -2,7 +2,7 @@
 name: lint-docs
 description: 日本語ドキュメントの文体・表記を textlint で検査し、翻訳調・AI 特有の文体パターン・表記ゆれ・冗長表現を指摘する。対象リポジトリに textlint を導入せず、このスキルの持つルールと辞書をその場で適用する。「日本語をチェックして」「ドキュメントの文体を見て」「textlint をかけて」「表記ゆれを確認して」などドキュメントの日本語そのものの検査を依頼された時、または /lint-docs コマンドで起動する。
 effort: high
-allowed-tools: Bash, Read, Glob, Grep, Edit
+allowed-tools: Bash(textlint-docs *), Bash(git status *), Bash(git ls-files *), Bash(rg *), Bash(wc *), Read, Glob, Grep, Edit
 ---
 
 任意のドキュメントに日本語の文体・表記ルールを適用し、指摘を報告する。必要なツールとルールはこのスキル側が持つ。**対象リポジトリには設定ファイルも依存も一切追加しない。**
@@ -14,6 +14,8 @@ allowed-tools: Bash, Read, Glob, Grep, Edit
 **デフォルトは検査のみ。** ユーザーが明示的に修正を依頼したときだけファイルを書き換える。git 操作（`git add` / `git commit` / `git push`、`gh pr create` / `edit` など）は一切行わない。
 
 **この境界は自分で守るルールであり、実行環境に依存しない。** frontmatter の `allowed-tools` を尊重しないホストがある（Codex は `name` と `description` しか読まない）。そうしたホストでは上記の git / gh コマンドが事前承認済みで、確認プロンプトなしに実行される。**プロンプトが出ないことは許可を意味しない。**
+
+**`allowed-tools` の `Bash` は前置詞でスコープしてある。** `allowed-tools` は制限ではなく事前承認の付与なので、素の `Bash` を書くとこのスキルが動いている間だけセッションの標準権限より広い許可が生まれる。付与してあるのは、この手順が実際に使う `textlint-docs` と、対象を選ぶための読み取り専用コマンド（`git status` / `git ls-files` / `rg` / `wc`）だけ。プロジェクト側の lint コマンド（`yarn lint:docs` 等）はここに含まれないので**プロンプトが出るのが正しい** — 中身が何であるかはリポジトリ次第で、事前に列挙できない。
 
 ## ツール
 

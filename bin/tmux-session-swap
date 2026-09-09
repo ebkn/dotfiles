@@ -1,0 +1,100 @@
+#!/bin/bash
+#
+# tmux-session-swap: keep "one client per session" when switching sessions.
+#
+# The whole setup here rests on one WezTerm tab == one tmux client == one tmux
+# session. tmux itself does not enforce that: switch-client happily puts a
+# second client on a session another client already shows, and the two then
+# mirror each other -- same window, same cursor, one tab's keystrokes moving the
+# other tab's pane. Picking an "unattached" session in choose-tree is the only
+# case that is safe by construction, and it is the case that leaves the session
+# you came *from* unattached instead, ready for the next pick to double up on.
+#
+# So `w` does not switch, it *swaps*: the client that owns the chosen session
+# (if any) is moved to the session the picker is leaving, and only then is the
+# picker moved to its choice. Both tabs stay bound to exactly one session and no
+# session is orphaned.
+#
+# On the remote side this also keeps bin/tmux-track-session's per-connection
+# binding single-valued -- two connections converging on one session is what
+# made a reconnect land two WezTerm tabs on the same remote session.
+#
+# Subcommands (both called from the `w` binding in .tmux.conf):
+#   arm <client_tty>   record the picking client before choose-tree opens
+#   go  <target>       swap into the chosen target, then disarm
+#
+# Why two steps: choose-tree's command template substitutes %% but the picking
+# client is not available there, and set-option stores its value literally
+# rather than expanding #{...}. run-shell *does* expand formats, against the
+# client that pressed the key -- so the tty is captured in the binding body and
+# parked in a file for the "go" step to read. The window between the two is one
+# keystroke wide; two clients opening the chooser inside it would have the
+# second overwrite the first, which costs a wrong swap and nothing worse.
+
+set -u
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tmux-session-swap"
+ARM_FILE="$STATE_DIR/armed"
+
+# Session name of a tmux target ("%%" from choose-tree is a window or session
+# target, e.g. "$3" or "local-85:2"). Empty when the target is already gone.
+session_of() {
+  tmux display-message -p -t "$1" '#{session_name}' 2>/dev/null
+}
+
+# tty of every client on a session, one per line.
+clients_on() {
+  tmux list-clients -f "#{==:#{client_session},$1}" -F '#{client_tty}' 2>/dev/null
+}
+
+case "${1:-}" in
+  arm)
+    tty="${2:-}"
+    [ -n "$tty" ] || exit 0
+    mkdir -p "$STATE_DIR"
+    printf '%s' "$tty" > "$ARM_FILE"
+    ;;
+
+  go)
+    target="${2:-}"
+    [ -n "$target" ] || exit 0
+
+    to_session=$(session_of "$target")
+    [ -n "$to_session" ] || exit 0
+
+    # Without a recorded tty there is nobody to swap with; fall back to the
+    # plain switch so the key still does the obvious thing.
+    from_tty=""
+    [ -f "$ARM_FILE" ] && from_tty=$(cat "$ARM_FILE")
+    rm -f "$ARM_FILE"
+    if [ -z "$from_tty" ]; then
+      tmux switch-client -t "=$to_session" 2>/dev/null
+      exit 0
+    fi
+
+    from_session=$(tmux list-clients -f "#{==:#{client_tty},$from_tty}" \
+      -F '#{client_session}' 2>/dev/null)
+    # The picking client vanished between arm and go (tab closed mid-chooser).
+    [ -n "$from_session" ] || exit 0
+    [ "$from_session" = "$to_session" ] && exit 0
+
+    # Move the incumbents first. They land on a session that still has its own
+    # client for a moment; the switch below resolves that immediately. Doing it
+    # the other way round would leave the chosen session doubled up instead,
+    # which is the state this exists to prevent.
+    while IFS= read -r other; do
+      [ -n "$other" ] || continue
+      [ "$other" = "$from_tty" ] && continue
+      tmux switch-client -c "$other" -t "=$from_session" 2>/dev/null
+    done <<EOF
+$(clients_on "$to_session")
+EOF
+
+    tmux switch-client -c "$from_tty" -t "=$to_session" 2>/dev/null
+    ;;
+
+  *)
+    echo "Usage: tmux-session-swap {arm <client_tty>|go <target>}" >&2
+    exit 1
+    ;;
+esac

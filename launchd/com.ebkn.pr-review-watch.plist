@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Runs bin/pr-review-watch once a minute. 60s is not a guess: it is the
+  X-Poll-Interval GitHub returns on the notifications endpoint, and the
+  conditional request the script sends means a quiet minute costs no rate
+  limit at all.
+
+  Two things here are load-bearing and silent when wrong.
+
+  PATH must be spelled out. A launchd agent does NOT inherit the login shell's
+  environment, so it starts with the bare /usr/bin:/bin:/usr/sbin:/sbin and
+  every tool this script needs -- gh, jq, ghq, claude, terminal-notifier --
+  fails `command -v`. The script then exits with "gh is required", which lands
+  in the log nobody reads while polling silently never happens.
+
+  It is `sh -c`, never `sh -lc`. A login shell runs /etc/profile, whose
+  path_helper rebuilds PATH from /etc/paths and drops /opt/homebrew/bin --
+  quietly undoing the EnvironmentVariables entry above. ~/.local/bin (where
+  `claude` lives) is prepended in the command instead of in the dict because a
+  plist value gets no $HOME expansion, and hardcoding a username into a
+  dotfiles repo is worse than one extra exec.
+
+  ProgramArguments points at ~/.local/bin, not at the checkout. That symlink is
+  what `relink` re-points when the script moves, so a plist naming the repo
+  path directly would keep working right up until the file is renamed and then
+  fail as a dangling exec with no other symptom.
+
+  Load with:  launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.ebkn.pr-review-watch.plist
+  Status:     launchctl print gui/$UID/com.ebkn.pr-review-watch
+  Unload:     launchctl bootout gui/$UID/com.ebkn.pr-review-watch
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ebkn.pr-review-watch</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>exec env PATH="$HOME/.local/bin:$PATH" "$HOME/.local/bin/pr-review-watch"</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>StartInterval</key>
+    <integer>60</integer>
+
+    <!-- Not RunAtLoad: the first run after a login would race the network
+         coming up, and one missed minute costs nothing. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/pr-review-watch.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/pr-review-watch.log</string>
+</dict>
+</plist>

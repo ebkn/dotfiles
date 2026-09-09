@@ -2,7 +2,7 @@
 name: retrospective
 description: Review recent AI coding sessions for inefficiency. Aggregates transcripts across sessions into distributions, names the outlying sessions, then reads those sessions to explain what actually happened in them. Use when asked to look back over recent sessions, find where time or tokens went, or check whether the way work is going has been getting worse — triggered by "最近のセッションを振り返りたい", "非効率なところを探して", "セッションの傾向を見たい", "開発の進め方が悪化していないか", "review my recent sessions", "where am I wasting tokens", or the /retrospective command. Not for reviewing a pull request, a diff, or test code, and not for reducing permission prompts.
 effort: high
-allowed-tools: Bash, Read, Glob, Grep
+allowed-tools: Bash(session-review *), Bash(session-extract *), Read, Glob, Grep
 ---
 
 Look across recent sessions, find the ones that stand out, and explain them.
@@ -30,6 +30,15 @@ a write would succeed but whether this skill performs one. It does not.
 The reason is specific to this skill: a retrospective that edits config closes
 its own feedback loop. The next run then measures a setup this skill wrote, and
 there is no longer an outside view.
+
+**`allowed-tools` grants `Bash` only for this skill's own two commands.**
+`allowed-tools` is a grant rather than a restriction, so a bare `Bash` would
+widen permissions past the session's own for as long as the skill runs. Granted
+here are `session-review` and `session-extract`, both of which only read
+transcripts. Notably `jq` is **not** granted: a Bash prefix grant covers
+redirects, so `Bash(jq *)` would also permit `jq . x > ~/.zshrc`. That is why
+`session-extract --human-turns` exists instead. Anything else this skill needs
+will prompt, **which is the correct outcome** — do not work around it.
 
 ## Procedure
 
@@ -64,22 +73,19 @@ Take at most five, preferring sessions that are outliers on **more than one**
 metric — a single high number is usually a long task, while several together
 is usually a session that went badly.
 
-The report names each outlier by its **transcript id**, which is the filename
-under `~/.claude/projects/<project>/`. Use that, not the session id: a subagent
-transcript carries its parent's session id and cannot be found by it.
+Each outlier in `--json` carries a `source_path`. Use it. Do not reconstruct a
+path from the session id: a subagent transcript carries its parent's session id,
+so the id does not identify a file.
 
-Read the human turns only. A full transcript is megabytes and will not fit:
+Read the human turns only — a full transcript is megabytes and will not fit:
 
 ```
-jq -r 'select(.type == "user" and .toolUseResult == null)
-       | .message.content
-       | if type == "string" then . else (.[]? | select(.type == "text") | .text) end' \
-  ~/.claude/projects/<project>/<transcript-id>.jsonl
+session-extract --human-turns <source_path>
 ```
 
 What the human said is where friction shows: corrections, restatements of the
 same request, abandoned directions, visible irritation. Pull tool detail only
-for a specific question the human turns raise.
+for a specific question the human turns raise, and expect a prompt when you do.
 
 ### 4. Report
 

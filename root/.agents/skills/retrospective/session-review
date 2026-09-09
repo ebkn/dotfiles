@@ -146,7 +146,8 @@ result="$(jq -n -c \
                | ($dist[$n]) as $d
                | if $d == null or $row.m[$n].value == null or ($d.count) < 5 then empty
                  elif $row.m[$n].value > $d.p90 then
-                   { transcript: $row.transcript, session_id: $row.session_id, cwd: $row.cwd, metric: $n,
+                   { transcript: $row.transcript, source_path: $row.source_path,
+                     session_id: $row.session_id, cwd: $row.cwd, metric: $n,
                      value: ($row.m[$n].value | r2), p90: $d.p90 }
                  else empty end))
            | .[])

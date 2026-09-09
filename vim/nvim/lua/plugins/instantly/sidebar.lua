@@ -49,7 +49,12 @@ return {
             try
               " Switch to fern window and reveal
               execute l:fern_win[0] . 'wincmd w'
-              execute 'FernReveal ' . l:current
+              " fnameescape() is required, not cosmetic: FernReveal is defined
+              " with -bar, so an unescaped `|` in the path ends the command and
+              " everything after it runs as a separate Ex command. A repository
+              " can ship a file named `doc.md|call system(...)`, and BufEnter
+              " fires this on merely visiting it.
+              execute 'FernReveal ' . fnameescape(l:current)
               " Return to original window
               execute l:winnr . 'wincmd w'
             catch

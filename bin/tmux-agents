@@ -15,16 +15,17 @@
 #
 # Scope covers this machine plus every host reachable through an open `myssh`
 # pane — the same dotfiles run there, so the remote panes carry the same options.
+#
+# EVERYTHING BEFORE THE PICKER IS ON THE LATENCY PATH. The popup is already on
+# screen by the time this starts, so each millisecond here is time spent looking
+# at an empty box. Measured on this machine: a tmux round-trip costs ~5ms and a
+# process spawn ~1.6ms, and there is no real work to speak of — the cost *is*
+# the process count. Hence one tmux call rather than three, rows in a shell
+# variable rather than temp files, one awk pass rather than two, and
+# `tmux list-clients` deferred until something has actually been picked. Adding
+# a convenient pipeline stage here is not free; it is ~2ms of visible lag.
 
 set -euo pipefail
-
-# $TMUX is "socket,pid,session-id"; the client attached to that session is the
-# one that opened this popup. `head -1` because a session can carry more than one
-# client, and any of them is a reasonable target for a status message.
-outer_client=""
-if [ -n "${TMUX:-}" ]; then
-  outer_client=$(tmux list-clients -F '#{client_name}' -t "\$${TMUX##*,}" 2>/dev/null | head -1) || true
-fi
 
 # There is deliberately no age cutoff. State lives on the pane, so it cannot
 # outlive the tab that holds it — closing the tab is the eviction. An agent that
@@ -38,72 +39,138 @@ fi
 # $'' supplies them. The same string is sent to remote hosts verbatim.
 readonly FMT=$'#{session_name}\t#{window_id}\t#{pane_id}\t#{window_name}\t#{@claude_state}\t#{@claude_since}\t#{@claude_note}'
 
-# BSD sed (macOS) does not expand \t in a replacement — it inserts a literal
-# "t". The tab has to be a real character in the script text, so build it here.
+# Used to build the formats above and to split the rows back apart below, so it
+# has to be a real character in the script text.
 readonly TAB=$'\t'
 
 now=$(date +%s)
 
-tmpdir=$(mktemp -d)
-trap 'rm -rf "$tmpdir"' EXIT
-
+# Resolved after a selection is made, not here: it is needed only by msg() and
+# by the switch-client fallback, both of which run after the picker closes, and
+# a tmux round-trip on the latency path for a value nobody may ever read is the
+# most expensive kind of eager evaluation. ${outer_client:+...} tolerates it
+# being empty, so nothing has to guard on it.
+outer_client=""
 msg() { tmux display-message ${outer_client:+-c "$outer_client"} "$1" 2>/dev/null || true; }
 
 # --- collect -----------------------------------------------------------------
 
-# Field 1 is the host; empty means this machine, which keeps local and remote
-# rows in one shape for the awk pass below.
-tmux list-panes -a -F "$FMT" 2>/dev/null | sed "s/^/${TAB}/" >"$tmpdir/rows" || true
+# One tmux call for everything. Field 1 is the host — empty means this machine,
+# which keeps local and remote rows in one shape for the awk pass below — and
+# the leading tab in the format supplies it, so no sed pass is needed to prefix
+# it. Fields 9 and 10 carry the ssh decoration, so the listing that finds remote
+# hosts is the same listing that is about to be rendered rather than a second
+# round-trip; the awk pass never looks at them.
+rows=$(tmux list-panes -a -F "${TAB}${FMT}${TAB}#{@ssh_my_machine}${TAB}#{@ssh_host}" 2>/dev/null) || true
 
 # Only `myssh` panes are queried: @ssh_my_machine marks a host the user declared
 # to be theirs, i.e. one running tmux and these dotfiles. Plain `ssh` panes may
 # be jump boxes or CI runners where this query is meaningless or unwelcome.
-hosts=$(
-  tmux list-panes -a -F $'#{@ssh_my_machine}\t#{@ssh_host}' 2>/dev/null |
-    awk -F'\t' '$1 != "" && $2 != "" { print $2 }' | sort -u
-) || true
+#
+# Done with shell builtins over the rows already in hand. `awk | sort -u` reads
+# better and is what this used to be, but it is two processes and a second pane
+# listing spent on what is usually the empty answer.
+#
+# The two columns are peeled off the end with parameter expansion rather than
+# split into fields, because `IFS=$'\t' read -r a b c ...` DOES NOT WORK HERE.
+# Tab is an IFS *whitespace* character no matter that IFS holds nothing else, so
+# the shell collapses runs of tabs and strips leading ones — and these rows are
+# full of empty columns (@claude_state, @claude_since and @claude_note are all
+# unset on an ordinary pane), so a ten-field row arrives as six and every field
+# after the first gap is the wrong one. awk -F'\t' does not do this, which is
+# why the version that used awk never had to know. Reading from the end sidesteps
+# field counting altogether.
+hosts=""
+while IFS= read -r row; do
+  ssh_host=${row##*"$TAB"}
+  rest=${row%"$TAB"*}
+  mine=${rest##*"$TAB"}
+  [ -n "$mine" ] && [ -n "$ssh_host" ] || continue
+  case " $hosts " in
+    *" $ssh_host "*) ;;
+    *) hosts="$hosts $ssh_host" ;;
+  esac
+done <<<"$rows"
 
-i=0
-for host in $hosts; do
-  i=$((i + 1))
-  # A dedicated ControlMaster socket, never the one myssh uses: myssh runs with
-  # ControlPath=none precisely so autossh owns its own reconnection, and sharing
-  # a socket with it would interfere. ConnectTimeout keeps a host that is asleep
-  # or off-network from stalling the popup.
-  ssh -o BatchMode=yes \
-    -o ConnectTimeout=3 \
-    -o ControlMaster=auto \
-    -o ControlPath="$HOME/.ssh/cm-agents-%r@%h:%p" \
-    -o ControlPersist=60s \
-    "$host" "tmux list-panes -a -F '$FMT'" 2>/dev/null |
-    sed "s/^/${host}${TAB}/" >"$tmpdir/remote.$i" 2>/dev/null &
-done
-wait
+if [ -n "$hosts" ]; then
+  # Temp files exist only on this path. They are needed to collect the hosts in
+  # parallel, but with no remote host there is nothing to collect, and mktemp
+  # plus the cat that follows are ~4ms the common case should not pay for.
+  tmpdir=$(mktemp -d)
+  trap 'rm -rf "$tmpdir"' EXIT
 
-cat "$tmpdir"/remote.* >>"$tmpdir/rows" 2>/dev/null || true
+  i=0
+  for host in $hosts; do
+    i=$((i + 1))
+    # A dedicated ControlMaster socket, never the one myssh uses: myssh runs with
+    # ControlPath=none precisely so autossh owns its own reconnection, and sharing
+    # a socket with it would interfere. ConnectTimeout keeps a host that is asleep
+    # or off-network from stalling the popup.
+    #
+    # The host column is written by the remote tmux, through the format, rather
+    # than by a local sed per host.
+    ssh -o BatchMode=yes \
+      -o ConnectTimeout=3 \
+      -o ControlMaster=auto \
+      -o ControlPath="$HOME/.ssh/cm-agents-%r@%h:%p" \
+      -o ControlPersist=60s \
+      "$host" "tmux list-panes -a -F '${host}${TAB}${FMT}'" \
+      >"$tmpdir/remote.$i" 2>/dev/null &
+  done
+  # Bare `wait` always reports success, so an unreachable host cannot trip set -e.
+  wait
+
+  rows="$rows"$'\n'"$(cat "$tmpdir"/remote.* 2>/dev/null || true)"
+fi
 
 # --- filter, rank, render ----------------------------------------------------
 
 # Fields: 1 host, 2 session, 3 window_id, 4 pane_id, 5 window_name, 6 state,
-#         7 since, 8 note.
+#         7 since, 8 note. Local rows carry 9 and 10 too; nothing reads them.
 #
-# Sort key is emitted as two leading numeric columns and stripped after sorting:
-# the blocked ones first (that is the whole point of the list), then oldest
-# within each rank, so the session blocked longest floats to the top.
-awk -F'\t' -v OFS='\t' '
-  $6 == "" { next }                                   # no agent in this pane
-  $2 ~ /^_/ { next }                                  # _popup_ / _tig_ / _fzf_nvim_ sessions
-  {
-    # asking/waiting share rank 0: both mean a dialog is open and nothing moves
-    # until it is answered, and which one is more urgent is not for this script
-    # to guess. Everything else lands in the last rank, where the age sort
-    # below floats the longest-untouched one up on its own.
-    rank = ($6 == "asking" || $6 == "waiting") ? 0 : ($6 == "busy") ? 1 : 2
-    print rank, $7, $0
-  }
-' "$tmpdir/rows" | sort -t$'\t' -k1,1n -k2,2n | cut -f3- >"$tmpdir/ranked"
+# Filtering, ranking and rendering are one awk pass. They used to be two, with
+# the sort between them, which meant the second pass re-parsed the rows the
+# first had just written — a process and a full re-scan to save nothing.
+#
+# The sort key is emitted as two leading numeric columns and stripped after
+# sorting: the blocked ones first (that is the whole point of the list), then
+# oldest within each rank, so the session blocked longest floats to the top.
+#
+# KEY (the first field of what survives the cut, hidden from fzf via --with-nth)
+# carries what the jump needs. "|" is safe as its separator: tmux ids are @N / %N
+# and hosts are ssh aliases.
+list=$(
+  printf '%s\n' "$rows" | awk -F"$TAB" -v now="$now" '
+    function age(s,   d) {
+      if (s == "") return "-"
+      d = now - s
+      if (d < 60)   return d "s"
+      if (d < 3600) return int(d / 60) "m"
+      return int(d / 3600) "h"
+    }
+    $6 == "" { next }                                   # no agent in this pane
+    $2 ~ /^_/ { next }                                  # _popup_ / _tig_ / _fzf_nvim_ sessions
+    {
+      # asking/waiting share rank 0: both mean a dialog is open and nothing moves
+      # until it is answered, and which one is more urgent is not for this script
+      # to guess. Everything else lands in the last rank, where the age sort
+      # below floats the longest-untouched one up on its own.
+      rank = ($6 == "asking" || $6 == "waiting") ? 0 : ($6 == "busy") ? 1 : 2
 
-if [ ! -s "$tmpdir/ranked" ]; then
+      # Same per-glyph spacing rule as agent-state.sh: the emoji ones are
+      # already two cells wide, the narrow ▶ is padded to two, so the
+      # columns after the glyph line up across rows.
+      glyph = ($6 == "asking")  ? "🔶" \
+            : ($6 == "waiting") ? "🛑" \
+            : ($6 == "busy")    ? "▶ " : "🔘"
+      where = ($1 == "") ? "local" : $1
+      printf "%s\t%s\t%s|%s|%s\t%s %4s  %-12s %-28s %s\n", \
+        rank, $7, $1, $3, $4, glyph, age($7), where, $5, $8
+    }
+  ' | sort -t"$TAB" -k1,1n -k2,2n | cut -f3-
+)
+
+if [ -z "$list" ]; then
   # Exiting straight away closes the popup the instant it opens, which reads as
   # a crash rather than as "nothing to show". Hold it until a key is pressed.
   # Guarded on a tty so a non-interactive run (or a pipe) still returns.
@@ -113,28 +180,6 @@ if [ ! -s "$tmpdir/ranked" ]; then
   fi
   exit 0
 fi
-
-# KEY (field 1, hidden from fzf via --with-nth) carries what the jump needs.
-# "|" is safe as its separator: tmux ids are @N / %N and hosts are ssh aliases.
-awk -F'\t' -v now="$now" '
-  function age(s,   d) {
-    if (s == "") return "-"
-    d = now - s
-    if (d < 60)   return d "s"
-    if (d < 3600) return int(d / 60) "m"
-    return int(d / 3600) "h"
-  }
-  {
-    # Same per-glyph spacing rule as agent-state.sh: the emoji ones are
-    # already two cells wide, the narrow ▶ is padded to two, so the
-    # columns after the glyph line up across rows.
-    glyph = ($6 == "asking")  ? "🔶" \
-          : ($6 == "waiting") ? "🛑" \
-          : ($6 == "busy")    ? "▶ " : "🔘"
-    where = ($1 == "") ? "local" : $1
-    printf "%s|%s|%s\t%s %4s  %-12s %-28s %s\n", $1, $3, $4, glyph, age($7), where, $5, $8
-  }
-' "$tmpdir/ranked" >"$tmpdir/list"
 
 # fzf merges the caller's FZF_DEFAULT_OPTS *ahead* of the flags below, and the
 # global one (.zshenv) is tuned for picking files: --accept-nth=-1 makes fzf
@@ -147,14 +192,21 @@ export FZF_DEFAULT_OPTS=
 unset FZF_DEFAULT_OPTS_FILE
 
 selection=$(
-  fzf --delimiter=$'\t' --with-nth=2.. \
-    --no-multi --no-sort --reverse \
-    --prompt='agent> ' \
-    --header='enter: jump to the tab' \
-    <"$tmpdir/list"
+  printf '%s\n' "$list" |
+    fzf --delimiter="$TAB" --with-nth=2.. \
+      --no-multi --no-sort --reverse \
+      --prompt='agent> ' \
+      --header='enter: jump to the tab'
 ) || exit 0
 
 # --- jump --------------------------------------------------------------------
+
+# $TMUX is "socket,pid,session-id"; the client attached to that session is the
+# one that opened this popup. `head -1` because a session can carry more than one
+# client, and any of them is a reasonable target for a status message.
+if [ -n "${TMUX:-}" ]; then
+  outer_client=$(tmux list-clients -F '#{client_name}' -t "\$${TMUX##*,}" 2>/dev/null | head -1) || true
+fi
 
 IFS='|' read -r host window_id pane_id <<<"${selection%%$'\t'*}"
 

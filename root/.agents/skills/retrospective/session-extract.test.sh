@@ -110,4 +110,12 @@ assert "mode" normal "$(q .mode)"
 # Trap 5: no permission-mode record in this session. Must be null, not an error.
 assert "permission_mode is null" null "$(q .permission_mode)"
 
+# --human-turns is what the skill reads transcripts with, so that it never needs
+# a general-purpose tool granted to it. Only turns the human typed: a user
+# record carrying toolUseResult is a tool result being fed back.
+human="$("$extract" --human-turns "$fixture")"
+assert "human turns exclude tool results" 2 "$(printf '%s\n' "$human" | grep -c '^--- ')"
+assert "human turn text survives"         1 "$(printf '%s\n' "$human" | grep -c 'second turn')"
+assert "tool output does not leak in"     0 "$(printf '%s\n' "$human" | grep -c 'No such file')"
+
 exit "$fail"

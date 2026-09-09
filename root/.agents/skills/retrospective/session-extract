@@ -11,8 +11,14 @@
 # That matters: transcripts here reach 7MB, and the store holds 44MB in a week.
 set -euo pipefail
 
+mode=summary
+if [ "${1:-}" = "--human-turns" ]; then
+  mode=human
+  shift
+fi
+
 if [ $# -ne 1 ]; then
-  echo "usage: session-extract <transcript.jsonl>" >&2
+  echo "usage: session-extract [--human-turns] <transcript.jsonl>" >&2
   exit 2
 fi
 
@@ -20,6 +26,24 @@ src="$1"
 if [ ! -f "$src" ]; then
   echo "session-extract: no such file: $src" >&2
   exit 2
+fi
+
+# --human-turns exists so that reading a transcript needs no general-purpose
+# tool. A skill that granted itself `Bash(jq *)` to do this would also be
+# granting `jq . x > ~/.zshrc`, since a Bash prefix grant covers the redirect
+# too. This mode can only read.
+if [ "$mode" = human ]; then
+  jq -r '
+    select(.type == "user" and .toolUseResult == null)
+    | (.timestamp // "?") as $when
+    | (.message.content
+       | if type == "string" then .
+         else ([.[]? | select(.type == "text") | .text] | join("\n"))
+         end)
+    | select(. != "" and . != null)
+    | "--- \($when)\n\(.)"
+  ' "$src"
+  exit 0
 fi
 
 jq -n -c --arg path "$src" '

@@ -103,9 +103,11 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/bin/tmux-restore-tabs" "${HOME}/.local/bin/tmux-restore-tabs"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-pane-titles" "${HOME}/.local/bin/tmux-pane-titles"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-track-session" "${HOME}/.local/bin/tmux-track-session"
+  link_with_backup "${DOTFILES_DIR}/bin/autossh-ssh" "${HOME}/.local/bin/autossh-ssh"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-agents" "${HOME}/.local/bin/tmux-agents"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-cheatsheet" "${HOME}/.local/bin/tmux-cheatsheet"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-tig" "${HOME}/.local/bin/tmux-tig"
+  link_with_backup "${DOTFILES_DIR}/bin/tmux-session-swap" "${HOME}/.local/bin/tmux-session-swap"
   # Named by the prefix + p/t/o bindings in .tmux.conf, so an unlinked one makes
   # the popup open and close again with nothing in it.
   link_with_backup "${DOTFILES_DIR}/bin/tmux-popup" "${HOME}/.local/bin/tmux-popup"
@@ -117,9 +119,30 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/bin/textlint-docs" "${HOME}/.local/bin/textlint-docs"
   # Same idiom: resolves read-doc/style.css relative to its own resolved path.
   link_with_backup "${DOTFILES_DIR}/bin/read-doc" "${HOME}/.local/bin/read-doc"
-  # Backs the retrospective skill, which runs from whatever project the session
-  # is in and so cannot reach these by a repo-relative path. Both must be
-  # linked: session-review finds session-extract beside itself.
-  link_with_backup "${DOTFILES_DIR}/bin/session-extract" "${HOME}/.local/bin/session-extract"
-  link_with_backup "${DOTFILES_DIR}/bin/session-review" "${HOME}/.local/bin/session-review"
+  # The LaunchAgent below execs this through ~/.local/bin, so the two links are
+  # a pair: linking the plist without this one leaves launchd calling a path
+  # that does not exist, and it reports that only in its own log.
+  link_with_backup "${DOTFILES_DIR}/bin/pr-review-watch" "${HOME}/.local/bin/pr-review-watch"
+  link_with_backup "${DOTFILES_DIR}/bin/pr-review-dispatch" "${HOME}/.local/bin/pr-review-dispatch"
+  # macOS-only, but linked unconditionally like the Cursor paths above:
+  # link_with_backup just creates a directory nobody reads on Linux, whereas a
+  # platform guard here would have to be duplicated in relink's drift report.
+  # Linking is not loading -- `launchctl bootstrap` is a separate, one-time step
+  # (the plist header spells it out), so a fresh link polls nothing until then.
+  link_with_backup "${DOTFILES_DIR}/launchd/com.ebkn.pr-review-watch.plist" \
+    "${HOME}/Library/LaunchAgents/com.ebkn.pr-review-watch.plist"
+  # Two agents rather than one job running both, so the half that types into
+  # your sessions can be booted out on its own while notifications keep coming.
+  link_with_backup "${DOTFILES_DIR}/launchd/com.ebkn.pr-review-dispatch.plist" \
+    "${HOME}/Library/LaunchAgents/com.ebkn.pr-review-dispatch.plist"
+  # The retrospective skill owns these two, so they live beside its SKILL.md
+  # rather than under bin/. They are still put on PATH, because the skill runs
+  # from whatever project the session is in: naming them by absolute path would
+  # bake $HOME into the Bash prefixes in the skill's allowed-tools, and a bare
+  # `Bash` grant there would widen permissions for as long as the skill runs.
+  # Both are needed -- session-review looks for session-extract beside itself.
+  link_with_backup "${DOTFILES_DIR}/root/.agents/skills/retrospective/session-extract" \
+    "${HOME}/.local/bin/session-extract"
+  link_with_backup "${DOTFILES_DIR}/root/.agents/skills/retrospective/session-review" \
+    "${HOME}/.local/bin/session-review"
 }

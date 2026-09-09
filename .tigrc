@@ -36,9 +36,15 @@ color diff-del-highlight black red
 # key bindings
 bind generic C !git commit
 bind generic A ?git commit --amend
-bind generic F !sh -c "echo 'Fetching %(remote)...' && git fetch %(remote)"
+# %(remote) / %(repo:head) are passed as positional parameters, never
+# interpolated into the -c string: tig substitutes variables without shell
+# quoting, so a branch named `x`id`` would be re-parsed and executed by sh.
+# git accepts backticks, $(), ; and | in ref names, and gw() takes a fork PR's
+# headRefName verbatim as the local branch name, so the value is attacker-
+# controlled. The leading `-` is the placeholder for $0.
+bind generic F !sh -c 'echo "Fetching $1..." && git fetch "$1"' - %(remote)
 bind generic U !sh -c "echo 'Pulling...' && git pull"
-bind generic P !sh -c "echo 'Pushing to %(remote)/%(repo:head)...' && git push %(remote) %(repo:head)"
+bind generic P !sh -c 'echo "Pushing to $1/$2..." && git push "$1" "$2"' - %(remote) %(repo:head)
 bind generic S !git switch -c "%(prompt Enter new branch name: )"
 bind generic g move-first-line
 bind generic G move-last-line
