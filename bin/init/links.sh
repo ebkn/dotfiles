@@ -118,4 +118,20 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/bin/textlint-docs" "${HOME}/.local/bin/textlint-docs"
   # Same idiom: resolves read-doc/style.css relative to its own resolved path.
   link_with_backup "${DOTFILES_DIR}/bin/read-doc" "${HOME}/.local/bin/read-doc"
+  # The LaunchAgent below execs this through ~/.local/bin, so the two links are
+  # a pair: linking the plist without this one leaves launchd calling a path
+  # that does not exist, and it reports that only in its own log.
+  link_with_backup "${DOTFILES_DIR}/bin/pr-review-watch" "${HOME}/.local/bin/pr-review-watch"
+  link_with_backup "${DOTFILES_DIR}/bin/pr-review-dispatch" "${HOME}/.local/bin/pr-review-dispatch"
+  # macOS-only, but linked unconditionally like the Cursor paths above:
+  # link_with_backup just creates a directory nobody reads on Linux, whereas a
+  # platform guard here would have to be duplicated in relink's drift report.
+  # Linking is not loading -- `launchctl bootstrap` is a separate, one-time step
+  # (the plist header spells it out), so a fresh link polls nothing until then.
+  link_with_backup "${DOTFILES_DIR}/launchd/com.ebkn.pr-review-watch.plist" \
+    "${HOME}/Library/LaunchAgents/com.ebkn.pr-review-watch.plist"
+  # Two agents rather than one job running both, so the half that types into
+  # your sessions can be booted out on its own while notifications keep coming.
+  link_with_backup "${DOTFILES_DIR}/launchd/com.ebkn.pr-review-dispatch.plist" \
+    "${HOME}/Library/LaunchAgents/com.ebkn.pr-review-dispatch.plist"
 }
