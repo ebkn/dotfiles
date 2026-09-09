@@ -38,6 +38,12 @@
 #   pr-review-watch --print    dump the current queue as JSON, poll nothing
 #   pr-review-watch --force    ignore the stored Last-Modified (re-scan)
 #   pr-review-watch --dry-run  report what would be queued, write nothing
+#   pr-review-watch --pr owner/repo#42
+#                              queue that PR's feedback now, no notification
+#
+# --pr exists because GitHub never notifies you about your OWN comments, so a
+# solo end-to-end test on your own PR has no trigger to fire; and because a PR
+# whose review predates this tool would otherwise never be picked up.
 #
 # Environment:
 #   PR_REVIEW_WATCH_STATE_DIR   queue + poll state (default $XDG_STATE_HOME/pr-review-watch)
@@ -58,6 +64,7 @@ REASONS='["author","review_requested","mention","comment","team_mention","assign
 
 force=0
 dry_run=0
+manual_pr=
 
 die() { printf 'pr-review-watch: %s\n' "$*" >&2; exit 1; }
 
@@ -71,6 +78,7 @@ while [ $# -gt 0 ]; do
       exit 0 ;;
     --force) force=1; shift ;;
     --dry-run) dry_run=1; shift ;;
+    --pr) manual_pr=${2:-}; shift 2 || die "--pr needs <owner/repo#number>" ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
@@ -111,27 +119,32 @@ me=$(cat "$login_file")
 
 # --- poll -------------------------------------------------------------------
 ims_file="$STATE_DIR/poll.last-modified"
-api_args=(-i "notifications?all=true&per_page=50")
-if [ "$force" -eq 0 ] && [ -s "$ims_file" ]; then
-  api_args+=(-H "If-Modified-Since: $(cat "$ims_file")")
+body='[]'
+last_modified=
+
+if [ -z "$manual_pr" ]; then
+  api_args=(-i "notifications?all=true&per_page=50")
+  if [ "$force" -eq 0 ] && [ -s "$ims_file" ]; then
+    api_args+=(-H "If-Modified-Since: $(cat "$ims_file")")
+  fi
+
+  raw=$(gh api "${api_args[@]}" 2>/dev/null)
+  # `gh api -i` writes the status line first whatever the outcome, and exits 1 on
+  # a 304, so the exit code says nothing useful here.
+  raw=$(printf '%s\n' "$raw" | tr -d '\r')
+  code=$(printf '%s\n' "$raw" | sed -n '1s/^[^ ]* \([0-9]*\).*/\1/p')
+
+  case "$code" in
+    304) exit 0 ;;
+    200) : ;;
+    '') die "no response from the notifications API (is gh authenticated?)" ;;
+    *) die "notifications API returned HTTP $code" ;;
+  esac
+
+  headers=$(printf '%s\n' "$raw" | sed -n '1,/^$/p')
+  body=$(printf '%s\n' "$raw" | sed -n '/^$/,$p' | sed '1d')
+  last_modified=$(printf '%s\n' "$headers" | sed -n 's/^[Ll]ast-[Mm]odified: //p' | head -1)
 fi
-
-raw=$(gh api "${api_args[@]}" 2>/dev/null)
-# `gh api -i` writes the status line first whatever the outcome, and exits 1 on
-# a 304, so the exit code says nothing useful here.
-raw=$(printf '%s\n' "$raw" | tr -d '\r')
-code=$(printf '%s\n' "$raw" | sed -n '1s/^[^ ]* \([0-9]*\).*/\1/p')
-
-case "$code" in
-  304) exit 0 ;;
-  200) : ;;
-  '') die "no response from the notifications API (is gh authenticated?)" ;;
-  *) die "notifications API returned HTTP $code" ;;
-esac
-
-headers=$(printf '%s\n' "$raw" | sed -n '1,/^$/p')
-body=$(printf '%s\n' "$raw" | sed -n '/^$/,$p' | sed '1d')
-last_modified=$(printf '%s\n' "$headers" | sed -n 's/^[Ll]ast-[Mm]odified: //p' | head -1)
 
 # --- resolution helpers -----------------------------------------------------
 
@@ -220,6 +233,23 @@ fetch_items() {
 # Collapse the delta to one row per PR, keeping the EARLIEST notification time
 # for each. That timestamp is the first-sight cutoff below, and taking the
 # earliest is what stops a burst of reviews being partly swallowed.
+if [ -n "$manual_pr" ]; then
+  # An explicit request to adopt a PR, bypassing the notification poll. Two
+  # cases need this and neither is a notification: picking up a PR whose review
+  # arrived before this tool existed, and testing the pipeline at all -- GitHub
+  # never notifies you about your own comments, so a solo end-to-end on your own
+  # PR has no trigger to fire.
+  #
+  # The cutoff is the epoch rather than "now": on first sight the notification
+  # path seeds everything older than the notification as history, which here
+  # would queue nothing at all. Asking for a PR by name means asking for the
+  # feedback that is on it.
+  case "$manual_pr" in
+    */*'#'[0-9]*) : ;;
+    *) die "--pr wants <owner/repo#number>, got: $manual_pr" ;;
+  esac
+  candidates=$(printf '%s\t%s\t%s\n' "${manual_pr%%#*}" "${manual_pr##*#}" "1970-01-01T00:00:00Z")
+else
 candidates=$(printf '%s' "$body" | jq -r --argjson reasons "$REASONS" '
   [ .[]
     | select(.subject.type == "PullRequest")
@@ -230,6 +260,7 @@ candidates=$(printf '%s' "$body" | jq -r --argjson reasons "$REASONS" '
   | group_by(.repo + "#" + .pr)
   | map(min_by(.at))
   | .[] | [.repo, .pr, .at] | @tsv' 2>/dev/null)
+fi
 
 queued_total=0
 

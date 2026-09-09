@@ -244,6 +244,22 @@ run --force >/dev/null
 eq '--force still reaches the API' "$((before + 1))" "$(job '.pending|length')"
 /bin/rm -f "$FIX/not-modified"
 
+echo "-- --pr adopts a PR with no notification at all --"
+# GitHub never notifies you about your own comments, so this is the only path
+# that can be exercised solo -- and the only way to pick up a PR whose review
+# predates the tool. It must NOT seed history as seen the way first sight does,
+# or asking for a PR by name would queue nothing.
+STATE="$TMP/state3"
+: > "$FIX/not-modified"   # prove the notification poll is skipped entirely
+out=$(run --pr acme/widget#42)
+eq 'queues despite the 304' 'yes' "$(printf '%s' "$out" | grep -q '^queue acme/widget#42' && echo yes || echo no)"
+eq 'queues the pre-cutoff review too' 'true' "$(job '[.pending[].id]|index("review:11")!=null')"
+eq 'still drops own comments'         'false' "$(job '[.pending[].id]|index("inline:22")!=null')"
+eq 'leaves Last-Modified alone' 'no' "$([ -f "$STATE/poll.last-modified" ] && echo yes || echo no)"
+out=$(run --pr 'nonsense')
+eq 'rejects a malformed --pr' 'yes' "$(printf '%s' "$out" | grep -q 'owner/repo#number' && echo yes || echo no)"
+/bin/rm -f "$FIX/not-modified"
+
 echo "-- no worktree for the branch means no job to deliver --"
 STATE="$TMP/state2"
 git -C "$REPO" worktree remove --force "$WT"
