@@ -1,37 +1,49 @@
 #!/bin/bash
 # Exercises bin/pr-review-dispatch, the half of the review pipeline that decides
-# whether a session may be interrupted. That decision is the whole point of the
-# program, so the assertions are about what does NOT happen: a job left queued
-# and a pane left untouched are the passing outcomes for most cases here.
+# where queued feedback goes and puts it there.
 #
-# It runs against a REAL tmux server on a throwaway socket (-L, -f /dev/null),
-# reached through a thin wrapper on PATH. The contract is what tmux does with
-# pane options and send-keys, so a stubbed tmux would keep passing if that
-# changed. Only `claude` is stubbed -- nothing here may start a real session.
+# It runs against a REAL Unix domain socket, created with `nc -lU` and read back
+# byte for byte. That is the whole reason this file exists in its current shape.
+# The message line's schema is NOT documented -- only the auth line is -- and the
+# session registry stamps `"peerProtocol":1`, so it is a versioned interface
+# that can change under us. A rejected line is indistinguishable from a
+# delivered one at the sending end: the socket sends no reply, and a malformed
+# line is accepted and dropped in silence. Asserting the exact bytes on a real
+# socket is therefore the only thing here that would go red if the protocol
+# moved, and it is the assertion to keep working if any other has to give.
 #
-# Panes run `cat > <file>` rather than a shell, for two reasons. Keystrokes land
-# in that file verbatim, which is a far more precise assertion than reading the
-# rendered screen back with capture-pane; and a real shell would source
-# zsh/directory.zsh, whose precmd hook clears pane options a few hundred
-# milliseconds after the test sets them (the trap tmux-pane-titles.test.sh
-# documents).
+# The old version of this program typed into a tmux pane, and most of its suite
+# was about refusing to type at the wrong moment. None of that survives: a
+# socket message is read between tool calls and can never be consumed as a
+# permission dialog's answer, so `busy` is not a gate and there is no pane. The
+# case named "busy is not a gate" pins that inversion deliberately, because it
+# is the one behaviour a reader of the old program would expect to find and not
+# find.
+#
+# `claude` is stubbed -- nothing here may start a real session. Nothing else is:
+# git is real, the worktrees are real, and the socket is real.
 #
 # Written for bash 3.2 (/bin/bash on macOS): no mapfile, no associative arrays.
 set -uo pipefail
 
 DISPATCH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pr-review-dispatch"
-REAL_TMUX=$(command -v tmux) || { echo "tmux is required"; exit 1; }
 command -v jq >/dev/null || { echo "jq is required"; exit 1; }
+command -v nc >/dev/null || { echo "nc is required"; exit 1; }
 
 pass=0
 fail=0
 ok() { pass=$((pass + 1)); printf '  ok   %s\n' "$1"; }
 no() { fail=$((fail + 1)); printf '  FAIL %s\n' "$1"; [ $# -gt 1 ] && printf '       %s\n' "$2"; }
 eq() { if [ "$2" = "$3" ]; then ok "$1"; else no "$1" "want=[$2] got=[$3]"; fi; }
+has() { case "$2" in *"$3"*) ok "$1" ;; *) no "$1" "[$2] does not contain [$3]" ;; esac; }
 
 TMP=$(mktemp -d); TMP=$(cd "$TMP" && pwd -P)
-SOCK="prdispatch-$$"
-cleanup() { "$REAL_TMUX" -L "$SOCK" kill-server 2>/dev/null; /bin/rm -rf "$TMP"; }
+KILL_PIDS=""
+cleanup() {
+  # A failing run is by definition one that leaked a process.
+  for p in $KILL_PIDS; do kill "$p" 2>/dev/null; done
+  /bin/rm -rf "$TMP"
+}
 trap cleanup EXIT
 
 STATE="$TMP/state"; mkdir -p "$STATE/jobs"
@@ -41,53 +53,64 @@ STUB="$TMP/stub"; mkdir -p "$STUB"
 # A REAL repository with the target as a REAL worktree nested under it, the way
 # `gw` lays them out. It has to be real git: the session lookup asks
 # `git worktree list` which paths are worktrees, precisely so the outer checkout
-# cannot claim a session running in an inner one. A bare mkdir here would leave
-# every job holding, since a directory that is not a worktree owns no session.
+# cannot claim a session running in an inner one.
 REPO="$TMP/repo"; WT="$REPO/git-worktrees/wt"
 git init -q "$REPO"
 git -C "$REPO" -c user.email=t@e -c user.name=t commit -q --allow-empty -m init
 git -C "$REPO" worktree add -q -b feature/x "$WT" >/dev/null 2>&1
 
-# tmux on PATH is the real binary pinned to the throwaway server.
-cat > "$STUB/tmux" <<EOF
-#!/bin/bash
-exec "$REAL_TMUX" -L "$SOCK" "\$@"
-EOF
-
-# claude agents --json answers from a fixture; every other invocation (the
-# --bg --resume fallback) is recorded rather than run.
 cat > "$STUB/claude" <<'EOF'
 #!/bin/bash
-if [ "${1:-}" = "agents" ]; then cat "$FIXAGENTS"; exit 0; fi
 printf '%s\n' "$*" >> "$RESUMELOG"
 [ -f "$RESUMEFAIL" ] && exit 1
 exit 0
 EOF
 chmod +x "$STUB"/*
 
-tm() { "$REAL_TMUX" -L "$SOCK" "$@"; }
-
 # --- fixtures ---------------------------------------------------------------
 
-PID=4242
-typed="$TMP/typed.txt"
-: > "$typed"
-tm -f /dev/null new-session -d -s work "cat > $typed"
-PANE=$(tm list-panes -t work -F '#{pane_id}' | head -1)
-printf '{"pid":%s,"sessionId":"sess-1","tmux":"work:@0.%s"}\n' "$PID" "${PANE#%}" > "$SESS/$PID.json"
-# Rewrite properly: the tmux field is "<session>:<window_id>.<pane_id>".
-jq -n --argjson pid "$PID" --arg pane "$PANE" \
-  '{pid:$pid, sessionId:"sess-1", tmux:("work:@0." + $pane)}' > "$SESS/$PID.json"
-
-agents() { # agents <status|none>
-  if [ "$1" = none ]; then printf '[]' > "$TMP/agents.json"; return; fi
-  jq -n --argjson pid "$PID" --arg cwd "$WT" --arg st "$1" \
-    '[{pid:$pid, cwd:$cwd, kind:"interactive", sessionId:"sess-1", startedAt:1, status:$st}]' \
-    > "$TMP/agents.json"
+# A process we are allowed to kill, standing in for a live session.
+#
+# The redirections are load-bearing, not tidiness. This is called as
+# `PID=$(spawn_holder)`, and a background job started inside a command
+# substitution INHERITS the substitution's stdout pipe -- so `sleep 300 &` keeps
+# that pipe open and the assignment blocks for the full five minutes, with no
+# output and no error to say why. Detaching all three streams is what makes the
+# substitution return as soon as the function does.
+spawn_holder() {
+  sleep 300 >/dev/null 2>&1 &
+  KILL_PIDS="$KILL_PIDS $!"
+  printf '%s' "$!"
 }
 
-make_job() {
-  jq -n --arg wt "$WT" '{
+# listen <path> <outfile> -- a real inbox socket. `nc -lU` serves exactly one
+# connection and exits, which matches one delivery per run.
+listen() {
+  /bin/rm -f "$1"
+  ( nc -lU "$1" > "$2" 2>/dev/null & )
+  local i=0
+  while [ $i -lt 60 ]; do [ -S "$1" ] && return 0; sleep 0.05; i=$((i + 1)); done
+  return 1
+}
+
+# Wait for the listener to have written the line out.
+settle() {
+  local i=0
+  while [ $i -lt 60 ]; do [ -s "$1" ] && return 0; sleep 0.05; i=$((i + 1)); done
+  return 1
+}
+
+# session <file-stem> <pid> <cwd> <socket> <startedAt> [status]
+session() {
+  jq -n --argjson pid "$2" --arg cwd "$3" --arg sock "$4" \
+        --argjson at "$5" --arg st "${6:-idle}" \
+    '{pid:$pid, sessionId:("sess-" + ($pid|tostring)), name:("s" + ($pid|tostring)),
+      cwd:$cwd, kind:"interactive", startedAt:$at, status:$st,
+      messagingSocketPath:$sock}' > "$SESS/$1.json"
+}
+
+make_job() { # make_job [worktree]
+  jq -n --arg wt "${1:-$WT}" '{
     repo:"acme/widget", pr:42, url:"https://github.com/acme/widget/pull/42",
     title:"a title", branch:"feature/x", worktree:$wt, sessionId:"sess-1",
     status:"pending",
@@ -95,286 +118,200 @@ make_job() {
     pending:[
       {id:"issue:31", kind:"issue", author:"bob", state:null, path:null, line:null,
        body:"line one\nline two with `backticks` and \"quotes\"", at:"2026-09-07T10:00:08Z"},
-      {id:"review:12", kind:"review", author:"carol", state:"CHANGES_REQUESTED", path:null, line:null,
+      {id:"review:12", kind:"review", author:"carol", state:"CHANGES_REQUESTED", path:"a/b.ts", line:9,
        body:"", at:"2026-09-07T10:00:05Z"}
     ],
     updatedAt:"2026-09-07T10:00:09Z"}' > "$STATE/jobs/acme__widget__42.json"
-  : > "$typed"
 }
 
 job() { jq -r "$1" "$STATE/jobs/acme__widget__42.json"; }
+reset() { /bin/rm -f "$STATE"/jobs/* "$SESS"/*.json "$TMP"/wire-* "$TMP/resume.log" "$TMP/resume.fail"; }
 
 run() {
   PATH="$STUB:$PATH" \
-  FIXAGENTS="$TMP/agents.json" RESUMELOG="$TMP/resume.log" RESUMEFAIL="$TMP/resume.fail" \
+  RESUMELOG="$TMP/resume.log" RESUMEFAIL="$TMP/resume.fail" \
   PR_REVIEW_WATCH_STATE_DIR="$STATE" CLAUDE_SESSIONS_DIR="$SESS" \
   PR_REVIEW_DISPATCH_RESUME="${RESUME:-0}" \
-    "$DISPATCH" 2>&1
+    "$DISPATCH" "$@" 2>&1
 }
 
-settle() { # keystrokes reach `cat` asynchronously
-  local i=0
-  while [ $i -lt 50 ]; do [ -s "$typed" ] && return 0; sleep 0.05; i=$((i + 1)); done
-  return 1
-}
+# --- the wire format --------------------------------------------------------
+# The assertion this suite exists for.
 
-# --- cases ------------------------------------------------------------------
+printf 'wire format\n'
+reset
+PID=$(spawn_holder); WIRE="$TMP/wire-1"; SOCKP="$TMP/s1.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session live "$PID" "$WT" "$SOCKP" 100
+make_job
+out=$(run); settle "$WIRE"
 
-echo "-- an idle session receives the job --"
-agents idle; make_job
-tm set-option -p -t "$PANE" -u @claude_state 2>/dev/null
+line=$(cat "$WIRE")
+# Newline-terminated and exactly one line: the socket reads line by line, so a
+# payload split across two would be read as two messages and a payload with no
+# terminator would sit in the buffer until the 30s connection timeout dropped it.
+eq "the payload is exactly one line" "1" "$(wc -l < "$WIRE" | tr -d ' ')"
+eq "it parses as JSON" "ok" "$(printf '%s' "$line" | jq -e . >/dev/null 2>&1 && echo ok)"
+eq "type is user" "user" "$(printf '%s' "$line" | jq -r .type)"
+eq "message.role is user" "user" "$(printf '%s' "$line" | jq -r .message.role)"
+eq "message.content is a string" "string" "$(printf '%s' "$line" | jq -r '.message.content | type')"
+eq "no other top-level keys" "message type" "$(printf '%s' "$line" | jq -r 'keys | join(" ")')"
+has "content points at the prompt file" "$(printf '%s' "$line" | jq -r .message.content)" \
+  "$STATE/jobs/acme__widget__42.prompt.md"
+has "content names the PR" "$(printf '%s' "$line" | jq -r .message.content)" \
+  "https://github.com/acme/widget/pull/42"
+has "content disclaims the peer framing" "$(printf '%s' "$line" | jq -r .message.content)" \
+  "not sent by another agent"
+has "run reports the send" "$out" "send  acme/widget#42"
+
+# --- the job after delivery -------------------------------------------------
+
+printf 'job bookkeeping\n'
+eq "pending is emptied" "0" "$(job '.pending | length')"
+eq "status is delivered" "delivered" "$(job .status)"
+eq "deliveredVia names the socket" "socket" "$(job .deliveredVia)"
+eq "deliveredCount counts the items" "2" "$(job .deliveredCount)"
+# seen is the WATCHER's high-water. Clearing it here would make the next poll
+# queue the same feedback again, forever.
+eq "seen survives delivery" "review:11 issue:31" "$(job '.seen | join(" ")')"
+
+printf 'prompt file\n'
+P="$STATE/jobs/acme__widget__42.prompt.md"
+body=$(cat "$P")
+# shellcheck disable=SC2016  # the backticks are literal test data, not a subshell
+has "carries the multi-line body verbatim" "$body" 'line two with `backticks` and "quotes"'
+has "carries the inline path and line" "$body" 'a/b.ts:9'
+has "names both authors" "$body" "bob"
+has "names the review state" "$body" "CHANGES_REQUESTED"
+has "an empty body is called out, not left blank" "$body" "the verdict is the message"
+
+# --- busy is not a gate -----------------------------------------------------
+# The inversion. The old program refused anything that was not positively
+# `idle`, because typing into a busy pane was unsafe. Claude Code reads a socket
+# message between tool calls, so a busy session is a normal target and the
+# status field is not consulted at all.
+
+printf 'busy is not a gate\n'
+reset
+PID=$(spawn_holder); WIRE="$TMP/wire-2"; SOCKP="$TMP/s2.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session live "$PID" "$WT" "$SOCKP" 100 busy
+make_job
+out=$(run); settle "$WIRE"
+eq "a busy session is delivered to" "delivered" "$(job .status)"
+eq "the line still arrived" "user" "$(jq -r .type < "$WIRE" 2>/dev/null)"
+
+# An unrecognised status is not a reason to hold either -- there is nothing to
+# recognise. This is the opposite of the old rule and is stated on purpose.
+reset
+PID=$(spawn_holder); WIRE="$TMP/wire-3"; SOCKP="$TMP/s3.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session live "$PID" "$WT" "$SOCKP" 100 some-future-status
+make_job
+run >/dev/null; settle "$WIRE"
+eq "an unknown status is delivered to" "delivered" "$(job .status)"
+
+# --- liveness ---------------------------------------------------------------
+
+printf 'liveness\n'
+# A registry file outlives the process that wrote it. Ranking is newest-first,
+# so a stale file left by a dead session in the same worktree would shadow the
+# live one and hold its job forever. Both entries here name the same worktree
+# and the dead one is NEWER.
+reset
+DEAD=$(spawn_holder); kill "$DEAD" 2>/dev/null; wait "$DEAD" 2>/dev/null
+ALIVE=$(spawn_holder); WIRE="$TMP/wire-4"; SOCKP="$TMP/s4.sock"; DEADSOCK="$TMP/s4dead.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+listen "$DEADSOCK" "$TMP/wire-4dead" || no "dead listener came up"
+session alive "$ALIVE" "$WT" "$SOCKP" 100
+session stale "$DEAD" "$WT" "$DEADSOCK" 999
+make_job
+run >/dev/null; settle "$WIRE"
+eq "a dead newer session does not shadow a live one" "delivered" "$(job .status)"
+eq "the live session got it" "user" "$(jq -r .type < "$WIRE" 2>/dev/null)"
+eq "the dead session's socket got nothing" "" "$(cat "$TMP/wire-4dead" 2>/dev/null)"
+
+# A session with no socket bound (bare mode binds none) is not a target.
+reset
+PID=$(spawn_holder)
+session nosock "$PID" "$WT" "$TMP/absent.sock" 100
+make_job
 out=$(run)
-settle
-eq 'reports the send'          'yes'  "$(printf '%s' "$out" | grep -q '^send  acme/widget#42' && echo yes || echo no)"
-eq 'pending is cleared'        '0'    "$(job '.pending|length')"
-eq 'status becomes delivered'  'delivered' "$(job .status)"
-eq 'delivery method recorded'  'send-keys' "$(job .deliveredVia)"
-eq 'seen survives delivery'    '2'    "$(job '.seen|length')"
-eq 'something was typed'       'yes'  "$([ -s "$typed" ] && echo yes || echo no)"
-eq 'the prompt is ONE line'    '1'    "$(wc -l < "$typed" | tr -d ' ')"
-eq 'the prompt points at the file' 'yes' \
-  "$(grep -q 'acme__widget__42.prompt.md' "$typed" && echo yes || echo no)"
+eq "a session with no socket holds" "pending" "$(job .status)"
+eq "and keeps its items" "2" "$(job '.pending | length')"
+has "and says why" "$out" "no live session"
 
-PROMPT="$STATE/jobs/acme__widget__42.prompt.md"
-eq 'prompt file written'            'yes' "$([ -s "$PROMPT" ] && echo yes || echo no)"
-eq 'prompt file carries the body'   'yes' "$(grep -q 'line two with' "$PROMPT" && echo yes || echo no)"
-eq 'wordless verdict is explained'  'yes' "$(grep -q 'the verdict is the message' "$PROMPT" && echo yes || echo no)"
+# --- worktree ownership -----------------------------------------------------
+# The longest-prefix rule from pr-review-common.sh, which nesting makes
+# load-bearing: `gw` puts every worktree under <checkout>/git-worktrees/, so
+# containment alone would let the outer checkout claim every session below it.
 
-echo "-- a session that is not positively idle is never typed into --"
-for st in busy waiting unknown-future-state; do
-  agents "$st"; make_job
-  out=$(run)
-  eq "held while $st"            'yes' "$(printf '%s' "$out" | grep -q '^hold  acme/widget#42' && echo yes || echo no)"
-  eq "pending kept while $st"    '2'   "$(job '.pending|length')"
-  eq "nothing typed while $st"   ''    "$(cat "$typed")"
-done
-
-echo "-- @claude_state overrides an idle report (the two gates disagree) --"
-# One AskUserQuestion dialog can be open while the registry still says idle.
-# Typing then answers the dialog instead of queueing, so the pane wins.
-for st in asking waiting busy; do
-  agents idle; make_job
-  tm set-option -p -t "$PANE" @claude_state "$st"
-  out=$(run)
-  eq "held when the pane says $st"  'yes' "$(printf '%s' "$out" | grep -q 'stopped accepting input' && echo yes || echo no)"
-  eq "pending kept when pane says $st" '2' "$(job '.pending|length')"
-  eq "nothing typed when pane says $st" '' "$(cat "$typed")"
-done
-
-echo "-- a finished-but-unread turn (stalled) is safe to type into --"
-agents idle; make_job
-tm set-option -p -t "$PANE" @claude_state stalled
-run >/dev/null
-settle
-eq 'delivered while stalled' '0' "$(job '.pending|length')"
-tm set-option -p -t "$PANE" -u @claude_state
-
-echo "-- no live session: the --bg fallback is opt-in --"
-agents none; make_job
-: > "$TMP/resume.log"
+printf 'worktree ownership\n'
+reset
+PID=$(spawn_holder); WIRE="$TMP/wire-5"; SOCKP="$TMP/s5.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session inner "$PID" "$WT" "$SOCKP" 100
+make_job "$REPO"   # the job is on the OUTER checkout
 out=$(run)
-eq 'held by default'            '2'  "$(job '.pending|length')"
-eq 'says how to enable it'      'yes' "$(printf '%s' "$out" | grep -q 'PR_REVIEW_DISPATCH_RESUME=1' && echo yes || echo no)"
-eq 'claude was never invoked'   'no'  "$([ -s "$TMP/resume.log" ] && echo yes || echo no)"
+eq "a session in an inner worktree does not answer for the outer one" "pending" "$(job .status)"
+eq "nothing was sent" "" "$(cat "$WIRE" 2>/dev/null)"
 
-agents none; make_job
-RESUME=1 run >/dev/null
-eq 'resumes the recorded session' 'yes' \
-  "$(grep -q -- '--bg --resume sess-1' "$TMP/resume.log" && echo yes || echo no)"
-eq 'pending cleared after resume' '0'        "$(job '.pending|length')"
-eq 'method recorded as resume'    'resume'   "$(job .deliveredVia)"
+# A cwd DEEPER than the worktree root still belongs to it.
+reset
+PID=$(spawn_holder); WIRE="$TMP/wire-6"; SOCKP="$TMP/s6.sock"
+mkdir -p "$WT/src/deep"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session deep "$PID" "$WT/src/deep" "$SOCKP" 100
+make_job
+run >/dev/null; settle "$WIRE"
+eq "a cwd below the worktree root still belongs to it" "delivered" "$(job .status)"
 
-echo "-- a failed resume leaves the job queued --"
-agents none; make_job
-touch "$TMP/resume.fail"
-run >/dev/null
-eq 'pending kept when claude fails' '2' "$(job '.pending|length')"
-/bin/rm -f "$TMP/resume.fail"
+# --- dry run ----------------------------------------------------------------
 
-echo "-- a session file naming a dead pane is not a target --"
-agents idle; make_job
-jq -n --argjson pid "$PID" '{pid:$pid, sessionId:"sess-1", tmux:"work:@0.%99999"}' > "$SESS/$PID.json"
+printf 'dry run\n'
+reset
+PID=$(spawn_holder); WIRE="$TMP/wire-7"; SOCKP="$TMP/s7.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session live "$PID" "$WT" "$SOCKP" 100
+make_job
+out=$(run --dry-run)
+has "reports what it would send" "$out" "send  acme/widget#42"
+eq "sends nothing" "" "$(cat "$WIRE" 2>/dev/null)"
+eq "leaves the job queued" "pending" "$(job .status)"
+eq "writes no prompt file" "absent" "$([ -f "$STATE/jobs/acme__widget__42.prompt.md" ] || echo absent)"
+
+# --- no session at all ------------------------------------------------------
+
+printf 'no live session\n'
+reset
+make_job
 out=$(run)
-eq 'held on unresolvable pane'   'yes' "$(printf '%s' "$out" | grep -q 'no resolvable tmux pane' && echo yes || echo no)"
-eq 'pending kept'                '2'   "$(job '.pending|length')"
-eq 'nothing typed'               ''    "$(cat "$typed")"
+eq "holds by default" "pending" "$(job .status)"
+has "names the opt-in" "$out" "PR_REVIEW_DISPATCH_RESUME=1"
+eq "resume was not attempted" "absent" "$([ -f "$TMP/resume.log" ] || echo absent)"
 
-echo "-- a job held for many passes is still delivered, whole --"
-# The queue has no expiry and no age cutoff, so "the session was busy for ten
-# minutes" is not a special case: every pass reports hold, and the first pass
-# after it goes idle delivers everything owed. Twenty passes stands in for ten
-# minutes at the agent's 30s interval. What could plausibly break is the job
-# being consumed, trimmed or marked by a held pass, so the assertion is that
-# pending survives every one of them intact and then lands in full.
-# The dead-pane case above rewrote the session file and does not put it back,
-# so restore the real pane rather than inheriting whatever ran last.
-jq -n --argjson pid "$PID" --arg pane "$PANE" \
-  '{pid:$pid, sessionId:"sess-1", tmux:("work:@0." + $pane)}' > "$SESS/$PID.json"
-tm set-option -p -t "$PANE" -u @claude_state 2>/dev/null
+reset
+make_job
+out=$(RESUME=1 run)
+eq "resumes when asked" "delivered" "$(job .status)"
+eq "and says so" "resume" "$(job .deliveredVia)"
+has "passes the session id to claude" "$(cat "$TMP/resume.log")" "--resume sess-1"
 
-agents busy; make_job
-before=$(job '.pending|length')
-holds=0
-i=0
-while [ $i -lt 20 ]; do
-  case "$(run)" in *"hold  acme/widget#42"*) holds=$((holds + 1)) ;; esac
-  i=$((i + 1))
-done
-eq 'every pass held'              '20'       "$holds"
-eq 'pending untouched throughout' "$before"  "$(job '.pending|length')"
-eq 'status is still pending'      'pending'  "$(job .status)"
-eq 'nothing was typed'            ''         "$(cat "$typed")"
-agents idle
-run >/dev/null
-settle
-eq 'the next pass after idle delivers' '0'          "$(job '.pending|length')"
-eq 'and delivers all of it'            "$before"    "$(job .deliveredCount)"
+# A failed resume must leave the job queued -- it is the only copy.
+reset
+make_job
+: > "$TMP/resume.fail"
+out=$(RESUME=1 run)
+eq "a failed resume holds the job" "pending" "$(job .status)"
+has "and says so" "$out" "claude --bg --resume failed"
 
-echo "-- nested worktrees: the outer checkout must not claim an inner session --"
-# The dispatcher re-resolves the session from the worktree at delivery time, so
-# it needs the same longest-prefix rule the watcher uses. Without it a job on the
-# outer checkout would be typed into a session running on an unrelated branch --
-# the worst outcome this pipeline can produce, since it is a wrong target rather
-# than a missed one.
-OUTER_JOB="$STATE/jobs/acme__outer__7.json"
-mk_outer_job() {
-  jq -n --arg wt "$REPO" '{
-    repo:"acme/outer", pr:7, url:"u", title:"t", branch:"main",
-    worktree:$wt, sessionId:"whatever", status:"pending", seen:[],
-    pending:[{id:"issue:1", kind:"issue", author:"bob", state:null, path:null,
-              line:null, body:"outer", at:"2026-09-07T10:00:00Z"}],
-    updatedAt:"2026-09-07T10:00:00Z"}' > "$OUTER_JOB"
-  : > "$typed"
-}
-# Only session is in the nested worktree; the job is on the outer checkout.
-mk_outer_job
-out=$(run)
-eq 'the outer job finds no session' 'yes' \
-  "$(printf '%s' "$out" | grep -q 'acme/outer#7: no live session' && echo yes || echo no)"
-eq 'the outer job is not delivered' '1'  "$(jq -r '.pending|length' "$OUTER_JOB")"
-eq 'the nested pane was not typed into' '' "$(cat "$typed")"
-/bin/rm -f "$OUTER_JOB"
+# --- empty queue ------------------------------------------------------------
 
-echo "-- gate 3: a pane somebody is ON is marked, never typed into --"
-# The race gates 1 and 2 could only narrow: they are read-then-send, so a human
-# who starts typing in between gets our text appended to theirs. Gate 3 removes
-# the premise -- keystrokes reach only the pane a client is currently on, so a
-# pane nobody is on cannot be receiving input. Testing it needs a REAL attached
-# client, which needs a pty; `script` is the portable way to get one, and its
-# argument order differs between BSD (macOS) and util-linux.
-#
-# Two things about this are load-bearing and both were found the hard way.
-# `tmux attach` needs a pty, which is what script(1) provides -- and script's
-# argument order differs between BSD (macOS) and util-linux. And script must be
-# given a stdin that does not hit EOF: with stdin closed it exits immediately,
-# tmux sees the client go away, and the attach silently never happens. A fifo
-# held open by a spare fd feeds it, so closing that fd is also how the client is
-# detached again -- deterministic, with no timer and no stray process left
-# behind.
-attach_client() {
-  mkfifo "$TMP/attach-fifo" 2>/dev/null
-  if script -q /dev/null true >/dev/null 2>&1; then
-    { cat "$TMP/attach-fifo" | script -q /dev/null \
-        "$REAL_TMUX" -L "$SOCK" attach -t work >/dev/null 2>&1; } &
-  else
-    { cat "$TMP/attach-fifo" | script -q -c "$REAL_TMUX -L $SOCK attach -t work" \
-        /dev/null >/dev/null 2>&1; } &
-  fi
-  CLIENT_PID=$!
-  exec 9>"$TMP/attach-fifo"
-  local i=0
-  while [ $i -lt 60 ]; do
-    [ -n "$(tm list-clients -F '#{client_name}' 2>/dev/null)" ] && return 0
-    sleep 0.05
-    i=$((i + 1))
-  done
-  return 1
-}
-
-detach_client() {
-  exec 9>&-                       # cat sees EOF, script exits, the client goes
-  # -s is the SESSION target; -t would be looking for a client literally named "work".
-  tm detach-client -s work 2>/dev/null
-  local i=0
-  while [ $i -lt 60 ]; do
-    [ -z "$(tm list-clients -F '#{client_name}' 2>/dev/null)" ] && return 0
-    sleep 0.05
-    i=$((i + 1))
-  done
-  return 1
-}
-
-here() { # here <pane> -- run --deliver-here for that pane
-  PATH="$STUB:$PATH" \
-  FIXAGENTS="$TMP/agents.json" RESUMELOG="$TMP/resume.log" RESUMEFAIL="$TMP/resume.fail" \
-  PR_REVIEW_WATCH_STATE_DIR="$STATE" CLAUDE_SESSIONS_DIR="$SESS" \
-    "$DISPATCH" --deliver-here "$1" 2>&1
-}
-opt() { tm show-options -p -t "$PANE" -qv "$1" 2>/dev/null; }
-
-agents idle; make_job
-if attach_client; then
-  eq 'the client really is on the target pane' "$PANE" \
-    "$(tm display-message -p -t "$(tm list-clients -F '#{client_name}' | head -1)" '#{pane_id}')"
-
-  out=$(run)
-  eq 'held because attended'    'yes' "$(printf '%s' "$out" | grep -q 'is attended' && echo yes || echo no)"
-  eq 'pending survives'         '2'   "$(job '.pending|length')"
-  eq 'nothing was typed'        ''    "$(cat "$typed")"
-
-  # The marker is the whole point of refusing: it has to be noticeable without
-  # stealing input, which is why it is a pane option the tab title reads rather
-  # than a popup that would grab the keyboard mid-sentence.
-  eq 'the count is published'   '2'   "$(opt @pr_review_pending)"
-  eq 'the note names the PR'    'acme/widget#42 (2)' "$(opt @pr_review_note)"
-  eq 'a glyph is published'     '📮'  "$(opt @pr_review_glyph)"
-  # Same rule as agent-state.sh: a base character promoted with VS16 is one cell
-  # to some terminals and two to others, which silently shifts the tab title.
-  eq 'the glyph carries no VS16' 'no' \
-    "$(printf '%s' "$(opt @pr_review_glyph)" | grep -q $'️' && echo yes || echo no)"
-
-  echo "-- prefix + R (--deliver-here) overrides attendance, but only for its own pane --"
-  # A keypress cannot race the person who pressed it, so this path is allowed to
-  # type into an attended pane. It must stay scoped: the binding fires in one
-  # pane and must not flush the whole queue.
-  out=$(here '%99999')
-  eq 'another pane delivers nothing' '2' "$(job '.pending|length')"
-  eq 'and says nothing'              ''  "$out"
-
-  here "$PANE" >/dev/null
-  settle
-  eq 'its own pane delivers'      '0'  "$(job '.pending|length')"
-  eq 'even though still attended' 'yes' \
-    "$([ -n "$(tm list-clients -F '#{client_name}')" ] && echo yes || echo no)"
-  eq 'and the marker is cleared'  ''   "$(opt @pr_review_pending)"
-  eq 'glyph cleared too'          ''   "$(opt @pr_review_glyph)"
-
-  # Detaching alone must make it deliverable again, with no flag and no marker.
-  # Not inside $( ): the subshell would close its own copy of fd 9 and leave the
-  # parent's open, so the fifo would never reach EOF.
-  detach_client
-  eq 'the client detaches' '' "$(tm list-clients -F '#{client_name}')"
-  agents idle; make_job
-  run >/dev/null
-  settle
-  eq 'delivered once nobody is on the pane' '0' "$(job '.pending|length')"
-  kill "$CLIENT_PID" 2>/dev/null
-  wait "$CLIENT_PID" 2>/dev/null
-else
-  no 'could not attach a client (script(1) unavailable?)'
-fi
-
-echo "-- --deliver-here needs a pane --"
-out=$(env -u TMUX_PANE PATH="$STUB:$PATH" \
-  FIXAGENTS="$TMP/agents.json" RESUMELOG="$TMP/resume.log" RESUMEFAIL="$TMP/resume.fail" \
-  PR_REVIEW_WATCH_STATE_DIR="$STATE" CLAUDE_SESSIONS_DIR="$SESS" \
-  "$DISPATCH" --deliver-here 2>&1)
-eq 'refuses without one' 'yes' "$(printf '%s' "$out" | grep -q 'needs a pane' && echo yes || echo no)"
-
-echo "-- an empty queue is a no-op --"
-jq '.pending = []' "$STATE/jobs/acme__widget__42.json" > "$TMP/e" && mv "$TMP/e" "$STATE/jobs/acme__widget__42.json"
-agents idle
-eq 'no output for an empty queue' '' "$(run)"
+printf 'empty queue\n'
+reset
+out=$(run); rc=$?
+eq "exits 0 with nothing to do" "0" "$rc"
+eq "and says nothing" "" "$out"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
