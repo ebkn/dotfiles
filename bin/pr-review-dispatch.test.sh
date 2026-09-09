@@ -37,7 +37,16 @@ trap cleanup EXIT
 STATE="$TMP/state"; mkdir -p "$STATE/jobs"
 SESS="$TMP/sessions"; mkdir -p "$SESS"
 STUB="$TMP/stub"; mkdir -p "$STUB"
-WT="$TMP/worktree"; mkdir -p "$WT"
+
+# A REAL repository with the target as a REAL worktree nested under it, the way
+# `gw` lays them out. It has to be real git: the session lookup asks
+# `git worktree list` which paths are worktrees, precisely so the outer checkout
+# cannot claim a session running in an inner one. A bare mkdir here would leave
+# every job holding, since a directory that is not a worktree owns no session.
+REPO="$TMP/repo"; WT="$REPO/git-worktrees/wt"
+git init -q "$REPO"
+git -C "$REPO" -c user.email=t@e -c user.name=t commit -q --allow-empty -m init
+git -C "$REPO" worktree add -q -b feature/x "$WT" >/dev/null 2>&1
 
 # tmux on PATH is the real binary pinned to the throwaway server.
 cat > "$STUB/tmux" <<EOF
@@ -189,6 +198,62 @@ out=$(run)
 eq 'held on unresolvable pane'   'yes' "$(printf '%s' "$out" | grep -q 'no resolvable tmux pane' && echo yes || echo no)"
 eq 'pending kept'                '2'   "$(job '.pending|length')"
 eq 'nothing typed'               ''    "$(cat "$typed")"
+
+echo "-- a job held for many passes is still delivered, whole --"
+# The queue has no expiry and no age cutoff, so "the session was busy for ten
+# minutes" is not a special case: every pass reports hold, and the first pass
+# after it goes idle delivers everything owed. Twenty passes stands in for ten
+# minutes at the agent's 30s interval. What could plausibly break is the job
+# being consumed, trimmed or marked by a held pass, so the assertion is that
+# pending survives every one of them intact and then lands in full.
+# The dead-pane case above rewrote the session file and does not put it back,
+# so restore the real pane rather than inheriting whatever ran last.
+jq -n --argjson pid "$PID" --arg pane "$PANE" \
+  '{pid:$pid, sessionId:"sess-1", tmux:("work:@0." + $pane)}' > "$SESS/$PID.json"
+tm set-option -p -t "$PANE" -u @claude_state 2>/dev/null
+
+agents busy; make_job
+before=$(job '.pending|length')
+holds=0
+i=0
+while [ $i -lt 20 ]; do
+  case "$(run)" in *"hold  acme/widget#42"*) holds=$((holds + 1)) ;; esac
+  i=$((i + 1))
+done
+eq 'every pass held'              '20'       "$holds"
+eq 'pending untouched throughout' "$before"  "$(job '.pending|length')"
+eq 'status is still pending'      'pending'  "$(job .status)"
+eq 'nothing was typed'            ''         "$(cat "$typed")"
+agents idle
+run >/dev/null
+settle
+eq 'the next pass after idle delivers' '0'          "$(job '.pending|length')"
+eq 'and delivers all of it'            "$before"    "$(job .deliveredCount)"
+
+echo "-- nested worktrees: the outer checkout must not claim an inner session --"
+# The dispatcher re-resolves the session from the worktree at delivery time, so
+# it needs the same longest-prefix rule the watcher uses. Without it a job on the
+# outer checkout would be typed into a session running on an unrelated branch --
+# the worst outcome this pipeline can produce, since it is a wrong target rather
+# than a missed one.
+OUTER_JOB="$STATE/jobs/acme__outer__7.json"
+mk_outer_job() {
+  jq -n --arg wt "$REPO" '{
+    repo:"acme/outer", pr:7, url:"u", title:"t", branch:"main",
+    worktree:$wt, sessionId:"whatever", status:"pending", seen:[],
+    pending:[{id:"issue:1", kind:"issue", author:"bob", state:null, path:null,
+              line:null, body:"outer", at:"2026-09-07T10:00:00Z"}],
+    updatedAt:"2026-09-07T10:00:00Z"}' > "$OUTER_JOB"
+  : > "$typed"
+}
+# Only session is in the nested worktree; the job is on the outer checkout.
+mk_outer_job
+out=$(run)
+eq 'the outer job finds no session' 'yes' \
+  "$(printf '%s' "$out" | grep -q 'acme/outer#7: no live session' && echo yes || echo no)"
+eq 'the outer job is not delivered' '1'  "$(jq -r '.pending|length' "$OUTER_JOB")"
+eq 'the nested pane was not typed into' '' "$(cat "$typed")"
+/bin/rm -f "$OUTER_JOB"
 
 echo "-- an empty queue is a no-op --"
 jq '.pending = []' "$STATE/jobs/acme__widget__42.json" > "$TMP/e" && mv "$TMP/e" "$STATE/jobs/acme__widget__42.json"

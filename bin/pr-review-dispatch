@@ -47,7 +47,7 @@
 #   PR_REVIEW_WATCH_STATE_DIR    queue location (shared with pr-review-watch)
 #   PR_REVIEW_DISPATCH_RESUME    1 to resume exited sessions with `claude --bg`
 #
-# Requires: jq, tmux, claude.
+# Requires: jq, git, tmux, claude.
 set -uo pipefail
 
 STATE_DIR=${PR_REVIEW_WATCH_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/pr-review-watch}
@@ -67,7 +67,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-for cmd in jq tmux claude; do
+for cmd in jq git tmux claude; do
   command -v "$cmd" >/dev/null 2>&1 || die "$cmd is required but not installed"
 done
 
@@ -100,12 +100,12 @@ agents_json=$(claude agents --json 2>/dev/null || printf '[]')
 # worktree rather than from the id the watcher stored: a session that was
 # restarted since the job was queued has a new id but is still the right target,
 # and the stored id would point at a process that no longer exists.
+# Worktrees nest under the main checkout here, so containment alone would make
+# the outermost worktree match every session beneath it -- see session_in_worktree
+# in pr-review-common.sh. The sibling list comes from the worktree itself, since
+# any worktree can enumerate all of its repo's.
 agent_for_worktree() {
-  printf '%s' "$agents_json" | jq -c --arg wt "$1" '
-    [ .[]
-      | select(.kind == "interactive")
-      | select(.cwd == $wt or (.cwd | startswith($wt + "/"))) ]
-    | sort_by(.startedAt) | last // empty'
+  session_in_worktree "$agents_json" "$1" "$(worktree_paths_json "$1")"
 }
 
 # pid -> tmux pane. `claude agents --json` does not carry the pane, so this
