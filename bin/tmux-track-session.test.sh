@@ -2,11 +2,20 @@
 #
 # tmux-track-session.test.sh
 #
-# Covers the two-way exclusivity of the conn_id <-> session binding: one conn_id
+# Two suites, one per silent failure of this script.
+#
+# (1) The two-way exclusivity of the conn_id <-> session binding: one conn_id
 # names one session, and one session is named by at most one conn_id. Losing
 # either direction is silent -- the symptom is two WezTerm tabs mirroring the
 # same remote session some minutes later, after an autossh reconnect, with
 # nothing at the moment of the switch to suggest what happened.
+#
+# (2) The monitor must die quietly. It runs as a `run-shell -b` job, and tmux
+# reports such a job dying by a signal as "'<cmd>' terminated by signal 15" in a
+# view mode covering the pane -- which here is the *remote* screen of an ssh
+# session. `attach` TERMs the previous connection's monitor on every reconnect,
+# so it fired every time the link came back. That suite has a harness of its own
+# (see its comment below) and lives at the bottom of this file.
 #
 # Runs against a real throwaway tmux server with real attached clients, not a
 # stubbed tmux: the decisions here are readings of `session_attached` and
@@ -32,6 +41,8 @@ SESSION_DIR="$XDG_STATE_HOME/tmux-track-session/session"
 SCRIPT="$(cd "$(dirname "$0")" && pwd)/tmux-track-session"
 IDLE='sleep 600'
 CLIENT_PIDS=""
+INNER="track-inner-$$"
+OUTER="track-outer-$$"
 fails=0
 
 command -v tmux >/dev/null || { echo "tmux is required" >&2; exit 1; }
@@ -40,6 +51,8 @@ cleanup() {
   for p in $CLIENT_PIDS; do kill "$p" 2>/dev/null; done
   pkill -f "tmux-track-session monitor" 2>/dev/null
   tmux kill-server 2>/dev/null
+  tmux -L "$INNER" kill-server 2>/dev/null
+  tmux -L "$OUTER" kill-server 2>/dev/null
   rm -rf "$DIR"
 }
 trap cleanup EXIT
@@ -151,6 +164,133 @@ record connE gone-session
 record connF free
 attach_as connF
 t "attach: prunes a record naming a dead session" "<none>" "$(read_record connE)"
+
+# ---------------------------------------------------------------------------
+# The monitor must die quietly.
+#
+# Two tmux servers, not one, and that is the whole harness: tmux hands a
+# run-shell job's output to a *client*, so with nothing attached the message is
+# never rendered and every assertion below passes vacuously. The outer server
+# exists only to supply the pty the inner one is attached through, and the
+# assertions read the inner screen by capturing the outer pane. Both are on
+# sockets of their own so the sessions above cannot be mistaken for them.
+# ---------------------------------------------------------------------------
+pass_() { printf 'ok   %s\n' "$1"; }
+fail_() { printf 'FAIL %s\n' "$1"; shift; for l in "$@"; do printf '       %s\n' "$l"; done; fails=$((fails + 1)); }
+
+tmux -L "$INNER" -f /dev/null new-session -d -s main -x 80 -y 24 "$IDLE"
+tmux -L "$OUTER" -f /dev/null new-session -d -x 80 -y 24 "tmux -L $INNER attach -t main"
+
+# Wait for the inner client to exist, otherwise the job has no one to report to.
+client_tty=""
+for _ in $(seq 1 50); do
+  client_tty=$(tmux -L "$INNER" list-clients -F '#{client_tty}' 2>/dev/null | head -1)
+  [ -n "$client_tty" ] && break
+  sleep 0.1
+done
+[ -n "$client_tty" ] || { echo "inner client never attached" >&2; exit 1; }
+
+# -J joins wrapped lines: the job's command is a long absolute path, so the
+# report can be split mid-phrase across two rows of an 80-column screen.
+screen() { tmux -L "$OUTER" capture-pane -pJ; }
+clear_screen() { tmux -L "$INNER" send-keys -X cancel 2>/dev/null; }
+in_mode() { tmux -L "$INNER" display-message -p -t main '#{pane_in_mode}'; }
+wait_gone() {
+  for _ in $(seq 1 50); do
+    kill -0 "$1" 2>/dev/null || return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+# wait_mode 1 -- poll until the pane enters a mode, rather than sleeping a fixed
+# amount and reading once. The delay between the job dying and the report
+# reaching the screen is neither instant nor bounded by anything this test
+# controls (the monitor is inside `sleep 2` when the signal lands, then the
+# inner server renders, then the outer one does): a half-second read made the
+# regression case pass green against the *unfixed* script, which is the one
+# outcome this suite exists to prevent.
+wait_mode() {
+  for _ in $(seq 1 40); do
+    [ "$(in_mode)" = "$1" ] && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+# The harness itself: a signalled job DOES reach the screen. Without this case a
+# broken reproduction (nothing attached, wrong socket, a capture that reads the
+# wrong pane) would make the real assertion below pass while proving nothing.
+tmux -L "$INNER" run-shell -b "sleep 3117"
+sanity_pid=""
+for _ in $(seq 1 50); do
+  sanity_pid=$(pgrep -f 'sleep 3117' | head -1)
+  [ -n "$sanity_pid" ] && break
+  sleep 0.1
+done
+if [ -z "$sanity_pid" ]; then
+  fail_ "harness: a signalled run-shell job is visible on the client" "the sanity job never started"
+else
+  kill -TERM "$sanity_pid" 2>/dev/null
+  wait_gone "$sanity_pid"
+  wait_mode 1
+  if screen | grep -q 'terminated by signal'; then
+    pass_ "harness: a signalled run-shell job is visible on the client"
+  else
+    fail_ "harness: a signalled run-shell job is visible on the client" \
+      "expected 'terminated by signal' on the inner screen; the harness cannot see the bug it tests for"
+  fi
+  clear_screen
+fi
+
+conn_id="local-1"
+tmux -L "$INNER" run-shell -b "'$SCRIPT' monitor '$conn_id' '$client_tty'"
+
+pid_file="$XDG_STATE_HOME/tmux-track-session/pid/$conn_id"
+monitor_pid=""
+for _ in $(seq 1 50); do
+  [ -s "$pid_file" ] && monitor_pid=$(cat "$pid_file")
+  [ -n "$monitor_pid" ] && break
+  sleep 0.1
+done
+
+if [ -z "$monitor_pid" ]; then
+  fail_ "monitor: starts and records its pid" "no pid in $pid_file"
+else
+  pass_ "monitor: starts and records its pid"
+
+  # This is exactly what `attach` does to the previous connection's monitor.
+  kill -TERM "$monitor_pid" 2>/dev/null
+  if wait_gone "$monitor_pid"; then
+    # The view mode is the visible half of the bug: it covers the pane and
+    # waits for a keypress. This waits out the full timeout on a pass, which is
+    # what buys the assertion its meaning.
+    if wait_mode 1; then
+      fail_ "monitor: dying on SIGTERM leaves the pane out of view mode" \
+        "the pane entered a mode, so tmux reported the job's death over the remote screen"
+    else
+      pass_ "monitor: dying on SIGTERM leaves the pane out of view mode"
+    fi
+
+    out=$(screen)
+    if printf '%s' "$out" | grep -q 'terminated by signal'; then
+      fail_ "monitor: dying on SIGTERM leaves the screen alone" \
+        "tmux reported the job's death onto the remote screen:" \
+        "$(printf '%s' "$out" | grep 'terminated by signal')"
+    else
+      pass_ "monitor: dying on SIGTERM leaves the screen alone"
+    fi
+
+    if [ -e "$pid_file" ]; then
+      fail_ "monitor: removes its pid file on SIGTERM" "$pid_file still exists"
+    else
+      pass_ "monitor: removes its pid file on SIGTERM"
+    fi
+  else
+    fail_ "monitor: dying on SIGTERM leaves the screen alone" \
+      "monitor pid $monitor_pid still alive after SIGTERM"
+  fi
+fi
 
 if [ "$fails" -eq 0 ]; then
   echo "PASS"

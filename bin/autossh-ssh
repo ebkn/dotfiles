@@ -1,0 +1,98 @@
+#!/bin/sh
+# autossh-ssh: the `ssh` that autossh runs, pointed at by AUTOSSH_PATH from
+# myssh (zsh/ssh.zsh). It exists to own the screen between reconnect attempts.
+#
+# When the link drops, the terminal still shows the remote tmux's last frame,
+# and two things then scribble on it. ssh writes a diagnostic per attempt
+# ("client_loop: send disconnect: Broken pipe", "ssh: connect to host ... port
+# 22: Operation timed out") and autossh retries about once a second. And the
+# remote tmux left mouse tracking on with nobody consuming it any more, so
+# moving the pointer floods the screen with raw SGR reports. Neither is
+# something to act on; both land on a frame that is already stale.
+#
+# Being AUTOSSH_PATH is what keeps this a *shim* rather than a reimplementation
+# of the reconnect loop: autossh keeps its restart policy, backoff and exit
+# handling, and this only gets a hook that runs once per attempt -- which is
+# the one thing a "reconnecting" display needs and cannot get any other way.
+# It is deliberately not named `ssh`, since it finds the real binary with
+# `command -v ssh` and a shim called ssh would find itself.
+#
+# The first attempt is left completely alone: that one is the initial connect,
+# where ssh's own output is the useful thing on screen (host key prompts,
+# "Permission denied") and there is no stale frame to cover.
+#
+# With AUTOSSH_NOTICE_STATE unset this is a transparent `exec ssh "$@"`, which
+# is what a caller that is not myssh gets.
+#
+# Tested by bin/autossh-ssh.test.sh.
+
+state="${AUTOSSH_NOTICE_STATE:-}"
+host="${AUTOSSH_NOTICE_HOST:-the remote}"
+
+ssh_bin=$(command -v ssh 2>/dev/null)
+[ -n "$ssh_bin" ] || ssh_bin=/usr/bin/ssh
+
+[ -n "$state" ] || exec "$ssh_bin" "$@"
+
+# Attempt counter. The file is per-myssh-invocation (myssh creates and removes
+# it), so nothing needs to key off a pid: autossh execs this afresh every
+# attempt, and the file is the only memory between them.
+attempt=0
+[ -f "$state" ] && attempt=$(cat "$state" 2>/dev/null)
+case "$attempt" in
+  '' | *[!0-9]*) attempt=0 ;;
+esac
+attempt=$((attempt + 1))
+printf '%s' "$attempt" > "$state" 2>/dev/null
+
+log="$state.log"
+[ "$attempt" -eq 1 ] && exec "$ssh_bin" "$@"
+
+# The last thing ssh said. This is why its stderr is redirected below rather
+# than discarded: a fatal, non-transient failure -- a changed host key, a
+# refused key -- otherwise retries forever behind a line that cheerfully says
+# "reconnecting", with the one message explaining why nowhere on screen.
+detail=""
+[ -s "$log" ] && detail=$(grep -v '^[[:space:]]*$' "$log" 2>/dev/null | tail -1)
+
+rows=24
+cols=80
+# Braced, for the reason spelled out at the terminal write below: with no
+# controlling terminal the "Device not configured" comes from the redirection,
+# so `stty ... 2>/dev/null` does not suppress it.
+{ size=$(stty size </dev/tty); } 2>/dev/null
+case "$size" in
+  [0-9]*' '[0-9]*) rows=${size%% *} cols=${size##* } ;;
+esac
+
+esc=$(printf '\033')
+# centred <row> <text>
+centred() {
+  col=$(((cols - ${#2}) / 2 + 1))
+  [ "$col" -lt 1 ] && col=1
+  printf '%s[%d;%dH%s' "$esc" "$1" "$col" "$2"
+}
+
+# The first notice of an outage clears the screen and shuts the mouse up; later
+# attempts only repaint, so retrying every second does not flicker the whole
+# screen. The reset is the sequence _ssh_decorate_off sends on the way out (the
+# five mouse tracking modes plus bracketed paste) -- sent here on the way *in*,
+# because the flood starts the moment the remote stops reading. The remote
+# re-enables what it wants when the client attaches again.
+frame=""
+[ "$attempt" -eq 2 ] &&
+  frame="${esc}[?9l${esc}[?1000l${esc}[?1002l${esc}[?1003l${esc}[?1006l${esc}[?2004l${esc}[0m${esc}[2J"
+frame="${frame}${esc}[?25l"
+frame="${frame}$(centred $((rows / 2)) "reconnecting to ${host} … (${attempt})")"
+[ -n "$detail" ] && frame="${frame}$(centred $((rows / 2 + 2)) "${esc}[2m${detail}${esc}[0m")"
+
+# Write to the controlling terminal, falling back to stderr. `[ -w /dev/tty ]`
+# is not the test to use: it passes with no controlling terminal and the write
+# then fails with ENXIO. The braces matter too -- "Device not configured" comes
+# from the redirection rather than from printf, so a bare 2>/dev/null on the
+# command would not suppress it. Same idiom as bin/read-doc.
+{ printf '%s' "$frame" >/dev/tty; } 2>/dev/null || printf '%s' "$frame" >&2
+
+# stderr to the log so the next attempt can quote it. stdout is left alone: it
+# is the session itself.
+exec "$ssh_bin" "$@" 2>"$log"

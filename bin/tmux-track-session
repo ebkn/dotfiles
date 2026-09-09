@@ -115,6 +115,18 @@ $saved
     [ -z "$client_tty" ] || [ "$client_tty" = '#{client_tty}' ] && exit 0
     ensure_dirs
 
+    # Exit 0 on a signal, and clean up while doing it.
+    #
+    # tmux reports a run-shell job that dies by a signal as
+    #   '<cmd>' terminated by signal 15
+    # and opens that report in a *view mode* covering the pane -- which on a
+    # reconnect is the remote screen, so the message lands on top of whatever
+    # was drawn there and has to be dismissed by hand. `attach` TERMs the
+    # previous connection's monitor on every reconnect, so this fired every
+    # time the link came back. tmux reports only a non-zero exit or a signal,
+    # so exiting 0 is what keeps the reconnect silent.
+    trap 'rm -f "$PID_DIR/$conn_id"; exit 0' TERM INT HUP
+
     # Record monitor PID so attach can kill us on reconnect
     printf '%s' "$$" > "$PID_DIR/$conn_id"
 
