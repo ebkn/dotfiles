@@ -63,6 +63,16 @@ jobs:
       - name: tmux config and cheatsheet
         run: bash bin/tmux-conf.test.sh
 
+      # One WezTerm tab means one tmux session; tmux enforces nothing of the
+      # sort. Both of these keep that invariant, and both fail silently -- the
+      # tab you switched away from starts mirroring another one, minutes later,
+      # after an autossh reconnect.
+      - name: tmux-session-swap
+        run: bash bin/tmux-session-swap.test.sh
+
+      - name: tmux-track-session
+        run: bash bin/tmux-track-session.test.sh
+
       # Both of these turn pane options into something a person reads -- a tab
       # label and the prefix + a list. Every mistake renders a plausible wrong
       # answer rather than an error.
