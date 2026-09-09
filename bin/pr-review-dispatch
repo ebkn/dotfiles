@@ -20,18 +20,34 @@
 # starting an unattended session that edits code is the most surprising thing
 # this pipeline can do.
 #
-# Two independent gates gate the send, deliberately from two different sources:
+# Three independent gates gate the send, deliberately from three sources:
 #
 #   1. `claude agents --json` status must be `idle`. This is Claude Code's own
 #      registry, and it also reports `waiting` (a modal is open).
 #   2. the pane's `@claude_state`, published by root/.claude/hooks/agent-state.sh,
 #      must be unset or `stalled`. This repo owns that hook, and it is read
 #      immediately before the keystrokes to shrink the race in (1).
+#   3. no attached client may be ON the pane. Keystrokes reach only the pane a
+#      client is currently on, so a pane nobody is on cannot be receiving human
+#      input, and typing there is safe with no timing involved at all.
 #
 # Gate 2 is not redundant. Typing into a pane with a permission dialog open does
 # not queue text -- the keys are consumed as the dialog's answer, so an
 # unlucky send-keys silently picks somebody's permission for them. `asking` and
 # `waiting` are exactly the states agent-state.sh exists to distinguish.
+#
+# Gate 3 is what makes this safe rather than merely unlikely. Gates 1 and 2 are
+# read-then-send, so a human who starts typing in between gets our text appended
+# to theirs. Gate 3 removes the premise instead of narrowing the window: when
+# somebody is on the pane we do not type at all, and put a marker up for them to
+# notice: @pr_review_glyph is concatenated into set-titles-string, so 📮 appears
+# on the WezTerm tab with no subprocess and no polling. (@pr_review_note is
+# published for a reader that does not exist yet -- bin/tmux-agents has a fixed
+# seven-field format and adding an eighth touches its parsing, layout, remote
+# query and test, so that integration is deliberately NOT part of this.)
+# They take it with `prefix + R`, which is --deliver-here, and a keypress cannot
+# race the person who pressed it. The only residual is switching to the pane and
+# typing within the same instant as the check.
 #
 # The delivered prompt is ONE LINE that points at a file. A multi-line
 # send-keys would submit at the first newline and leave the rest as a second
@@ -42,6 +58,9 @@
 # Usage:
 #   pr-review-dispatch             deliver every deliverable job
 #   pr-review-dispatch --dry-run   report what would be delivered, send nothing
+#   pr-review-dispatch --deliver-here
+#                                  deliver this pane's job now, bypassing the
+#                                  attendance gate (bound to prefix + R)
 #
 # Environment:
 #   PR_REVIEW_WATCH_STATE_DIR    queue location (shared with pr-review-watch)
@@ -55,6 +74,8 @@ RESUME=${PR_REVIEW_DISPATCH_RESUME:-0}
 SESSIONS_DIR=${CLAUDE_SESSIONS_DIR:-$HOME/.claude/sessions}
 
 dry_run=0
+deliver_here=0
+here_pane=
 
 die() { printf 'pr-review-dispatch: %s\n' "$*" >&2; exit 1; }
 usage() { sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//; $d'; }
@@ -62,10 +83,30 @@ usage() { sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//; $d'; }
 while [ $# -gt 0 ]; do
   case $1 in
     --dry-run) dry_run=1; shift ;;
+    # The human asking for it, from a tmux binding. Skips the attendance gate --
+    # they are obviously present, and they pressed the key, so there is nothing
+    # to race with. Scoped to the calling pane so it can never deliver somebody
+    # else's job as a side effect.
+    --deliver-here)
+      deliver_here=1
+      # The pane is an argument rather than $TMUX_PANE because the tmux binding
+      # invokes this through `run-shell`, which executes in the SERVER's
+      # environment -- $TMUX_PANE is not set there, and relying on it would make
+      # the key silently deliver nothing. The binding passes #{pane_id}, which
+      # tmux expands to the pane the key was pressed in.
+      case "${2:-}" in
+        %[0-9]*) here_pane=$2; shift 2 ;;
+        *) here_pane=${TMUX_PANE:-}; shift ;;
+      esac
+      ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
 done
+
+if [ "$deliver_here" -eq 1 ] && [ -z "${here_pane:-}" ]; then
+  die "--deliver-here needs a pane: pass one (%N) or run inside tmux"
+fi
 
 for cmd in jq git tmux claude; do
   command -v "$cmd" >/dev/null 2>&1 || die "$cmd is required but not installed"
@@ -130,6 +171,58 @@ pane_for_pid() {
   # belong to somebody else by now -- or to nobody.
   tmux list-panes -a -F '#{pane_id}' 2>/dev/null | grep -qx "$pane" || return 1
   printf '%s' "$pane"
+}
+
+# The third gate, and the one that closes the race rather than shrinking it.
+#
+# Keystrokes only ever reach the pane a client is currently on, so a pane that
+# is nobody's current pane CANNOT be receiving human input -- injecting there is
+# safe by construction, with no timing involved. When somebody IS on the pane,
+# we do not type at all: the job stays queued and a marker goes up instead.
+#
+# Note what this deliberately does NOT do: it never asks whether the human is
+# actively typing. `client_activity` does expose that (verified: it tracks
+# client input only and stays frozen while output flows), and an earlier design
+# used it with a grace period. That reintroduced a tuned constant with no
+# principled value -- the same objection that removed the ten-minute timeout
+# from the lock -- for no gain, since presence alone is already binary and
+# already safe. Do not add it back.
+#
+# tmux cannot see which WezTerm tab is focused, so this over-reports presence: a
+# pane in a background tab still counts as attended. That is the safe direction;
+# it costs a delivery that waits for the marker to be noticed, not a corrupted
+# prompt.
+pane_attended() {
+  local client cur
+  while IFS= read -r client; do
+    [ -n "$client" ] || continue
+    cur=$(tmux display-message -p -t "$client" '#{pane_id}' 2>/dev/null)
+    [ "$cur" = "$1" ] && return 0
+  done < <(tmux list-clients -F '#{client_name}' 2>/dev/null)
+  return 1
+}
+
+# The marker. Same storage as agent-state.sh's @claude_state -- a pane user
+# option -- so the tab title can read it with no subprocess
+# and no polling. It steals nothing: a popup would have grabbed the keyboard at
+# exactly the moment the human might be typing, trading a corrupted prompt for a
+# mis-answered dialog.
+#
+# @pr_review_glyph is stored ready to concatenate, and 📮 (U+1F4EE) carries
+# Emoji_Presentation=Yes on its own, so it needs no trailing space and no VS16 --
+# see the agent-state.sh note on why a VS16 sequence misaligns the tab title.
+mark_pending() {
+  local pane=$1 label=$2 n=$3
+  tmux set-option -p -t "$pane" @pr_review_pending "$n" 2>/dev/null
+  tmux set-option -p -t "$pane" @pr_review_note "$label ($n)" 2>/dev/null
+  tmux set-option -p -t "$pane" @pr_review_glyph "📮" 2>/dev/null
+}
+
+clear_mark() {
+  local pane=$1 opt
+  for opt in @pr_review_pending @pr_review_note @pr_review_glyph; do
+    tmux set-option -p -u -t "$pane" "$opt" 2>/dev/null
+  done
 }
 
 # The second gate. Unset means idle (agent-state.sh clears on SessionStart and
@@ -240,7 +333,24 @@ for job in "$STATE_DIR"/jobs/*.json; do
     continue
   }
 
-  printf 'send  %s: %s items -> pane %s\n' "$label" "$(jq -r '.pending|length' "$job")" "$pane"
+  # --deliver-here is scoped to the pane that asked. Without this it would run
+  # the whole queue, delivering other sessions' jobs on a keypress meant for one.
+  if [ "$deliver_here" -eq 1 ] && [ "$pane" != "$here_pane" ]; then
+    continue
+  fi
+
+  # Gate 3. Somebody is on this pane, so typing into it could land in whatever
+  # they are composing. Put a marker up and leave the job owed -- unless this
+  # run IS the human asking for it, in which case there is no race to avoid.
+  n_pending=$(jq -r '.pending|length' "$job")
+  if [ "$deliver_here" -eq 0 ] && pane_attended "$pane"; then
+    printf 'hold  %s: pane %s is attended (%s items marked)\n' "$label" "$pane" "$n_pending"
+    [ "$dry_run" -eq 0 ] && mark_pending "$pane" "$label" "$n_pending"
+    held=$((held + 1))
+    continue
+  fi
+
+  printf 'send  %s: %s items -> pane %s\n' "$label" "$n_pending" "$pane"
   [ "$dry_run" -eq 0 ] || continue
 
   prompt_file="${job%.json}.prompt.md"
@@ -270,6 +380,7 @@ for job in "$STATE_DIR"/jobs/*.json; do
   tmux send-keys -t "$pane" Enter 2>/dev/null ||
     printf 'warn  %s: text delivered to %s but Enter failed\n' "$label" "$pane"
 
+  clear_mark "$pane"
   mark_delivered "$job" "send-keys"
   delivered=$((delivered + 1))
 done

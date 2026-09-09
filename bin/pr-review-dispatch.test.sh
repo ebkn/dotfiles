@@ -255,6 +255,122 @@ eq 'the outer job is not delivered' '1'  "$(jq -r '.pending|length' "$OUTER_JOB"
 eq 'the nested pane was not typed into' '' "$(cat "$typed")"
 /bin/rm -f "$OUTER_JOB"
 
+echo "-- gate 3: a pane somebody is ON is marked, never typed into --"
+# The race gates 1 and 2 could only narrow: they are read-then-send, so a human
+# who starts typing in between gets our text appended to theirs. Gate 3 removes
+# the premise -- keystrokes reach only the pane a client is currently on, so a
+# pane nobody is on cannot be receiving input. Testing it needs a REAL attached
+# client, which needs a pty; `script` is the portable way to get one, and its
+# argument order differs between BSD (macOS) and util-linux.
+#
+# Two things about this are load-bearing and both were found the hard way.
+# `tmux attach` needs a pty, which is what script(1) provides -- and script's
+# argument order differs between BSD (macOS) and util-linux. And script must be
+# given a stdin that does not hit EOF: with stdin closed it exits immediately,
+# tmux sees the client go away, and the attach silently never happens. A fifo
+# held open by a spare fd feeds it, so closing that fd is also how the client is
+# detached again -- deterministic, with no timer and no stray process left
+# behind.
+attach_client() {
+  mkfifo "$TMP/attach-fifo" 2>/dev/null
+  if script -q /dev/null true >/dev/null 2>&1; then
+    { cat "$TMP/attach-fifo" | script -q /dev/null \
+        "$REAL_TMUX" -L "$SOCK" attach -t work >/dev/null 2>&1; } &
+  else
+    { cat "$TMP/attach-fifo" | script -q -c "$REAL_TMUX -L $SOCK attach -t work" \
+        /dev/null >/dev/null 2>&1; } &
+  fi
+  CLIENT_PID=$!
+  exec 9>"$TMP/attach-fifo"
+  local i=0
+  while [ $i -lt 60 ]; do
+    [ -n "$(tm list-clients -F '#{client_name}' 2>/dev/null)" ] && return 0
+    sleep 0.05
+    i=$((i + 1))
+  done
+  return 1
+}
+
+detach_client() {
+  exec 9>&-                       # cat sees EOF, script exits, the client goes
+  # -s is the SESSION target; -t would be looking for a client literally named "work".
+  tm detach-client -s work 2>/dev/null
+  local i=0
+  while [ $i -lt 60 ]; do
+    [ -z "$(tm list-clients -F '#{client_name}' 2>/dev/null)" ] && return 0
+    sleep 0.05
+    i=$((i + 1))
+  done
+  return 1
+}
+
+here() { # here <pane> -- run --deliver-here for that pane
+  PATH="$STUB:$PATH" \
+  FIXAGENTS="$TMP/agents.json" RESUMELOG="$TMP/resume.log" RESUMEFAIL="$TMP/resume.fail" \
+  PR_REVIEW_WATCH_STATE_DIR="$STATE" CLAUDE_SESSIONS_DIR="$SESS" \
+    "$DISPATCH" --deliver-here "$1" 2>&1
+}
+opt() { tm show-options -p -t "$PANE" -qv "$1" 2>/dev/null; }
+
+agents idle; make_job
+if attach_client; then
+  eq 'the client really is on the target pane' "$PANE" \
+    "$(tm display-message -p -t "$(tm list-clients -F '#{client_name}' | head -1)" '#{pane_id}')"
+
+  out=$(run)
+  eq 'held because attended'    'yes' "$(printf '%s' "$out" | grep -q 'is attended' && echo yes || echo no)"
+  eq 'pending survives'         '2'   "$(job '.pending|length')"
+  eq 'nothing was typed'        ''    "$(cat "$typed")"
+
+  # The marker is the whole point of refusing: it has to be noticeable without
+  # stealing input, which is why it is a pane option the tab title reads rather
+  # than a popup that would grab the keyboard mid-sentence.
+  eq 'the count is published'   '2'   "$(opt @pr_review_pending)"
+  eq 'the note names the PR'    'acme/widget#42 (2)' "$(opt @pr_review_note)"
+  eq 'a glyph is published'     '📮'  "$(opt @pr_review_glyph)"
+  # Same rule as agent-state.sh: a base character promoted with VS16 is one cell
+  # to some terminals and two to others, which silently shifts the tab title.
+  eq 'the glyph carries no VS16' 'no' \
+    "$(printf '%s' "$(opt @pr_review_glyph)" | grep -q $'️' && echo yes || echo no)"
+
+  echo "-- prefix + R (--deliver-here) overrides attendance, but only for its own pane --"
+  # A keypress cannot race the person who pressed it, so this path is allowed to
+  # type into an attended pane. It must stay scoped: the binding fires in one
+  # pane and must not flush the whole queue.
+  out=$(here '%99999')
+  eq 'another pane delivers nothing' '2' "$(job '.pending|length')"
+  eq 'and says nothing'              ''  "$out"
+
+  here "$PANE" >/dev/null
+  settle
+  eq 'its own pane delivers'      '0'  "$(job '.pending|length')"
+  eq 'even though still attended' 'yes' \
+    "$([ -n "$(tm list-clients -F '#{client_name}')" ] && echo yes || echo no)"
+  eq 'and the marker is cleared'  ''   "$(opt @pr_review_pending)"
+  eq 'glyph cleared too'          ''   "$(opt @pr_review_glyph)"
+
+  # Detaching alone must make it deliverable again, with no flag and no marker.
+  # Not inside $( ): the subshell would close its own copy of fd 9 and leave the
+  # parent's open, so the fifo would never reach EOF.
+  detach_client
+  eq 'the client detaches' '' "$(tm list-clients -F '#{client_name}')"
+  agents idle; make_job
+  run >/dev/null
+  settle
+  eq 'delivered once nobody is on the pane' '0' "$(job '.pending|length')"
+  kill "$CLIENT_PID" 2>/dev/null
+  wait "$CLIENT_PID" 2>/dev/null
+else
+  no 'could not attach a client (script(1) unavailable?)'
+fi
+
+echo "-- --deliver-here needs a pane --"
+out=$(env -u TMUX_PANE PATH="$STUB:$PATH" \
+  FIXAGENTS="$TMP/agents.json" RESUMELOG="$TMP/resume.log" RESUMEFAIL="$TMP/resume.fail" \
+  PR_REVIEW_WATCH_STATE_DIR="$STATE" CLAUDE_SESSIONS_DIR="$SESS" \
+  "$DISPATCH" --deliver-here 2>&1)
+eq 'refuses without one' 'yes' "$(printf '%s' "$out" | grep -q 'needs a pane' && echo yes || echo no)"
+
 echo "-- an empty queue is a no-op --"
 jq '.pending = []' "$STATE/jobs/acme__widget__42.json" > "$TMP/e" && mv "$TMP/e" "$STATE/jobs/acme__widget__42.json"
 agents idle
