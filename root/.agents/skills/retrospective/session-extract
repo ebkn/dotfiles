@@ -28,25 +28,53 @@ if [ ! -f "$src" ]; then
   exit 2
 fi
 
+# Shared by both modes so the two can never disagree about what a human turn is.
+#
+# A "user" record without toolUseResult is NOT necessarily something the human
+# typed. The harness injects, as user records: every invoked skill's full body
+# and its caveat (isMeta), the summary after each compaction (isCompactSummary),
+# the echo and stdout of slash commands (<command-name>, <local-command-*>) and
+# background task notifications. On a 124-"turn" session, fewer than half were
+# typed -- the rest was the commit skill's text, pasted in six times. Counting
+# them inflates user_turns and buries the actual prompts under boilerplate.
+# A bare "/compact" typed by the human is kept: it is a human act and a signal.
+#
+# shellcheck disable=SC2016  # the $r / $t inside are jq's, not the shell's
+jq_defs='
+  def prompt_text($r):
+    $r.message
+    | if type != "object" then "" else
+        (.content
+         | if type == "string" then .
+           elif type == "array" then ([.[] | select(.type == "text") | .text] | join("\n"))
+           else "" end)
+      end;
+  def injected($r; $t):
+    ($r.isMeta == true)
+    or ($r.isCompactSummary == true)
+    or ($t | test("^\\s*<(local-command-caveat|local-command-stdout|command-name|task-notification)"));
+  def is_prompt($r):
+    $r.type == "user" and $r.toolUseResult == null
+    and (prompt_text($r) as $t | (injected($r; $t) | not));
+  def is_interrupt($t): $t | test("^\\[Request interrupted");
+'
+
 # --human-turns exists so that reading a transcript needs no general-purpose
 # tool. A skill that granted itself `Bash(jq *)` to do this would also be
 # granting `jq . x > ~/.zshrc`, since a Bash prefix grant covers the redirect
 # too. This mode can only read.
 if [ "$mode" = human ]; then
-  jq -r '
-    select(.type == "user" and .toolUseResult == null)
+  jq -r "${jq_defs}"'
+    select(is_prompt(.))
     | (.timestamp // "?") as $when
-    | (.message.content
-       | if type == "string" then .
-         else ([.[]? | select(.type == "text") | .text] | join("\n"))
-         end)
-    | select(. != "" and . != null)
-    | "--- \($when)\n\(.)"
+    | prompt_text(.) as $t
+    | select($t != "")
+    | "--- \($when)\n\($t)"
   ' "$src"
   exit 0
 fi
 
-jq -n -c --arg path "$src" '
+jq -n -c --arg path "$src" "${jq_defs}"'
   # Timestamps carry milliseconds, which fromdateiso8601 refuses.
   def ts: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
 
@@ -67,6 +95,7 @@ jq -n -c --arg path "$src" '
       tokens: { input: 0, output: 0, cache_creation: 0, cache_read: 0 },
       tools: {}, tool_results: {}, tool_result_bytes: {},
       errors: { bash_stderr: 0, interrupted: 0 },
+      friction: { compactions: 0, interrupts: 0 },
       skills: {},
       mode: null, permission_mode: null,
       idmap: {}
@@ -86,9 +115,16 @@ jq -n -c --arg path "$src" '
     | (if $r.type == "mode" then .mode = $r.mode else . end)
     | (if $r.type == "permission-mode" then .permission_mode = $r.permissionMode else . end)
 
-    # A user record carrying toolUseResult is a tool result being fed back, not
-    # a turn the human typed.
-    | (if $r.type == "user" and $r.toolUseResult == null then .user_turns += 1 else . end)
+    # Only what the human typed counts as a turn -- see jq_defs above. An
+    # interrupt is typed too (it is the human hitting escape), and counted
+    # separately because it is one of the few unambiguous friction signals.
+    | (if is_prompt($r) then
+           .user_turns += 1
+         | (if is_interrupt(prompt_text($r)) then .friction.interrupts += 1 else . end)
+       else . end)
+    # Each compaction means the context filled up once. Nine in one session is
+    # a story the token totals alone do not tell.
+    | (if $r.isCompactSummary == true then .friction.compactions += 1 else . end)
 
     | (if $r.type == "assistant" then
            .assistant_turns += 1
@@ -125,7 +161,7 @@ jq -n -c --arg path "$src" '
        else . end)
   )
   | {
-      schema: 1,
+      schema: 2,
       source_path: $path,
       session_id, cwd, git_branch,
       cc_version,
@@ -135,7 +171,7 @@ jq -n -c --arg path "$src" '
                      then ((.ended_at | ts) - (.started_at | ts))
                      else null end),
       user_turns, assistant_turns, sidechain_turns,
-      tokens, tools, tool_results, tool_result_bytes, errors,
+      tokens, tools, tool_results, tool_result_bytes, errors, friction,
       skills: (.skills | keys),
       mode, permission_mode
     }

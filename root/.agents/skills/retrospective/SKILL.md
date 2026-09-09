@@ -113,6 +113,15 @@ Keep that distinction visible in the report.
   A session can span days while being worked on for an hour. Not time spent.
 - **`tool_result_bytes`** — context spent on tool output. The clearest waste
   signal in the set: output that was paid for and mostly not used.
+- **`compactions`** — how many times the context filled up and was summarised.
+  Each one loses detail the model then re-derives. Nine in one session says
+  the work was shaped as one very long session when it wanted to be several.
+- **`interrupts`** — the human hit escape mid-turn. Rare and unambiguous: the
+  model was doing something the human did not want. Read the turns around it.
+- **`user_turns`** counts only what the human typed. A `user` record is also
+  how the harness injects skill bodies, compaction summaries, slash-command
+  echo and task notifications; those are excluded, and `--human-turns` uses
+  the same definition, so the count and the text always agree.
 - **Version column in the weekly series** — if medians move at a Claude Code
   version boundary, the cause may be configuration that no longer suits the
   harness rather than a change in how the work is being done. Never conclude

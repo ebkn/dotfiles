@@ -38,6 +38,12 @@ cat > "$fixture" <<'FIXTURE'
 {"type":"assistant","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:11.000Z","uuid":"a6","isSidechain":false,"message":{"role":"assistant","usage":{"input_tokens":5,"output_tokens":5,"cache_creation_input_tokens":0,"cache_read_input_tokens":0},"content":[{"type":"tool_use","id":"t6","name":"Bash","input":{"command":"sleep 999"}}]}}
 {"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:12.000Z","uuid":"r6","isSidechain":false,"toolUseResult":{"stdout":"","stderr":"","interrupted":true,"isImage":false,"noOutputExpected":false,"backgroundTaskId":"bg1","backgroundCwdHint":"/repo"},"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t6"}]}}
 {"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:13.000Z","uuid":"u3","isSidechain":false,"message":{"role":"user","content":"second turn"}}
+{"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:13.100Z","uuid":"i1","isSidechain":false,"isMeta":true,"message":{"role":"user","content":[{"type":"text","text":"Base directory for this skill: /x/skills/commit\n\nCommit changes quickly."}]}}
+{"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:13.200Z","uuid":"i2","isSidechain":false,"isCompactSummary":true,"isVisibleInTranscriptOnly":true,"message":{"role":"user","content":"This session is being continued from a previous conversation that ran out of context."}}
+{"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:13.300Z","uuid":"i3","isSidechain":false,"message":{"role":"user","content":"<command-name>/compact</command-name>\n<command-message>compact</command-message>"}}
+{"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:13.400Z","uuid":"i4","isSidechain":false,"message":{"role":"user","content":"<local-command-stdout>Compacted</local-command-stdout>"}}
+{"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:13.500Z","uuid":"i5","isSidechain":false,"message":{"role":"user","content":"<task-notification>\n<task-id>abc</task-id>\n<status>completed</status>\n</task-notification>"}}
+{"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:13.600Z","uuid":"i6","isSidechain":false,"message":{"role":"user","content":"[Request interrupted by user for tool use]"}}
 {"type":"assistant","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:14.000Z","uuid":"a7","isSidechain":true,"attributionSkill":"review-test","message":{"role":"assistant","usage":{"input_tokens":7,"output_tokens":7,"cache_creation_input_tokens":0,"cache_read_input_tokens":0},"content":[{"type":"tool_use","id":"t7","name":"Bash","input":{"command":"pwd"}}]}}
 {"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:15.000Z","uuid":"r7","isSidechain":true,"toolUseResult":{"stdout":"/repo","stderr":"","interrupted":false,"isImage":false,"noOutputExpected":false,"returnCodeInterpretation":"ok"},"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t7"}]}}
 {"type":"assistant","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.247","timestamp":"2026-09-01T00:00:16.000Z","uuid":"a8","message":{"role":"assistant","usage":{"input_tokens":3,"output_tokens":3,"cache_creation_input_tokens":0,"cache_read_input_tokens":0},"content":[{"type":"tool_use","id":"t8","name":"ToolSearch","input":{"query":"x"}}]}}
@@ -60,7 +66,7 @@ assert() {
 q() { jq -r "$1" "$out"; }
 
 assert "single line of output"  1     "$(wc -l < "$out" | tr -d ' ')"
-assert "schema"                 1     "$(q .schema)"
+assert "schema"                 2     "$(q .schema)"
 assert "session_id"             S1    "$(q .session_id)"
 assert "cwd"                    /repo "$(q .cwd)"
 assert "git_branch"             main  "$(q .git_branch)"
@@ -76,7 +82,12 @@ assert "wall_seconds" 17 "$(q .wall_seconds)"
 
 # A user record carrying toolUseResult is a tool result, not a turn the human
 # typed. Counting both makes every session look twice as interactive as it was.
-assert "user_turns exclude tool results" 2 "$(q .user_turns)"
+# Nor are the harness's own injections turns: a skill body (isMeta), a compaction
+# summary (isCompactSummary), slash-command echo/stdout, a task notification.
+# The interrupt IS typed -- the human hit escape -- so it counts, giving 3.
+assert "user_turns exclude tool results and injected records" 3 "$(q .user_turns)"
+assert "friction.compactions" 1 "$(q .friction.compactions)"
+assert "friction.interrupts"  1 "$(q .friction.interrupts)"
 assert "assistant_turns"                 8 "$(q .assistant_turns)"
 
 # Trap 2: isSidechain is false on most records and absent on a8/r8. Testing
@@ -114,8 +125,14 @@ assert "permission_mode is null" null "$(q .permission_mode)"
 # a general-purpose tool granted to it. Only turns the human typed: a user
 # record carrying toolUseResult is a tool result being fed back.
 human="$("$extract" --human-turns "$fixture")"
-assert "human turns exclude tool results" 2 "$(printf '%s\n' "$human" | grep -c '^--- ')"
+assert "human turns: two prompts plus the interrupt" 3 "$(printf '%s\n' "$human" | grep -c '^--- ')"
 assert "human turn text survives"         1 "$(printf '%s\n' "$human" | grep -c 'second turn')"
+assert "the interrupt is shown"           1 "$(printf '%s\n' "$human" | grep -c 'Request interrupted')"
 assert "tool output does not leak in"     0 "$(printf '%s\n' "$human" | grep -c 'No such file')"
+# The same definition must drive both modes, or the count and the text disagree.
+assert "skill body is not a human turn"   0 "$(printf '%s\n' "$human" | grep -c 'Base directory for this skill')"
+assert "compaction summary is not either" 0 "$(printf '%s\n' "$human" | grep -c 'being continued')"
+assert "slash-command echo is not either" 0 "$(printf '%s\n' "$human" | grep -c 'command-name')"
+assert "task notification is not either"  0 "$(printf '%s\n' "$human" | grep -c 'task-notification')"
 
 exit "$fail"

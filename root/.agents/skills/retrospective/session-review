@@ -35,7 +35,7 @@ usage: session-review [options]
                   them in makes every turns-per-prompt outlier a subagent.
   -h, --help      This message
 
-Cache lives in ${XDG_CACHE_HOME:-~/.cache}/session-review/v1/ -- outside the
+Cache lives in ${XDG_CACHE_HOME:-~/.cache}/session-review/v2/ -- outside the
 repo, because bin/ is symlinked into ~/.local/bin and writing derived data
 through that link would pollute the checkout.
 USAGE
@@ -58,7 +58,7 @@ if [ ! -d "$projects" ]; then
   exit 2
 fi
 
-cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/session-review/v1"
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/session-review/v2"
 mkdir -p "$cache_dir"
 
 summaries="$(mktemp)"
@@ -72,11 +72,15 @@ find "$projects" -name '*.jsonl' -mtime -"$days" -print | while IFS= read -r f; 
   if [ "$use_cache" -eq 1 ] && [ -f "$cached" ] && [ ! "$f" -nt "$cached" ]; then
     cat "$cached"
   else
-    if "$extract" "$f" > "$cached.tmp" 2>/dev/null; then
-      mv "$cached.tmp" "$cached"
+    # Per-process temp name: two reviews running at once (the skill under eval,
+    # a manual run beside it) extract the same session concurrently, and with a
+    # shared temp name the second mv fails and set -e kills the loop half-way.
+    partial="$cached.$$.tmp"
+    if "$extract" "$f" > "$partial" 2>/dev/null; then
+      mv -f "$partial" "$cached"
       cat "$cached"
     else
-      rm -f "$cached.tmp"
+      rm -f "$partial"
       echo "session-review: skipped unreadable transcript: $f" >&2
     fi
   fi
@@ -107,7 +111,9 @@ result="$(jq -n -c \
       output_tokens:      { tier: 1, value: .tokens.output },
       cache_read_tokens:  { tier: 1, value: .tokens.cache_read },
       bash_error_rate:    { tier: 1, value: (if (.tools.Bash // 0) > 0 then (.errors.bash_stderr / .tools.Bash) else null end) },
-      interrupted:        { tier: 1, value: .errors.interrupted }
+      interrupted:        { tier: 1, value: .errors.interrupted },
+      compactions:        { tier: 1, value: (.friction.compactions // 0) },
+      interrupts:         { tier: 1, value: (.friction.interrupts // 0) }
     };
 
   # A subagent run is written to its own agent-*.jsonl but carries the parent
