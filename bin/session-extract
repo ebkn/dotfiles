@@ -1,0 +1,118 @@
+#!/bin/bash
+# Reduce one Claude Code transcript to a single-line JSON summary.
+#
+# Pure and idempotent: everything here is decided by this session alone, so the
+# result never needs revisiting. Anything that depends on other sessions (rework
+# across sessions, distributions, outliers) is the reporter's job -- which is
+# what lets a later re-aggregation pick up facts that only became true weeks
+# after the session ended, without ever rewriting a summary.
+#
+# jq streams via `inputs`, so peak memory is one record rather than one file.
+# That matters: transcripts here reach 7MB, and the store holds 44MB in a week.
+set -euo pipefail
+
+if [ $# -ne 1 ]; then
+  echo "usage: session-extract <transcript.jsonl>" >&2
+  exit 2
+fi
+
+src="$1"
+if [ ! -f "$src" ]; then
+  echo "session-extract: no such file: $src" >&2
+  exit 2
+fi
+
+jq -n -c --arg path "$src" '
+  # Timestamps carry milliseconds, which fromdateiso8601 refuses.
+  def ts: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
+
+  # .message is an object on the records we care about but not on all of them,
+  # so every reach into it is filtered by type rather than assumed.
+  def tok($m; $k):
+    $m | if type == "object"
+         then (.usage | if type == "object" then (.[$k] // 0) else 0 end)
+         else 0 end;
+  def blocks($m): $m | objects | .content | arrays | .[];
+
+  reduce inputs as $r (
+    {
+      session_id: null, cwd: null, git_branch: null,
+      cc_version: null, versions: {},
+      started_at: null, ended_at: null,
+      user_turns: 0, assistant_turns: 0, sidechain_turns: 0,
+      tokens: { input: 0, output: 0, cache_creation: 0, cache_read: 0 },
+      tools: {}, tool_results: {}, tool_result_bytes: {},
+      errors: { bash_stderr: 0, interrupted: 0 },
+      skills: {},
+      mode: null, permission_mode: null,
+      idmap: {}
+    };
+
+      (if $r.sessionId then .session_id = $r.sessionId else . end)
+    | (if $r.cwd then .cwd = $r.cwd else . end)
+    | (if $r.gitBranch then .git_branch = $r.gitBranch else . end)
+    # Keep the last version as what the session ran as, and the set as the
+    # evidence that it spanned an upgrade -- a report that compares across a
+    # version bump needs to know which sessions straddle one.
+    | (if $r.version then (.cc_version = $r.version | .versions[$r.version] = true) else . end)
+    | (if $r.timestamp then
+           (if .started_at == null or $r.timestamp < .started_at then .started_at = $r.timestamp else . end)
+         | (if .ended_at == null or $r.timestamp > .ended_at then .ended_at = $r.timestamp else . end)
+       else . end)
+    | (if $r.type == "mode" then .mode = $r.mode else . end)
+    | (if $r.type == "permission-mode" then .permission_mode = $r.permissionMode else . end)
+
+    # A user record carrying toolUseResult is a tool result being fed back, not
+    # a turn the human typed.
+    | (if $r.type == "user" and $r.toolUseResult == null then .user_turns += 1 else . end)
+
+    | (if $r.type == "assistant" then
+           .assistant_turns += 1
+         # isSidechain is absent on some records and false on others, so this
+         # asks `== true` rather than `!= false`.
+         | (if $r.isSidechain == true then .sidechain_turns += 1 else . end)
+         | (if $r.attributionSkill then .skills[$r.attributionSkill] = true else . end)
+         | .tokens.input          += tok($r.message; "input_tokens")
+         | .tokens.output         += tok($r.message; "output_tokens")
+         | .tokens.cache_creation += tok($r.message; "cache_creation_input_tokens")
+         | .tokens.cache_read     += tok($r.message; "cache_read_input_tokens")
+         | reduce (blocks($r.message) | select(.type == "tool_use")) as $t (.;
+               .tools[$t.name] = ((.tools[$t.name] // 0) + 1)
+             | .idmap[$t.id]   = $t.name
+           )
+       else . end)
+
+    # Tool results are attributed through the id recorded at call time, never by
+    # matching the shape of the result. Bash alone comes back under at least six
+    # different key sets (gitOperation, staleReadFileStateHint, backgroundTaskId,
+    # returnCodeInterpretation, timedOutAfterMs, ...), so shape matching drops
+    # calls silently as new optional keys appear.
+    | (if $r.type == "user" and $r.toolUseResult != null then
+           (first(blocks($r.message) | select(.type == "tool_result") | .tool_use_id) // "unknown") as $tid
+         | (.idmap[$tid] // "unknown") as $name
+         | .tool_results[$name]      = ((.tool_results[$name] // 0) + 1)
+         | .tool_result_bytes[$name] = ((.tool_result_bytes[$name] // 0) + ($r.toolUseResult | tojson | length))
+         # toolUseResult is sometimes a bare string.
+         | (if ($r.toolUseResult | type) == "object" then
+                (if $name == "Bash" and (($r.toolUseResult.stderr // "") | length) > 0
+                   then .errors.bash_stderr += 1 else . end)
+              | (if $r.toolUseResult.interrupted == true then .errors.interrupted += 1 else . end)
+            else . end)
+       else . end)
+  )
+  | {
+      schema: 1,
+      source_path: $path,
+      session_id, cwd, git_branch,
+      cc_version,
+      cc_versions: (.versions | keys),
+      started_at, ended_at,
+      wall_seconds: (if .started_at and .ended_at
+                     then ((.ended_at | ts) - (.started_at | ts))
+                     else null end),
+      user_turns, assistant_turns, sidechain_turns,
+      tokens, tools, tool_results, tool_result_bytes, errors,
+      skills: (.skills | keys),
+      mode, permission_mode
+    }
+' "$src"
