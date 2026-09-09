@@ -117,4 +117,9 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/bin/textlint-docs" "${HOME}/.local/bin/textlint-docs"
   # Same idiom: resolves read-doc/style.css relative to its own resolved path.
   link_with_backup "${DOTFILES_DIR}/bin/read-doc" "${HOME}/.local/bin/read-doc"
+  # Backs the retrospective skill, which runs from whatever project the session
+  # is in and so cannot reach these by a repo-relative path. Both must be
+  # linked: session-review finds session-extract beside itself.
+  link_with_backup "${DOTFILES_DIR}/bin/session-extract" "${HOME}/.local/bin/session-extract"
+  link_with_backup "${DOTFILES_DIR}/bin/session-review" "${HOME}/.local/bin/session-review"
 }
