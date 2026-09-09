@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Runs bin/pr-review-dispatch every 30s, handing queued review feedback to the
-  session working on that branch once that session goes idle.
+  session working on that branch by posting to that session's inbox socket.
 
   A SEPARATE agent from com.ebkn.pr-review-watch, not one job running both.
-  This is the half that types into your sessions, and being able to
+  This is the half that puts messages into your sessions, and being able to
 
       launchctl bootout gui/$UID/com.ebkn.pr-review-dispatch
 
   while notifications keep arriving is the whole reason for the split. The
   interval is shorter than the watcher's 60s because nothing here talks to
-  GitHub -- it reads the local queue and `claude agents --json` -- so the only
-  cost of checking often is that a job waits less after a session frees up.
+  GitHub -- it reads the local queue and the session registry under
+  ~/.claude/sessions -- so checking often costs nothing.
 
   The PATH and `sh -c` notes in com.ebkn.pr-review-watch.plist apply verbatim:
   a launchd agent inherits none of the login shell's environment, and a login
