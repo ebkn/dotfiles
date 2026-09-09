@@ -75,15 +75,22 @@ done
 
 # Same lock discipline as the watcher: launchd does not care that the previous
 # run is still going, and two dispatchers racing would deliver one job twice.
+# shellcheck source=pr-review-lock.sh
+. "$(dirname "$(readlink -f "$0")")/pr-review-lock.sh"
+
 lock="$STATE_DIR/.dispatch-lock"
-if ! mkdir "$lock" 2>/dev/null; then
-  if [ -n "$(find "$lock" -maxdepth 0 -mmin +10 2>/dev/null)" ]; then
-    rmdir "$lock" 2>/dev/null && mkdir "$lock" 2>/dev/null || exit 0
-  else
-    exit 0
-  fi
+if ! take_lock "$lock"; then exit 0; fi
+trap 'release_lock "$lock"' EXIT
+
+# The pane lookup goes through this directory and nothing else, so if it is not
+# there every job holds forever with a per-job message that reads like a
+# transient miss. Say it once, plainly, and keep going: the --bg resume path
+# needs no pane at all, so this is a warning rather than a reason to exit.
+if [ ! -d "$SESSIONS_DIR" ]; then
+  printf 'pr-review-dispatch: %s does not exist; no session can be resolved to a tmux pane.\n' "$SESSIONS_DIR" >&2
+  printf '  This is Claude Code internal state, not a documented interface -- if it moved,\n' >&2
+  printf '  point CLAUDE_SESSIONS_DIR at the new location or see pane_for_pid below.\n' >&2
 fi
-trap 'rmdir "$lock" 2>/dev/null' EXIT
 
 # Queried once: the same snapshot decides every job in this run, and a job that
 # loses the race just waits for the next one.

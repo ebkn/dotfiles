@@ -57,10 +57,27 @@ STATE_DIR=${PR_REVIEW_WATCH_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/pr-
 EXTRA_REPOS=${PR_REVIEW_WATCH_EXTRA_REPOS:-$HOME/dotfiles}
 NOTIFY=${PR_REVIEW_WATCH_NOTIFY:-1}
 
-# Reasons that can carry a human or bot review. `ci_activity` is excluded on
-# purpose: a red check is not review feedback, and routing it here would make
-# every flaky build wake a session.
-REASONS='["author","review_requested","mention","comment","team_mention","assign"]'
+# The subset of GitHub's notification `reason` vocabulary that can carry review
+# feedback. The full documented set is approval_requested, assign, author,
+# ci_activity, comment, invitation, manual, member_feature_requested, mention,
+# review_requested, security_advisory_credit, security_alert, state_change,
+# subscribed and team_mention:
+#   https://docs.github.com/en/rest/activity/notifications
+#
+# This list is hand-copied from that page and therefore ROTS SILENTLY, in the
+# one direction that hurts: a reason renamed or split upstream simply stops
+# matching, so the PR is never queued and nothing anywhere reports an error.
+# Same class of hazard as the ssh(1) option class in zsh/ssh-parse-argv.test.zsh.
+# Re-read the page when a review that should have been queued was not, and keep
+# the entries in the documented order so the two stay diffable.
+#
+# Two exclusions are deliberate rather than accidental. `ci_activity` is not
+# review feedback -- routing a red check here would wake a session per flaky
+# build. `subscribed` is what fires for activity on a PR you merely watch, which
+# is far wider than the PRs this pipeline can act on (it only queues a PR whose
+# branch is checked out in a local worktree, and those are your own, which
+# `author` already covers).
+REASONS='["assign","author","comment","mention","review_requested","team_mention"]'
 
 force=0
 dry_run=0
@@ -90,21 +107,15 @@ done
 
 mkdir -p "$STATE_DIR/jobs"
 
-# launchd fires on a fixed interval and does not care that the previous run is
-# still going, so two polls can overlap and interleave their writes to the same
-# job file. mkdir is the portable atomic test-and-set (macOS ships no flock(1)).
+# Resolved through the symlink in ~/.local/bin, the same idiom read-doc uses to
+# find read-doc/style.css: the fragment sits next to the real script, not next
+# to the link. See it for why the lock is pid-based rather than time-based.
+# shellcheck source=pr-review-lock.sh
+. "$(dirname "$(readlink -f "$0")")/pr-review-lock.sh"
+
 lock="$STATE_DIR/.lock"
-if ! mkdir "$lock" 2>/dev/null; then
-  # A run killed mid-flight leaves the directory behind forever, which would
-  # silently stop all polling. Anything older than 10 minutes is wreckage: a
-  # poll that honest takes that long has bigger problems than a stolen lock.
-  if [ -n "$(find "$lock" -maxdepth 0 -mmin +10 2>/dev/null)" ]; then
-    rmdir "$lock" 2>/dev/null && mkdir "$lock" 2>/dev/null || exit 0
-  else
-    exit 0
-  fi
-fi
-trap 'rmdir "$lock" 2>/dev/null' EXIT
+if ! take_lock "$lock"; then exit 0; fi
+trap 'release_lock "$lock"' EXIT
 
 # --- identity ---------------------------------------------------------------
 # Cached because it never changes and a poll every 60s should not spend a

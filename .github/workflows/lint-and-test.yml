@@ -72,6 +72,13 @@ jobs:
       - name: tmux-agents
         run: bash bin/tmux-agents.test.sh
 
+      # The lock both review-pipeline programs take. Refusing to steal a dead
+      # holder's lock stops the pipeline forever with no output, since both
+      # programs exit 0 when they cannot take it; stealing a live one lets two
+      # runs interleave writes to the same job file.
+      - name: pr-review lock
+        run: bash bin/pr-review-lock.test.sh
+
       # pr-review-watch queues review feedback for the session working on the
       # branch. Both of its failure modes are silence: a filter that matches
       # nothing looks exactly like "no reviews arrived", and one that stops
