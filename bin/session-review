@@ -1,0 +1,226 @@
+#!/bin/bash
+# Aggregate Claude Code session summaries across sessions and report the shape
+# of them: distributions, outliers, and a weekly series.
+#
+# Everything that needs more than one session lives here rather than in
+# session-extract, so re-running this picks up facts that only became true after
+# the sessions ended. Nothing cached is ever rewritten.
+#
+# Deliberately reports median/p90/max and never a mean: one 30-hour session
+# drags a mean far enough to hide the rest, and the whole point is to find the
+# sessions that stand out rather than to describe a typical one.
+set -euo pipefail
+
+here="$(cd "$(dirname "$0")" && pwd)"
+extract="$here/session-extract"
+
+days=90
+repo_filter=""
+emit_json=0
+use_cache=1
+include_sub=0
+projects="${CLAUDE_PROJECTS_DIR:-$HOME/.claude/projects}"
+
+usage() {
+  cat <<'USAGE'
+usage: session-review [options]
+
+  --days N        Look back N days by transcript mtime (default: 90)
+  --repo PATTERN  Only sessions whose cwd contains PATTERN
+  --json          Emit the full result as JSON instead of a text report
+  --no-cache      Re-extract every session, ignoring the cache
+  --include-subagents
+                  Count agent-*.jsonl transcripts as sessions. Off by default:
+                  a subagent run has one user turn by construction, so mixing
+                  them in makes every turns-per-prompt outlier a subagent.
+  -h, --help      This message
+
+Cache lives in ${XDG_CACHE_HOME:-~/.cache}/session-review/v1/ -- outside the
+repo, because bin/ is symlinked into ~/.local/bin and writing derived data
+through that link would pollute the checkout.
+USAGE
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --days) days="$2"; shift 2 ;;
+    --repo) repo_filter="$2"; shift 2 ;;
+    --json) emit_json=1; shift ;;
+    --no-cache) use_cache=0; shift ;;
+    --include-subagents) include_sub=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "session-review: unknown option: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+if [ ! -d "$projects" ]; then
+  echo "session-review: no transcripts at $projects" >&2
+  exit 2
+fi
+
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/session-review/v1"
+mkdir -p "$cache_dir"
+
+summaries="$(mktemp)"
+trap 'rm -f "$summaries"' EXIT
+
+# The cache is keyed on session id and invalidated by mtime, so a resumed
+# session is re-extracted rather than served stale.
+find "$projects" -name '*.jsonl' -mtime -"$days" -print | while IFS= read -r f; do
+  id="$(basename "$f" .jsonl)"
+  cached="$cache_dir/$id.json"
+  if [ "$use_cache" -eq 1 ] && [ -f "$cached" ] && [ ! "$f" -nt "$cached" ]; then
+    cat "$cached"
+  else
+    if "$extract" "$f" > "$cached.tmp" 2>/dev/null; then
+      mv "$cached.tmp" "$cached"
+      cat "$cached"
+    else
+      rm -f "$cached.tmp"
+      echo "session-review: skipped unreadable transcript: $f" >&2
+    fi
+  fi
+done > "$summaries"
+
+result="$(jq -n -c \
+  --slurpfile s "$summaries" \
+  --arg repo "$repo_filter" \
+  --argjson days "$days" \
+  --argjson subagents "$include_sub" '
+
+  def r2: if . == null then null else (. * 100 | round) / 100 end;
+  def ts: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
+  def pct($a; $p): $a | sort | .[(((length - 1) * $p) | floor)];
+
+  # Tier 1 only: every metric here is decided by record counts and usage
+  # numbers, never by which tool the model happened to reach for. Tier 2
+  # (file-level rework) and Tier 3 (convention compliance) come later and
+  # must be labelled as partial when they do.
+  def metrics:
+    {
+      wall_seconds:       { tier: 1, value: .wall_seconds },
+      user_turns:         { tier: 1, value: .user_turns },
+      assistant_turns:    { tier: 1, value: .assistant_turns },
+      assistant_per_user: { tier: 1, value: (if (.user_turns // 0) > 0 then (.assistant_turns / .user_turns) else null end) },
+      tool_calls:         { tier: 1, value: ([.tools[]?] | add // 0) },
+      tool_result_bytes:  { tier: 1, value: ([.tool_result_bytes[]?] | add // 0) },
+      output_tokens:      { tier: 1, value: .tokens.output },
+      cache_read_tokens:  { tier: 1, value: .tokens.cache_read },
+      bash_error_rate:    { tier: 1, value: (if (.tools.Bash // 0) > 0 then (.errors.bash_stderr / .tools.Bash) else null end) },
+      interrupted:        { tier: 1, value: .errors.interrupted }
+    };
+
+  # A subagent run is written to its own agent-*.jsonl but carries the parent
+  # session id, so identity has to come from the filename. It also has exactly
+  # one user turn by construction -- counting those as sessions fills every
+  # turns-per-prompt outlier slot with subagents and hides the real ones.
+  def transcript_id: .source_path | split("/") | last | rtrimstr(".jsonl");
+
+  ($s | map(select(.started_at != null))
+      | map(select($repo == "" or (.cwd // "" | contains($repo))))
+      | map(. + { transcript: transcript_id })
+      | map(select($subagents == 1 or ((.transcript | startswith("agent-")) | not)))) as $sessions
+
+  | ($s | map(select(transcript_id | startswith("agent-"))) | length) as $subagent_count
+
+  | ($sessions | map(. + { m: metrics, week: (.started_at | ts | gmtime | strftime("%G-W%V")) })) as $rows
+  | ($rows | map(.m | keys[]) | unique) as $names
+
+  | ($names
+     | map(. as $n
+           | ($rows | map(.m[$n].value) | map(select(. != null))) as $vals
+           | { ($n): (if ($vals | length) == 0 then null else {
+                 tier:   ($rows[0].m[$n].tier),
+                 count:  ($vals | length),
+                 median: (pct($vals; 0.5) | r2),
+                 p90:    (pct($vals; 0.9) | r2),
+                 max:    ($vals | max | r2)
+               } end) })
+     | add) as $dist
+
+  # An outlier is a session past p90 on some metric. Named by session id so the
+  # qualitative pass has something concrete to open.
+  | ($rows
+     | map(. as $row
+           | ($names | map(. as $n
+               | ($dist[$n]) as $d
+               | if $d == null or $row.m[$n].value == null or ($d.count) < 5 then empty
+                 elif $row.m[$n].value > $d.p90 then
+                   { transcript: $row.transcript, session_id: $row.session_id, cwd: $row.cwd, metric: $n,
+                     value: ($row.m[$n].value | r2), p90: $d.p90 }
+                 else empty end))
+           | .[])
+     | flatten) as $outliers
+
+  | ($rows | group_by(.week)
+     | map({ week: .[0].week,
+             sessions: length,
+             cc_versions: (map(.cc_versions[]?) | unique),
+             median_tool_calls: (pct(map(.m.tool_calls.value); 0.5) | r2),
+             median_assistant_per_user: ((map(.m.assistant_per_user.value) | map(select(. != null))) as $v
+                                         | if ($v | length) == 0 then null else (pct($v; 0.5) | r2) end) })
+     | sort_by(.week)) as $weeks
+
+  # Gaps matter: the store has whole months missing, so a series read without
+  # them looks continuous when it is not.
+  | (if ($rows | length) == 0 then [] else
+       ($rows | map(.started_at | ts) | min) as $lo
+       | ($rows | map(.started_at | ts) | max) as $hi
+       | ([range(0; (($hi - $lo) / 86400 | floor) + 1)
+           | ($lo + . * 86400) | gmtime | strftime("%G-W%V")] | unique) as $span
+       | ($span - ($weeks | map(.week)))
+     end) as $missing_weeks
+
+  | {
+      schema: 1,
+      window_days: $days,
+      repo_filter: $repo,
+      session_count: ($rows | length),
+      subagent_transcripts: $subagent_count,
+      subagents_included: ($subagents == 1),
+      range: { from: ($rows | map(.started_at) | min), to: ($rows | map(.ended_at) | max) },
+      repos: ($rows | group_by(.cwd) | map({ cwd: .[0].cwd, sessions: length }) | sort_by(-.sessions)),
+      distributions: $dist,
+      outliers: ($outliers | sort_by(.metric, -.value)),
+      weeks: $weeks,
+      missing_weeks: $missing_weeks
+    }
+')"
+
+if [ "$emit_json" -eq 1 ]; then
+  printf '%s\n' "$result" | jq .
+  exit 0
+fi
+
+printf '%s\n' "$result" | jq -r '
+  def pad($n): (. | tostring) as $t | $t + (" " * (($n - ($t | length)) | if . < 0 then 0 else . end));
+
+  "session review  --  \(.session_count) sessions modified in the last \(.window_days) days"
+    + (if .repo_filter != "" then "  (repo filter: \(.repo_filter))" else "" end),
+  (if .session_count == 0 then "no sessions in range" else
+    "range: \(.range.from) .. \(.range.to)"
+      + (if .subagents_included then "  (subagent transcripts included)"
+         elif .subagent_transcripts > 0 then "  (\(.subagent_transcripts) subagent transcripts excluded)"
+         else "" end),
+    "",
+    "repositories",
+    (.repos[] | "  \(.sessions | tostring | pad(5))\(.cwd)"),
+    "",
+    "distributions  (median / p90 / max -- no mean, by design)",
+    "  \("metric" | pad(22))\("tier" | pad(6))\("n" | pad(6))\("median" | pad(14))\("p90" | pad(14))max",
+    (.distributions | to_entries[] | select(.value != null)
+      | "  \(.key | pad(22))\(.value.tier | pad(6))\(.value.count | pad(6))\(.value.median | pad(14))\(.value.p90 | pad(14))\(.value.max)"),
+    "",
+    "outliers  (past p90; open these first)",
+    (if (.outliers | length) == 0 then "  none" else
+      (.outliers[] | "  \(.metric | pad(22))\(.value | pad(14))p90=\(.p90 | pad(12))\(.transcript)")
+    end),
+    "",
+    "weekly",
+    "  \("week" | pad(12))\("n" | pad(5))\("tool_calls" | pad(13))\("asst/user" | pad(12))versions",
+    (.weeks[] | "  \(.week | pad(12))\(.sessions | pad(5))\(.median_tool_calls | pad(13))\(.median_assistant_per_user | pad(12))\(.cc_versions | join(","))"),
+    (if (.missing_weeks | length) > 0 then
+      "", "  weeks with no sessions: \(.missing_weeks | join(", "))"
+     else empty end)
+  end)
+'
