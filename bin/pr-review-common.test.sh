@@ -1,5 +1,5 @@
 #!/bin/bash
-# Exercises bin/pr-review-lock.sh, the single-holder lock both review-pipeline
+# Exercises bin/pr-review-common.sh, the single-holder lock both review-pipeline
 # programs take. It is small, but every way it can be wrong is silent and
 # one-directional:
 #
@@ -16,8 +16,8 @@
 # Written for bash 3.2 (/bin/bash on macOS).
 set -uo pipefail
 
-LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pr-review-lock.sh"
-# shellcheck source=pr-review-lock.sh
+LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pr-review-common.sh"
+# shellcheck source=pr-review-common.sh
 . "$LIB"
 
 pass=0

@@ -75,8 +75,8 @@ done
 
 # Same lock discipline as the watcher: launchd does not care that the previous
 # run is still going, and two dispatchers racing would deliver one job twice.
-# shellcheck source=pr-review-lock.sh
-. "$(dirname "$(readlink -f "$0")")/pr-review-lock.sh"
+# shellcheck source=pr-review-common.sh
+. "$(dirname "$(readlink -f "$0")")/pr-review-common.sh"
 
 lock="$STATE_DIR/.dispatch-lock"
 if ! take_lock "$lock"; then exit 0; fi

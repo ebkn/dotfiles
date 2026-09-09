@@ -110,8 +110,8 @@ mkdir -p "$STATE_DIR/jobs"
 # Resolved through the symlink in ~/.local/bin, the same idiom read-doc uses to
 # find read-doc/style.css: the fragment sits next to the real script, not next
 # to the link. See it for why the lock is pid-based rather than time-based.
-# shellcheck source=pr-review-lock.sh
-. "$(dirname "$(readlink -f "$0")")/pr-review-lock.sh"
+# shellcheck source=pr-review-common.sh
+. "$(dirname "$(readlink -f "$0")")/pr-review-common.sh"
 
 lock="$STATE_DIR/.lock"
 if ! take_lock "$lock"; then exit 0; fi
