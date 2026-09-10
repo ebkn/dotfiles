@@ -193,6 +193,36 @@ attach_as connG
 t "attach: starts the monitor, which records the session" "connG" \
   "$(wait_record connG connG)"
 
+# attach kills the previous connection's monitor on every reconnect, reading the
+# pid out of a file. A monitor that died without running its trap -- SIGKILL, or
+# the machine losing the process -- leaves that file behind, and the OS is then
+# free to hand the number to something else entirely. Signalling it blind kills
+# a bystander, on the remote, with nothing said anywhere.
+#
+# This is the opposite direction from bin/pr-review-lock.sh, where `kill -0` is
+# enough: there a recycled pid costs a missed steal, here it costs somebody
+# else's process, so the pid has to be identified and not merely found alive.
+sleep 600 &
+bystander=$!
+CLIENT_PIDS="$CLIENT_PIDS $bystander"
+mkdir -p "$XDG_STATE_HOME/tmux-track-session/pid"
+printf '%s' "$bystander" > "$XDG_STATE_HOME/tmux-track-session/pid/connH"
+attach_as connH
+t "attach: leaves an unrelated process holding a recycled pid alone" "alive" \
+  "$(kill -0 "$bystander" 2>/dev/null && echo alive || echo dead)"
+
+# The other half of the same decision: a pid that really is this conn_id's
+# monitor must still be killed, or every reconnect leaks one.
+"$SCRIPT" monitor connI "$ttyA" >/dev/null 2>&1 &
+monitor_i=$!
+CLIENT_PIDS="$CLIENT_PIDS $monitor_i"
+for _ in $(seq 1 50); do [ -s "$XDG_STATE_HOME/tmux-track-session/pid/connI" ] && break; sleep 0.1; done
+attach_as connI
+gone=dead
+for _ in $(seq 1 50); do kill -0 "$monitor_i" 2>/dev/null || break; sleep 0.1; done
+kill -0 "$monitor_i" 2>/dev/null && gone=alive
+t "attach: still kills this conn_id's own stale monitor" "dead" "$gone"
+
 # ---------------------------------------------------------------------------
 # The monitor must die quietly.
 #

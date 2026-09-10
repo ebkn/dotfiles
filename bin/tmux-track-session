@@ -69,10 +69,36 @@ case "${1:-}" in
     # Migrate: clean up tty mapping directory from previous implementation
     [ -d "$STATE_DIR/tty" ] && rm -rf "$STATE_DIR/tty"
 
-    # Kill any stale monitor for this conn_id from a previous connection
+    # Kill any stale monitor for this conn_id from a previous connection.
+    #
+    # The pid is identified before it is signalled. A monitor that died without
+    # running its trap -- SIGKILL, or the machine losing the process -- leaves
+    # this file behind, and the OS is then free to hand that number to something
+    # unrelated, so a blind `kill` signals whatever owns it now. On a long-lived
+    # remote that is a real window, not a theoretical one, and the damage lands
+    # on a machine nobody is looking at.
+    #
+    # bin/pr-review-lock.sh settles for `kill -0` because a recycled pid there
+    # only costs a missed steal. The mistake in this direction is destructive,
+    # so liveness is not the question -- identity is. Matching on the monitor's
+    # own argv (this script's name, the `monitor` mode, this conn_id) is what
+    # establishes it; the name is taken from $SELF rather than spelled out so
+    # renaming the script cannot quietly turn the check into "never matches".
     pid_file="$PID_DIR/$conn_id"
     if [ -f "$pid_file" ]; then
-      kill "$(cat "$pid_file")" 2>/dev/null
+      stale_pid=$(cat "$pid_file" 2>/dev/null)
+      case "$stale_pid" in
+        '' | *[!0-9]*) ;;
+        *)
+          # -ww, or procps truncates to the terminal width and the conn_id --
+          # which sits after an absolute path in the monitor's argv -- falls off
+          # the end. The match would then never succeed on Linux and every
+          # reconnect would leak a monitor, silently. BSD ps accepts it too.
+          case "$(ps -ww -p "$stale_pid" -o command= 2>/dev/null)" in
+            *"${SELF##*/}"*monitor*"$conn_id"*) kill "$stale_pid" 2>/dev/null ;;
+          esac
+          ;;
+      esac
       rm -f "$pid_file"
     fi
 
