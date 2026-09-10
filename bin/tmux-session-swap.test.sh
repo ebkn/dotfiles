@@ -145,6 +145,20 @@ pos=$(where "$ttyA")
 "$SCRIPT" arm "$ttyA"
 "$SCRIPT" go no-such-session >/dev/null 2>&1
 t "dead target: the picker did not move"        "$pos"    "$(where "$ttyA")"
+# `go` consumes the arm, on every path. The dead-target branch used to return
+# before reaching the removal, so a pick that resolved to nothing left the tty
+# on disk. Harmless in the binding, which re-arms before every chooser, but it
+# means the file no longer says "a chooser is open right now" -- and that is the
+# only thing it is for.
+t "dead target: the arm was consumed anyway"    "gone" \
+  "$([ -f "$XDG_STATE_HOME/tmux-session-swap/armed" ] && echo left-behind || echo gone)"
+
+# --- anything that is not arm or go is a usage error ------------------------
+# A silent exit 0 here would look exactly like a working key, which is the same
+# reason bin/tmux-popup.test.sh pins its own usage path.
+out=$("$SCRIPT" wobble 2>&1); rc=$?
+t "unknown subcommand: exits non-zero"          "1"       "$rc"
+t "unknown subcommand: says how to call it"     "usage"   "$(case "$out" in *Usage*) echo usage ;; *) echo "silent: $out" ;; esac)"
 
 # --- more than one client on the chosen session ------------------------------
 #
