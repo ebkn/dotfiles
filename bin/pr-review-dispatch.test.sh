@@ -175,16 +175,31 @@ run() {
     "$DISPATCH" "$@" 2>&1
 }
 
+# arrange_and_deliver <tag> -- one live session in $WT with a listener, one job,
+# delivered. Sets WIRE to the capture file and `out` to the run's output.
+#
+# Every group that asserts on a delivery calls this for itself. Three groups used
+# to share one Act, asserting on whatever the first had left behind, which made
+# them break silently the moment anything was inserted or reordered between them
+# -- and left two of them with no Arrange and no Act at all.
+arrange_and_deliver() {
+  local tag=$1
+  reset
+  PID=$(spawn_holder); WIRE="$TMP/wire-$tag"; SOCKP="$TMP/s$tag.sock"
+  listen "$SOCKP" "$WIRE" || no "listener came up ($tag)"
+  session live "$PID" "$WT" "$SOCKP" 100
+  make_job
+  out=$(run)
+  # Checked, not discarded: on a timeout every following assertion reads an empty
+  # file and fails as though the protocol were wrong, pointing at the wrong thing.
+  settle "$WIRE" || no "nothing reached the socket ($tag)"
+}
+
 # --- the wire format --------------------------------------------------------
 # The assertion this suite exists for.
 
 printf 'wire format\n'
-reset
-PID=$(spawn_holder); WIRE="$TMP/wire-1"; SOCKP="$TMP/s1.sock"
-listen "$SOCKP" "$WIRE" || no "listener came up"
-session live "$PID" "$WT" "$SOCKP" 100
-make_job
-out=$(run); settle "$WIRE"
+arrange_and_deliver 1
 
 line=$(cat "$WIRE")
 # Newline-terminated and exactly one line: the socket reads line by line, so a
@@ -213,6 +228,7 @@ has "run reports the send" "$out" "send  acme/widget#42"
 # --- the job after delivery -------------------------------------------------
 
 printf 'job bookkeeping\n'
+arrange_and_deliver 2
 eq "pending is emptied" "0" "$(job '.pending | length')"
 eq "status is delivered" "delivered" "$(job .status)"
 eq "deliveredVia names the socket" "socket" "$(job .deliveredVia)"
@@ -222,8 +238,8 @@ eq "deliveredCount counts the items" "2" "$(job .deliveredCount)"
 eq "seen survives delivery" "review:11 issue:31" "$(job '.seen | join(" ")')"
 
 printf 'prompt file\n'
-P="$STATE/jobs/acme__widget__42.prompt.md"
-body=$(cat "$P")
+arrange_and_deliver 3
+body=$(cat "$STATE/jobs/acme__widget__42.prompt.md")
 # shellcheck disable=SC2016  # the backticks are literal test data, not a subshell
 has "carries the multi-line body verbatim" "$body" 'line two with `backticks` and "quotes"'
 has "carries the inline path and line" "$body" 'a/b.ts:9'
