@@ -22,31 +22,29 @@
 # geometry, and arrow keys, typing and Escape all work with no key table here to
 # get wrong.
 #
-# THE ARITHMETIC THAT KEEPS THE TARGET WINDOW FROM RESIZING. tmux sizes a window
-# to the latest client that used it (window-size latest, the default), so a
-# second client normally shrinks the window it is looking at -- measured here: a
-# 40x12 popup took an 80x23 window down to 38x9, and closing it resized back.
-# Two reflows of the transcript you are trying to read. The mirror avoids this
-# only by giving its client exactly the target window's dimensions:
+# WHY THE MIRROR IS AN INSET, BORDERED POPUP, AND WHAT THAT COSTS. tmux sizes a
+# window to the latest client that used it (window-size latest, the default), so
+# a second client resizes the window it is looking at. The first version of this
+# script went to some length to avoid that: borderless, and sized to exactly
+# #{window_width} x #{window_height} + 1, which does hold the window at its own
+# size (verified: 80x23 stayed 80x23). It was the wrong trade. A popup covering
+# the terminal edge to edge is indistinguishable from having jumped to the tab
+# -- "the whole screen changed" -- and a view you cannot tell you are inside is
+# worse than one that costs a redraw.
 #
-#   -B                 no border, or the usable area is 2 cells short each way
-#   -w  window_width   from the TARGET window, never a percentage
-#   -h  window_height
-#       + 1            the row the footer status line occupies
+# So it is inset and bordered, and the window does resize while it is open. What
+# that actually costs was measured rather than guessed: a 62x18 popup took an
+# 80x23 window to 60x15 and rewrapped its long lines (41 rows of history became
+# 75), and on close `capture-pane -S -60` came back byte-identical to before.
+# tmux reflows back losslessly, so the price is two redraws of a live TUI, not a
+# damaged transcript. (Measured against a static pane; a TUI redraws itself on
+# SIGWINCH either way, which is the same thing that happens when you resize the
+# terminal.)
 #
-# Verified: with these, an 80x23 window stayed 80x23 with the mirror attached.
-# Get the height wrong by one and the window silently loses a row -- nothing
-# errors, and the only symptom is a reflow nobody attributes to this.
-#
-# WHY THE FOOTER IS A STATUS LINE. Sized to the window and borderless, the
-# mirror is pixel-identical to simply being on that tab: nothing says you are in
-# a view, and nothing says how to leave. A border would say both, but a border
-# costs two columns and two rows the client does not have -- the target window
-# is as wide as the terminal -- so drawing one means resizing the window, which
-# is the whole thing this avoids. The mirror session's own status line is the
-# one row that can be spent instead: it is inside the popup, it is styled loudly
-# enough to read as "not your tab", and it says C-q d. Hence `status on` with a
-# fixed status-format, which also means no #() and no status-interval cost.
+# WHY THERE IS ALSO A FOOTER. The border says "popup"; it does not say how to
+# get out, and C-q d is not guessable. The mirror session's own status line is
+# the natural place for that, and it costs no #() fork and no status-interval
+# redraw as long as status-format stays literal.
 #
 # WHY THE POPUP IS CLOSED AND REOPENED RATHER THAN RESIZED. A display-popup
 # aimed at a client that already has one does not open a second popup: tmux
@@ -83,10 +81,14 @@ dir=$(CDPATH='' cd -- "$(dirname -- "$self")" && pwd)
 LIST_WIDTH=80%
 LIST_HEIGHT=60%
 
-# Rows the mirror popup needs on top of the target window's own height: one, for
-# the footer status line. bin/tmux-agents adds the same allowance to the check
-# that decides whether the view fits at all, so the two move together.
-FOOTER_ROWS=1
+# Bigger than the list, and deliberately not the whole terminal: the inset is
+# what makes it read as a popup at all (see the header).
+VIEW_WIDTH=90%
+VIEW_HEIGHT=85%
+
+# Everforest orange, the colour the picker gives 🔶 asking. Used for both the
+# border and the footer so the view is recognisable at a glance.
+ACCENT='#e69875'
 
 mode=${1:-}
 
@@ -129,17 +131,15 @@ case $mode in
         esac
       done || true
 
-    # The size the mirror must have. Read here rather than passed in from the
-    # picker: this is the last moment before the popup opens, and a window that
-    # was resized in between would otherwise be mirrored at a stale size. The
-    # pane is the target, not the window: display-message resolves a target-pane,
-    # and a #{window_*} format read through one is the window holding it.
-    size=$(tmux display-message -p -t "$pane_id" '#{window_width} #{window_height}' 2>/dev/null) || exit 0
-    [ -n "$size" ] || exit 0
+    # Resolved here rather than left to a #{window_name} in -T: display-popup
+    # would expand that against its own target, and the popup's target is the
+    # calling client's pane, not the agent's.
+    name=$(tmux display-message -p -t "$pane_id" '#{window_name}' 2>/dev/null) || name=""
 
     tmux display-popup -C -c "$client" 2>/dev/null || true
-    exec tmux display-popup -B -c "$client" -E \
-      -w "${size% *}" -h "$((${size#* } + FOOTER_ROWS))" \
+    exec tmux display-popup -c "$client" -E \
+      -w "$VIEW_WIDTH" -h "$VIEW_HEIGHT" \
+      -S "fg=$ACCENT" -T " answering ${name:-agent} " \
       "$self attach $client $window_id $pane_id"
     ;;
 
@@ -159,14 +159,12 @@ case $mode in
 
     # The footer. Session options, so none of this touches the target's own
     # status line. `status-position bottom` is set explicitly because the global
-    # is `top` (.tmux.conf) and the point of this row is to sit under the pane,
-    # where a popup's own hint would be. A literal status-format means the bar
-    # costs no #() fork and never redraws on status-interval. The colour is
-    # Everforest orange, matching the 🔶 the picker uses for a session that is
-    # asking -- loud enough that the mirror cannot be mistaken for the tab.
+    # is `top` (.tmux.conf) and the point of this row is to sit at the foot of
+    # the popup, where a hint belongs. A literal status-format means the bar
+    # costs no #() fork and never redraws on status-interval.
     tmux set-option -t "$session" status on
     tmux set-option -t "$session" status-position bottom
-    tmux set-option -t "$session" status-style 'bg=#e69875 fg=#1e2326 bold'
+    tmux set-option -t "$session" status-style "bg=$ACCENT fg=#1e2326 bold"
     tmux set-option -t "$session" status-format[0] \
       '#[align=centre]answering #{window_name} — C-q d: back to the agent list'
 

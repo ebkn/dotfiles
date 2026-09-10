@@ -220,6 +220,23 @@ else
   fail "local panes are labelled local" "$(awk '{ print $3 }' <<<"$displayed" | sort -u)"
 fi
 
+# The hidden first field is the key the jump and the answer view are driven
+# from, and the state rides along in it. ctrl-o is offered only for a session
+# that is blocked on the human, and deriving that from the glyph after the fact
+# would mean reading the rendering back -- so if the state stops reaching the
+# key, ctrl-o silently stops working on exactly the rows it exists for.
+check_key_state() {
+  local desc=$1 window=$2 want=$3 got
+  got=$(grep -F "$window" "$work/list" | head -1 | cut -f1)
+  case "$got" in
+    *"|$want") pass "$desc" ;;
+    *) fail "$desc" "want a key ending in |$want, got: $got" ;;
+  esac
+}
+check_key_state "the key carries the state, for the ctrl-o gate" asking-new  asking
+check_key_state "the key carries the state for a waiting row"    waiting-old waiting
+check_key_state "the key carries the state for a busy row"       busy-new    busy
+
 # --- remote hosts -------------------------------------------------------------
 
 # The remote path had no coverage while it was an awk pass over a second pane

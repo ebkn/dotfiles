@@ -164,8 +164,11 @@ list=$(
             : ($6 == "waiting") ? "🛑" \
             : ($6 == "busy")    ? "▶ " : "🔘"
       where = ($1 == "") ? "local" : $1
-      printf "%s\t%s\t%s|%s|%s\t%s %4s  %-12s %-28s %s\n", \
-        rank, $7, $1, $3, $4, glyph, age($7), where, $5, $8
+      # The state travels in the key too: ctrl-o is only offered for a session
+      # that is actually blocked on the human, and re-deriving that from the
+      # glyph after the fact would be reading the rendering back.
+      printf "%s\t%s\t%s|%s|%s|%s\t%s %4s  %-12s %-28s %s\n", \
+        rank, $7, $1, $3, $4, $6, glyph, age($7), where, $5, $8
     }
   ' | sort -t"$TAB" -k1,1n -k2,2n | cut -f3-
 )
@@ -197,7 +200,7 @@ picked=$(
       --no-multi --no-sort --reverse \
       --expect=ctrl-o \
       --prompt='agent> ' \
-      --header='enter: jump to the tab   ctrl-o: answer it here (C-q d to leave)'
+      --header='enter: jump to the tab   ctrl-o: answer a 🔶/🛑 one here'
 ) || exit 0
 
 # --expect prints the key that closed the picker on its own first line, empty
@@ -214,7 +217,7 @@ if [ -n "${TMUX:-}" ]; then
   outer_client=$(tmux list-clients -F '#{client_name}' -t "\$${TMUX##*,}" 2>/dev/null | head -1) || true
 fi
 
-IFS='|' read -r host window_id pane_id <<<"${selection%%$'\t'*}"
+IFS='|' read -r host window_id pane_id state <<<"${selection%%$'\t'*}"
 
 # --- answer here (ctrl-o) ----------------------------------------------------
 
@@ -232,35 +235,27 @@ if [ "$key" = "ctrl-o" ]; then
   esac
   view="$(cd "$(dirname "$self")" && pwd)/tmux-agent-view"
 
-  if [ -n "$host" ]; then
+  case "$state" in
+    asking | waiting) blocked=yes ;;
+    *) blocked="" ;;
+  esac
+
+  if [ -z "$blocked" ]; then
+    # Only a session with a dialog open has anything to answer. For a busy or a
+    # finished one the view would be no more than a second way of looking at a
+    # tab that is one keypress away, so ctrl-o means enter there.
+    msg "that session is not waiting on you; jumping instead"
+  elif [ -n "$host" ]; then
     # A remote agent lives in the remote tmux, so the mirror would have to be a
-    # nested `ssh -t <host> tmux attach` sized to the *remote* window. Both are
-    # reachable from here — the listing already queries that host — but neither
-    # is exercised by anything on this machine, so it is left out rather than
-    # shipped untested.
+    # nested `ssh -t <host> tmux attach`. That is reachable from here — the
+    # listing already queries that host — but nothing on this machine exercises
+    # it, so it is left out rather than shipped untested.
     msg "answering a remote agent here is not supported yet; jumping instead"
   elif [ -z "$outer_client" ]; then
     msg "no attached client to open the view on; jumping instead"
   else
-    # The mirror only leaves the target window unresized if the popup can be as
-    # large as that window (see tmux-agent-view). When it cannot — a smaller
-    # terminal on this tab than on the agent's — opening it anyway would reflow
-    # the transcript twice, which is exactly the kind of damage nobody would
-    # trace back to this key. Refuse and jump instead.
-    #
-    # The +1 is the footer row tmux-agent-view spends on its status line; the
-    # two allowances have to agree, or the popup gets clamped and takes the row
-    # out of the window instead.
-    read -r win_w win_h < <(tmux display-message -p -t "$pane_id" '#{window_width} #{window_height}' 2>/dev/null || true)
-    read -r cli_w cli_h < <(tmux display-message -p -c "$outer_client" '#{client_width} #{client_height}' 2>/dev/null || true)
-    if [ -z "${win_w:-}" ] || [ -z "${cli_w:-}" ]; then
-      msg "could not measure the agent's window; jumping instead"
-    elif [ "$win_w" -gt "$cli_w" ] || [ "$((win_h + 1))" -gt "$cli_h" ]; then
-      msg "agent window is ${win_w}x${win_h}, this tab only ${cli_w}x${cli_h}; jumping instead"
-    else
-      tmux run-shell -b "$view open $outer_client $window_id $pane_id"
-      exit 0
-    fi
+    tmux run-shell -b "$view open $outer_client $window_id $pane_id"
+    exit 0
   fi
 fi
 

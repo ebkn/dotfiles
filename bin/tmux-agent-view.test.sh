@@ -13,14 +13,13 @@
 #
 # What is worth pinning here is everything whose absence is SILENT:
 #
-#   * -B, and -w/-h taken from the target window with one row added for the
-#     footer. That arithmetic is what keeps the mirror from resizing the window
-#     it is showing (see the header of the script). Get it wrong and the window
-#     loses a row or a column: no error, just a transcript that reflowed for no
-#     visible reason.
-#   * the footer itself — the status line naming C-q d. Sized to the window and
-#     borderless, the mirror looks exactly like the tab it mirrors, so the only
-#     thing saying you are in a view, and how to leave it, is that one row.
+#   * the popup being inset and bordered, with a title. An earlier version sized
+#     it to the target window and passed -B to hold that window at its own size;
+#     it worked, and it was wrong — edge to edge, the view is indistinguishable
+#     from having jumped to the tab. A stray -B, or a 100% geometry, silently
+#     brings that back.
+#   * the footer — the status line naming C-q d. The border says "popup" but not
+#     how to leave, and C-q d is not guessable.
 #   * -C before the second display-popup. Without it tmux MODIFIES the picker's
 #     popup instead of opening a new one, ignoring -w, -h and the command — so
 #     ctrl-o would appear to do nothing at all.
@@ -49,15 +48,14 @@ cp bin/tmux-agent-view "$work/bin/tmux-agent-view"
 script="$work/bin/tmux-agent-view"
 
 # Records every tmux invocation, one per line, and answers the two queries the
-# script makes. 137x42 is deliberately not a round number and not the size of
-# anything else here, so a hard-coded or percentage geometry cannot pass.
+# script makes.
 cat >"$work/tmux" <<STUB
 #!/bin/sh
 printf '%s\n' "\$*" >>"$work/calls"
 case "\$1" in
   display-message)
     case "\$*" in
-      *window_width*) echo "137 42" ;;
+      *window_name*) echo "agent-win" ;;
       *session_name*) echo "work" ;;
     esac
     ;;
@@ -108,29 +106,32 @@ has 'the picker popup is closed before the mirror is opened' \
 # The order matters as much as the presence: a -C after the fact would close the
 # mirror it just opened.
 close_line=$(grep -n 'display-popup -C' "$work/calls" | head -1 | cut -d: -f1)
-open_line=$(grep -n 'display-popup -B' "$work/calls" | head -1 | cut -d: -f1)
+open_line=$(grep -n 'display-popup -c' "$work/calls" | head -1 | cut -d: -f1)
 if [ -n "$close_line" ] && [ -n "$open_line" ] && [ "$close_line" -lt "$open_line" ]; then
   pass 'the close comes first'
 else
   fail 'the close comes first' "close at line ${close_line:-none}, open at ${open_line:-none}"
 fi
 
-# 42 is the window height the stub reports; the popup gets 43, because the
-# footer status line occupies a row of the popup that is not part of the window.
-# Passing 42 here would take that row out of the window instead, shrinking it.
-has 'the mirror popup is borderless, as wide as the window and one row taller' \
-  'display-popup -B -c /dev/ttys001 -E -w 137 -h 43'
+# The mirror is an inset, bordered popup: an edge-to-edge one is indistinguish-
+# able from having jumped to the tab, which is the whole reason it is not sized
+# to the window any more. -B would take the border away and undo that.
+has 'the mirror popup is inset and bordered' \
+  'display-popup -c /dev/ttys001 -E -w 90% -h 85%'
 has 'the mirror popup runs the attach mode against the picked window and pane' \
   "$script attach /dev/ttys001 @7 %42"
 
-# A percentage here would be the easy mistake, and it is the one that resizes
-# the window the view exists to show.
-# Matched on the -w/-h values alone: the pane id in the same line is a %42, so
-# a bare search for "%" passes on the wrong thing.
-mirror_geom=$(grep -o -- '-w [^ ]* -h [^ ]*' "$work/calls" | head -1)
-case "$mirror_geom" in
-  *%*) fail 'the mirror geometry is absolute, not a percentage' "got: $mirror_geom" ;;
-  *) pass 'the mirror geometry is absolute, not a percentage' ;;
+# -B is what the first version used to make the mirror exactly window-sized, and
+# it is the one flag that would silently turn this back into a full-screen view.
+hasnt 'the mirror popup keeps its border' 'display-popup -B'
+
+# The title carries the agent's window name, resolved here rather than left as a
+# #{window_name} in -T: display-popup would expand that against the calling
+# client's pane, naming the wrong window.
+open_call=$(grep 'display-popup -c' "$work/calls" | head -1)
+case "$open_call" in
+  *"-T "*agent-win*) pass 'the border is titled with the agent window name' ;;
+  *) fail 'the border is titled with the agent window name' "got: $open_call" ;;
 esac
 
 has 'an unattached mirror session is swept'   'kill-session -t _agent_9_1'
