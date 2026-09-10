@@ -247,8 +247,12 @@ glyph_of() {
 readonly RS=$'\036'
 readonly US=$'\037'
 
-publish() {
-  local best_state="" best_since="" best_note="" best_rank=9 rank listing=""
+# Reduce the records to the four values the pane options carry, plus the listing.
+# Kept separate from publishing so it can be re-run cheaply: it is all globs and
+# `read`, no forks, which is what makes the verify loop below affordable.
+derive() {
+  best_state=""; best_since=""; best_note=""; listing=""
+  local best_rank=9 rank
   local f
 
   for f in "$state_dir"/main "$state_dir"/a_*; do
@@ -276,41 +280,88 @@ publish() {
       best_note=${best_note:0:120}
     fi
   done
+}
 
-  if [ -z "$best_state" ]; then
-    clear_opts
-    return 0
-  fi
+# THIS RUNS CONCURRENTLY WITH ITSELF. Several subagents launched in one message
+# fire SubagentStart at the same moment, so several copies of this hook derive
+# and publish at once — and a scan that happens to miss a record that another
+# copy has not written yet publishes a view short of an actor.
+#
+# Measured before the loop below existed: 16 concurrent starts published a short
+# listing in 5 of 15 bursts, and 4 of those 5 stayed short afterwards. The
+# staleness stuck because `.published` was written *before* the options, so the
+# copy that set the options last could be the copy whose `.published` write
+# landed first — leaving the file claiming the complete view while the pane held
+# the short one, and every later event then skipped as a no-op. With a `waiting`
+# record among the missing ones, that is the original bug back again: the glyph
+# says busy while a dialog waits.
+#
+# The cure is to publish, then look again, and repeat while what the records say
+# differs from what this copy last wrote. It converges without a lock: every
+# copy writes its own record *before* deriving, so whichever copy sets the
+# options last sees every record written before its scan, and any record written
+# after it belongs to a copy that has yet to publish. The bound is a safety net
+# against a pathological interleaving, not an expected path.
+#
+# Re-deriving is free (globs and `read`), so the loop costs nothing in the
+# ordinary case: the second pass matches and returns.
+publish() {
+  local last="" pub prev attempt=0
 
-  # Skip the tmux round trips when nothing a consumer can see has changed. This
-  # is what pays for the file work above: a subagent reporting busy while the
-  # pane is already busy — the single most frequent event here — now costs no
-  # fork at all, where the previous version spent four on every batch.
-  local pub="$best_state$US$best_since$US$best_note$US$listing" prev=""
-  # Read with the builtin, not $(cat ...): a fork here would spend exactly what
-  # this check exists to save. The record carries no newline, so `read` reports
-  # EOF while still having filled prev.
-  [ -f "$state_dir/.published" ] && IFS= read -r prev <"$state_dir/.published"
-  if [ "$prev" = "$pub" ]; then
-    return 0
-  fi
-  printf '%s' "$pub" >"$state_dir/.published" 2>/dev/null || true
+  while [ "$attempt" -lt 5 ]; do
+    attempt=$((attempt + 1))
+    derive
 
-  set_opt @claude_state "$best_state"
-  set_opt @claude_glyph "$(glyph_of "$best_state")"
-  set_opt @claude_since "$best_since"
-  if [ -n "$best_note" ]; then
-    set_opt @claude_note "$best_note"
-  else
-    unset_opt @claude_note
-  fi
-  set_opt @claude_agents "$listing"
+    if [ -z "$best_state" ]; then
+      clear_opts
+      return 0
+    fi
 
-  # The status line and the client title are only recomputed on redraw, and
-  # status-interval is 30s (.tmux.conf) to keep #() fork rates low. Force the
-  # redraw here so the glyph appears the moment the state changes, instead of
-  # lowering that interval for everyone.
-  tmux refresh-client -S 2>/dev/null
+    pub="$best_state$US$best_since$US$best_note$US$listing"
+
+    # What the records say still matches what this copy wrote: nothing has
+    # changed underneath us, so the pane is up to date.
+    [ "$pub" = "$last" ] && return 0
+
+    # The fast path, and the reason the records are worth keeping at all: with
+    # no subagent registered this process is the only writer, so the file is an
+    # accurate record of what the pane holds and an unchanged state costs no
+    # fork at all — where the previous version spent four on every batch.
+    #
+    # It is deliberately NOT consulted once subagents exist. Under concurrency
+    # the file cannot represent what the pane holds (another copy may have
+    # written it and then lost the race to set the options), and trusting it
+    # there is exactly what made a stale glyph stick. A few tmux calls during a
+    # multi-agent phase are cheap next to the agents themselves.
+    if ! has_agents; then
+      prev=""
+      # Read with the builtin, not $(cat ...): a fork here would spend exactly
+      # what this check exists to save. The record carries no newline, so `read`
+      # reports EOF while still having filled prev.
+      [ -f "$state_dir/.published" ] && IFS= read -r prev <"$state_dir/.published"
+      [ "$prev" = "$pub" ] && return 0
+    fi
+
+    set_opt @claude_state "$best_state"
+    set_opt @claude_glyph "$(glyph_of "$best_state")"
+    set_opt @claude_since "$best_since"
+    if [ -n "$best_note" ]; then
+      set_opt @claude_note "$best_note"
+    else
+      unset_opt @claude_note
+    fi
+    set_opt @claude_agents "$listing"
+    # Written after the options, not before: the file must never claim more than
+    # the pane actually got.
+    printf '%s' "$pub" >"$state_dir/.published" 2>/dev/null || true
+    last=$pub
+
+    # The status line and the client title are only recomputed on redraw, and
+    # status-interval is 30s (.tmux.conf) to keep #() fork rates low. Force the
+    # redraw here so the glyph appears the moment the state changes, instead of
+    # lowering that interval for everyone.
+    tmux refresh-client -S 2>/dev/null
+  done
   return 0
 }
 

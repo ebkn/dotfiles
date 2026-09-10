@@ -405,6 +405,109 @@ else
   bad "Stop left $count actors, want 3 (main + two subagents)"
 fi
 
+echo "-- concurrent actors: the hook races with itself --"
+# Subagents launched in one message fire SubagentStart simultaneously, so several
+# copies of the hook derive and publish at once. Everything else in this file is
+# sequential and cannot see that. Before publish() re-derived after writing, a
+# copy whose scan missed a record published a view short of an actor, and the
+# `.published` file — written before the options back then — could leave the
+# pane holding the short view while claiming the complete one, so every later
+# event skipped as a no-op.
+#
+# The assertion that matters is the glyph, not the row count: with a blocked
+# actor among the racing ones, a lost record means the tab says `busy` while a
+# dialog waits, which is the whole bug this hook was rewritten to fix.
+#
+# THIS CASE IS PROBABILISTIC and is therefore not the regression guard. Measured
+# against the previous implementation it failed 1 to 4 rounds in 10, varying with
+# machine load, so a handful of rounds can pass on a broken hook — and a test
+# that passes on broken code proves nothing. It is here as a smoke test that a
+# burst does not corrupt anything outright; the deterministic case below it is
+# what actually pins the rule the fix rests on.
+concurrent_agents=12
+concurrent_rounds=3
+race_short=0
+race_wrong=0
+for _round in $(seq 1 "$concurrent_rounds"); do
+  run clear
+  for i in $(seq 1 "$concurrent_agents"); do
+    run subagent-start "$(agent_json "ag$i" Explore)" &
+  done
+  # ...and one of them is blocked on a permission prompt at the same moment.
+  run notify "$(agent_json ag1 Explore permission_prompt 'blocked')" &
+  wait
+
+  on_disk=0
+  for f in "$XDG_STATE_HOME"/claude-agent-state/*/a_*; do
+    [[ -e "$f" ]] && on_disk=$((on_disk + 1))
+  done
+  listed=0
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] && listed=$((listed + 1))
+  done <<<"$(get_opt @claude_agents | tr "$RS" '\n')"
+  [[ "$listed" -ne "$on_disk" ]] && race_short=$((race_short + 1))
+  [[ "$(get_opt @claude_state)" != waiting ]] && race_wrong=$((race_wrong + 1))
+done
+
+if [[ "$race_wrong" -eq 0 ]]; then
+  ok "a blocked actor is never lost to a concurrent burst"
+else
+  bad "a concurrent burst hid a blocked actor in $race_wrong of $concurrent_rounds rounds"
+fi
+if [[ "$race_short" -eq 0 ]]; then
+  ok "the published listing matches the records after a concurrent burst"
+else
+  bad "the listing was short of the records in $race_short of $concurrent_rounds rounds"
+fi
+
+# The deterministic half, and the reason the race stuck rather than healing: the
+# hook keeps a note of what it last published so an unchanged state costs no
+# tmux call, and that note is only trustworthy while this process is the only
+# writer. Under a burst it is not — another copy can write the note and then
+# lose the race to set the options — so with subagents registered the note must
+# not be believed.
+#
+# The divergence is produced here by clearing the options behind the hook's
+# back, which is the same end state that interleaving reaches: the note claims
+# the complete view, the pane does not have it. Nothing about the note's format
+# is assumed, only that a live blocked actor must reappear.
+run clear
+run subagent-start "$(agent_json A Explore)"
+run notify "$(agent_json A Explore permission_prompt 'still blocked')"
+assert_opt @claude_state waiting
+for opt in @claude_state @claude_glyph @claude_since @claude_note @claude_agents; do
+  tmux -L "$SOCK" set-option -p -t "$PANE" -u "$opt"
+done
+# The follow-up event must derive the *same* view, or it would republish for the
+# ordinary reason and prove nothing: re-firing the same notification keeps the
+# record byte-identical, because a re-record of an unchanged state preserves its
+# timestamp.
+run notify "$(agent_json A Explore permission_prompt 'still blocked')"
+got=$(get_opt @claude_state)
+if [[ "$got" == waiting ]]; then
+  ok "a diverged pane is republished while subagents are registered"
+else
+  bad "a diverged pane kept its stale options: [$got]"
+fi
+
+# The single-actor case deliberately keeps the shortcut: with one writer the
+# note cannot go stale on its own, and this is the path that runs once per tool
+# batch. The cost is that a pane cleared from outside stays cleared until
+# something changes — SessionStart is the recovery, and pinning it here is what
+# stops that trade-off from being mistaken for an oversight.
+run clear
+run busy
+for opt in @claude_state @claude_glyph @claude_since @claude_note; do
+  tmux -L "$SOCK" set-option -p -t "$PANE" -u "$opt"
+done
+run busy
+got=$(get_opt @claude_state)
+if [[ -z "$got" ]]; then
+  ok "with one actor the no-change shortcut is kept, divergence and all"
+else
+  bad "the single-actor shortcut republished unexpectedly: [$got]"
+fi
+
 echo "-- @claude_agents: one entry per actor, readable from a format --"
 run clear
 run busy
