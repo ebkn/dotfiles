@@ -573,6 +573,58 @@ STUB
   done
 fi
 
+# --- the enter decision, on its own ---------------------------------------------
+
+# enter refuses a row from INSIDE fzf, so that a row it cannot act on leaves the
+# picker standing with the reason in its header instead of closing the popup and
+# printing to a status line behind it. The binding cannot work that out from the
+# row alone -- whether a WezTerm tab shows that window takes tmux, and maybe
+# wezterm, to answer -- so it re-enters the script as `--jump-check`, which
+# prints the fzf actions to run.
+#
+# That mode is worth pinning on its own: it is the half that decides, it needs
+# no pty, and each of its answers is a different silent failure. Accepting a row
+# that cannot be jumped to makes enter close the popup and do nothing; refusing
+# one that can makes enter dead.
+jump_check() {
+  rm -f "$work/jc"
+  tmux -L "$socket" run-shell "cd $PWD && PATH=$work/wstub:$PWD/bin:\$PATH tmux-agents --jump-check '$1' >$work/jc 2>&1"
+  for _ in $(seq 1 20); do
+    [ -s "$work/jc" ] && break
+    sleep 0.2
+  done
+  cat "$work/jc" 2>/dev/null
+}
+
+jc_win=$(tmux -L "$socket" list-windows -t work -F '#{window_id}' 2>/dev/null | head -1)
+if [ -z "$jc_win" ]; then
+  tmux -L "$socket" new-session -d -s jc "$IDLE"
+  jc_win=$(tmux -L "$socket" list-windows -t jc -F '#{window_id}' | head -1)
+fi
+jc_pane=$(tmux -L "$socket" list-panes -t "$jc_win" -F '#{pane_id}' | head -1)
+
+out=$(jump_check "|$jc_win|$jc_pane|asking")
+case "$out" in
+  "change-header(enter: nothing is showing that window"*)
+    pass "--jump-check refuses a window no client is showing" ;;
+  *) fail "--jump-check refuses a window no client is showing" "got: $out" ;;
+esac
+
+out=$(jump_check "no-such-host|@9|%9|asking")
+case "$out" in
+  "change-header(enter: no local pane is connected to no-such-host)"*)
+    pass "--jump-check refuses a remote row with no ssh pane to land on" ;;
+  *) fail "--jump-check refuses a remote row with no ssh pane to land on" "got: $out" ;;
+esac
+
+# Every refusal must be a change-header and nothing else: a stray accept here is
+# an enter that closes the popup and does nothing, which is the exact complaint
+# this whole path exists to answer.
+case "$out" in
+  *accept*) fail "a refusal never accepts" "got: $out" ;;
+  *) pass "a refusal never accepts" ;;
+esac
+
 # --- the real fzf binding ------------------------------------------------------
 
 # Every case above stubs fzf, which means none of them touch the --bind that
@@ -699,17 +751,29 @@ else
   # press_enter <window name> — type enough to select that row, then Enter.
   press_enter() {
     tmux -L "$socket" select-pane -t "$jump_other"
+    # SHELL=/bin/sh, because fzf runs a transform through $SHELL and the login
+    # shell here is zsh, which REBUILDS $PATH for every `zsh -c` -- so the
+    # wezterm stub below would be invisible to the enter binding and the whole
+    # success path would silently take the "no tab" branch. sh keeps the
+    # environment it is given.
     tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
-      "sh -c 'PATH=$work/wstub:$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
+      "sh -c 'SHELL=/bin/sh PATH=$work/wstub:$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
     wait_screen "$1" || return 1
     tmux -L "$socket" send-keys -t "$fzf_pane" "$1"
     sleep 0.4
     tmux -L "$socket" send-keys -t "$fzf_pane" Enter
+    return 0
+  }
+
+  # Waits for whichever outcome enter is supposed to have, so neither case pays
+  # the other's timeout: acceptance closes the picker, a refusal leaves it up
+  # with the reason in its header.
+  wait_dead() {
     for _ in $(seq 1 40); do
-      [ "$(dead)" = 1 ] && break
+      [ "$(dead)" = 1 ] && return 0
       sleep 0.25
     done
-    return 0
+    return 1
   }
 
   # A directory of its own, NOT $work/stub: that one holds the fzf stub, and
@@ -721,6 +785,19 @@ else
   if ! press_enter b-jump; then
     fail "the picker lists the jump fixture" "$(screen)"
   else
+    # The point of refusing inside fzf: the popup stays, and says why. A
+    # refusal that closed it would be a popup that vanishes with the reason on
+    # a status line somewhere behind it.
+    if wait_screen 'enter: '; then
+      pass "enter that cannot act warns in the header"
+    else
+      fail "enter that cannot act warns in the header" "$(screen)"
+    fi
+    if [ "$(dead)" = 0 ]; then
+      pass "and leaves the picker open"
+    else
+      fail "and leaves the picker open" "the pane exited" "$(screen)"
+    fi
     active=$(tmux -L "$socket" display-message -p -t bindB:b-jump '#{pane_id}')
     if [ "$active" = "$jump_other" ]; then
       pass "enter with no WezTerm tab to raise touches nothing"
@@ -766,6 +843,7 @@ STUB
     if ! press_enter b-jump; then
       fail "the picker lists the jump fixture (wezterm case)" "$(screen)"
     else
+      wait_dead || true
       if grep -q 'activate-tab --tab-id 77' "$work/wezterm-calls" 2>/dev/null; then
         pass "enter raises the WezTerm tab that shows the agent's window"
       else
@@ -804,6 +882,7 @@ STUB
     if ! press_enter b-jump; then
       fail "the picker lists the jump fixture (ssh case)" "$(screen)"
     else
+      wait_screen 'enter: ' || true
       if [ ! -s "$work/wezterm-calls" ]; then
         pass "enter on a window shown over ssh never runs wezterm at all"
       else
