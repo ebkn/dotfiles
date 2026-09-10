@@ -220,6 +220,78 @@ else
   fail "local panes are labelled local" "$(awk '{ print $3 }' <<<"$displayed" | sort -u)"
 fi
 
+# --- one row per actor ---------------------------------------------------------
+
+# A pane running subagents holds several states at once, and agent-state.sh
+# publishes them as @claude_agents alongside the aggregate. Expanding that into
+# a row each is the whole reason the picker exists in a world with subagents:
+# with only the aggregate, three agents where one is blocked look exactly like
+# three agents where none is, and the tab glyph already told you that much.
+RS=$'\036'
+US=$'\037'
+
+tmux -L "$socket" new-window -t work -n multi-win "$IDLE"
+multi_pane=$(tmux -L "$socket" list-panes -t work:multi-win -F '#{pane_id}' | head -1)
+# The aggregate, as the hook would publish it: the blocked subagent wins.
+tmux -L "$socket" set-option -p -t "$multi_pane" @claude_state waiting
+tmux -L "$socket" set-option -p -t "$multi_pane" @claude_since "$((now - 300))"
+multi_listing="busy${US}$((now - 5))${US}${US}${RS}"
+multi_listing+="waiting${US}$((now - 300))${US}Explore${US}needs permission${RS}"
+multi_listing+="busy${US}$((now - 20))${US}Plan${US}${RS}"
+tmux -L "$socket" set-option -p -t "$multi_pane" @claude_agents "$multi_listing"
+
+if run_picker; then
+  rows=$(grep -c 'multi-win' "$work/list" || true)
+  if [ "$rows" -eq 3 ]; then
+    pass "a pane with three actors contributes three rows, not one"
+  else
+    fail "a pane with three actors contributes three rows, not one" \
+      "got $rows" "$(grep 'multi-win' "$work/list")"
+  fi
+
+  # The aggregate must not be emitted on top of the listing: it is derived from
+  # exactly those records, so a fourth row would be one of them counted twice.
+  agg=$(grep 'multi-win' "$work/list" | grep -c 'needs permission' || true)
+  if [ "$agg" -eq 1 ]; then
+    pass "the aggregate is not listed again beside the actors it summarises"
+  else
+    fail "the aggregate is not listed again beside the actors it summarises" "got $agg rows"
+  fi
+
+  blocked=$(grep 'multi-win' "$work/list" | grep -F 'Explore' | cut -f2-)
+  case "$blocked" in
+    '🛑 '*) pass "the blocked subagent keeps its own glyph, not the pane's" ;;
+    *) fail "the blocked subagent keeps its own glyph, not the pane's" "row: ${blocked:-<missing>}" ;;
+  esac
+  case "$blocked" in
+    *"multi-win [Explore]"*"needs permission"*)
+      pass "the row names which subagent it is and carries its note" ;;
+    *) fail "the row names which subagent it is and carries its note" "row: ${blocked:-<missing>}" ;;
+  esac
+
+  # Ranking is per actor too: the blocked subagent sorts above every busy row,
+  # including the two from its own pane. Anything else and the row that needs a
+  # human is below the fold, which is the failure this picker exists to prevent.
+  first=$(cut -f2- "$work/list" | head -1 | awk '{ print $4 }')
+  if [ "$first" = "waiting-old" ]; then
+    pass "actor rows join the same ranking as pane rows"
+  else
+    fail "actor rows join the same ranking as pane rows" "first row is $first"
+  fi
+  explore_pos=$(cut -f2- "$work/list" | grep -n 'Explore' | cut -d: -f1)
+  busy_pos=$(cut -f2- "$work/list" | grep -n 'busy-old' | cut -d: -f1)
+  if [ "$explore_pos" -lt "$busy_pos" ]; then
+    pass "a blocked subagent outranks a busy pane"
+  else
+    fail "a blocked subagent outranks a busy pane" "Explore at $explore_pos, busy-old at $busy_pos"
+  fi
+else
+  fail "the per-actor path produces a list" "fzf stub was never reached"
+fi
+
+# Back to the aggregate-only fixture: the remote and empty cases below assume it.
+tmux -L "$socket" kill-window -t work:multi-win 2>/dev/null
+
 # --- remote hosts -------------------------------------------------------------
 
 # The remote path had no coverage while it was an awk pass over a second pane
