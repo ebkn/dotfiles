@@ -36,7 +36,13 @@ fi
 
 socket="agents-test-$$"
 work=$(mktemp -d)
-cleanup() { tmux -L "$socket" kill-server 2>/dev/null; rm -rf "$work"; }
+pty_pids=""
+cleanup() {
+  # shellcheck disable=SC2086 # deliberate word splitting: pty_pids is a list
+  [ -n "$pty_pids" ] && kill $pty_pids 2>/dev/null
+  tmux -L "$socket" kill-server 2>/dev/null
+  rm -rf "$work"
+}
 trap cleanup EXIT
 
 failures=0
@@ -422,13 +428,28 @@ fi
 # The client is a pty from script(1), whose argument order differs between BSD
 # and GNU; both spellings are tried. Inside the popup tmux sets $TMUX, so a bare
 # `tmux` in the script under test reaches this server with no shim.
+# `sleep` on stdin, deliberately: script(1) copies its own stdin into the pty it
+# creates and exits when that stdin reaches EOF, taking the tmux client with it.
+# Run from a test whose stdin is an exhausted pipe that is immediate, and the
+# client never appears -- which is the intermittent "no pty client" failure this
+# suite used to show about once in ten runs. A pipe nobody ever writes to keeps
+# the pty open for as long as the test needs it.
 pty_attach() {
   if script -q /dev/null true >/dev/null 2>&1; then
-    script -q /dev/null tmux -L "$socket" attach -t "$1" >/dev/null 2>&1 &
+    { sleep 120 | script -q /dev/null tmux -L "$socket" attach -t "$1"; } >/dev/null 2>&1 &
   else
-    script -q -c "tmux -L $socket attach -t $1" /dev/null >/dev/null 2>&1 &
+    { sleep 120 | script -q -c "tmux -L $socket attach -t $1" /dev/null; } >/dev/null 2>&1 &
   fi
+  # Remembered so cleanup can end it: the sleep outlives the test otherwise, and
+  # anything inheriting its stdout would wait two minutes for the pipe to close.
+  pty_pids="${pty_pids:-} $!"
 }
+
+# Defined out here, not inside the block that uses it: when the pty client could
+# not be attached that block is skipped, and a helper defined inside it would
+# take out every later section with "command not found" -- turning one honest
+# failure into three misleading ones.
+mirrors() { tmux -L "$socket" list-sessions -F '#{session_name}' | grep -c '^_agent_' || true; }
 
 tmux -L "$socket" new-session -d -s tabA "$IDLE"
 tmux -L "$socket" new-session -d -s tabB -n busy-win "$IDLE"
@@ -472,8 +493,6 @@ STUB
       "sh -c 'PICK=$1 PATH=$work/stub:$PWD/bin:\$PATH tmux-agents >$work/out 2>&1'"
     sleep 2
   }
-  mirrors() { tmux -L "$socket" list-sessions -F '#{session_name}' | grep -c '^_agent_' || true; }
-
   press_ctrl_o busy-win
   if [ "$(mirrors)" = 0 ]; then
     pass "ctrl-o on a session that is not blocked attaches nothing"
@@ -615,6 +634,56 @@ else
     pass "ctrl-o on a blocked row is accepted"
   else
     fail "ctrl-o on a blocked row is accepted" "picker still running" "$(screen)"
+  fi
+
+  # --- enter, through the real fzf ---------------------------------------------
+  #
+  # enter and ctrl-o are two different features and must stay that way: enter
+  # goes to the agent's tab, ctrl-o brings the agent here. Everything above that
+  # exercises enter does it through a STUBBED fzf, so the binding enter actually
+  # runs -- `enter:print()+accept`, which replaced --expect when ctrl-o became a
+  # transform -- was never covered. If that print() ever stops emitting its
+  # empty first line, the row is read one line off and the jump silently targets
+  # nothing; if it emitted the wrong key name, enter would open the view.
+  #
+  # The observable end of the jump is select-pane, so the agent sits in the
+  # SECOND pane of its window and the first is made active beforehand.
+  tmux -L "$socket" new-window -t bindB -n b-jump "$IDLE"
+  tmux -L "$socket" split-window -t bindB:b-jump "$IDLE"
+  jump_target=$(tmux -L "$socket" list-panes -t bindB:b-jump -F '#{pane_id}' | tail -1)
+  jump_other=$(tmux -L "$socket" list-panes -t bindB:b-jump -F '#{pane_id}' | head -1)
+  tmux -L "$socket" set-option -p -t "$jump_target" @claude_state waiting
+  tmux -L "$socket" set-option -p -t "$jump_target" @claude_since "$(date +%s)"
+  tmux -L "$socket" select-pane -t "$jump_other"
+
+  tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
+    "sh -c 'PATH=$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
+  if ! wait_screen 'b-jump'; then
+    fail "the picker lists the jump fixture" "$(screen)"
+  else
+    # b-jump is `waiting` and b-ask `asking`; both share the top rank and the
+    # older one sorts first, so the cursor is not assumed -- it is moved onto
+    # the row by matching, which is what a person does too.
+    tmux -L "$socket" send-keys -t "$fzf_pane" "b-jump"
+    sleep 0.4
+    tmux -L "$socket" send-keys -t "$fzf_pane" Enter
+    for _ in $(seq 1 40); do
+      [ "$(dead)" = 1 ] && break
+      sleep 0.25
+    done
+    active=$(tmux -L "$socket" display-message -p -t bindB:b-jump '#{pane_id}')
+    if [ "$active" = "$jump_target" ]; then
+      pass "enter jumps to the picked pane through the real fzf"
+    else
+      fail "enter jumps to the picked pane through the real fzf" \
+        "active pane is $active, wanted $jump_target" "$(cat "$work/real2" 2>/dev/null)"
+    fi
+    if [ "$(mirrors)" = 0 ]; then
+      pass "enter opens no answer view -- the two keys stay separate features"
+    else
+      fail "enter opens no answer view -- the two keys stay separate features" \
+        "$(tmux -L "$socket" list-sessions -F '#{session_name}')"
+    fi
   fi
 fi
 
