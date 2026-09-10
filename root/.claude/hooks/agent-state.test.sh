@@ -42,7 +42,15 @@ tmux -L "$SOCK" -f /dev/null new-session -d -s t 'sleep 600' || {
   printf 'FAIL: could not start the test tmux server\n'
   exit 1
 }
-trap 'tmux -L "$SOCK" kill-server 2>/dev/null' EXIT
+
+# The hook keeps its per-actor records under $XDG_STATE_HOME, so the test needs
+# its own — otherwise it writes into the state of the sessions the developer has
+# open, and `clear` here would delete their records. Exported, because the hook
+# reads it from the environment it is launched with.
+XDG_STATE_HOME=$(mktemp -d)
+export XDG_STATE_HOME
+
+trap 'tmux -L "$SOCK" kill-server 2>/dev/null; rm -rf "$XDG_STATE_HOME"' EXIT
 
 PANE=$(tmux -L "$SOCK" list-panes -F '#{pane_id}' | head -1)
 # $TMUX is what makes the hook's bare `tmux` calls land on the test server:
@@ -279,6 +287,167 @@ run busy; check_no_vs16 busy
 run clear; run ask '{"tool_input":{"questions":[{"question":"q"}]}}'; check_no_vs16 asking
 run clear; run notify "$(notify_json permission_prompt 'p')"; check_no_vs16 waiting
 run 'done'; check_no_vs16 stalled
+
+echo "-- several actors in one pane --"
+# Hooks fire inside subagents too, carrying agent_id/agent_type, so one pane can
+# hold the main thread plus one state per running subagent. These cases are the
+# reason the hook keeps per-actor records at all: the published options are a
+# derived view over them, and every failure below was a real symptom — a tab
+# claiming progress while a dialog sat unanswered.
+RS=$'\036'
+US=$'\037'
+
+# $1 agent_id, $2 agent_type, $3.. extra top-level JSON fields (already ",key:v")
+agent_json() {
+  jq -cn --arg id "$1" --arg t "$2" --arg n "${3-}" --arg m "${4-}" \
+    '{agent_id:$id, agent_type:$t}
+     + (if $n == "" then {} else {notification_type:$n} end)
+     + (if $m == "" then {} else {message:$m} end)'
+}
+
+# The reported bug, as a regression test. Two subagents run; one of them is
+# blocked on a permission prompt; the other keeps working. Before per-actor
+# records, the second one's PostToolBatch overwrote the first one's `waiting`
+# with `busy` and the tab showed ▶ while nothing could proceed.
+run clear
+run subagent-start "$(agent_json A Explore)"
+run subagent-start "$(agent_json B Plan)"
+run busy
+run notify "$(agent_json A Explore permission_prompt 'Bash wants to run rm -rf')"
+run busy "$(agent_json B Plan)"
+run busy "$(agent_json B Plan)"
+assert_opt @claude_state waiting
+assert_opt @claude_glyph '🛑'
+# Which actor is blocked is the first thing you need, so the label leads the note.
+assert_opt @claude_note 'Explore: Bash wants to run rm -rf'
+
+# ...and the blocked subagent's own next batch is what clears it, not anyone
+# else's. Answering the prompt lets that agent proceed; nothing else may speak
+# for it.
+run busy "$(agent_json A Explore)"
+assert_opt @claude_state busy
+assert_opt @claude_glyph '▶ '
+
+echo "-- precedence across actors: blocked outranks running --"
+for blocked in asking waiting; do
+  run clear
+  run subagent-start "$(agent_json A Explore)"
+  run busy                                  # main: working
+  run busy "$(agent_json A Explore)"        # subagent: working
+  if [[ "$blocked" == asking ]]; then
+    run ask '{"tool_input":{"questions":[{"question":"which one?"}]}}'
+  else
+    run notify "$(notify_json permission_prompt 'perm')"
+  fi
+  got=$(get_opt @claude_state)
+  if [[ "$got" == "$blocked" ]]; then
+    ok "a running subagent does not mask main's $blocked"
+  else
+    bad "main's $blocked was masked -> [$got]"
+  fi
+done
+
+# asking outranks waiting: it is the only state whose note cannot be
+# reconstructed from anywhere else, so it is the one worth showing.
+run clear
+run notify "$(notify_json permission_prompt 'perm on main')"
+run ask "$(jq -cn '{agent_id:"A", agent_type:"Explore",
+                    tool_input:{questions:[{question:"pick one"}]}}')"
+assert_opt @claude_state asking
+assert_opt @claude_note 'Explore: pick one'
+
+echo "-- ties go to the actor blocked longest --"
+run clear
+run subagent-start "$(agent_json A Explore)"
+run notify "$(agent_json A Explore permission_prompt 'older')"
+older=$(get_opt @claude_since)
+# A whole second of sleep, grudgingly: the records carry epoch seconds, so two
+# actors blocked inside the same second are a genuine tie and would exercise the
+# note tie-break instead of the age one this case is about.
+sleep 1
+run notify "$(notify_json permission_prompt 'newer')"
+assert_opt @claude_since "$older"
+assert_opt @claude_note 'Explore: older'
+
+echo "-- SubagentStop is what removes an actor --"
+run clear
+run busy                                    # main busy
+run subagent-start "$(agent_json A Explore)"
+run notify "$(agent_json A Explore permission_prompt 'blocked')"
+assert_opt @claude_state waiting
+run subagent-stop "$(agent_json A Explore)"
+assert_opt @claude_state busy
+assert_opt @claude_note ''
+
+# Stop (the `done` transition) must NOT drop the subagent records: a backgrounded
+# agent outlives the turn that launched it, and dropping it here would hide
+# exactly the agent most likely to be waiting on you.
+run clear
+run subagent-start "$(agent_json A Explore)"
+run notify "$(agent_json A Explore agent_needs_input 'Explore needs your input')"
+run 'done'
+# The agent is still blocked on the human, and that outranks the finished turn.
+assert_opt @claude_state stalled
+assert_opt @claude_note 'Explore: Explore needs your input'
+run subagent-start "$(agent_json B Plan)"
+run 'done'
+# A background agent that is still working means the pane is still working,
+# whatever the main turn did — but the point of the case is that neither
+# record was dropped by Stop.
+assert_opt @claude_state busy
+count=0
+while IFS= read -r entry; do
+  [[ -n "$entry" ]] && count=$((count + 1))
+done <<<"$(get_opt @claude_agents | tr "$RS" '\n')"
+if [[ "$count" -eq 3 ]]; then
+  ok "Stop keeps every background subagent's record"
+else
+  bad "Stop left $count actors, want 3 (main + two subagents)"
+fi
+
+echo "-- @claude_agents: one entry per actor, readable from a format --"
+run clear
+run busy
+run subagent-start "$(agent_json A Explore)"
+run notify "$(agent_json A Explore permission_prompt 'why me')"
+listing=$(get_opt @claude_agents)
+count=0
+while IFS= read -r entry; do
+  [[ -n "$entry" ]] && count=$((count + 1))
+done <<<"${listing//$RS/$'\n'}"
+if [[ "$count" -eq 2 ]]; then ok "@claude_agents lists both actors"; else bad "@claude_agents has $count entries, want 2"; fi
+if [[ "$listing" == *"waiting${US}"*"${US}Explore${US}why me"* ]]; then
+  ok "@claude_agents carries state, label and note per actor"
+else
+  bad "@claude_agents entry shape: [$listing]"
+fi
+
+# The picker reads this through a `list-panes -F` format — including over ssh,
+# where the *remote* tmux expands it — so the control characters have to survive
+# that round trip, not merely show-options. If they ever do not, the separator
+# is the thing to change, not the consumer.
+via_format=$(tmux -L "$SOCK" list-panes -a -F '#{@claude_agents}' | head -1)
+if [[ "$via_format" == "$listing" ]]; then
+  ok "@claude_agents survives a list-panes format unchanged"
+else
+  bad "@claude_agents differs through a format"
+fi
+
+run clear
+assert_opt @claude_agents ''
+
+echo "-- attribution comes from the top-level key, never from tool output --"
+# PostToolBatch carries the content of every tool result in the batch, so a file
+# the agent just read can contain the *text* "agent_id". Attributing on a shell
+# regex over the raw payload would file the main thread's state under a subagent
+# that does not exist, and it would do it silently.
+run clear
+run subagent-start "$(agent_json A Explore)"
+run busy "$(jq -cn '{tool_calls:[{tool_name:"Read",
+                     content:"agent_id: \"A\", agent_type: \"Explore\""}]}')"
+run notify "$(notify_json permission_prompt 'main is blocked')"
+assert_opt @claude_state waiting
+assert_opt @claude_note 'main is blocked'
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]
