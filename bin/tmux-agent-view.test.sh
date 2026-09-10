@@ -13,10 +13,14 @@
 #
 # What is worth pinning here is everything whose absence is SILENT:
 #
-#   * -B, `status off`, and -w/-h taken from the target window. These three are
-#     what keep the mirror from resizing the window it is showing (see the
-#     header of the script). Drop any one and the window loses a row or a
-#     column: no error, just a transcript that reflowed for no visible reason.
+#   * -B, and -w/-h taken from the target window with one row added for the
+#     footer. That arithmetic is what keeps the mirror from resizing the window
+#     it is showing (see the header of the script). Get it wrong and the window
+#     loses a row or a column: no error, just a transcript that reflowed for no
+#     visible reason.
+#   * the footer itself — the status line naming C-q d. Sized to the window and
+#     borderless, the mirror looks exactly like the tab it mirrors, so the only
+#     thing saying you are in a view, and how to leave it, is that one row.
 #   * -C before the second display-popup. Without it tmux MODIFIES the picker's
 #     popup instead of opening a new one, ignoring -w, -h and the command — so
 #     ctrl-o would appear to do nothing at all.
@@ -111,8 +115,11 @@ else
   fail 'the close comes first' "close at line ${close_line:-none}, open at ${open_line:-none}"
 fi
 
-has 'the mirror popup is borderless and sized to the target window' \
-  'display-popup -B -c /dev/ttys001 -E -w 137 -h 42'
+# 42 is the window height the stub reports; the popup gets 43, because the
+# footer status line occupies a row of the popup that is not part of the window.
+# Passing 42 here would take that row out of the window instead, shrinking it.
+has 'the mirror popup is borderless, as wide as the window and one row taller' \
+  'display-popup -B -c /dev/ttys001 -E -w 137 -h 43'
 has 'the mirror popup runs the attach mode against the picked window and pane' \
   "$script attach /dev/ttys001 @7 %42"
 
@@ -137,8 +144,21 @@ run attach /dev/ttys001 @7 %42
 
 has 'the mirror session is grouped with the target session' \
   'new-session -d -t work -s _agent_7_'
-has 'the status line is off in the mirror, or it is one row short' \
-  'set-option -t _agent_7_'
+# The session name carries a pid, so these have to match around it.
+hasre() {
+  local desc=$1 pattern=$2
+  if grep -qE -- "$pattern" "$work/calls"; then
+    pass "$desc"
+  else
+    fail "$desc" "no call matching: $pattern" "calls:" "$(cat "$work/calls")"
+  fi
+}
+hasre 'the footer status line is turned on in the mirror' \
+  'set-option -t _agent_7_[0-9]+ status on'
+# The global is `top` (.tmux.conf), so without this the footer lands above the
+# pane, where it reads as a title rather than as the way out.
+hasre 'the footer is pinned to the bottom, against the global position' \
+  'set-option -t _agent_7_[0-9]+ status-position bottom'
 has 'the mirror is pointed at the picked window' \
   'select-window -t _agent_7_'
 has 'the picked pane is made active, so keys reach the agent' \
@@ -148,10 +168,17 @@ has 'the mirror session is killed once it is left' 'kill-session -t _agent_7_'
 has 'the picker is reopened after detaching' \
   "run-shell -b $script list /dev/ttys001"
 
-status_call=$(grep 'set-option -t _agent_7_' "$work/calls" | head -1)
-case "$status_call" in
-  *"status off") pass 'the status line is turned off, not merely touched' ;;
-  *) fail 'the status line is turned off, not merely touched' "got: $status_call" ;;
+# The footer is the only thing telling you that you are in a view and how to get
+# out of it -- the mirror is otherwise indistinguishable from the tab it shows.
+# So the key it names is asserted, not just the fact that a format was set.
+footer=$(grep 'status-format' "$work/calls" | head -1)
+case "$footer" in
+  *"C-q d"*) pass 'the footer names the key that leaves the view' ;;
+  *) fail 'the footer names the key that leaves the view' "got: ${footer:-<no status-format call>}" ;;
+esac
+case "$footer" in
+  *align=centre*) pass 'the footer is centred' ;;
+  *) fail 'the footer is centred' "got: $footer" ;;
 esac
 
 # The cross-file half of the naming contract: .tmux.conf refuses prefix + p/t/o/a
@@ -168,7 +195,7 @@ esac
 run list /dev/ttys001
 has 'the picker popup is closed before it is reopened' \
   'display-popup -C -c /dev/ttys001'
-has 'the picker is reopened next to this script, not via $PATH' \
+has 'the picker is reopened next to this script, not through the search path' \
   "$work/bin/tmux-agents"
 
 # tmux run-shell uses the SERVER's environment, so a bare name would resolve
@@ -186,7 +213,7 @@ conf_geom=$(sed -n 's/.*display-popup -E \(-w [0-9]*% -h [0-9]*%\) "tmux-agents"
 view_geom=$(grep -o -- '-w [0-9]*% -h [0-9]*%' "$work/calls" | head -1)
 if [ -z "$conf_geom" ]; then
   fail 'the prefix + a geometry can be read out of .tmux.conf' \
-    'no `display-popup -E -w N% -h N% "tmux-agents"` line found'
+    'no display-popup line for tmux-agents found'
 elif [ "$conf_geom" = "$view_geom" ]; then
   pass "the reopened list matches the prefix + a geometry ($conf_geom)"
 else

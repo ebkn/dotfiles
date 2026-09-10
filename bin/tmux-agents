@@ -247,11 +247,15 @@ if [ "$key" = "ctrl-o" ]; then
     # terminal on this tab than on the agent's — opening it anyway would reflow
     # the transcript twice, which is exactly the kind of damage nobody would
     # trace back to this key. Refuse and jump instead.
+    #
+    # The +1 is the footer row tmux-agent-view spends on its status line; the
+    # two allowances have to agree, or the popup gets clamped and takes the row
+    # out of the window instead.
     read -r win_w win_h < <(tmux display-message -p -t "$pane_id" '#{window_width} #{window_height}' 2>/dev/null || true)
     read -r cli_w cli_h < <(tmux display-message -p -c "$outer_client" '#{client_width} #{client_height}' 2>/dev/null || true)
     if [ -z "${win_w:-}" ] || [ -z "${cli_w:-}" ]; then
       msg "could not measure the agent's window; jumping instead"
-    elif [ "$win_w" -gt "$cli_w" ] || [ "$win_h" -gt "$cli_h" ]; then
+    elif [ "$win_w" -gt "$cli_w" ] || [ "$((win_h + 1))" -gt "$cli_h" ]; then
       msg "agent window is ${win_w}x${win_h}, this tab only ${cli_w}x${cli_h}; jumping instead"
     else
       tmux run-shell -b "$view open $outer_client $window_id $pane_id"
