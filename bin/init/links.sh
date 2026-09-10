@@ -124,6 +124,12 @@ link_dotfiles() {
   # that does not exist, and it reports that only in its own log.
   link_with_backup "${DOTFILES_DIR}/bin/pr-review-watch" "${HOME}/.local/bin/pr-review-watch"
   link_with_backup "${DOTFILES_DIR}/bin/pr-review-dispatch" "${HOME}/.local/bin/pr-review-dispatch"
+  # Loads the agents whose plists are linked below. Linked here, but never CALLED
+  # from here: relink runs link_dotfiles on every update-all, and loading an
+  # agent is a decision about the machine rather than a fact about the file
+  # layout -- see the header of bin/launchd-load for why re-loading on every
+  # update would be actively wrong.
+  link_with_backup "${DOTFILES_DIR}/bin/launchd-load" "${HOME}/.local/bin/launchd-load"
   # macOS-only, but linked unconditionally like the Cursor paths above:
   # link_with_backup just creates a directory nobody reads on Linux, whereas a
   # platform guard here would have to be duplicated in relink's drift report.

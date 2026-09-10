@@ -151,39 +151,18 @@ link_dotfiles
 # into two agents -- and a bootstrap on every `update-all` would silently undo
 # it. The agent that posts into live sessions would come back from the dead on
 # a routine update. Provisioning runs once, so it cannot do that.
-bootstrap_launch_agent() {
-  local label="$1"
-  local plist="${HOME}/Library/LaunchAgents/${label}.plist"
-
-  if [ ! -e "$plist" ]; then
-    printf "  %s: no plist linked, skipping\n" "$label"
-    return 0
-  fi
-  # Ask before acting rather than bootout-then-bootstrap: `bootstrap` errors on
-  # an already-loaded service, but restarting one that is running fine is worse
-  # than doing nothing.
-  if launchctl print "gui/$(id -u)/${label}" >/dev/null 2>&1; then
-    printf "  %s: already loaded\n" "$label"
-    return 0
-  fi
-  if launchctl bootstrap "gui/$(id -u)" "$plist" 2>/dev/null; then
-    printf "  %s: loaded\n" "$label"
-  else
-    # A machine with no Aqua session (ssh-only) has no gui/<uid> domain to load
-    # into. Report it rather than failing the whole provisioning run.
-    printf "  %s: could not load into gui/%s; run launchctl bootstrap by hand\n" \
-      "$label" "$(id -u)" >&2
-  fi
-}
-
+# The work is in bin/launchd-load rather than inline here, because provisioning
+# runs once: an already-provisioned machine that gains a new agent would
+# otherwise have to re-run this whole script -- brew bundles included -- to load
+# it. Run it directly instead, or `launchd-load --status` to see what is up.
+#
 # Skipped on CI for the same reason mas and Xcode are: a runner has no business
 # starting a GitHub poller, and it has no session to deliver anything into.
 if [ "${CI:-}" = "true" ]; then
   log_step "Skipping launchd agents (CI)"
 else
   log_step "Loading launchd agents"
-  bootstrap_launch_agent com.ebkn.pr-review-watch
-  bootstrap_launch_agent com.ebkn.pr-review-dispatch
+  "${DOTFILES_DIR}/bin/launchd-load" || true
 fi
 
 install_or_upgrade_claude
