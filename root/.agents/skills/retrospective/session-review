@@ -19,6 +19,7 @@ repo_filter=""
 emit_json=0
 use_cache=1
 include_sub=0
+include_scratch=0
 projects="${CLAUDE_PROJECTS_DIR:-$HOME/.claude/projects}"
 
 usage() {
@@ -33,6 +34,11 @@ usage: session-review [options]
                   Count agent-*.jsonl transcripts as sessions. Off by default:
                   a subagent run has one user turn by construction, so mixing
                   them in makes every turns-per-prompt outlier a subagent.
+  --include-scratch
+                  Count sessions whose cwd is under Claude's own scratch area
+                  (/private/tmp/claude-501/...). Off by default: those are
+                  evals of this skill and the like, not the user's work, and a
+                  batch of them drags every weekly median towards one call.
   -h, --help      This message
 
 Cache lives in ${XDG_CACHE_HOME:-~/.cache}/session-review/v3/ -- outside the
@@ -48,6 +54,7 @@ while [ $# -gt 0 ]; do
     --json) emit_json=1; shift ;;
     --no-cache) use_cache=0; shift ;;
     --include-subagents) include_sub=1; shift ;;
+    --include-scratch) include_scratch=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "session-review: unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -90,7 +97,8 @@ result="$(jq -n -c \
   --slurpfile s "$summaries" \
   --arg repo "$repo_filter" \
   --argjson days "$days" \
-  --argjson subagents "$include_sub" '
+  --argjson subagents "$include_sub" \
+  --argjson scratch "$include_scratch" '
 
   def r2: if . == null then null else (. * 100 | round) / 100 end;
   def ts: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
@@ -134,13 +142,22 @@ result="$(jq -n -c \
   # one user turn by construction -- counting those as sessions fills every
   # turns-per-prompt outlier slot with subagents and hides the real ones.
   def transcript_id: .source_path | split("/") | last | rtrimstr(".jsonl");
+  # Claude runs its own throwaway work -- evals of this skill included -- from
+  # a scratch area under /tmp/claude-501. Those sessions are real, but they are
+  # not the work being reviewed, and a batch of one-turn evals pulled the
+  # median of a whole week down to one tool call. The reviewer itself is the
+  # thing most likely to pollute what it measures, so this is on by default.
+  # (No apostrophes in these comments: the program is a single-quoted string.)
+  def is_scratch: (.cwd // "") | test("^/(private/)?tmp/claude-501/");
 
   ($s | map(select(.started_at != null))
       | map(select($repo == "" or (.cwd // "" | contains($repo))))
       | map(. + { transcript: transcript_id })
-      | map(select($subagents == 1 or ((.transcript | startswith("agent-")) | not)))) as $sessions
+      | map(select($subagents == 1 or ((.transcript | startswith("agent-")) | not)))
+      | map(select($scratch == 1 or (is_scratch | not)))) as $sessions
 
   | ($s | map(select(transcript_id | startswith("agent-"))) | length) as $subagent_count
+  | ($s | map(select((transcript_id | startswith("agent-") | not) and is_scratch)) | length) as $scratch_count
 
   | ($sessions | map(. + { m: metrics, week: (.started_at | ts | gmtime | strftime("%G-W%V")) })) as $rows
   | ($rows | map(.m | keys[]) | unique) as $names
@@ -198,6 +215,8 @@ result="$(jq -n -c \
       session_count: ($rows | length),
       subagent_transcripts: $subagent_count,
       subagents_included: ($subagents == 1),
+      scratch_sessions: $scratch_count,
+      scratch_included: ($scratch == 1),
       range: { from: ($rows | map(.started_at) | min), to: ($rows | map(.ended_at) | max) },
       repos: ($rows | group_by(.cwd) | map({ cwd: .[0].cwd, sessions: length }) | sort_by(-.sessions)),
       distributions: $dist,
@@ -236,6 +255,9 @@ printf '%s\n' "$result" | jq -r '
     "range: \(.range.from) .. \(.range.to)"
       + (if .subagents_included then "  (subagent transcripts included)"
          elif .subagent_transcripts > 0 then "  (\(.subagent_transcripts) subagent transcripts excluded)"
+         else "" end)
+      + (if .scratch_included then "  (scratch sessions included)"
+         elif .scratch_sessions > 0 then "  (\(.scratch_sessions) scratch sessions excluded)"
          else "" end),
     "",
     "repositories",

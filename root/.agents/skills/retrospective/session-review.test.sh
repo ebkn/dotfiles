@@ -19,20 +19,20 @@ export XDG_CACHE_HOME="$tmp/cache"
 
 # One session: `users` human turns, then `calls` Bash round trips.
 mk_session() {
-  out="$1"; sid="$2"; day="$3"; users="$4"; calls="$5"
+  out="$1"; sid="$2"; day="$3"; users="$4"; calls="$5"; cwd="${6:-/repo}"
   : > "$out"
   i=1
   while [ "$i" -le "$users" ]; do
-    printf '{"type":"user","sessionId":"%s","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"%sT00:00:0%s.000Z","uuid":"u%s","message":{"role":"user","content":"go"}}\n' \
-      "$sid" "$day" "$i" "$i" >> "$out"
+    printf '{"type":"user","sessionId":"%s","cwd":"%s","gitBranch":"main","version":"2.1.100","timestamp":"%sT00:00:0%s.000Z","uuid":"u%s","message":{"role":"user","content":"go"}}\n' \
+      "$sid" "$cwd" "$day" "$i" "$i" >> "$out"
     i=$((i + 1))
   done
   i=1
   while [ "$i" -le "$calls" ]; do
-    printf '{"type":"assistant","sessionId":"%s","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"%sT00:01:0%s.000Z","uuid":"a%s","message":{"role":"assistant","usage":{"input_tokens":1,"output_tokens":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":1},"content":[{"type":"tool_use","id":"t%s","name":"Bash","input":{"command":"pwd"}}]}}\n' \
-      "$sid" "$day" "$i" "$i" "$i" >> "$out"
-    printf '{"type":"user","sessionId":"%s","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"%sT00:02:0%s.000Z","uuid":"r%s","toolUseResult":{"stdout":"/repo","stderr":"","interrupted":false,"isImage":false,"noOutputExpected":false},"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t%s"}]}}\n' \
-      "$sid" "$day" "$i" "$i" "$i" >> "$out"
+    printf '{"type":"assistant","sessionId":"%s","cwd":"%s","gitBranch":"main","version":"2.1.100","timestamp":"%sT00:01:0%s.000Z","uuid":"a%s","message":{"role":"assistant","usage":{"input_tokens":1,"output_tokens":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":1},"content":[{"type":"tool_use","id":"t%s","name":"Bash","input":{"command":"pwd"}}]}}\n' \
+      "$sid" "$cwd" "$day" "$i" "$i" "$i" >> "$out"
+    printf '{"type":"user","sessionId":"%s","cwd":"%s","gitBranch":"main","version":"2.1.100","timestamp":"%sT00:02:0%s.000Z","uuid":"r%s","toolUseResult":{"stdout":"/repo","stderr":"","interrupted":false,"isImage":false,"noOutputExpected":false},"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t%s"}]}}\n' \
+      "$sid" "$cwd" "$day" "$i" "$i" "$i" >> "$out"
     i=$((i + 1))
   done
 }
@@ -49,6 +49,18 @@ mk_session "$projects/s6.jsonl" S6 2026-08-17 1 9
 # A subagent run: its own file, but it carries the parent's session id and has
 # exactly one user turn. Must not be counted as a session.
 mk_session "$projects/agent-abc123.jsonl" S1 2026-08-03 1 9
+# A session run from Claude's own scratch area -- an eval of this very skill,
+# typically. It is real, but it is not the user's work, and a batch of them
+# drags every weekly median towards one tool call. Excluded by default.
+mk_session "$projects/s7.jsonl" S7 2026-08-17 1 1 /private/tmp/claude-501/-proj/abc/scratchpad/e1
+
+# The reporter is one long single-quoted jq program, so an apostrophe in a jq
+# comment ends the shell string and every case below fails at once. Twice now.
+# Catch it by name rather than as sixteen cascading failures.
+if ! bash -n "$review" 2>/dev/null; then
+  echo "FAIL session-review does not parse as bash -- an apostrophe in the jq program?"
+  exit 1
+fi
 
 run() { "$review" --days 3650 --json "$@"; }
 
@@ -72,6 +84,9 @@ assert "subagent transcripts are not sessions" 6 "$(q .session_count)"
 assert "subagent transcripts are counted"      1 "$(q .subagent_transcripts)"
 assert "and reported as excluded"          false "$(q .subagents_included)"
 assert "--include-subagents counts them"       7 "$("$review" --days 3650 --json --include-subagents | jq -r .session_count)"
+assert "scratch sessions are not sessions"     1 "$(q .scratch_sessions)"
+assert "and reported as excluded"          false "$(q .scratch_included)"
+assert "--include-scratch counts them"         7 "$("$review" --days 3650 --json --include-scratch | jq -r .session_count)"
 
 # The mean is deliberately absent: one 30-hour session drags it far enough to
 # describe nobody, and the report exists to surface the ends, not the middle.

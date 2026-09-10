@@ -29,7 +29,7 @@ session-review --days 90
 
 Flags: `--repo PATTERN` restricts to one project, `--json` gives the full structure, `--days N` changes the window. The window is on transcript **mtime**, so a session resumed yesterday is in range even if it began months ago.
 
-Read the header before the numbers: session count, date range, how many subagent transcripts were excluded, and which weeks have nothing in them.
+Read the header before the numbers: session count, date range, how many subagent transcripts and scratch sessions were excluded, and which weeks have nothing in them. Scratch sessions are ones Claude ran from its own `/tmp/claude-501` area — evals of this skill, typically — and are not the user's work; `--include-scratch` brings them back deliberately.
 
 ### 2. Decide whether the distribution can be read at all
 
