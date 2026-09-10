@@ -548,6 +548,13 @@ out=$(RESUME=1 run)
 eq "resumes when asked" "delivered" "$(job .status)"
 eq "and says so" "resume" "$(job .deliveredVia)"
 has "passes the session id to claude" "$(cat "$TMP/resume.log")" "--resume sess-1"
+# The resume path builds the same prompt and the same file as the socket path,
+# and only the flags were pinned -- so a resume that handed claude an empty
+# prompt, or wrote no file for it to read, would have passed.
+has "and the prompt text as claude's argument" "$(cat "$TMP/resume.log")" "[pr-review-dispatch] New review feedback (2 items)"
+eq "and writes the prompt file it points at" "present" \
+  "$([ -f "$STATE/jobs/acme__widget__42.prompt.md" ] && echo present)"
+has "which carries the feedback" "$(cat "$STATE/jobs/acme__widget__42.prompt.md" 2>/dev/null)" "CHANGES_REQUESTED"
 
 # A branch that was merged and cleaned up takes its worktree with it (`gdmerged`
 # removes it), and the job outlives that -- nothing in this pipeline expires one.
@@ -598,6 +605,42 @@ eq "the message still went out" "user" "$(jq -r .type < "$WIRE" 2>/dev/null)"
 has "the failure is reported" "$out" "could not be marked"
 has "it names the consequence" "$out" "WILL be sent again"
 eq "no .tmp file is left behind" "" "$(ls "$STATE"/jobs/*.tmp 2>/dev/null)"
+
+# --- a job file that is not a job -------------------------------------------
+# The queue is a directory anything can end up in: a truncated write, an editor's
+# leftover, a hand-edit that lost a brace. `jq` fails on it and the scan's
+# `|| echo 0` swallows that, which is the right answer -- but only if the REST of
+# the queue still goes out. One corrupt file must not take the pipeline down.
+
+printf 'corrupt job\n'
+reset
+PID=$(spawn_holder); WIRE="$TMP/wire-bad"; SOCKP="$TMP/sbad.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session live "$PID" "$WT" "$SOCKP" 100
+printf 'not json at all\n' > "$STATE/jobs/acme__widget__41.json"
+make_job
+out=$(run); settle "$WIRE" || no "nothing reached the socket past the corrupt file"
+eq "the valid job is still delivered" "delivered" "$(job .status)"
+eq "the corrupt file is left alone" "not json at all" "$(cat "$STATE/jobs/acme__widget__41.json")"
+has "and the run reports only the real one" "$out" "delivered 1 job(s)"
+
+# --- two sessions in one worktree -------------------------------------------
+# Arbitrary but documented: pr-review-common.sh takes the NEWEST. Two sessions in
+# one worktree already break the one-writer rule the pipeline is built on, so
+# there is no better answer to pick -- only a stated one, which is worth pinning
+# so it cannot drift into "whichever the glob happened to yield".
+
+printf 'two sessions, one worktree\n'
+reset
+OLD=$(spawn_holder); NEW=$(spawn_holder)
+listen "$TMP/s-old.sock" "$TMP/wire-old" || no "old listener came up"
+listen "$TMP/s-new.sock" "$TMP/wire-new" || no "new listener came up"
+session older "$OLD" "$WT" "$TMP/s-old.sock" 100
+session newer "$NEW" "$WT" "$TMP/s-new.sock" 999
+make_job
+run >/dev/null; settle "$TMP/wire-new" || no "nothing reached the newer session"
+eq "the newest session wins" "user" "$(jq -r .type < "$TMP/wire-new" 2>/dev/null)"
+eq "and the older one gets nothing" "" "$(cat "$TMP/wire-old" 2>/dev/null)"
 
 printf 'empty queue\n'
 reset
@@ -717,6 +760,23 @@ out=$(PATH="$STUB:$PATH" PR_REVIEW_WATCH_STATE_DIR="$STATE" \
 eq "an unknown override exits non-zero" "1" "$rc"
 has "and says what is allowed" "$out" "must be nc or socat"
 
+# The other half of the seam. Naming the tool auto-detection would have picked
+# anyway has to be a no-op, not a second code path -- otherwise the override is
+# only usable for escaping to socat, which is half of what it is for.
+reset
+PID=$(spawn_holder); WIRE="$TMP/wire-nc"; SOCKP="$TMP/snc.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session live "$PID" "$WT" "$SOCKP" 100
+make_job
+PR_REVIEW_DISPATCH_SOCK_TOOL=nc run >/dev/null
+settle "$WIRE" || no "nothing reached the socket (explicit nc)"
+eq "naming nc explicitly changes nothing" "user" "$(jq -r .type < "$WIRE" 2>/dev/null)"
+eq "and delivers" "delivered" "$(job .status)"
+# bash keeps a `VAR=x func` assignment set after the call returns, unlike the
+# same prefix on an external command -- so it has to be cleared, or every group
+# below this one silently runs with the override in place.
+unset PR_REVIEW_DISPATCH_SOCK_TOOL
+
 # --- argument handling ------------------------------------------------------
 # `usage()` reproduces the header with `sed -n '2,/^set -uo/p'`, so it silently
 # produces garbage if the header's shape changes. Nothing else would notice.
@@ -730,6 +790,10 @@ case "$out" in
   *'set -uo'*) no "--help stops before the code" "[$out]" ;;
   *) ok "--help stops before the code" ;;
 esac
+
+out=$(run -h); rc=$?
+eq "-h is the same door" "0" "$rc"
+has "and prints the same thing" "$out" "pr-review-dispatch --dry-run"
 
 out=$(run --nonsense 2>&1); rc=$?
 eq "an unknown argument exits non-zero" "1" "$rc"
