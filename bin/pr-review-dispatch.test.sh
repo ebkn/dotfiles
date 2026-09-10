@@ -72,6 +72,11 @@ cleanup() {
     done
   fi
 
+  # One case makes a directory read-only to force a write failure, and restores it
+  # straight after -- but a signal landing between the two would leave `rm -rf`
+  # unable to descend, silently leaking the whole temp tree. A leaked directory is
+  # a leak like any other, so make it unconditionally removable first.
+  chmod -R u+rwx "$TMP" 2>/dev/null
   /bin/rm -rf "$TMP"
   [ "$leaked" -eq 0 ] || exit 1
 }
@@ -527,6 +532,88 @@ reset
 out=$(CLAUDE_SESSIONS_DIR="$TMP/no-such-dir" PATH="$STUB:$PATH" \
   PR_REVIEW_WATCH_STATE_DIR="$STATE" "$DISPATCH" 2>&1)
 eq "a missing registry dir stays quiet while the queue is empty" "" "$out"
+
+# --- the socat branch -------------------------------------------------------
+# Auto-detection picks `nc` on every machine this runs on, so socat was a
+# portability measure that had never once executed. Driven against a stub, the
+# assertion is on the command line the script decides -- the part it owns -- the
+# same reasoning bin/tmux-popup.test.sh applies to its own stubbed tmux.
+
+printf 'socat branch\n'
+reset
+cat > "$STUB/socat" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" > "$SOCATARGV"
+cat > "$SOCATBODY"
+EOF
+chmod +x "$STUB/socat"
+PID=$(spawn_holder)
+# A real socket still has to exist: the script requires `[ -S ]` before posting,
+# and the stub standing in for socat never connects to it.
+listen "$TMP/s-socat.sock" "$TMP/wire-socat" || no "listener came up"
+session live "$PID" "$WT" "$TMP/s-socat.sock" 100
+make_job
+out=$(PATH="$STUB:$PATH" SOCATARGV="$TMP/socat.argv" SOCATBODY="$TMP/socat.body" \
+  RESUMELOG="$TMP/resume.log" RESUMEFAIL="$TMP/resume.fail" \
+  PR_REVIEW_WATCH_STATE_DIR="$STATE" CLAUDE_SESSIONS_DIR="$SESS" \
+  PR_REVIEW_DISPATCH_SOCK_TOOL=socat "$DISPATCH" 2>&1)
+eq "socat is invoked with UNIX-CONNECT and the session's socket" \
+  "-t 5 - UNIX-CONNECT:$TMP/s-socat.sock" "$(cat "$TMP/socat.argv" 2>/dev/null)"
+eq "it is handed the same one-line envelope" "user" \
+  "$(jq -r .type < "$TMP/socat.body" 2>/dev/null)"
+eq "the job is marked delivered through that branch" "delivered" "$(job .status)"
+has "the run reports the send" "$out" "send  acme/widget#42"
+/bin/rm -f "$STUB/socat"
+
+# An explicit choice that is not installed must fail loudly, not fall back to the
+# other tool: a silent fallback would make the override look honoured when it was
+# not, which is the whole reason to set it.
+out=$(PATH="$STUB:$PATH" PR_REVIEW_WATCH_STATE_DIR="$STATE" \
+  PR_REVIEW_DISPATCH_SOCK_TOOL=socat "$DISPATCH" 2>&1); rc=$?
+eq "an uninstalled override exits non-zero" "1" "$rc"
+has "and names it" "$out" "PR_REVIEW_DISPATCH_SOCK_TOOL=socat is not installed"
+
+out=$(PATH="$STUB:$PATH" PR_REVIEW_WATCH_STATE_DIR="$STATE" \
+  PR_REVIEW_DISPATCH_SOCK_TOOL=telnet "$DISPATCH" 2>&1); rc=$?
+eq "an unknown override exits non-zero" "1" "$rc"
+has "and says what is allowed" "$out" "must be nc or socat"
+
+# --- argument handling ------------------------------------------------------
+# `usage()` reproduces the header with `sed -n '2,/^set -uo/p'`, so it silently
+# produces garbage if the header's shape changes. Nothing else would notice.
+
+printf 'arguments\n'
+out=$(run --help); rc=$?
+eq "--help exits 0" "0" "$rc"
+has "it prints the usage section" "$out" "pr-review-dispatch --dry-run"
+has "it strips the comment markers" "$out" "Stage 2 of the pipeline"
+case "$out" in
+  *'set -uo'*) no "--help stops before the code" "[$out]" ;;
+  *) ok "--help stops before the code" ;;
+esac
+
+out=$(run --nonsense 2>&1); rc=$?
+eq "an unknown argument exits non-zero" "1" "$rc"
+has "and names it" "$out" "unknown argument: --nonsense"
+
+# --- deliveredCount accumulates ---------------------------------------------
+# `(.deliveredCount // 0) + (.pending | length)` only means anything on a second
+# delivery, which nothing reached: every case asserted the first one's value.
+
+printf 'repeat delivery\n'
+arrange_and_deliver 9
+eq "the first delivery counts its items" "2" "$(job .deliveredCount)"
+# The watcher's job: new feedback lands on a job already marked delivered.
+jq '.pending = [{id:"issue:99", kind:"issue", author:"dave", state:null,
+                 path:null, line:null, body:"one more", at:"z"}]
+    | .status = "pending"' "$STATE/jobs/acme__widget__42.json" > "$TMP/re.json"
+mv "$TMP/re.json" "$STATE/jobs/acme__widget__42.json"
+listen "$TMP/s9b.sock" "$TMP/wire-9b" || no "second listener came up"
+session live "$PID" "$WT" "$TMP/s9b.sock" 100
+out=$(run); settle "$TMP/wire-9b" || no "nothing reached the socket"
+eq "the second delivery adds to the count" "3" "$(job .deliveredCount)"
+eq "and empties pending again" "0" "$(job '.pending | length')"
+eq "seen still survives" "review:11 issue:31" "$(job '.seen | join(" ")')"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

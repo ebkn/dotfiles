@@ -69,9 +69,10 @@
 #   pr-review-dispatch --dry-run   report what would be delivered, send nothing
 #
 # Environment:
-#   PR_REVIEW_WATCH_STATE_DIR    queue location (shared with pr-review-watch)
-#   PR_REVIEW_DISPATCH_RESUME    1 to resume exited sessions with `claude --bg`
-#   CLAUDE_SESSIONS_DIR          session registry (default ~/.claude/sessions)
+#   PR_REVIEW_WATCH_STATE_DIR     queue location (shared with pr-review-watch)
+#   PR_REVIEW_DISPATCH_RESUME     1 to resume exited sessions with `claude --bg`
+#   PR_REVIEW_DISPATCH_SOCK_TOOL  force `nc` or `socat` instead of auto-detecting
+#   CLAUDE_SESSIONS_DIR           session registry (default ~/.claude/sessions)
 #
 # Requires: jq, git, and nc or socat.
 set -uo pipefail
@@ -101,13 +102,30 @@ done
 # here; socat is the fallback for a Linux box carrying netcat-traditional, whose
 # nc has no -U at all. The binary's own example uses socat, so both are known to
 # speak this protocol.
-if command -v nc >/dev/null 2>&1; then
-  SOCK_TOOL=nc
-elif command -v socat >/dev/null 2>&1; then
-  SOCK_TOOL=socat
-else
-  die "nc or socat is required to post to a session socket"
-fi
+#
+# The override exists because auto-detection picks `nc` on every machine this
+# runs on, which left the socat branch as a portability measure that had never
+# once executed -- the least useful kind of insurance. It lets the test drive
+# that branch against a stub and assert the command line, which is the part this
+# program owns (the same argument bin/tmux-popup.test.sh makes). It is also a
+# real escape hatch if an nc turns out not to speak -U.
+SOCK_TOOL=${PR_REVIEW_DISPATCH_SOCK_TOOL:-}
+case "$SOCK_TOOL" in
+  nc|socat)
+    command -v "$SOCK_TOOL" >/dev/null 2>&1 ||
+      die "PR_REVIEW_DISPATCH_SOCK_TOOL=$SOCK_TOOL is not installed"
+    ;;
+  '')
+    if command -v nc >/dev/null 2>&1; then
+      SOCK_TOOL=nc
+    elif command -v socat >/dev/null 2>&1; then
+      SOCK_TOOL=socat
+    else
+      die "nc or socat is required to post to a session socket"
+    fi
+    ;;
+  *) die "PR_REVIEW_DISPATCH_SOCK_TOOL must be nc or socat, got: $SOCK_TOOL" ;;
+esac
 
 [ -d "$STATE_DIR/jobs" ] || exit 0
 
