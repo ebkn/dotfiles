@@ -748,7 +748,7 @@ else
 #!/bin/sh
 printf '%s\n' "\$*" >>"$work/wezterm-calls"
 case "\$*" in
-  *"cli list"*) printf '[{"tab_id": 77, "tty_name": "%s"}]\n' "$agent_tty" ;;
+  *list*) printf '[{"tab_id": 77, "tty_name": "%s"}]\n' "$agent_tty" ;;
 esac
 exit 0
 STUB
@@ -764,6 +764,19 @@ STUB
         fail "enter raises the WezTerm tab that shows the agent's window" \
           "wezterm calls: [$(tr '\n' '|' <"$work/wezterm-calls" 2>/dev/null)]" \
           "$(cat "$work/real2" 2>/dev/null)"
+      fi
+      # Every wezterm call has to carry --no-auto-start. Without it the CLI
+      # tries to START a mux server before admitting there is none: measured at
+      # 3.0-3.4s against 0.00s with the flag, and that delay lands between
+      # pressing enter and the warning, on exactly the hosts where the warning
+      # is the normal answer. A missing flag is invisible to every other
+      # assertion here -- the jump still works, it is just slow.
+      slow=$(grep -cv -- '--no-auto-start' "$work/wezterm-calls" 2>/dev/null || true)
+      if [ "${slow:-0}" -eq 0 ]; then
+        pass "wezterm is never allowed to auto-start a mux server"
+      else
+        fail "wezterm is never allowed to auto-start a mux server" \
+          "calls without the flag: [$(grep -v -- '--no-auto-start' "$work/wezterm-calls" | tr '\n' '|')]"
       fi
       active=$(tmux -L "$socket" display-message -p -t bindB:b-jump '#{pane_id}')
       if [ "$active" = "$jump_target" ]; then

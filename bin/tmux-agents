@@ -314,10 +314,17 @@ client_tty=$(
     awk -F'\t' -v w="$window_id" '$2 == w { print $1; exit }'
 ) || true
 
+# --no-auto-start is what makes the answer immediate when there is no WezTerm to
+# ask. Without it `wezterm cli list` tries to START a mux server before giving
+# up: measured here, 3.0-3.4s against 0.00s with the flag, and every other step
+# on this path costs 0ms. That whole delay landed between pressing enter and the
+# "no WezTerm tab" warning, on exactly the hosts where the warning is the normal
+# outcome. It cannot cost anything in the success case either -- the default is
+# to prefer a running gui instance, and the flag only forbids starting one.
 tab_id=""
 if [ -n "$client_tty" ] && command -v wezterm >/dev/null 2>&1; then
   tab_id=$(
-    wezterm cli list --format json 2>/dev/null |
+    wezterm cli --no-auto-start list --format json 2>/dev/null |
       jq -r --arg t "$client_tty" 'map(select(.tty_name == $t)) | .[0].tab_id // empty'
   ) || true
 fi
@@ -338,7 +345,7 @@ fi
 # the agent in front. Refusing above must leave everything as it was.
 tmux select-pane -t "$pane_id" 2>/dev/null || true
 
-wezterm cli activate-tab --tab-id "$tab_id" 2>/dev/null || true
+wezterm cli --no-auto-start activate-tab --tab-id "$tab_id" 2>/dev/null || true
 
 # activate-tab only re-points the tab bar of the window that owns the tab; it
 # leaves OS focus where it was, so a jump across WezTerm windows raised nothing
