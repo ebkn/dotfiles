@@ -46,7 +46,7 @@
 # working view was "how do I get back?". The mirror session's own status line is
 # the natural place to answer it, and it costs no #() fork and no
 # status-interval redraw as long as status-format stays literal. The key it
-# names, prefix + e, is bound in .tmux.conf and is advertised nowhere else, so
+# names, C-], is bound in .tmux.conf and is advertised nowhere else, so
 # the two have to stay in step; the border title carries it as well, since the
 # footer sits under a full-screen TUI and is easy to miss.
 #
@@ -143,7 +143,7 @@ case $mode in
     tmux display-popup -C -c "$client" 2>/dev/null || true
     exec tmux display-popup -c "$client" -E \
       -w "$VIEW_WIDTH" -h "$VIEW_HEIGHT" \
-      -S "fg=$ACCENT" -T " answering ${name:-agent} — C-q e to go back " \
+      -S "fg=$ACCENT" -T " answering ${name:-agent} — C-] to go back " \
       "$self attach $client $window_id $pane_id"
     ;;
 
@@ -170,7 +170,7 @@ case $mode in
     tmux set-option -t "$session" status-position bottom
     tmux set-option -t "$session" status-style "bg=$ACCENT fg=#1e2326 bold"
     tmux set-option -t "$session" status-format[0] \
-      '#[align=centre]C-q e: back to the agent list   C-q C-q: send the prefix to the agent'
+      '#[align=centre]C-]: back to the agent list   C-q C-q: send the prefix to the agent'
 
     tmux select-window -t "$session:$window_id"
     # The active pane is a property of the window, shared with the real tab, so

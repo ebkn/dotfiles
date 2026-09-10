@@ -177,14 +177,14 @@ has 'the picker is reopened after detaching' \
 # So the key it names is asserted, not just the fact that a format was set.
 footer=$(grep 'status-format' "$work/calls" | head -1)
 case "$footer" in
-  *"C-q e"*) pass 'the footer names the key that leaves the view' ;;
+  *"C-]"*) pass 'the footer names the key that leaves the view' ;;
   *) fail 'the footer names the key that leaves the view' "got: ${footer:-<no status-format call>}" ;;
 esac
 # The border title repeats it: the footer sits under a full-screen TUI and is
 # easy to miss, which is how the working view still drew the question "how do I
 # get back?".
 case "$open_call" in
-  *"C-q e"*) pass 'the border title names it too' ;;
+  *"C-]"*) pass 'the border title names it too' ;;
   *) fail 'the border title names it too' "got: $open_call" ;;
 esac
 case "$footer" in
@@ -223,10 +223,10 @@ fi
 # view would still open, and the way out would just be wrong.
 # Read from $footer, captured during the attach run: $work/calls has been
 # overwritten by the list run above.
-leave_key=$(grep -o 'C-q [a-z]: back' <<<"$footer" | head -1 | cut -d: -f1)
+leave_key=$(grep -o 'C-[]a-z]: back' <<<"$footer" | head -1 | cut -d: -f1)
 if [ -z "$leave_key" ]; then
   fail 'the footer advertises a leave key' "$(grep status-format "$work/calls")"
-elif grep -q "^bind -N \"agents: leave the answer view.*\" ${leave_key#C-q } " "$conf"; then
+elif grep -qF -- "-n '$leave_key'" "$conf" && grep -q 'agents: leave the answer view' "$conf"; then
   pass "the leave key the footer names ($leave_key) is bound in .tmux.conf"
 else
   fail "the leave key the footer names ($leave_key) is bound in .tmux.conf" \

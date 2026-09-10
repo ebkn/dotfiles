@@ -93,15 +93,23 @@ case "$d_binding" in
   *) fail "a popup is exempt from the detach confirmation" "got: $d_binding" ;;
 esac
 
-# prefix + e is the way out of the answer view, and the footer that advertises
-# it is written by bin/tmux-agent-view -- so the binding has to exist here and
-# be guarded to the view's own sessions, or the key the popup names does
-# something else entirely.
-e_binding=$(tmux -L "$socket" list-keys -T prefix 2>/dev/null |
-  grep -E '^bind-key +(-N "[^"]*" +)?-T prefix +e ' | head -1)
-case "$e_binding" in
-  *'_agent_*'*detach-client*) pass "prefix + e leaves an agent view" ;;
-  *) fail "prefix + e leaves an agent view" "got: ${e_binding:-<unbound>}" ;;
+# C-] is the way out of the answer view, and the footer that advertises it is
+# written by bin/tmux-agent-view -- so the binding has to exist here, be guarded
+# to the view's own sessions, and live in the ROOT table. A prefix chord would
+# be ambiguous inside a view whose pane holds a nested tmux over ssh, which is
+# the whole reason it is not one; demoting it back to the prefix table would
+# leave the popup advertising a key that does nothing.
+leave_binding=$(tmux -L "$socket" list-keys -T root 2>/dev/null |
+  grep -E "^bind-key +(-N \"[^\"]*\" +)?-T root +C-\] " | head -1)
+case "$leave_binding" in
+  *'_agent_*'*detach-client*) pass "C-] leaves an agent view, with no prefix" ;;
+  *) fail "C-] leaves an agent view, with no prefix" "got: ${leave_binding:-<unbound>}" ;;
+esac
+# Outside a view the key belongs to whatever is running in the pane: a root
+# binding is taken from every pane on the server, so it has to hand it back.
+case "$leave_binding" in
+  *'send-keys C-]'*) pass "C-] is passed through outside a view" ;;
+  *) fail "C-] is passed through outside a view" "got: $leave_binding" ;;
 esac
 
 # And the other direction: the notes must actually reach the server. A note that
