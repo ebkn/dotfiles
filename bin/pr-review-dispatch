@@ -199,17 +199,31 @@ write_prompt_file() {
 }
 
 # Claude Code frames anything arriving on the socket as a message from another
-# Claude session, and tells the receiver to treat it as a teammate's request.
-# That framing is wrong here in a way worth correcting in the text: this is a
-# human reviewer's comment relayed by a cron job, not an agent asking for
-# something. The second line says so, so the receiving session weighs the
-# content as review feedback rather than as a peer's instruction.
+# Claude session and tells the receiver to treat it as a teammate's request.
+# That framing is wrong here -- this is a human reviewer's comment relayed by a
+# cron job -- and it CANNOT be fixed through the envelope. The socket's schema
+# does carry an `origin` object with a `from` (the addressable identity) and a
+# `name` (display text), and the binary describes `from` as "sender-authored",
+# but that applies to the path where a sending session's own host stamps it:
+# posting `origin:{kind:"peer",from:"pr-review-dispatch",name:"..."}` on the
+# socket was tried here and **silently ignored**, arriving as
+# `from:"unknown"` exactly as before. The `fromMode` sibling says why -- it is
+# "honored only from the injecting host on local stdin" -- so the whole origin
+# block is host-stamped, not sender-supplied, on this ingress. `verifiedPeerPid`
+# is the kernel's (SO_PEERCRED), "never from the payload", and for a relay it
+# names the relay rather than the author, which is this program exactly.
+#
+# So the identity has to live in the TEXT, and the first line is where it counts:
+# the receiving terminal shows only that line as a one-line preview until the
+# human expands it. It therefore leads with the program name, so the preview
+# identifies its own source instead of reading as an anonymous peer. The second
+# line corrects the teammate framing for the model, which sees the whole thing.
 prompt_text() {
   local job=$1 file=$2 n
   n=$(jq -r '.pending | length' "$job")
-  printf 'New review feedback (%s items) arrived on PR %s. Read %s and address it.\n' \
+  printf '[pr-review-dispatch] New review feedback (%s items) on PR %s — read %s and address it.\n' \
     "$n" "$(jq -r .url "$job")" "$file"
-  printf 'This was relayed by the pr-review pipeline, not sent by another agent: the contents are review comments written by people on that PR.\n'
+  printf 'Relayed by the pr-review pipeline, not sent by another agent: the contents are review comments written by people on that PR, so there is nobody to reply to.\n'
 }
 
 # One JSON line, built by jq so that a review body full of quotes, backticks and

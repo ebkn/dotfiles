@@ -162,6 +162,12 @@ has "content names the PR" "$(printf '%s' "$line" | jq -r .message.content)" \
   "https://github.com/acme/widget/pull/42"
 has "content disclaims the peer framing" "$(printf '%s' "$line" | jq -r .message.content)" \
   "not sent by another agent"
+# The receiving terminal previews only the FIRST line until the human expands
+# it, and the socket gives a relayed message no usable sender -- `origin` on the
+# payload is ignored and `from` arrives as "unknown". So the first line has to
+# identify its own source, or the preview reads as an anonymous peer message.
+eq "the first line names its source" "ok" \
+  "$(printf '%s' "$line" | jq -r '.message.content | split("\n")[0]' | grep -q '^\[pr-review-dispatch\]' && echo ok)"
 has "run reports the send" "$out" "send  acme/widget#42"
 
 # --- the job after delivery -------------------------------------------------
