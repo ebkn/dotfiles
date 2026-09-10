@@ -439,12 +439,18 @@ for wn in busy-win:busy ask-win:asking; do
   tmux -L "$socket" set-option -p -t "$p" @claude_since "$(date +%s)"
 done
 
-pty_attach tabA
+# The attach is retried once: script(1) backgrounded from here occasionally
+# never gets going at all, which showed up as roughly one run in ten failing
+# with no client rather than as anything to do with the code under test.
 client=""
-for _ in $(seq 1 40); do
-  client=$(tmux -L "$socket" list-clients -F '#{client_name}' | head -1)
+for _ in 1 2; do
+  pty_attach tabA
+  for _ in $(seq 1 24); do
+    client=$(tmux -L "$socket" list-clients -F '#{client_name}' | head -1)
+    [ -n "$client" ] && break
+    sleep 0.25
+  done
   [ -n "$client" ] && break
-  sleep 0.25
 done
 
 if [ -z "$client" ]; then
@@ -543,28 +549,37 @@ done
 fzf_pane=$(tmux -L "$socket" list-panes -t bindA -F '#{pane_id}' | head -1)
 tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
   "sh -c 'PATH=$PWD/bin:\$PATH tmux-agents >$work/real 2>&1'"
-sleep 2
 
 screen() { tmux -L "$socket" capture-pane -p -t "$fzf_pane"; }
 dead() { tmux -L "$socket" display-message -p -t "$fzf_pane" '#{pane_dead}'; }
 
-if ! grep -q 'b-ask' <<<"$(screen)"; then
+# Polled rather than slept on. A fixed wait long enough for a loaded machine is
+# dead time on every run, and one that is merely usually long enough is a test
+# that fails for reasons that have nothing to do with the code.
+wait_screen() {
+  for _ in $(seq 1 40); do
+    grep -q -- "$1" <<<"$(screen)" && return 0
+    sleep 0.25
+  done
+  return 1
+}
+
+if ! wait_screen 'b-ask'; then
   fail "the picker renders in a real pane" "$(screen)" "$(cat "$work/real" 2>/dev/null)"
 else
   pass "the picker renders in a real pane"
 
   # asking sorts above busy, so the second row is the one ctrl-o must refuse.
   tmux -L "$socket" send-keys -t "$fzf_pane" Down
-  sleep 0.6
+  sleep 0.4
   tmux -L "$socket" send-keys -t "$fzf_pane" C-o
-  sleep 1
 
-  after=$(screen)
-  if grep -q 'not waiting on you' <<<"$after"; then
+  if wait_screen 'not waiting on you'; then
     pass "ctrl-o on a row that is not blocked warns in the header"
   else
-    fail "ctrl-o on a row that is not blocked warns in the header" "$after"
+    fail "ctrl-o on a row that is not blocked warns in the header" "$(screen)"
   fi
+  after=$(screen)
   if [ "$(dead)" = 0 ] && grep -q 'b-busy' <<<"$after"; then
     pass "the refused ctrl-o leaves the picker open"
   else
@@ -574,8 +589,7 @@ else
   # Moving the cursor must put the hint back, or the warning strands you with no
   # reminder of what either key does.
   tmux -L "$socket" send-keys -t "$fzf_pane" Up
-  sleep 0.6
-  if grep -q 'enter: jump to the tab' <<<"$(screen)"; then
+  if wait_screen 'enter: jump to the tab'; then
     pass "moving off the row restores the hint"
   else
     fail "moving off the row restores the hint" "$(screen)"
@@ -585,7 +599,10 @@ else
   # stops at its own no-client guard -- but fzf having accepted is what makes
   # the pane exit at all, and exit 0 is what says it got that far.
   tmux -L "$socket" send-keys -t "$fzf_pane" C-o
-  sleep 1.5
+  for _ in $(seq 1 40); do
+    [ "$(dead)" = 1 ] && break
+    sleep 0.25
+  done
   if [ "$(dead)" = 1 ]; then
     pass "ctrl-o on a blocked row is accepted"
   else
