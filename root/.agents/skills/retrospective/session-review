@@ -49,14 +49,39 @@ USAGE
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --days) days="$2"; shift 2 ;;
-    --repo) repo_filter="$2"; shift 2 ;;
-    --json) emit_json=1; shift ;;
-    --no-cache) use_cache=0; shift ;;
-    --include-subagents) include_sub=1; shift ;;
-    --include-scratch) include_scratch=1; shift ;;
-    -h|--help) usage; exit 0 ;;
-    *) echo "session-review: unknown option: $1" >&2; usage >&2; exit 2 ;;
+    --days)
+      days="$2"
+      shift 2
+      ;;
+    --repo)
+      repo_filter="$2"
+      shift 2
+      ;;
+    --json)
+      emit_json=1
+      shift
+      ;;
+    --no-cache)
+      use_cache=0
+      shift
+      ;;
+    --include-subagents)
+      include_sub=1
+      shift
+      ;;
+    --include-scratch)
+      include_scratch=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "session-review: unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
   esac
 done
 
@@ -90,7 +115,7 @@ find "$projects" -name '*.jsonl' -mtime -"$days" -print | while IFS= read -r f; 
     # a manual run beside it) extract the same session concurrently, and with a
     # shared temp name the second mv fails and set -e kills the loop half-way.
     partial="$cached.$$.tmp"
-    if "$extract" "$f" > "$partial" 2>/dev/null; then
+    if "$extract" "$f" >"$partial" 2>/dev/null; then
       mv -f "$partial" "$cached"
       cat "$cached"
     else
@@ -98,7 +123,7 @@ find "$projects" -name '*.jsonl' -mtime -"$days" -print | while IFS= read -r f; 
       echo "session-review: skipped unreadable transcript: $f" >&2
     fi
   fi
-done > "$summaries"
+done >"$summaries"
 
 result="$(jq -n -c \
   --slurpfile s "$summaries" \

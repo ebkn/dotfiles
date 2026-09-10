@@ -14,8 +14,32 @@ jobs:
       - name: Install zsh
         run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
 
+      # shfmt is not on the runner image and is not packaged for Ubuntu, so the
+      # release binary is installed at a pinned version with its SHA256
+      # verified. Without the checksum this step would silently accept whatever
+      # that URL serves; without the version pin a new upstream release would
+      # reformat the repo out from under a PR that touched nothing.
+      #
+      # Bump both together, and keep the version in step with brewfiles/
+      # Brewfile-shell so local and CI cannot format differently. The checksum
+      # comes from https://github.com/mvdan/sh/releases.
+      - name: Install shfmt
+        run: |
+          version=3.13.1
+          expected=fb096c5d1ac6beabbdbaa2874d025badb03ee07929f0c9ff67563ce8c75398b1
+          curl -fsSL -o shfmt \
+            "https://github.com/mvdan/sh/releases/download/v${version}/shfmt_v${version}_linux_amd64"
+          echo "${expected}  shfmt" | sha256sum --check --strict
+          sudo install -m 0755 shfmt /usr/local/bin/shfmt
+
       - name: Lint shell scripts
         run: bin/lint-shell
+
+      # bin/lint-shell discovers its own targets, and the way that discovery
+      # fails is by checking almost nothing and reporting ok. This is the only
+      # check that the gate above is actually looking at the repo.
+      - name: lint-shell target enumeration
+        run: bash bin/lint-shell.test.sh
 
   test:
     runs-on: ubuntu-latest

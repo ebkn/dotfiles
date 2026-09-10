@@ -31,11 +31,19 @@ fi
 
 socket="conf-test-$$"
 work=$(mktemp -d)
-cleanup() { tmux -L "$socket" kill-server 2>/dev/null; rm -rf "$work"; }
+cleanup() {
+  tmux -L "$socket" kill-server 2>/dev/null
+  rm -rf "$work"
+}
 trap cleanup EXIT
 
 failures=0
-fail() { printf 'FAIL %s\n' "$1"; shift; [ $# -gt 0 ] && printf '  %s\n' "$@"; failures=$((failures + 1)); }
+fail() {
+  printf 'FAIL %s\n' "$1"
+  shift
+  [ $# -gt 0 ] && printf '  %s\n' "$@"
+  failures=$((failures + 1))
+}
 pass() { printf 'ok   %s\n' "$1"; }
 
 # --- 1. the config loads cleanly --------------------------------------------
@@ -64,9 +72,9 @@ fi
 # Checked against the file rather than the server because the file is what
 # someone edits. `-n` binds live in the root table, which neither the cheatsheet
 # nor `list-keys -T prefix` shows, so a note there would have no reader.
-unnoted=$(grep -nE '^[[:space:]]*(bind|bind-key)[[:space:]]' .tmux.conf \
-  | grep -v -- ' -n ' \
-  | grep -v -- ' -N ')
+unnoted=$(grep -nE '^[[:space:]]*(bind|bind-key)[[:space:]]' .tmux.conf |
+  grep -v -- ' -n ' |
+  grep -v -- ' -N ')
 if [ -n "$unnoted" ]; then
   fail "every non-root binding in .tmux.conf has -N" \
     "these are invisible to bin/tmux-cheatsheet:" "$unnoted"
@@ -145,17 +153,21 @@ fi
 w_binding=$(tmux -L "$socket" list-keys -T prefix 2>/dev/null | grep -E '^bind-key .* w[[:space:]]+run-shell')
 case "$w_binding" in
   *"tmux-session-swap arm '#{client_tty}'"*)
-    pass "prefix + w arms the swap with the picking client's tty" ;;
+    pass "prefix + w arms the swap with the picking client's tty"
+    ;;
   *)
     fail "prefix + w arms the swap with the picking client's tty" \
-      "the arm half is missing from what tmux parsed:" "${w_binding:-<no w binding found>}" ;;
+      "the arm half is missing from what tmux parsed:" "${w_binding:-<no w binding found>}"
+    ;;
 esac
 case "$w_binding" in
   *'tmux-session-swap go \"%%\"'*)
-    pass "prefix + w passes choose-tree's %% through to the swap" ;;
+    pass "prefix + w passes choose-tree's %% through to the swap"
+    ;;
   *)
     fail "prefix + w passes choose-tree's %% through to the swap" \
-      "the %% template did not survive parsing:" "${w_binding:-<no w binding found>}" ;;
+      "the %% template did not survive parsing:" "${w_binding:-<no w binding found>}"
+    ;;
 esac
 
 # --- 4. the cheatsheet renders them -----------------------------------------

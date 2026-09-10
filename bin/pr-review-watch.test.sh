@@ -24,8 +24,15 @@ WATCH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pr-review-watch"
 pass=0
 fail=0
 
-ok() { pass=$((pass + 1)); printf '  ok   %s\n' "$1"; }
-no() { fail=$((fail + 1)); printf '  FAIL %s\n' "$1"; [ $# -gt 1 ] && printf '       %s\n' "$2"; }
+ok() {
+  pass=$((pass + 1))
+  printf '  ok   %s\n' "$1"
+}
+no() {
+  fail=$((fail + 1))
+  printf '  FAIL %s\n' "$1"
+  [ $# -gt 1 ] && printf '       %s\n' "$2"
+}
 
 eq() { # eq <label> <want> <got>
   if [ "$2" = "$3" ]; then ok "$1"; else no "$1" "want=[$2] got=[$3]"; fi
@@ -43,7 +50,7 @@ mkdir -p "$FIX" "$STUB"
 
 # --- stubs ------------------------------------------------------------------
 
-cat > "$STUB/gh" <<'EOF'
+cat >"$STUB/gh" <<'EOF'
 #!/bin/bash
 # Minimal gh api stub. Maps an endpoint to a fixture file of raw GitHub-shaped
 # JSON, then applies --jq to it exactly as gh would, so the caller's jq
@@ -86,7 +93,7 @@ esac
 if [ -n "$jqexpr" ]; then jq -r "$jqexpr" < "$fixture"; else cat "$fixture"; fi
 EOF
 
-cat > "$STUB/ghq" <<'EOF'
+cat >"$STUB/ghq" <<'EOF'
 #!/bin/bash
 # ghq list -p -e github.com/<owner>/<name>
 set -uo pipefail
@@ -98,12 +105,11 @@ done
 exit 0
 EOF
 
-cat > "$STUB/claude" <<'EOF'
+cat >"$STUB/claude" <<'EOF'
 #!/bin/bash
 set -uo pipefail
 [ "${1:-}" = "agents" ] && cat "$FIX/agents.json" || exit 1
 EOF
-
 
 chmod +x "$STUB"/*
 
@@ -114,22 +120,22 @@ WT="$TMP/wt"
 git init -q "$REPO"
 git -C "$REPO" -c user.email=t@e -c user.name=t commit -q --allow-empty -m init
 git -C "$REPO" worktree add -q -b feature/x "$WT" >/dev/null 2>&1
-printf '%s' "$REPO" > "$FIX/ghq-github.com_acme_widget"
+printf '%s' "$REPO" >"$FIX/ghq-github.com_acme_widget"
 
-printf '{"login":"alice"}\n' > "$FIX/user.json"
-printf 'Mon, 07 Sep 2026 10:00:10 GMT' > "$FIX/last-modified"
+printf '{"login":"alice"}\n' >"$FIX/user.json"
+printf 'Mon, 07 Sep 2026 10:00:10 GMT' >"$FIX/last-modified"
 
-cat > "$FIX/pull.json" <<EOF
+cat >"$FIX/pull.json" <<EOF
 {"head":{"ref":"feature/x"},"html_url":"https://github.com/acme/widget/pull/42","title":"a title"}
 EOF
 
-cat > "$FIX/agents.json" <<EOF
+cat >"$FIX/agents.json" <<EOF
 [{"pid":1,"cwd":"$WT","kind":"interactive","sessionId":"sess-1","startedAt":1,"status":"idle"}]
 EOF
 
 # One PullRequest notification plus two that must be ignored: a CheckSuite (a red
 # build is not review feedback) and a PullRequest whose reason is ci_activity.
-cat > "$FIX/notifications.json" <<'EOF'
+cat >"$FIX/notifications.json" <<'EOF'
 [
  {"reason":"author","updated_at":"2026-09-07T10:00:00Z",
   "repository":{"full_name":"acme/widget"},
@@ -144,7 +150,7 @@ cat > "$FIX/notifications.json" <<'EOF'
 EOF
 
 # submitted_at null = a PENDING review: a draft only its author can see.
-cat > "$FIX/reviews.json" <<'EOF'
+cat >"$FIX/reviews.json" <<'EOF'
 [
  {"id":11,"user":{"login":"bob"},"state":"COMMENTED","body":"old thought","submitted_at":"2026-09-01T00:00:00Z"},
  {"id":12,"user":{"login":"bob"},"state":"CHANGES_REQUESTED","body":"","submitted_at":"2026-09-07T10:00:05Z"},
@@ -153,14 +159,14 @@ cat > "$FIX/reviews.json" <<'EOF'
 ]
 EOF
 
-cat > "$FIX/review_comments.json" <<'EOF'
+cat >"$FIX/review_comments.json" <<'EOF'
 [
  {"id":21,"user":{"login":"bob"},"path":"a.ts","line":10,"original_line":10,"body":"rename this","created_at":"2026-09-07T10:00:05Z"},
  {"id":22,"user":{"login":"alice"},"path":"a.ts","line":11,"original_line":11,"body":"my own reply","created_at":"2026-09-07T10:00:07Z"}
 ]
 EOF
 
-cat > "$FIX/issue_comments.json" <<'EOF'
+cat >"$FIX/issue_comments.json" <<'EOF'
 [
  {"id":31,"user":{"login":"coderabbitai[bot]"},"body":"nit: typo","created_at":"2026-09-07T10:00:08Z"}
 ]
@@ -172,8 +178,8 @@ STATE="$TMP/state"
 
 run() { # run [args...] -> stdout+stderr
   PATH="$STUB:$PATH" FIX="$FIX" \
-  PR_REVIEW_WATCH_STATE_DIR="$STATE" \
-  PR_REVIEW_WATCH_EXTRA_REPOS="" \
+    PR_REVIEW_WATCH_STATE_DIR="$STATE" \
+    PR_REVIEW_WATCH_EXTRA_REPOS="" \
     "$WATCH" "$@" 2>&1
 }
 
@@ -183,22 +189,22 @@ echo "-- first poll: history is seeded, only post-cutoff feedback is queued --"
 out=$(run)
 
 eq 'job file created' 'yes' "$([ -f "$STATE/jobs/acme__widget__42.json" ] && echo yes || echo no)"
-eq 'branch resolved'      'feature/x' "$(job .branch)"
-eq 'worktree resolved'    "$WT"       "$(job .worktree)"
+eq 'branch resolved' 'feature/x' "$(job .branch)"
+eq 'worktree resolved' "$WT" "$(job .worktree)"
 eq 'session resolved from claude agents --json' 'sess-1' "$(job .sessionId)"
-eq 'pr number is a number' 'number'   "$(job '.pr|type')"
+eq 'pr number is a number' 'number' "$(job '.pr|type')"
 
 # review 11 predates the notification, so it is history: seen, never pending.
 eq 'pre-cutoff review seeded as seen, not queued' 'false' "$(job '[.pending[].id]|index("review:11")!=null')"
-eq 'pre-cutoff review is in seen'                 'true'  "$(job '[.seen[]]|index("review:11")!=null')"
+eq 'pre-cutoff review is in seen' 'true' "$(job '[.seen[]]|index("review:11")!=null')"
 
-eq 'wordless CHANGES_REQUESTED is queued'  'true'  "$(job '[.pending[].id]|index("review:12")!=null')"
-eq 'wordless APPROVED is not queued'       'false' "$(job '[.pending[].id]|index("review:14")!=null')"
+eq 'wordless CHANGES_REQUESTED is queued' 'true' "$(job '[.pending[].id]|index("review:12")!=null')"
+eq 'wordless APPROVED is not queued' 'false' "$(job '[.pending[].id]|index("review:14")!=null')"
 eq 'PENDING (unsubmitted) review is not queued' 'false' "$(job '[.pending[].id]|index("review:13")!=null')"
-eq 'inline comment is queued'              'true'  "$(job '[.pending[].id]|index("inline:21")!=null')"
-eq 'own comment is never queued'           'false' "$(job '[.pending[].id]|index("inline:22")!=null')"
-eq 'bot conversation comment is queued'    'true'  "$(job '[.pending[].id]|index("issue:31")!=null')"
-eq 'pending is ordered oldest first'       'true'  "$(job '[.pending[].at] == ([.pending[].at]|sort)')"
+eq 'inline comment is queued' 'true' "$(job '[.pending[].id]|index("inline:21")!=null')"
+eq 'own comment is never queued' 'false' "$(job '[.pending[].id]|index("inline:22")!=null')"
+eq 'bot conversation comment is queued' 'true' "$(job '[.pending[].id]|index("issue:31")!=null')"
+eq 'pending is ordered oldest first' 'true' "$(job '[.pending[].at] == ([.pending[].at]|sort)')"
 
 # The ci_activity PullRequest (#99) must not have produced a second job: a red
 # build is not review feedback, and routing it would wake a session per flake.
@@ -212,15 +218,15 @@ run >/dev/null
 eq 'pending unchanged on re-poll' "$before" "$(job '.pending|length')"
 
 echo "-- a review arriving while the session is busy ACCUMULATES, never replaces --"
-cat > "$FIX/issue_comments.json" <<'EOF'
+cat >"$FIX/issue_comments.json" <<'EOF'
 [
  {"id":31,"user":{"login":"coderabbitai[bot]"},"body":"nit: typo","created_at":"2026-09-07T10:00:08Z"},
  {"id":32,"user":{"login":"bob"},"body":"one more thing","created_at":"2026-09-07T10:05:00Z"}
 ]
 EOF
 run >/dev/null
-eq 'new item appended'        'true' "$(job '[.pending[].id]|index("issue:32")!=null')"
-eq 'earlier item still owed'  'true' "$(job '[.pending[].id]|index("issue:31")!=null')"
+eq 'new item appended' 'true' "$(job '[.pending[].id]|index("issue:32")!=null')"
+eq 'earlier item still owed' 'true' "$(job '[.pending[].id]|index("issue:31")!=null')"
 eq 'pending grew by exactly one' "$((before + 1))" "$(job '.pending|length')"
 
 echo "-- 304 short-circuits: no fetch, no write --"
@@ -243,11 +249,11 @@ echo "-- --pr adopts a PR with no notification at all --"
 # predates the tool. It must NOT seed history as seen the way first sight does,
 # or asking for a PR by name would queue nothing.
 STATE="$TMP/state3"
-: > "$FIX/not-modified"   # prove the notification poll is skipped entirely
+: >"$FIX/not-modified" # prove the notification poll is skipped entirely
 out=$(run --pr acme/widget#42)
 eq 'queues despite the 304' 'yes' "$(printf '%s' "$out" | grep -q '^queue acme/widget#42' && echo yes || echo no)"
 eq 'queues the pre-cutoff review too' 'true' "$(job '[.pending[].id]|index("review:11")!=null')"
-eq 'still drops own comments'         'false' "$(job '[.pending[].id]|index("inline:22")!=null')"
+eq 'still drops own comments' 'false' "$(job '[.pending[].id]|index("inline:22")!=null')"
 eq 'leaves Last-Modified alone' 'no' "$([ -f "$STATE/poll.last-modified" ] && echo yes || echo no)"
 out=$(run --pr 'nonsense')
 eq 'rejects a malformed --pr' 'yes' "$(printf '%s' "$out" | grep -q 'owner/repo#number' && echo yes || echo no)"
@@ -261,20 +267,20 @@ echo "-- nested worktrees: the outer checkout must not claim an inner session --
 # fix: worktree ~/dotfiles matched four sessions and picked one on another branch.
 MAIN_BRANCH=$(git -C "$REPO" symbolic-ref --short HEAD)
 git -C "$REPO" worktree add -q -b feature/nested "$REPO/git-worktrees/nested" >/dev/null 2>&1
-cat > "$FIX/pull.json" <<EOF
+cat >"$FIX/pull.json" <<EOF
 {"head":{"ref":"$MAIN_BRANCH"},"html_url":"https://github.com/acme/widget/pull/42","title":"a title"}
 EOF
 # The only session sits in the NESTED worktree, not in the checkout the PR is on.
-cat > "$FIX/agents.json" <<EOF
+cat >"$FIX/agents.json" <<EOF
 [{"pid":9,"cwd":"$REPO/git-worktrees/nested","kind":"interactive","sessionId":"nested-sess","startedAt":9,"status":"idle"}]
 EOF
 STATE="$TMP/state4"
 run --pr acme/widget#42 >/dev/null
 eq 'the PR resolves to the outer checkout' "$REPO" "$(job .worktree)"
-eq 'and claims no session at all'          'null'  "$(job '.sessionId')"
+eq 'and claims no session at all' 'null' "$(job '.sessionId')"
 
 # The same layout, with a session actually in the outer checkout, must resolve.
-cat > "$FIX/agents.json" <<EOF
+cat >"$FIX/agents.json" <<EOF
 [{"pid":9,"cwd":"$REPO/git-worktrees/nested","kind":"interactive","sessionId":"nested-sess","startedAt":9,"status":"idle"},
  {"pid":10,"cwd":"$REPO","kind":"interactive","sessionId":"outer-sess","startedAt":10,"status":"idle"}]
 EOF
@@ -283,10 +289,10 @@ run --pr acme/widget#42 >/dev/null
 eq 'the outer session is picked, not the newer nested one' 'outer-sess' "$(job .sessionId)"
 
 # And a cwd deeper than the worktree root still belongs to that worktree.
-cat > "$FIX/pull.json" <<'EOF'
+cat >"$FIX/pull.json" <<'EOF'
 {"head":{"ref":"feature/nested"},"html_url":"https://github.com/acme/widget/pull/42","title":"a title"}
 EOF
-cat > "$FIX/agents.json" <<EOF
+cat >"$FIX/agents.json" <<EOF
 [{"pid":11,"cwd":"$REPO/git-worktrees/nested/src/deep","kind":"interactive","sessionId":"deep-sess","startedAt":11,"status":"idle"}]
 EOF
 STATE="$TMP/state6"
@@ -294,10 +300,10 @@ run --pr acme/widget#42 >/dev/null
 eq 'a session in a subdirectory still counts' 'deep-sess' "$(job .sessionId)"
 
 # Restore the fixtures the remaining cases expect.
-cat > "$FIX/pull.json" <<'EOF'
+cat >"$FIX/pull.json" <<'EOF'
 {"head":{"ref":"feature/x"},"html_url":"https://github.com/acme/widget/pull/42","title":"a title"}
 EOF
-cat > "$FIX/agents.json" <<EOF
+cat >"$FIX/agents.json" <<EOF
 [{"pid":1,"cwd":"$WT","kind":"interactive","sessionId":"sess-1","startedAt":1,"status":"idle"}]
 EOF
 

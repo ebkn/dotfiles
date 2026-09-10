@@ -27,17 +27,31 @@
 set -uo pipefail
 
 DISPATCH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pr-review-dispatch"
-command -v jq >/dev/null || { echo "jq is required"; exit 1; }
-command -v nc >/dev/null || { echo "nc is required"; exit 1; }
+command -v jq >/dev/null || {
+  echo "jq is required"
+  exit 1
+}
+command -v nc >/dev/null || {
+  echo "nc is required"
+  exit 1
+}
 
 pass=0
 fail=0
-ok() { pass=$((pass + 1)); printf '  ok   %s\n' "$1"; }
-no() { fail=$((fail + 1)); printf '  FAIL %s\n' "$1"; [ $# -gt 1 ] && printf '       %s\n' "$2"; }
+ok() {
+  pass=$((pass + 1))
+  printf '  ok   %s\n' "$1"
+}
+no() {
+  fail=$((fail + 1))
+  printf '  FAIL %s\n' "$1"
+  [ $# -gt 1 ] && printf '       %s\n' "$2"
+}
 eq() { if [ "$2" = "$3" ]; then ok "$1"; else no "$1" "want=[$2] got=[$3]"; fi; }
-has() { case "$2" in *"$3"*) ok "$1" ;; *) no "$1" "[$2] does not contain [$3]" ;; esac; }
+has() { case "$2" in *"$3"*) ok "$1" ;; *) no "$1" "[$2] does not contain [$3]" ;; esac }
 
-TMP=$(mktemp -d); TMP=$(cd "$TMP" && pwd -P)
+TMP=$(mktemp -d)
+TMP=$(cd "$TMP" && pwd -P)
 KILL_PIDS=""
 leaked=0
 cleanup() {
@@ -91,20 +105,24 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 
-STATE="$TMP/state"; mkdir -p "$STATE/jobs"
-SESS="$TMP/sessions"; mkdir -p "$SESS"
-STUB="$TMP/stub"; mkdir -p "$STUB"
+STATE="$TMP/state"
+mkdir -p "$STATE/jobs"
+SESS="$TMP/sessions"
+mkdir -p "$SESS"
+STUB="$TMP/stub"
+mkdir -p "$STUB"
 
 # A REAL repository with the target as a REAL worktree nested under it, the way
 # `gw` lays them out. It has to be real git: the session lookup asks
 # `git worktree list` which paths are worktrees, precisely so the outer checkout
 # cannot claim a session running in an inner one.
-REPO="$TMP/repo"; WT="$REPO/git-worktrees/wt"
+REPO="$TMP/repo"
+WT="$REPO/git-worktrees/wt"
 git init -q "$REPO"
 git -C "$REPO" -c user.email=t@e -c user.name=t commit -q --allow-empty -m init
 git -C "$REPO" worktree add -q -b feature/x "$WT" >/dev/null 2>&1
 
-cat > "$STUB/claude" <<'EOF'
+cat >"$STUB/claude" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >> "$RESUMELOG"
 [ -f "$RESUMEFAIL" ] && exit 1
@@ -140,17 +158,25 @@ spawn_holder() {
 # never reached the caller and nothing could clean up.
 listen() {
   /bin/rm -f "$1"
-  nc -lU "$1" > "$2" 2>/dev/null &
+  nc -lU "$1" >"$2" 2>/dev/null &
   KILL_PIDS="$KILL_PIDS $!"
   local i=0
-  while [ $i -lt 60 ]; do [ -S "$1" ] && return 0; sleep 0.05; i=$((i + 1)); done
+  while [ $i -lt 60 ]; do
+    [ -S "$1" ] && return 0
+    sleep 0.05
+    i=$((i + 1))
+  done
   return 1
 }
 
 # Wait for the listener to have written the line out.
 settle() {
   local i=0
-  while [ $i -lt 60 ]; do [ -s "$1" ] && return 0; sleep 0.05; i=$((i + 1)); done
+  while [ $i -lt 60 ]; do
+    [ -s "$1" ] && return 0
+    sleep 0.05
+    i=$((i + 1))
+  done
   return 1
 }
 
@@ -166,17 +192,21 @@ settle() {
 # a genuine failure pay the timeout.
 wait_dead() {
   local i=0
-  while [ $i -lt 60 ]; do kill -0 "$1" 2>/dev/null || return 0; sleep 0.05; i=$((i + 1)); done
+  while [ $i -lt 60 ]; do
+    kill -0 "$1" 2>/dev/null || return 0
+    sleep 0.05
+    i=$((i + 1))
+  done
   return 1
 }
 
 # session <file-stem> <pid> <cwd> <socket> <startedAt> [status]
 session() {
   jq -n --argjson pid "$2" --arg cwd "$3" --arg sock "$4" \
-        --argjson at "$5" --arg st "${6:-idle}" \
+    --argjson at "$5" --arg st "${6:-idle}" \
     '{pid:$pid, sessionId:("sess-" + ($pid|tostring)), name:("s" + ($pid|tostring)),
       cwd:$cwd, kind:"interactive", startedAt:$at, status:$st,
-      messagingSocketPath:$sock}' > "$SESS/$1.json"
+      messagingSocketPath:$sock}' >"$SESS/$1.json"
 }
 
 make_job() { # make_job [worktree] [pr]
@@ -192,18 +222,18 @@ make_job() { # make_job [worktree] [pr]
       {id:"review:12", kind:"review", author:"carol", state:"CHANGES_REQUESTED", path:"a/b.ts", line:9,
        body:"", at:"2026-09-07T10:00:05Z"}
     ],
-    updatedAt:"2026-09-07T10:00:09Z"}' > "$STATE/jobs/acme__widget__$pr.json"
+    updatedAt:"2026-09-07T10:00:09Z"}' >"$STATE/jobs/acme__widget__$pr.json"
 }
 
 job() { jq -r "$1" "$STATE/jobs/acme__widget__42.json"; }
-jobf() { jq -r "$2" "$STATE/jobs/acme__widget__$1.json"; }  # jobf <pr> <filter>
+jobf() { jq -r "$2" "$STATE/jobs/acme__widget__$1.json"; } # jobf <pr> <filter>
 reset() { /bin/rm -f "$STATE"/jobs/* "$SESS"/*.json "$TMP"/wire-* "$TMP/resume.log" "$TMP/resume.fail"; }
 
 run() {
   PATH="$STUB:$PATH" \
-  RESUMELOG="$TMP/resume.log" RESUMEFAIL="$TMP/resume.fail" \
-  PR_REVIEW_WATCH_STATE_DIR="$STATE" CLAUDE_SESSIONS_DIR="$SESS" \
-  PR_REVIEW_DISPATCH_RESUME="${RESUME:-0}" \
+    RESUMELOG="$TMP/resume.log" RESUMEFAIL="$TMP/resume.fail" \
+    PR_REVIEW_WATCH_STATE_DIR="$STATE" CLAUDE_SESSIONS_DIR="$SESS" \
+    PR_REVIEW_DISPATCH_RESUME="${RESUME:-0}" \
     "$DISPATCH" "$@" 2>&1
 }
 
@@ -217,7 +247,9 @@ run() {
 arrange_and_deliver() {
   local tag=$1
   reset
-  PID=$(spawn_holder); WIRE="$TMP/wire-$tag"; SOCKP="$TMP/s$tag.sock"
+  PID=$(spawn_holder)
+  WIRE="$TMP/wire-$tag"
+  SOCKP="$TMP/s$tag.sock"
   listen "$SOCKP" "$WIRE" || no "listener came up ($tag)"
   session live "$PID" "$WT" "$SOCKP" 100
   make_job
@@ -237,7 +269,7 @@ line=$(cat "$WIRE")
 # Newline-terminated and exactly one line: the socket reads line by line, so a
 # payload split across two would be read as two messages and a payload with no
 # terminator would sit in the buffer until the 30s connection timeout dropped it.
-eq "the payload is exactly one line" "1" "$(wc -l < "$WIRE" | tr -d ' ')"
+eq "the payload is exactly one line" "1" "$(wc -l <"$WIRE" | tr -d ' ')"
 eq "it parses as JSON" "ok" "$(printf '%s' "$line" | jq -e . >/dev/null 2>&1 && echo ok)"
 eq "type is user" "user" "$(printf '%s' "$line" | jq -r .type)"
 eq "message.role is user" "user" "$(printf '%s' "$line" | jq -r .message.role)"
@@ -283,14 +315,17 @@ eq "seen survives delivery" "review:11 issue:31" "$(job '.seen | join(" ")')"
 # in its worktree -- the state every tick after a delivery is in.
 printf 'nothing pending\n'
 reset
-PID=$(spawn_holder); WIRE="$TMP/wire-np"; SOCKP="$TMP/snp.sock"
+PID=$(spawn_holder)
+WIRE="$TMP/wire-np"
+SOCKP="$TMP/snp.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session live "$PID" "$WT" "$SOCKP" 100
 make_job
 jq '.pending = [] | .status = "delivered" | .deliveredCount = 2' \
-  "$STATE/jobs/acme__widget__42.json" > "$TMP/np.json"
+  "$STATE/jobs/acme__widget__42.json" >"$TMP/np.json"
 mv "$TMP/np.json" "$STATE/jobs/acme__widget__42.json"
-out=$(run); rc=$?
+out=$(run)
+rc=$?
 eq "a delivered job is not sent again" "" "$(cat "$WIRE" 2>/dev/null)"
 eq "and nothing is reported" "" "$out"
 eq "and the run still exits 0" "0" "$rc"
@@ -314,7 +349,9 @@ has "an empty body is called out, not left blank" "$body" "the verdict is the me
 
 printf 'busy is not a gate\n'
 reset
-PID=$(spawn_holder); WIRE="$TMP/wire-2"; SOCKP="$TMP/s2.sock"
+PID=$(spawn_holder)
+WIRE="$TMP/wire-2"
+SOCKP="$TMP/s2.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session live "$PID" "$WT" "$SOCKP" 100 busy
 make_job
@@ -322,18 +359,22 @@ make_job
 # wire, and the reason settle's result is checked is the one arrange_and_deliver
 # states -- an unchecked timeout makes the NEXT assertion read an empty file and
 # fail as though the wire format were wrong.
-run >/dev/null; settle "$WIRE" || no "nothing reached the socket (busy)"
+run >/dev/null
+settle "$WIRE" || no "nothing reached the socket (busy)"
 eq "a busy session is delivered to" "delivered" "$(job .status)"
-eq "the line still arrived" "user" "$(jq -r .type < "$WIRE" 2>/dev/null)"
+eq "the line still arrived" "user" "$(jq -r .type <"$WIRE" 2>/dev/null)"
 
 # An unrecognised status is not a reason to hold either -- there is nothing to
 # recognise. This is the opposite of the old rule and is stated on purpose.
 reset
-PID=$(spawn_holder); WIRE="$TMP/wire-3"; SOCKP="$TMP/s3.sock"
+PID=$(spawn_holder)
+WIRE="$TMP/wire-3"
+SOCKP="$TMP/s3.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session live "$PID" "$WT" "$SOCKP" 100 some-future-status
 make_job
-run >/dev/null; settle "$WIRE" || no "nothing reached the socket (unknown status)"
+run >/dev/null
+settle "$WIRE" || no "nothing reached the socket (unknown status)"
 eq "an unknown status is delivered to" "delivered" "$(job .status)"
 
 # --- liveness ---------------------------------------------------------------
@@ -344,17 +385,22 @@ printf 'liveness\n'
 # live one and hold its job forever. Both entries here name the same worktree
 # and the dead one is NEWER.
 reset
-DEAD=$(spawn_holder); kill "$DEAD" 2>/dev/null
+DEAD=$(spawn_holder)
+kill "$DEAD" 2>/dev/null
 wait_dead "$DEAD" || no "the stale session's process did not exit"
-ALIVE=$(spawn_holder); WIRE="$TMP/wire-4"; SOCKP="$TMP/s4.sock"; DEADSOCK="$TMP/s4dead.sock"
+ALIVE=$(spawn_holder)
+WIRE="$TMP/wire-4"
+SOCKP="$TMP/s4.sock"
+DEADSOCK="$TMP/s4dead.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 listen "$DEADSOCK" "$TMP/wire-4dead" || no "dead listener came up"
 session alive "$ALIVE" "$WT" "$SOCKP" 100
 session stale "$DEAD" "$WT" "$DEADSOCK" 999
 make_job
-run >/dev/null; settle "$WIRE" || no "nothing reached the live session's socket"
+run >/dev/null
+settle "$WIRE" || no "nothing reached the live session's socket"
 eq "a dead newer session does not shadow a live one" "delivered" "$(job .status)"
-eq "the live session got it" "user" "$(jq -r .type < "$WIRE" 2>/dev/null)"
+eq "the live session got it" "user" "$(jq -r .type <"$WIRE" 2>/dev/null)"
 eq "the dead session's socket got nothing" "" "$(cat "$TMP/wire-4dead" 2>/dev/null)"
 
 # The socket file exists but nothing listens on it, so connecting is refused.
@@ -401,7 +447,7 @@ reset
 PID=$(spawn_holder)
 jq -n --argjson pid "$PID" --arg cwd "$WT" \
   '{pid:$pid, sessionId:"s", name:"s", cwd:$cwd, kind:"interactive",
-    startedAt:100, status:"idle", inboxSocket:"/renamed/away.sock"}' > "$SESS/renamed.json"
+    startedAt:100, status:"idle", inboxSocket:"/renamed/away.sock"}' >"$SESS/renamed.json"
 make_job
 out=$(run)
 eq "a renamed socket field still holds the job" "pending" "$(job .status)"
@@ -418,11 +464,13 @@ has "it names both causes rather than asserting one" "$out" "bare mode"
 # routes review feedback into an unattended agent editing code -- the one thing
 # this program keeps behind PR_REVIEW_DISPATCH_RESUME=1 on purpose.
 reset
-PID=$(spawn_holder); WIRE="$TMP/wire-kind"; SOCKP="$TMP/skind.sock"
+PID=$(spawn_holder)
+WIRE="$TMP/wire-kind"
+SOCKP="$TMP/skind.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session live "$PID" "$WT" "$SOCKP" 100
 # Live pid, real socket, right worktree -- the only disqualifying thing is .kind.
-jq '.kind = "background"' "$SESS/live.json" > "$TMP/k.json"
+jq '.kind = "background"' "$SESS/live.json" >"$TMP/k.json"
 mv "$TMP/k.json" "$SESS/live.json"
 make_job
 out=$(run)
@@ -457,7 +505,8 @@ has "it names the override" "$out" "CLAUDE_SESSIONS_DIR"
 
 printf 'multiple jobs\n'
 reset
-INNER=$(spawn_holder); OUTER=$(spawn_holder)
+INNER=$(spawn_holder)
+OUTER=$(spawn_holder)
 listen "$TMP/s-in.sock" "$TMP/wire-in" || no "inner listener came up"
 listen "$TMP/s-out.sock" "$TMP/wire-out" || no "outer listener came up"
 # The INNER session is deliberately the NEWER one. Under the containment rule
@@ -465,15 +514,15 @@ listen "$TMP/s-out.sock" "$TMP/wire-out" || no "outer listener came up"
 # a job on the outer matched both and newest-won -- delivering to the wrong
 # branch. Longest-prefix has to send each job to the session at its own worktree.
 session outer "$OUTER" "$REPO" "$TMP/s-out.sock" 100
-session inner "$INNER" "$WT"   "$TMP/s-in.sock"  999
-make_job "$WT"   42
+session inner "$INNER" "$WT" "$TMP/s-in.sock" 999
+make_job "$WT" 42
 make_job "$REPO" 43
 out=$(run)
-settle "$TMP/wire-in"  || no "nothing reached the inner session"
+settle "$TMP/wire-in" || no "nothing reached the inner session"
 settle "$TMP/wire-out" || no "nothing reached the outer session"
 eq "both jobs are delivered" "delivered delivered" "$(jobf 42 .status) $(jobf 43 .status)"
-has "the inner job went to the inner session" "$(jq -r .message.content < "$TMP/wire-in")" "pull/42"
-has "the outer job went to the outer session" "$(jq -r .message.content < "$TMP/wire-out")" "pull/43"
+has "the inner job went to the inner session" "$(jq -r .message.content <"$TMP/wire-in")" "pull/42"
+has "the outer job went to the outer session" "$(jq -r .message.content <"$TMP/wire-out")" "pull/43"
 has "the summary counts both" "$out" "delivered 2 job(s)"
 
 # One delivered, one held in the same run: the ordinary state of a real queue,
@@ -483,8 +532,8 @@ reset
 PID=$(spawn_holder)
 listen "$TMP/s-mix.sock" "$TMP/wire-mix" || no "listener came up"
 session live "$PID" "$WT" "$TMP/s-mix.sock" 100
-make_job "$WT"   42   # deliverable
-make_job "$REPO" 43   # no session at the outer checkout this time
+make_job "$WT" 42   # deliverable
+make_job "$REPO" 43 # no session at the outer checkout this time
 out=$(run)
 settle "$TMP/wire-mix" || no "nothing reached the socket"
 eq "the deliverable job is delivered" "delivered" "$(jobf 42 .status)"
@@ -500,29 +549,36 @@ has "the summary counts the hold" "$out" "held 1 job(s)"
 
 printf 'worktree ownership\n'
 reset
-PID=$(spawn_holder); WIRE="$TMP/wire-5"; SOCKP="$TMP/s5.sock"
+PID=$(spawn_holder)
+WIRE="$TMP/wire-5"
+SOCKP="$TMP/s5.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session inner "$PID" "$WT" "$SOCKP" 100
-make_job "$REPO"   # the job is on the OUTER checkout
+make_job "$REPO" # the job is on the OUTER checkout
 out=$(run)
 eq "a session in an inner worktree does not answer for the outer one" "pending" "$(job .status)"
 eq "nothing was sent" "" "$(cat "$WIRE" 2>/dev/null)"
 
 # A cwd DEEPER than the worktree root still belongs to it.
 reset
-PID=$(spawn_holder); WIRE="$TMP/wire-6"; SOCKP="$TMP/s6.sock"
+PID=$(spawn_holder)
+WIRE="$TMP/wire-6"
+SOCKP="$TMP/s6.sock"
 mkdir -p "$WT/src/deep"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session deep "$PID" "$WT/src/deep" "$SOCKP" 100
 make_job
-run >/dev/null; settle "$WIRE" || no "nothing reached the socket (deep cwd)"
+run >/dev/null
+settle "$WIRE" || no "nothing reached the socket (deep cwd)"
 eq "a cwd below the worktree root still belongs to it" "delivered" "$(job .status)"
 
 # --- dry run ----------------------------------------------------------------
 
 printf 'dry run\n'
 reset
-PID=$(spawn_holder); WIRE="$TMP/wire-7"; SOCKP="$TMP/s7.sock"
+PID=$(spawn_holder)
+WIRE="$TMP/wire-7"
+SOCKP="$TMP/s7.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session live "$PID" "$WT" "$SOCKP" 100
 make_job
@@ -578,7 +634,7 @@ esac
 # A failed resume must leave the job queued -- it is the only copy.
 reset
 make_job
-: > "$TMP/resume.fail"
+: >"$TMP/resume.fail"
 out=$(RESUME=1 run)
 eq "a failed resume holds the job" "pending" "$(job .status)"
 has "and says so" "$out" "claude --bg --resume failed"
@@ -594,14 +650,17 @@ has "and says so" "$out" "claude --bg --resume failed"
 
 printf 'unmarkable job\n'
 reset
-PID=$(spawn_holder); WIRE="$TMP/wire-8"; SOCKP="$TMP/s8.sock"
+PID=$(spawn_holder)
+WIRE="$TMP/wire-8"
+SOCKP="$TMP/s8.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session live "$PID" "$WT" "$SOCKP" 100
 make_job
-chmod 500 "$STATE/jobs"          # writable job file, unwritable directory
-out=$(run 2>&1); settle "$WIRE"
+chmod 500 "$STATE/jobs" # writable job file, unwritable directory
+out=$(run 2>&1)
+settle "$WIRE"
 chmod 700 "$STATE/jobs"
-eq "the message still went out" "user" "$(jq -r .type < "$WIRE" 2>/dev/null)"
+eq "the message still went out" "user" "$(jq -r .type <"$WIRE" 2>/dev/null)"
 has "the failure is reported" "$out" "could not be marked"
 has "it names the consequence" "$out" "WILL be sent again"
 eq "no .tmp file is left behind" "" "$(ls "$STATE"/jobs/*.tmp 2>/dev/null)"
@@ -614,12 +673,15 @@ eq "no .tmp file is left behind" "" "$(ls "$STATE"/jobs/*.tmp 2>/dev/null)"
 
 printf 'corrupt job\n'
 reset
-PID=$(spawn_holder); WIRE="$TMP/wire-bad"; SOCKP="$TMP/sbad.sock"
+PID=$(spawn_holder)
+WIRE="$TMP/wire-bad"
+SOCKP="$TMP/sbad.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session live "$PID" "$WT" "$SOCKP" 100
-printf 'not json at all\n' > "$STATE/jobs/acme__widget__41.json"
+printf 'not json at all\n' >"$STATE/jobs/acme__widget__41.json"
 make_job
-out=$(run); settle "$WIRE" || no "nothing reached the socket past the corrupt file"
+out=$(run)
+settle "$WIRE" || no "nothing reached the socket past the corrupt file"
 eq "the valid job is still delivered" "delivered" "$(job .status)"
 eq "the corrupt file is left alone" "not json at all" "$(cat "$STATE/jobs/acme__widget__41.json")"
 has "and the run reports only the real one" "$out" "delivered 1 job(s)"
@@ -632,19 +694,22 @@ has "and the run reports only the real one" "$out" "delivered 1 job(s)"
 
 printf 'two sessions, one worktree\n'
 reset
-OLD=$(spawn_holder); NEW=$(spawn_holder)
+OLD=$(spawn_holder)
+NEW=$(spawn_holder)
 listen "$TMP/s-old.sock" "$TMP/wire-old" || no "old listener came up"
 listen "$TMP/s-new.sock" "$TMP/wire-new" || no "new listener came up"
 session older "$OLD" "$WT" "$TMP/s-old.sock" 100
 session newer "$NEW" "$WT" "$TMP/s-new.sock" 999
 make_job
-run >/dev/null; settle "$TMP/wire-new" || no "nothing reached the newer session"
-eq "the newest session wins" "user" "$(jq -r .type < "$TMP/wire-new" 2>/dev/null)"
+run >/dev/null
+settle "$TMP/wire-new" || no "nothing reached the newer session"
+eq "the newest session wins" "user" "$(jq -r .type <"$TMP/wire-new" 2>/dev/null)"
 eq "and the older one gets nothing" "" "$(cat "$TMP/wire-old" 2>/dev/null)"
 
 printf 'empty queue\n'
 reset
-out=$(run); rc=$?
+out=$(run)
+rc=$?
 eq "exits 0 with nothing to do" "0" "$rc"
 eq "and says nothing" "" "$out"
 
@@ -657,7 +722,7 @@ reset
 PID=$(spawn_holder)
 jq -n --argjson pid "$PID" --arg cwd "$WT" \
   '{pid:$pid, sessionId:"s", name:"s", cwd:$cwd, kind:"interactive",
-    startedAt:100, status:"idle", inboxSocket:"/renamed/away.sock"}' > "$SESS/renamed.json"
+    startedAt:100, status:"idle", inboxSocket:"/renamed/away.sock"}' >"$SESS/renamed.json"
 out=$(run)
 eq "a broken registry stays quiet while the queue is empty" "" "$out"
 
@@ -685,12 +750,16 @@ LOCK="$STATE/.dispatch-lock"
 # A live holder: skip, silently, touching nothing.
 reset
 HOLDER=$(spawn_holder)
-PID=$(spawn_holder); WIRE="$TMP/wire-lock"; SOCKP="$TMP/slock.sock"
+PID=$(spawn_holder)
+WIRE="$TMP/wire-lock"
+SOCKP="$TMP/slock.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session live "$PID" "$WT" "$SOCKP" 100
 make_job
-mkdir -p "$LOCK"; printf '%s' "$HOLDER" > "$LOCK/pid"
-out=$(run); rc=$?
+mkdir -p "$LOCK"
+printf '%s' "$HOLDER" >"$LOCK/pid"
+out=$(run)
+rc=$?
 eq "a live holder makes the run exit 0" "0" "$rc"
 eq "and say nothing" "" "$out"
 eq "and deliver nothing" "" "$(cat "$WIRE" 2>/dev/null)"
@@ -708,7 +777,8 @@ eq "and the holder's lock survives" "$HOLDER" "$(cat "$LOCK/pid" 2>/dev/null)"
 # A dead holder's lock is stolen rather than honoured forever.
 kill "$HOLDER" 2>/dev/null
 wait_dead "$HOLDER" || no "the lock holder did not exit"
-out=$(run); settle "$WIRE" || no "nothing reached the socket after stealing the lock"
+out=$(run)
+settle "$WIRE" || no "nothing reached the socket after stealing the lock"
 eq "a dead holder's lock is stolen" "delivered" "$(job .status)"
 has "and the delivery is reported" "$out" "send  acme/widget#42"
 # Released on the way out, or the next run would have to steal from a pid that no
@@ -723,7 +793,7 @@ eq "the lock is released afterwards" "absent" "$([ -d "$LOCK" ] || echo absent)"
 
 printf 'socat branch\n'
 reset
-cat > "$STUB/socat" <<'EOF'
+cat >"$STUB/socat" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" > "$SOCATARGV"
 cat > "$SOCATBODY"
@@ -742,7 +812,7 @@ out=$(PATH="$STUB:$PATH" SOCATARGV="$TMP/socat.argv" SOCATBODY="$TMP/socat.body"
 eq "socat is invoked with UNIX-CONNECT and the session's socket" \
   "-t 5 - UNIX-CONNECT:$TMP/s-socat.sock" "$(cat "$TMP/socat.argv" 2>/dev/null)"
 eq "it is handed the same one-line envelope" "user" \
-  "$(jq -r .type < "$TMP/socat.body" 2>/dev/null)"
+  "$(jq -r .type <"$TMP/socat.body" 2>/dev/null)"
 eq "the job is marked delivered through that branch" "delivered" "$(job .status)"
 has "the run reports the send" "$out" "send  acme/widget#42"
 /bin/rm -f "$STUB/socat"
@@ -751,12 +821,14 @@ has "the run reports the send" "$out" "send  acme/widget#42"
 # other tool: a silent fallback would make the override look honoured when it was
 # not, which is the whole reason to set it.
 out=$(PATH="$STUB:$PATH" PR_REVIEW_WATCH_STATE_DIR="$STATE" \
-  PR_REVIEW_DISPATCH_SOCK_TOOL=socat "$DISPATCH" 2>&1); rc=$?
+  PR_REVIEW_DISPATCH_SOCK_TOOL=socat "$DISPATCH" 2>&1)
+rc=$?
 eq "an uninstalled override exits non-zero" "1" "$rc"
 has "and names it" "$out" "PR_REVIEW_DISPATCH_SOCK_TOOL=socat is not installed"
 
 out=$(PATH="$STUB:$PATH" PR_REVIEW_WATCH_STATE_DIR="$STATE" \
-  PR_REVIEW_DISPATCH_SOCK_TOOL=telnet "$DISPATCH" 2>&1); rc=$?
+  PR_REVIEW_DISPATCH_SOCK_TOOL=telnet "$DISPATCH" 2>&1)
+rc=$?
 eq "an unknown override exits non-zero" "1" "$rc"
 has "and says what is allowed" "$out" "must be nc or socat"
 
@@ -764,13 +836,15 @@ has "and says what is allowed" "$out" "must be nc or socat"
 # anyway has to be a no-op, not a second code path -- otherwise the override is
 # only usable for escaping to socat, which is half of what it is for.
 reset
-PID=$(spawn_holder); WIRE="$TMP/wire-nc"; SOCKP="$TMP/snc.sock"
+PID=$(spawn_holder)
+WIRE="$TMP/wire-nc"
+SOCKP="$TMP/snc.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session live "$PID" "$WT" "$SOCKP" 100
 make_job
 PR_REVIEW_DISPATCH_SOCK_TOOL=nc run >/dev/null
 settle "$WIRE" || no "nothing reached the socket (explicit nc)"
-eq "naming nc explicitly changes nothing" "user" "$(jq -r .type < "$WIRE" 2>/dev/null)"
+eq "naming nc explicitly changes nothing" "user" "$(jq -r .type <"$WIRE" 2>/dev/null)"
 eq "and delivers" "delivered" "$(job .status)"
 # bash keeps a `VAR=x func` assignment set after the call returns, unlike the
 # same prefix on an external command -- so it has to be cleared, or every group
@@ -782,7 +856,8 @@ unset PR_REVIEW_DISPATCH_SOCK_TOOL
 # produces garbage if the header's shape changes. Nothing else would notice.
 
 printf 'arguments\n'
-out=$(run --help); rc=$?
+out=$(run --help)
+rc=$?
 eq "--help exits 0" "0" "$rc"
 has "it prints the usage section" "$out" "pr-review-dispatch --dry-run"
 has "it strips the comment markers" "$out" "Stage 2 of the pipeline"
@@ -791,11 +866,13 @@ case "$out" in
   *) ok "--help stops before the code" ;;
 esac
 
-out=$(run -h); rc=$?
+out=$(run -h)
+rc=$?
 eq "-h is the same door" "0" "$rc"
 has "and prints the same thing" "$out" "pr-review-dispatch --dry-run"
 
-out=$(run --nonsense 2>&1); rc=$?
+out=$(run --nonsense 2>&1)
+rc=$?
 eq "an unknown argument exits non-zero" "1" "$rc"
 has "and names it" "$out" "unknown argument: --nonsense"
 
@@ -809,11 +886,12 @@ eq "the first delivery counts its items" "2" "$(job .deliveredCount)"
 # The watcher's job: new feedback lands on a job already marked delivered.
 jq '.pending = [{id:"issue:99", kind:"issue", author:"dave", state:null,
                  path:null, line:null, body:"one more", at:"z"}]
-    | .status = "pending"' "$STATE/jobs/acme__widget__42.json" > "$TMP/re.json"
+    | .status = "pending"' "$STATE/jobs/acme__widget__42.json" >"$TMP/re.json"
 mv "$TMP/re.json" "$STATE/jobs/acme__widget__42.json"
 listen "$TMP/s9b.sock" "$TMP/wire-9b" || no "second listener came up"
 session live "$PID" "$WT" "$TMP/s9b.sock" 100
-out=$(run); settle "$TMP/wire-9b" || no "nothing reached the socket"
+out=$(run)
+settle "$TMP/wire-9b" || no "nothing reached the socket"
 eq "the second delivery adds to the count" "3" "$(job .deliveredCount)"
 eq "and empties pending again" "0" "$(job '.pending | length')"
 eq "seen still survives" "review:11 issue:31" "$(job '.seen | join(" ")')"

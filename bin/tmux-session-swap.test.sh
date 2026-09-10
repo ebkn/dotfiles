@@ -27,7 +27,10 @@ IDLE='sleep 600'
 CLIENT_PIDS=""
 fails=0
 
-command -v tmux >/dev/null || { echo "tmux is required" >&2; exit 1; }
+command -v tmux >/dev/null || {
+  echo "tmux is required" >&2
+  exit 1
+}
 
 cleanup() {
   for p in $CLIENT_PIDS; do kill "$p" 2>/dev/null; done
@@ -92,31 +95,31 @@ ttyB=$(tty_on bravo)
 # --- picking a session another client holds: the two clients swap ------------
 "$SCRIPT" arm "$ttyA"
 "$SCRIPT" go bravo
-t "swap: the picker lands on its choice"        "bravo"  "$(where "$ttyA")"
-t "swap: the incumbent takes the vacated one"   "alpha"  "$(where "$ttyB")"
-t "swap: no session ends up with two clients"   ""       "$(doubled)"
+t "swap: the picker lands on its choice" "bravo" "$(where "$ttyA")"
+t "swap: the incumbent takes the vacated one" "alpha" "$(where "$ttyB")"
+t "swap: no session ends up with two clients" "" "$(doubled)"
 
 # --- picking a free session: a plain move, nobody else is touched ------------
 "$SCRIPT" arm "$ttyA"
 "$SCRIPT" go idle
-t "free: the picker lands on its choice"        "idle"   "$(where "$ttyA")"
-t "free: the other client is left alone"        "alpha"  "$(where "$ttyB")"
-t "free: no session ends up with two clients"   ""       "$(doubled)"
+t "free: the picker lands on its choice" "idle" "$(where "$ttyA")"
+t "free: the other client is left alone" "alpha" "$(where "$ttyB")"
+t "free: no session ends up with two clients" "" "$(doubled)"
 
 # --- a window target, which is what choose-tree -Zw actually passes ----------
 win=$(tmux list-windows -t '=alpha' -F '#{session_name}:#{window_index}' | head -1)
 "$SCRIPT" arm "$ttyA"
 "$SCRIPT" go "$win"
-t "window target: resolved to its session"      "alpha"  "$(where "$ttyA")"
-t "window target: the incumbent was swapped"    "idle"   "$(where "$ttyB")"
-t "window target: no session has two clients"   ""       "$(doubled)"
+t "window target: resolved to its session" "alpha" "$(where "$ttyA")"
+t "window target: the incumbent was swapped" "idle" "$(where "$ttyB")"
+t "window target: no session has two clients" "" "$(doubled)"
 
 # --- picking the session you are already on is a no-op ----------------------
 before=$(where "$ttyA")
 "$SCRIPT" arm "$ttyA"
 "$SCRIPT" go "$before"
-t "same session: nothing moves"                 "$before" "$(where "$ttyA")"
-t "same session: no session has two clients"    ""        "$(doubled)"
+t "same session: nothing moves" "$before" "$(where "$ttyA")"
+t "same session: no session has two clients" "" "$(doubled)"
 
 # --- without an arm it degrades to a plain switch, not to nothing -----------
 #
@@ -137,28 +140,29 @@ tmux new-session -d -s spare "$IDLE"
 rm -f "$XDG_STATE_HOME/tmux-session-swap/armed"
 before_spare=$(attached_on spare)
 "$SCRIPT" go spare >/dev/null 2>&1
-t "unarmed: exits cleanly"                      "0"       "$?"
-t "unarmed: the target session gains a client"  "0 -> 1"  "$before_spare -> $(attached_on spare)"
+t "unarmed: exits cleanly" "0" "$?"
+t "unarmed: the target session gains a client" "0 -> 1" "$before_spare -> $(attached_on spare)"
 
 # --- a target that no longer exists is ignored rather than erroring ---------
 pos=$(where "$ttyA")
 "$SCRIPT" arm "$ttyA"
 "$SCRIPT" go no-such-session >/dev/null 2>&1
-t "dead target: the picker did not move"        "$pos"    "$(where "$ttyA")"
+t "dead target: the picker did not move" "$pos" "$(where "$ttyA")"
 # `go` consumes the arm, on every path. The dead-target branch used to return
 # before reaching the removal, so a pick that resolved to nothing left the tty
 # on disk. Harmless in the binding, which re-arms before every chooser, but it
 # means the file no longer says "a chooser is open right now" -- and that is the
 # only thing it is for.
-t "dead target: the arm was consumed anyway"    "gone" \
+t "dead target: the arm was consumed anyway" "gone" \
   "$([ -f "$XDG_STATE_HOME/tmux-session-swap/armed" ] && echo left-behind || echo gone)"
 
 # --- anything that is not arm or go is a usage error ------------------------
 # A silent exit 0 here would look exactly like a working key, which is the same
 # reason bin/tmux-popup.test.sh pins its own usage path.
-out=$("$SCRIPT" wobble 2>&1); rc=$?
-t "unknown subcommand: exits non-zero"          "1"       "$rc"
-t "unknown subcommand: says how to call it"     "usage"   "$(case "$out" in *Usage*) echo usage ;; *) echo "silent: $out" ;; esac)"
+out=$("$SCRIPT" wobble 2>&1)
+rc=$?
+t "unknown subcommand: exits non-zero" "1" "$rc"
+t "unknown subcommand: says how to call it" "usage" "$(case "$out" in *Usage*) echo usage ;; *) echo "silent: $out" ;; esac)"
 
 # --- more than one client on the chosen session ------------------------------
 #
@@ -177,14 +181,14 @@ t "unknown subcommand: says how to call it"     "usage"   "$(case "$out" in *Usa
 tmux new-session -d -s crowd "$IDLE"
 tmux new-session -d -s lonely "$IDLE"
 new_client crowd || exit 1
-ttyC=$(tty_on crowd)                        # read before crowd gains a second
+ttyC=$(tty_on crowd) # read before crowd gains a second
 tmux switch-client -c "$ttyB" -t '=crowd'
 tmux switch-client -c "$ttyA" -t '=lonely'
 "$SCRIPT" arm "$ttyA"
 "$SCRIPT" go crowd
-t "crowded target: the picker ends up on it alone"  "1"      "$(attached_on crowd)"
-t "crowded target: and the picker is who is there"  "crowd"  "$(where "$ttyA")"
-t "crowded target: every incumbent was moved off"   "lonely lonely" \
+t "crowded target: the picker ends up on it alone" "1" "$(attached_on crowd)"
+t "crowded target: and the picker is who is there" "crowd" "$(where "$ttyA")"
+t "crowded target: every incumbent was moved off" "lonely lonely" \
   "$(where "$ttyB") $(where "$ttyC")"
 
 # Not covered on purpose: the branch taken when the picking client vanished

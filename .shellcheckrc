@@ -1,0 +1,17 @@
+# Repo-wide shellcheck configuration. shellcheck discovers this by walking up
+# from the file being checked, so an ad-hoc `shellcheck bin/init/macos.sh` from
+# an editor behaves the same as `bin/lint-shell` — without it, the two disagree
+# and the editor reports SC1091 on every sourced fragment.
+#
+# bin/lint-shell still passes -x -P SCRIPTDIR explicitly. That is deliberate
+# duplication: the CI gate must not depend on rc discovery, which is silent
+# when it fails (a missing rc downgrades the check rather than erroring).
+
+# Follow `. "${SCRIPT_DIR}/common.sh"` into the sourced fragment instead of
+# reporting SC1091, so the init scripts are analysed against the definitions
+# they actually get at runtime.
+external-sources=true
+
+# The source paths are built from runtime variables shellcheck cannot evaluate,
+# so it has to be told to look next to the script being checked.
+source-path=SCRIPTDIR

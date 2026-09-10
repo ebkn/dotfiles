@@ -40,11 +40,11 @@ src_attr="${toplevel}/.gitattributes"
 # skipping comments, `linguist-generated=false`, and `-linguist-generated`.
 generated_patterns() {
   [[ -f "$src_attr" ]] || return 0
-  grep -v -E '^[[:space:]]*#' "$src_attr" \
-    | grep -E '(^|[[:space:]])-?linguist-generated' \
-    | grep -v -E 'linguist-generated=false' \
-    | grep -v -E '(^|[[:space:]])-linguist-generated' \
-    | awk '{ print $1 }'
+  grep -v -E '^[[:space:]]*#' "$src_attr" |
+    grep -E '(^|[[:space:]])-?linguist-generated' |
+    grep -v -E 'linguist-generated=false' |
+    grep -v -E '(^|[[:space:]])-linguist-generated' |
+    awk '{ print $1 }'
 }
 
 # Drop the managed block (inclusive) from the info/attributes file.
@@ -56,7 +56,7 @@ remove_block() {
     $0 == b { skip = 1 }
     skip != 1 { print }
     $0 == e { skip = 0 }
-  ' "$attr_file" > "$tmp"
+  ' "$attr_file" >"$tmp"
   mv "$tmp" "$attr_file"
 }
 
@@ -74,9 +74,9 @@ cmd_hide() {
     printf '%s\n' "$MARK_BEGIN"
     while IFS= read -r pattern; do
       [[ -n "$pattern" ]] && printf '%s -diff\n' "$pattern"
-    done <<< "$patterns"
+    done <<<"$patterns"
     printf '%s\n' "$MARK_END"
-  } >> "$attr_file"
+  } >>"$attr_file"
   printf 'git-generated: hidden %s pattern(s) via %s\n' \
     "$(printf '%s\n' "$patterns" | grep -c .)" "$attr_file"
 }
@@ -99,7 +99,7 @@ cmd_status() {
     # Iterate line by line; unquoted expansion would glob-expand patterns like gen/**.
     while IFS= read -r pattern; do
       [[ -n "$pattern" ]] && printf '  %s\n' "$pattern"
-    done <<< "$patterns"
+    done <<<"$patterns"
   else
     printf 'no linguist-generated patterns in %s\n' "$src_attr"
   fi

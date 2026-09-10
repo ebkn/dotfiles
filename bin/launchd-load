@@ -35,14 +35,23 @@ AGENTS_DIR="$HOME/Library/LaunchAgents"
 status_only=0
 case "${1:-}" in
   --status) status_only=1 ;;
-  -h|--help) sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//; $d'; exit 0 ;;
+  -h | --help)
+    sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//; $d'
+    exit 0
+    ;;
   '') ;;
-  *) printf 'launchd-load: unknown argument: %s\n' "$1" >&2; exit 1 ;;
+  *)
+    printf 'launchd-load: unknown argument: %s\n' "$1" >&2
+    exit 1
+    ;;
 esac
 
 case "$(uname -s)" in
   Darwin) ;;
-  *) printf 'launchd-load: launchd is macOS-only; nothing to do.\n'; exit 0 ;;
+  *)
+    printf 'launchd-load: launchd is macOS-only; nothing to do.\n'
+    exit 0
+    ;;
 esac
 
 uid=$(id -u)

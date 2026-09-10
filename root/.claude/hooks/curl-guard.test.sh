@@ -24,9 +24,9 @@ fi
 # Guard against the vacuous-pass mode directly: if the allow-list were empty or
 # lost these entries, the DEFER half of the suite would still report green.
 for host in github.com api.github.com docs.claude.com support.claude.com \
-            developers.google.com docs.perplexity.ai; do
+  developers.google.com docs.perplexity.ai; do
   if ! jq -e --arg h "WebFetch(domain:${host})" \
-       '.permissions.allow | index($h)' "$SETTINGS" >/dev/null; then
+    '.permissions.allow | index($h)' "$SETTINGS" >/dev/null; then
     printf 'FAIL: settings.json has no WebFetch(domain:%s); ALLOW cases depend on it\n' "$host"
     exit 1
   fi

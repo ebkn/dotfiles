@@ -47,7 +47,10 @@ INNER="track-inner-$$"
 OUTER="track-outer-$$"
 fails=0
 
-command -v tmux >/dev/null || { echo "tmux is required" >&2; exit 1; }
+command -v tmux >/dev/null || {
+  echo "tmux is required" >&2
+  exit 1
+}
 
 # Every monitor this run started, by pid. Monitors started by hand contribute
 # their $!; monitors started by `attach` write their own pid into PID_DIR, which
@@ -86,7 +89,10 @@ t() { # t <name> <expected> <actual>
   fi
 }
 
-record() { mkdir -p "$SESSION_DIR"; printf '%s' "$2" > "$SESSION_DIR/$1"; }
+record() {
+  mkdir -p "$SESSION_DIR"
+  printf '%s' "$2" >"$SESSION_DIR/$1"
+}
 read_record() { cat "$SESSION_DIR/$1" 2>/dev/null || echo '<none>'; }
 # Poll for a record to reach <expected> rather than sleeping a fixed amount and
 # reading once. Returns as soon as it matches, so a pass is immediate and only a
@@ -192,10 +198,13 @@ tmux switch-client -c "$ttyB" -t '=s1'
 # inside `sleep 2` when the switch lands, so how long this takes is not bounded
 # by anything the test controls. wait_record returns the moment it matches and
 # reports the real value if it never does.
-t "monitor: the claimant records the session"   "s1"      "$(wait_record connB s1)"
-t "monitor: the previous owner is released"     "<none>"  "$(wait_record connA '<none>')"
+t "monitor: the claimant records the session" "s1" "$(wait_record connB s1)"
+t "monitor: the previous owner is released" "<none>" "$(wait_record connA '<none>')"
 
-dupes=$(for f in "$SESSION_DIR"/*; do [ -f "$f" ] && { cat "$f"; echo; }; done | sort | uniq -d)
+dupes=$(for f in "$SESSION_DIR"/*; do [ -f "$f" ] && {
+  cat "$f"
+  echo
+}; done | sort | uniq -d)
 t "monitor: no two conn_ids name the same session" "" "$dupes"
 
 kill_our_monitors
@@ -296,7 +305,7 @@ sleep 600 &
 bystander=$!
 CLIENT_PIDS="$CLIENT_PIDS $bystander"
 mkdir -p "$XDG_STATE_HOME/tmux-track-session/pid"
-printf '%s' "$bystander" > "$XDG_STATE_HOME/tmux-track-session/pid/connH"
+printf '%s' "$bystander" >"$XDG_STATE_HOME/tmux-track-session/pid/connH"
 attach_as connH
 t "attach: leaves an unrelated process holding a recycled pid alone" "alive" \
   "$(kill -0 "$bystander" 2>/dev/null && echo alive || echo dead)"
@@ -306,10 +315,16 @@ t "attach: leaves an unrelated process holding a recycled pid alone" "alive" \
 "$SCRIPT" monitor connI "$ttyA" >/dev/null 2>&1 &
 monitor_i=$!
 CLIENT_PIDS="$CLIENT_PIDS $monitor_i"
-for _ in $(seq 1 50); do [ -s "$XDG_STATE_HOME/tmux-track-session/pid/connI" ] && break; sleep 0.1; done
+for _ in $(seq 1 50); do
+  [ -s "$XDG_STATE_HOME/tmux-track-session/pid/connI" ] && break
+  sleep 0.1
+done
 attach_as connI
 gone=dead
-for _ in $(seq 1 50); do kill -0 "$monitor_i" 2>/dev/null || break; sleep 0.1; done
+for _ in $(seq 1 50); do
+  kill -0 "$monitor_i" 2>/dev/null || break
+  sleep 0.1
+done
 kill -0 "$monitor_i" 2>/dev/null && gone=alive
 t "attach: still kills this conn_id's own stale monitor" "dead" "$gone"
 
@@ -324,7 +339,12 @@ t "attach: still kills this conn_id's own stale monitor" "dead" "$gone"
 # sockets of their own so the sessions above cannot be mistaken for them.
 # ---------------------------------------------------------------------------
 pass_() { printf 'ok   %s\n' "$1"; }
-fail_() { printf 'FAIL %s\n' "$1"; shift; for l in "$@"; do printf '       %s\n' "$l"; done; fails=$((fails + 1)); }
+fail_() {
+  printf 'FAIL %s\n' "$1"
+  shift
+  for l in "$@"; do printf '       %s\n' "$l"; done
+  fails=$((fails + 1))
+}
 
 tmux -L "$INNER" -f /dev/null new-session -d -s main -x 80 -y 24 "$IDLE"
 tmux -L "$OUTER" -f /dev/null new-session -d -x 80 -y 24 "tmux -L $INNER attach -t main"
@@ -336,7 +356,10 @@ for _ in $(seq 1 50); do
   [ -n "$client_tty" ] && break
   sleep 0.1
 done
-[ -n "$client_tty" ] || { echo "inner client never attached" >&2; exit 1; }
+[ -n "$client_tty" ] || {
+  echo "inner client never attached" >&2
+  exit 1
+}
 
 # -J joins wrapped lines: the job's command is a long absolute path, so the
 # report can be split mid-phrase across two rows of an 80-column screen.

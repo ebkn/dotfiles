@@ -43,7 +43,7 @@ case "$attempt" in
   '' | *[!0-9]*) attempt=0 ;;
 esac
 attempt=$((attempt + 1))
-printf '%s' "$attempt" > "$state" 2>/dev/null
+printf '%s' "$attempt" >"$state" 2>/dev/null
 
 log="$state.log"
 [ "$attempt" -eq 1 ] && exec "$ssh_bin" "$@"

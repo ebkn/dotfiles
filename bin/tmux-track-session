@@ -174,7 +174,7 @@ $saved
     trap 'rm -f "$PID_DIR/$conn_id"; exit 0' TERM INT HUP
 
     # Record monitor PID so attach can kill us on reconnect
-    printf '%s' "$$" > "$PID_DIR/$conn_id"
+    printf '%s' "$$" >"$PID_DIR/$conn_id"
 
     # Record initial client PID to detect tty reuse (graceful degradation
     # if the lookup fails — the PID check is simply skipped)
@@ -206,7 +206,7 @@ $saved
           [ "$f" = "$SESSION_DIR/$conn_id" ] && continue
           [ "$(cat "$f")" = "$session" ] && rm -f "$f"
         done
-        printf '%s' "$session" > "$SESSION_DIR/$conn_id"
+        printf '%s' "$session" >"$SESSION_DIR/$conn_id"
         prev="$session"
       fi
       sleep 2
@@ -216,7 +216,7 @@ $saved
 
   # Legacy subcommands (called by old tmux hooks still loaded in running
   # sessions). No-op until the tmux config is reloaded or tmux restarted.
-  register|update|cleanup)
+  register | update | cleanup)
     exit 0
     ;;
 

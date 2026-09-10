@@ -60,12 +60,18 @@ TMUX_ENV=$(tmux -L "$SOCK" display-message -p '#{socket_path},#{pid},0')
 pass=0
 fail=0
 
-ok()   { pass=$((pass + 1)); printf '  ok   %s\n' "$1"; }
+ok() {
+  pass=$((pass + 1))
+  printf '  ok   %s\n' "$1"
+}
 # A failure names its section. Most assertions here are made through assert_opt,
 # whose message can only describe a value -- "@claude_state want=[waiting]
 # got=[busy]" says nothing about which of the twenty-odd scenarios produced it,
 # and this file is one long script rather than a set of named cases.
-bad()  { fail=$((fail + 1)); printf '  FAIL [%s] %s\n' "$current_section" "$1"; }
+bad() {
+  fail=$((fail + 1))
+  printf '  FAIL [%s] %s\n' "$current_section" "$1"
+}
 
 # Sections are also the reset point. Every one of them starts from a pane and a
 # record set that are empty, so a case cannot silently inherit state from the
@@ -84,7 +90,10 @@ section() {
 # The sentinel dot preserves it across the substitution.
 get_opt() {
   local v
-  v=$(tmux -L "$SOCK" show-options -p -t "$PANE" -qv "$1"; printf .)
+  v=$(
+    tmux -L "$SOCK" show-options -p -t "$PANE" -qv "$1"
+    printf .
+  )
   v=${v%.}
   printf '%s' "${v%$'\n'}"
 }
@@ -116,13 +125,16 @@ assert_exit_zero() {
 notify_json() { jq -cn --arg t "$1" --arg m "${2-}" '{notification_type:$t, message:$m}'; }
 
 section "no tmux context: publishes nothing, never fails"
-out=$(TMUX='' TMUX_PANE='' "$HOOK" busy 2>&1); assert_exit_zero "TMUX unset" $?
+out=$(TMUX='' TMUX_PANE='' "$HOOK" busy 2>&1)
+assert_exit_zero "TMUX unset" $?
 if [[ -z "$out" ]]; then ok "no output without tmux"; else bad "unexpected output: $out"; fi
-out=$(TMUX="$TMUX_ENV" TMUX_PANE='' "$HOOK" busy 2>&1); assert_exit_zero "TMUX_PANE unset" $?
+out=$(TMUX="$TMUX_ENV" TMUX_PANE='' "$HOOK" busy 2>&1)
+assert_exit_zero "TMUX_PANE unset" $?
 assert_opt @claude_state ''
 
 section "busy"
-run busy; assert_exit_zero "busy" $?
+run busy
+assert_exit_zero "busy" $?
 assert_opt @claude_state busy
 # The separator is per-glyph, not uniform: 🔶 🛑 🔘 are emoji-presentation and
 # already two cells wide, so only the narrow ▶ carries a trailing space.
@@ -130,7 +142,7 @@ assert_opt @claude_state busy
 assert_opt @claude_glyph '▶ '
 since=$(get_opt @claude_since)
 now=$(date +%s)
-if [[ "$since" =~ ^[0-9]+$ ]] && (( now - since >= 0 && now - since < 60 )); then
+if [[ "$since" =~ ^[0-9]+$ ]] && ((now - since >= 0 && now - since < 60)); then
   ok "@claude_since is a fresh epoch"
 else
   bad "@claude_since not a fresh epoch: [$since]"
@@ -163,7 +175,8 @@ assert_opt @claude_glyph '🔶'
 assert_opt @claude_note 'Which glyph wins?'
 
 run clear
-run ask 'not json at all'; assert_exit_zero "ask with malformed stdin" $?
+run ask 'not json at all'
+assert_exit_zero "ask with malformed stdin" $?
 # Still publishes: the dialog *is* open regardless of what jq made of the input,
 # and a missing glyph is a worse failure than a missing note.
 assert_opt @claude_state asking
@@ -231,7 +244,8 @@ section "notify: informational types must not stick"
 # overwriting a live state, not merely failing to set one.
 for t in auth_success agent_completed idle_prompt elicitation_result elicitation_url_result '' unknown_future_type; do
   run busy
-  run notify "$(notify_json "$t" "informational")"; status=$?
+  run notify "$(notify_json "$t" "informational")"
+  status=$?
   got=$(get_opt @claude_state)
   if [[ "$got" == busy && "$status" -eq 0 ]]; then
     ok "${t:-<empty>} left state untouched"
@@ -259,29 +273,35 @@ assert_opt @claude_state busy
 
 section "notify: malformed input degrades quietly"
 run busy
-run notify 'not json at all'; assert_exit_zero "malformed stdin" $?
+run notify 'not json at all'
+assert_exit_zero "malformed stdin" $?
 assert_opt @claude_state busy
 run busy
-run notify ''; assert_exit_zero "empty stdin" $?
+run notify ''
+assert_exit_zero "empty stdin" $?
 assert_opt @claude_state busy
 
 section "done: the Stop transition publishes stalled"
-run 'done'; assert_exit_zero 'done' $?
+run 'done'
+assert_exit_zero 'done' $?
 assert_opt @claude_state stalled
 assert_opt @claude_glyph '🔘'
 
 section "clear"
 run notify "$(notify_json permission_prompt 'something')"
-run clear; assert_exit_zero "clear" $?
+run clear
+assert_exit_zero "clear" $?
 for opt in @claude_state @claude_glyph @claude_since @claude_note; do
   assert_opt "$opt" ''
 done
 
 section "unknown mode / no mode"
 run busy
-run bogus_mode; assert_exit_zero "unknown mode" $?
+run bogus_mode
+assert_exit_zero "unknown mode" $?
 assert_opt @claude_state busy
-TMUX="$TMUX_ENV" TMUX_PANE="$PANE" "$HOOK" </dev/null; assert_exit_zero "no mode" $?
+TMUX="$TMUX_ENV" TMUX_PANE="$PANE" "$HOOK" </dev/null
+assert_exit_zero "no mode" $?
 assert_opt @claude_state busy
 
 section "every glyph is emoji-presentation on its own, never VS16"
@@ -299,10 +319,16 @@ check_no_vs16() {
     ok "$label glyph needs no VS16"
   fi
 }
-run busy; check_no_vs16 busy
-run clear; run ask '{"tool_input":{"questions":[{"question":"q"}]}}'; check_no_vs16 asking
-run clear; run notify "$(notify_json permission_prompt 'p')"; check_no_vs16 waiting
-run 'done'; check_no_vs16 stalled
+run busy
+check_no_vs16 busy
+run clear
+run ask '{"tool_input":{"questions":[{"question":"q"}]}}'
+check_no_vs16 asking
+run clear
+run notify "$(notify_json permission_prompt 'p')"
+check_no_vs16 waiting
+run 'done'
+check_no_vs16 stalled
 
 section "several actors in one pane"
 # Hooks fire inside subagents too, carrying agent_id/agent_type, so one pane can
@@ -348,8 +374,8 @@ section "precedence across actors: blocked outranks running"
 for blocked in asking waiting; do
   run clear
   run subagent-start "$(agent_json A Explore)"
-  run busy                                  # main: working
-  run busy "$(agent_json A Explore)"        # subagent: working
+  run busy                           # main: working
+  run busy "$(agent_json A Explore)" # subagent: working
   if [[ "$blocked" == asking ]]; then
     run ask '{"tool_input":{"questions":[{"question":"which one?"}]}}'
   else
@@ -387,7 +413,7 @@ assert_opt @claude_note 'Explore: older'
 
 section "SubagentStop is what removes an actor"
 run clear
-run busy                                    # main busy
+run busy # main busy
 run subagent-start "$(agent_json A Explore)"
 run notify "$(agent_json A Explore permission_prompt 'blocked')"
 assert_opt @claude_state waiting
@@ -430,27 +456,37 @@ section "concurrent actors: the hook races with itself"
 # pane holding the short view while claiming the complete one, so every later
 # event skipped as a no-op.
 #
-# The assertion that matters is the glyph, not the row count: with a blocked
-# actor among the racing ones, a lost record means the tab says `busy` while a
-# dialog waits, which is the whole bug this hook was rewritten to fix.
+# Both metrics are asserted. The listing going short of the records is what this
+# fixture actually reproduces; the glyph is the consequence that makes it matter,
+# since the record a copy misses can be the blocked one, and then the tab says
+# `busy` while a dialog waits — the whole bug this hook was rewritten to fix.
 #
 # THIS CASE IS PROBABILISTIC and is therefore not the regression guard. Measured
-# against the previous implementation it failed 1 to 4 rounds in 10, varying with
-# machine load, so a handful of rounds can pass on a broken hook — and a test
-# that passes on broken code proves nothing. It is here as a smoke test that a
-# burst does not corrupt anything outright; the deterministic case below it is
-# what actually pins the rule the fix rests on.
-concurrent_agents=12
-concurrent_rounds=3
+# against the previous implementation with the corrected fixture: 5 short
+# listings in 20 rounds at 16 concurrent starts, 2 in 20 at 12 — it varies with
+# machine load, and a handful of rounds can pass on a broken hook. A test that
+# passes on broken code proves nothing, so this is a smoke test that a burst does
+# not corrupt anything outright; the deterministic case below it is what pins the
+# rule the fix rests on.
+concurrent_agents=16
+concurrent_rounds=4
 race_short=0
 race_wrong=0
 for _round in $(seq 1 "$concurrent_rounds"); do
   run clear
+  # The blocked actor is registered FIRST and separately, and nothing else in
+  # the burst touches its record. Racing two events for the *same* actor —
+  # `subagent-start` and a permission prompt for ag1 — is not the race under
+  # test: the two writes land in whichever order the scheduler picks, so the
+  # record legitimately ends as `busy` about one round in ten, and the case
+  # reports a hook bug that is really a fixture bug. A subagent cannot be
+  # blocked before it has started.
+  run subagent-start "$(agent_json blocked Explore)"
   for i in $(seq 1 "$concurrent_agents"); do
     run subagent-start "$(agent_json "ag$i" Explore)" &
   done
-  # ...and one of them is blocked on a permission prompt at the same moment.
-  run notify "$(agent_json ag1 Explore permission_prompt 'blocked')" &
+  # ...while that one is blocked on a permission prompt at the same moment.
+  run notify "$(agent_json blocked Explore permission_prompt 'blocked')" &
   wait
 
   on_disk=0

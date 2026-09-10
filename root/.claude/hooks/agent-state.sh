@@ -113,12 +113,6 @@ read_stdin() {
   return 0
 }
 
-# Extracting agent_id with a shell regex is deliberately NOT done: PostToolBatch
-# carries the *content* of every tool result in the batch, so a file this repo
-# reads — this one, for instance — would match a "agent_id":"..." pattern in its
-# own comments and misattribute the state to a subagent that does not exist. jq
-# reads the top-level key and cannot be fooled that way, so the choice is jq or
-# nothing, and `has_agents` below decides which.
 # Every piece of free text that reaches a record goes through this. Collapsing
 # whitespace keeps the value on one line, because the readers here are all
 # line-based — but the control characters have to go for a second reason: ASCII
@@ -129,6 +123,12 @@ read_stdin() {
 # comes from whichever MCP server raised it.
 readonly JQ_CLEAN='def clean: gsub("[[:cntrl:]]"; " ") | gsub("\\s+"; " ");'
 
+# Extracting agent_id with a shell regex is deliberately NOT done: PostToolBatch
+# carries the *content* of every tool result in the batch, so a file this repo
+# reads — this one, for instance — would match a "agent_id":"..." pattern in its
+# own comments and misattribute the state to a subagent that does not exist. jq
+# reads the top-level key and cannot be fooled that way, so the choice is jq or
+# nothing, and `has_agents` below decides which.
 agent_id=""
 agent_type=""
 parse_agent() {
@@ -176,7 +176,10 @@ actor_file() {
 readonly SEP='|'
 
 read_entry() { # $1 file → state/since/label/note
-  e_state=""; e_since=""; e_label=""; e_note=""
+  e_state=""
+  e_since=""
+  e_label=""
+  e_note=""
   [ -f "$1" ] || return 1
   IFS="$SEP" read -r e_state e_since e_label e_note <"$1" || return 1
   [ -n "$e_state" ] || return 1
@@ -261,7 +264,10 @@ readonly US=$'\037'
 # Kept separate from publishing so it can be re-run cheaply: it is all globs and
 # `read`, no forks, which is what makes the verify loop below affordable.
 derive() {
-  best_state=""; best_since=""; best_note=""; listing=""
+  best_state=""
+  best_since=""
+  best_note=""
+  listing=""
   local best_rank=9 rank
   local f
 

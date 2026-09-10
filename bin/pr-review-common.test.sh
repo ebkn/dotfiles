@@ -22,11 +22,19 @@ LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pr-review-common.sh"
 
 pass=0
 fail=0
-ok() { pass=$((pass + 1)); printf '  ok   %s\n' "$1"; }
-no() { fail=$((fail + 1)); printf '  FAIL %s\n' "$1"; [ $# -gt 1 ] && printf '       %s\n' "$2"; }
+ok() {
+  pass=$((pass + 1))
+  printf '  ok   %s\n' "$1"
+}
+no() {
+  fail=$((fail + 1))
+  printf '  FAIL %s\n' "$1"
+  [ $# -gt 1 ] && printf '       %s\n' "$2"
+}
 eq() { if [ "$2" = "$3" ]; then ok "$1"; else no "$1" "want=[$2] got=[$3]"; fi; }
 
-TMP=$(mktemp -d); TMP=$(cd "$TMP" && pwd -P)
+TMP=$(mktemp -d)
+TMP=$(cd "$TMP" && pwd -P)
 trap '/bin/rm -rf "$TMP"' EXIT
 
 LOCK="$TMP/lock"
@@ -34,21 +42,23 @@ LOCK="$TMP/lock"
 held() { [ -d "$1" ] && echo yes || echo no; }
 
 echo "-- taking a free lock --"
-take_lock "$LOCK"; eq 'take_lock succeeds' '0' "$?"
-eq 'the directory exists'        'yes' "$(held "$LOCK")"
-eq 'the holder pid is recorded'  "$$"  "$(cat "$LOCK/pid")"
+take_lock "$LOCK"
+eq 'take_lock succeeds' '0' "$?"
+eq 'the directory exists' 'yes' "$(held "$LOCK")"
+eq 'the holder pid is recorded' "$$" "$(cat "$LOCK/pid")"
 
 echo "-- a lock held by a LIVE process is not stolen --"
 sleep 30 &
 live=$!
-printf '%s' "$live" > "$LOCK/pid"
-take_lock "$LOCK"; eq 'take_lock refuses' '1' "$?"
+printf '%s' "$live" >"$LOCK/pid"
+take_lock "$LOCK"
+eq 'take_lock refuses' '1' "$?"
 eq 'the live holder still owns it' "$live" "$(cat "$LOCK/pid")"
 
 echo "-- a run that did not take the lock must not release it --"
 release_lock "$LOCK"
-eq 'the lock survives'             'yes'   "$(held "$LOCK")"
-eq 'and still names its holder'    "$live" "$(cat "$LOCK/pid")"
+eq 'the lock survives' 'yes' "$(held "$LOCK")"
+eq 'and still names its holder' "$live" "$(cat "$LOCK/pid")"
 kill "$live" 2>/dev/null
 wait "$live" 2>/dev/null
 
@@ -57,8 +67,9 @@ echo "-- a lock held by a DEAD process is stolen --"
 sleep 0 &
 dead=$!
 wait "$dead" 2>/dev/null
-printf '%s' "$dead" > "$LOCK/pid"
-take_lock "$LOCK"; eq 'take_lock steals it' '0' "$?"
+printf '%s' "$dead" >"$LOCK/pid"
+take_lock "$LOCK"
+eq 'take_lock steals it' '0' "$?"
 eq 'and records the new holder' "$$" "$(cat "$LOCK/pid")"
 
 echo "-- releasing as the holder --"
@@ -66,7 +77,8 @@ release_lock "$LOCK"
 eq 'the lock is gone' 'no' "$(held "$LOCK")"
 
 echo "-- release_lock is safe when there is no lock at all --"
-release_lock "$LOCK"; eq 'exits 0' '0' "$?"
+release_lock "$LOCK"
+eq 'exits 0' '0' "$?"
 
 echo "-- a lock with an unreadable pid falls back to age, not to always-steal --"
 # mkdir can succeed while the pid write fails (a full or read-only volume), and
@@ -74,19 +86,23 @@ echo "-- a lock with an unreadable pid falls back to age, not to always-steal --
 # still be respected while it is plausibly live -- otherwise the fallback would
 # be indistinguishable from having no lock.
 mkdir "$LOCK"
-take_lock "$LOCK"; eq 'a fresh pidless lock is respected' '1' "$?"
+take_lock "$LOCK"
+eq 'a fresh pidless lock is respected' '1' "$?"
 
 touch -t 200001010000 "$LOCK"
-take_lock "$LOCK"; eq 'an ancient pidless lock is stolen' '0' "$?"
+take_lock "$LOCK"
+eq 'an ancient pidless lock is stolen' '0' "$?"
 eq 'the stealer records itself' "$$" "$(cat "$LOCK/pid")"
 release_lock "$LOCK"
 
 echo "-- a garbage pid is treated as unreadable, not as a live holder --"
 mkdir "$LOCK"
-printf 'not-a-pid' > "$LOCK/pid"
-take_lock "$LOCK"; eq 'respected while fresh' '1' "$?"
+printf 'not-a-pid' >"$LOCK/pid"
+take_lock "$LOCK"
+eq 'respected while fresh' '1' "$?"
 touch -t 200001010000 "$LOCK"
-take_lock "$LOCK"; eq 'stolen once ancient' '0' "$?"
+take_lock "$LOCK"
+eq 'stolen once ancient' '0' "$?"
 release_lock "$LOCK"
 
 echo
@@ -107,7 +123,7 @@ mkdir -p "$REPO/git-worktrees/not-a-worktree"
 
 WTS=$(worktree_paths_json "$REPO")
 eq 'worktree_paths_json finds all three' '3' "$(printf '%s' "$WTS" | jq 'length')"
-eq 'and only real worktrees'             'false' \
+eq 'and only real worktrees' 'false' \
   "$(printf '%s' "$WTS" | jq --arg p "$REPO/git-worktrees/not-a-worktree" 'index($p) != null')"
 
 agents=$(jq -n --arg r "$REPO" '[
@@ -131,8 +147,8 @@ sess() { sid "$agents" "$1" "$WTS"; }
 # checkout matched all three sessions and, taking the newest, delivered a review
 # to whichever session started last -- measured on the real machine as a session
 # on an unrelated branch.
-eq 'the main checkout claims only its own session' 'main'   "$(sess "$REPO")"
-eq 'a nested worktree claims its own'              'in-a'   "$(sess "$REPO/git-worktrees/a")"
+eq 'the main checkout claims only its own session' 'main' "$(sess "$REPO")"
+eq 'a nested worktree claims its own' 'in-a' "$(sess "$REPO/git-worktrees/a")"
 eq 'a cwd deep inside a worktree still belongs to it' 'deep-b' "$(sess "$REPO/git-worktrees/b")"
 
 # A sibling with no session must not fall back to an ancestor's.
@@ -148,7 +164,7 @@ agents_ab=$(jq -n --arg r "$REPO" '[
 WTS2=$(worktree_paths_json "$REPO")
 eq 'worktree a does not claim worktree ab' 'none' \
   "$(sid "$agents_ab" "$REPO/git-worktrees/a" "$WTS2")"
-eq 'worktree ab claims its own'            'in-ab' \
+eq 'worktree ab claims its own' 'in-ab' \
   "$(sid "$agents_ab" "$REPO/git-worktrees/ab" "$WTS2")"
 
 echo

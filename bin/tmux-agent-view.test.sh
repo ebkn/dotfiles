@@ -73,7 +73,12 @@ mkdir -p "$work/stub"
 ln -s "$work/tmux" "$work/stub/tmux"
 
 failures=0
-fail() { printf 'FAIL %s\n' "$1"; shift; for l in "$@"; do printf '  %s\n' "$l"; done; failures=$((failures + 1)); }
+fail() {
+  printf 'FAIL %s\n' "$1"
+  shift
+  for l in "$@"; do printf '  %s\n' "$l"; done
+  failures=$((failures + 1))
+}
 pass() { printf 'ok   %s\n' "$1"; }
 
 run() {
@@ -137,10 +142,10 @@ case "$open_call" in
   *) fail 'the border is titled with the agent window name' "got: $open_call" ;;
 esac
 
-has 'an unattached mirror session is swept'   'kill-session -t _agent_9_1'
-hasnt 'an attached mirror session is spared'  'kill-session -t _agent_8_2'
-hasnt 'a popup session is not swept'          'kill-session -t _popup_0'
-hasnt 'a real session is never swept'         'kill-session -t work'
+has 'an unattached mirror session is swept' 'kill-session -t _agent_9_1'
+hasnt 'an attached mirror session is spared' 'kill-session -t _agent_8_2'
+hasnt 'a popup session is not swept' 'kill-session -t _popup_0'
+hasnt 'a real session is never swept' 'kill-session -t work'
 
 # --- attach ------------------------------------------------------------------
 

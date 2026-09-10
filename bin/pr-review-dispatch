@@ -83,13 +83,22 @@ SESSIONS_DIR=${CLAUDE_SESSIONS_DIR:-$HOME/.claude/sessions}
 
 dry_run=0
 
-die() { printf 'pr-review-dispatch: %s\n' "$*" >&2; exit 1; }
+die() {
+  printf 'pr-review-dispatch: %s\n' "$*" >&2
+  exit 1
+}
 usage() { sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//; $d'; }
 
 while [ $# -gt 0 ]; do
   case $1 in
-    --dry-run) dry_run=1; shift ;;
-    -h|--help) usage; exit 0 ;;
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -111,7 +120,7 @@ done
 # real escape hatch if an nc turns out not to speak -U.
 SOCK_TOOL=${PR_REVIEW_DISPATCH_SOCK_TOOL:-}
 case "$SOCK_TOOL" in
-  nc|socat)
+  nc | socat)
     command -v "$SOCK_TOOL" >/dev/null 2>&1 ||
       die "PR_REVIEW_DISPATCH_SOCK_TOOL=$SOCK_TOOL is not installed"
     ;;
@@ -281,7 +290,7 @@ write_prompt_file() {
       "## " + .author + " (" + .kind + (if .state then ", " + .state else "" end) + ")" + "\n" +
       (if .path then "`" + .path + (if .line then ":" + (.line|tostring) else "" end) + "`\n" else "" end) +
       "\n" + (if (.body | length) > 0 then .body else "_(no body — the verdict is the message)_" end) + "\n"' "$job"
-  } > "$out"
+  } >"$out"
 }
 
 # Claude Code frames anything arriving on the socket as a message from another
@@ -353,7 +362,7 @@ mark_delivered() {
     | .deliveredVia = $how
     | .deliveredCount = ((.deliveredCount // 0) + (.pending | length))
     | .status = "delivered"
-    | .pending = []' "$job" > "$job.tmp" && mv "$job.tmp" "$job"; then
+    | .pending = []' "$job" >"$job.tmp" && mv "$job.tmp" "$job"; then
     return 0
   fi
   /bin/rm -f "$job.tmp" 2>/dev/null
@@ -379,7 +388,8 @@ held=0
 # them would be delivered without ever having been counted -- and the decision to
 # run at all was made from the first one.
 for job in "${jobs_todo[@]}"; do
-  repo=$(jq -r .repo "$job"); pr=$(jq -r .pr "$job")
+  repo=$(jq -r .repo "$job")
+  pr=$(jq -r .pr "$job")
   worktree=$(jq -r .worktree "$job")
   label="$repo#$pr"
 

@@ -16,7 +16,10 @@
 # `prompt` apart from `forbidden` -- absence proves only "not auto-approved".
 set -uo pipefail
 
-command -v codex >/dev/null || { echo "codex not on PATH; skipping"; exit 0; }
+command -v codex >/dev/null || {
+  echo "codex not on PATH; skipping"
+  exit 0
+}
 
 # Strip JSON backslash escapes so `\"ls\"` greps as `"ls"`.
 # shellcheck disable=SC1003  # '\\' is tr's escape for a literal backslash, not a quoting mistake.
@@ -31,17 +34,21 @@ fail=0
 
 present() {
   if printf '%s' "$dump" | grep -qF -- "$1"; then
-    pass=$((pass + 1)); printf '  ok   present  %s\n' "$1"
+    pass=$((pass + 1))
+    printf '  ok   present  %s\n' "$1"
   else
-    fail=$((fail + 1)); printf '  FAIL missing  %s\n' "$1"
+    fail=$((fail + 1))
+    printf '  FAIL missing  %s\n' "$1"
   fi
 }
 
 absent() {
   if printf '%s' "$dump" | grep -qF -- "$1"; then
-    fail=$((fail + 1)); printf '  FAIL allowed  %s\n' "$1"
+    fail=$((fail + 1))
+    printf '  FAIL allowed  %s\n' "$1"
   else
-    pass=$((pass + 1)); printf '  ok   gated    %s\n' "$1"
+    pass=$((pass + 1))
+    printf '  ok   gated    %s\n' "$1"
   fi
 }
 
