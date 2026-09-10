@@ -3,8 +3,9 @@
 #
 # Bound to prefix + a, which opens it in a display-popup. The state itself is
 # published by ~/.claude/hooks/agent-state.sh as tmux pane user options
-# (@claude_state / @claude_glyph / @claude_since / @claude_note); this script
-# only reads them, so it stays correct as long as that contract holds.
+# (@claude_state / @claude_glyph / @claude_since / @claude_note, plus the
+# per-actor @claude_agents listing); this script only reads them, so it stays
+# correct as long as that contract holds.
 #
 # Takes no arguments. It still needs the calling client — a popup has no attached
 # client of its own, yet the status messages and the answer view have to act on
@@ -37,11 +38,25 @@ set -euo pipefail
 
 # tmux does not interpret \t in -F, so the separators must be literal tabs;
 # $'' supplies them. The same string is sent to remote hosts verbatim.
-readonly FMT=$'#{session_name}\t#{window_id}\t#{pane_id}\t#{window_name}\t#{@claude_state}\t#{@claude_since}\t#{@claude_note}'
+readonly FMT=$'#{session_name}\t#{window_id}\t#{pane_id}\t#{window_name}\t#{@claude_state}\t#{@claude_since}\t#{@claude_note}\t#{@claude_agents}'
 
 # Used to build the formats above and to split the rows back apart below, so it
 # has to be a real character in the script text.
 readonly TAB=$'\t'
+
+# @claude_agents holds one record per actor in the pane — the main thread plus
+# every running subagent — because hooks fire inside subagents too and a pane
+# has as many states as it has actors (see agent-state.sh). Records are
+# separated by ASCII RS and their fields by US: a record carries a note taken
+# from a question or a permission prompt, so any printable delimiter would
+# eventually turn up inside one and split a row in half.
+#
+# @claude_state and friends stay the *aggregate* over those records, which is
+# what the tab glyph reads. This script prefers the listing when it is there and
+# falls back to the aggregate when it is not — a pane whose session predates the
+# hook that publishes it, and any remote host whose dotfiles are older.
+readonly RS=$'\036'
+readonly US=$'\037'
 
 now=$(date +%s)
 
@@ -185,7 +200,7 @@ fi
 # One tmux call for everything. Field 1 is the host — empty means this machine,
 # which keeps local and remote rows in one shape for the awk pass below — and
 # the leading tab in the format supplies it, so no sed pass is needed to prefix
-# it. Fields 9 and 10 carry the ssh decoration, so the listing that finds remote
+# it. The last two fields carry the ssh decoration, so the listing that finds remote
 # hosts is the same listing that is about to be rendered rather than a second
 # round-trip; the awk pass never looks at them.
 rows=$(tmux list-panes -a -F "${TAB}${FMT}${TAB}#{@ssh_my_machine}${TAB}#{@ssh_host}" 2>/dev/null) || true
@@ -203,8 +218,9 @@ rows=$(tmux list-panes -a -F "${TAB}${FMT}${TAB}#{@ssh_my_machine}${TAB}#{@ssh_h
 # Tab is an IFS *whitespace* character no matter that IFS holds nothing else, so
 # the shell collapses runs of tabs and strips leading ones — and these rows are
 # full of empty columns (@claude_state, @claude_since and @claude_note are all
-# unset on an ordinary pane), so a ten-field row arrives as six and every field
-# after the first gap is the wrong one. awk -F'\t' does not do this, which is
+# unset on an ordinary pane), so a full row arrives with most of its columns
+# missing and every field after the first gap is the wrong one. awk -F'\t' does
+# not do this, which is
 # why the version that used awk never had to know. Reading from the end sidesteps
 # field counting altogether.
 hosts=""
@@ -253,7 +269,8 @@ fi
 # --- filter, rank, render ----------------------------------------------------
 
 # Fields: 1 host, 2 session, 3 window_id, 4 pane_id, 5 window_name, 6 state,
-#         7 since, 8 note. Local rows carry 9 and 10 too; nothing reads them.
+#         7 since, 8 note, 9 per-actor listing. Local rows carry 10 and 11 too
+#         (the ssh decoration); nothing reads them here.
 #
 # Filtering, ranking and rendering are one awk pass. They used to be two, with
 # the sort between them, which meant the second pass re-parsed the rows the
@@ -267,7 +284,7 @@ fi
 # carries what the jump needs. "|" is safe as its separator: tmux ids are @N / %N
 # and hosts are ssh aliases.
 list=$(
-  printf '%s\n' "$rows" | awk -F"$TAB" -v now="$now" '
+  printf '%s\n' "$rows" | awk -F"$TAB" -v now="$now" -v rsep="$RS" -v usep="$US" '
     function age(s,   d) {
       if (s == "") return "-"
       d = now - s
@@ -275,27 +292,64 @@ list=$(
       if (d < 3600) return int(d / 60) "m"
       return int(d / 3600) "h"
     }
-    $6 == "" { next }                                   # no agent in this pane
-    $2 ~ /^_/ { next }                                  # _popup_ / _tig_ / _fzf_nvim_ sessions
-    {
+    # One line per actor. The key stays the pane, because a subagent has no pane
+    # of its own — jumping to it means jumping to the conversation running it —
+    # so the rows differ only in what they say, which is the point: the blocked
+    # subagent sorts to the top on its own instead of hiding behind whichever
+    # actor happened to write the pane options last.
+    function emit(st, since, note, label,   rank, glyph, where, name) {
       # asking/waiting share rank 0: both mean a dialog is open and nothing moves
       # until it is answered, and which one is more urgent is not for this script
       # to guess. Everything else lands in the last rank, where the age sort
       # below floats the longest-untouched one up on its own.
-      rank = ($6 == "asking" || $6 == "waiting") ? 0 : ($6 == "busy") ? 1 : 2
+      rank = (st == "asking" || st == "waiting") ? 0 : (st == "busy") ? 1 : 2
 
       # Same per-glyph spacing rule as agent-state.sh: the emoji ones are
       # already two cells wide, the narrow ▶ is padded to two, so the
       # columns after the glyph line up across rows.
-      glyph = ($6 == "asking")  ? "🔶" \
-            : ($6 == "waiting") ? "🛑" \
-            : ($6 == "busy")    ? "▶ " : "🔘"
+      glyph = (st == "asking")  ? "🔶" \
+            : (st == "waiting") ? "🛑" \
+            : (st == "busy")    ? "▶ " : "🔘"
       where = ($1 == "") ? "local" : $1
+      # The label is bracketed with ASCII, not set off with a nicer glyph:
+      # printf pads by bytes, so a multibyte separator in a %-28s column shifts
+      # everything after it on exactly the rows that carry one.
+      name = (label == "") ? $5 : $5 " [" label "]"
       # The state travels in the key too: ctrl-o is only offered for a session
       # that is actually blocked on the human, and re-deriving that from the
-      # glyph after the fact would be reading the rendering back.
+      # glyph after the fact would be reading the rendering back. The state here
+      # belongs to the actor on this row, not to the pane as a whole, so the row
+      # only offers to answer the dialog it is actually reporting. (No
+      # apostrophes in this program: it is one long single-quoted shell string,
+      # and one would end it — the same trap session-review documents for jq.)
       printf "%s\t%s\t%s|%s|%s|%s\t%s %4s  %-12s %-28s %s\n", \
-        rank, $7, $1, $3, $4, $6, glyph, age($7), where, $5, $8
+        rank, since, $1, $3, $4, st, glyph, age(since), where, name, note
+    }
+    $6 == "" { next }                                   # no agent in this pane
+    $2 ~ /^_/ { next }                                  # _popup_ / _tig_ / _fzf_nvim_ sessions
+    {
+      n = ($9 == "") ? 0 : split($9, records, rsep)
+      if (n == 0) {
+        emit($6, $7, $8, "")                            # older hook: aggregate only
+        next
+      }
+      for (i = 1; i <= n; i++) {
+        if (records[i] == "") continue                  # trailing separator
+        split(records[i], f, usep)
+        # An empty state is not an actor — the same rule as $6 above, which is
+        # what keeps a pane with no agent out of the list. A record can arrive
+        # that way if the option was ever written or truncated by something
+        # other than the hook, and a state-less row renders as a plausible
+        # grey circle with no age, which is worse than not being there.
+        #
+        # An *unrecognised* state is deliberately still rendered, as the last
+        # glyph in emit(). Dropping it would mean an older copy of this script
+        # hides an agent whose state a newer hook has just learned to publish,
+        # and a hidden blocked session is the one failure this list exists to
+        # prevent. A wrong glyph on a visible row is the cheaper mistake.
+        if (f[1] == "") continue
+        emit(f[1], f[2], f[4], f[3])
+      }
     }
   ' | sort -t"$TAB" -k1,1n -k2,2n | cut -f3-
 )
