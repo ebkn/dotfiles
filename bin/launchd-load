@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# launchd-load — load this repo's LaunchAgents that are linked but not running.
+#
+# Linking a plist is NOT loading it, and the gap leaves no trace: launchd runs
+# nothing, logs nothing, and the only symptom is a feature quietly not
+# happening. Both review-pipeline agents sat unloaded on this machine for weeks
+# with their symlinks perfectly in place.
+#
+# `bin/init/macos.sh` calls this during provisioning. It exists as its own
+# script rather than a function in there because provisioning runs once: an
+# already-provisioned machine that gains a new agent (or lost one to a reboot
+# quirk) would otherwise have to re-run the whole init -- brew bundles included
+# -- or type launchctl by hand.
+#
+# It is deliberately NOT called by `relink`/`update-all`, which is the whole
+# reason it is a separate command you invoke rather than a step in the link
+# sync. Loading an agent is a decision about this machine, not a fact about the
+# file layout, and the two conflict:
+#
+#     launchctl bootout gui/$UID/com.ebkn.pr-review-dispatch
+#
+# is the documented way to stop review delivery while notifications keep
+# arriving -- the entire reason that pipeline is split into two agents. A load
+# on every `update-all` would silently undo it and bring the agent that posts
+# into live sessions back from the dead.
+#
+# Usage:
+#   launchd-load             load every linked agent that is not running
+#   launchd-load --status    report what is loaded, change nothing
+set -uo pipefail
+
+DOTFILES_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
+AGENTS_DIR="$HOME/Library/LaunchAgents"
+
+status_only=0
+case "${1:-}" in
+  --status) status_only=1 ;;
+  -h|--help) sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//; $d'; exit 0 ;;
+  '') ;;
+  *) printf 'launchd-load: unknown argument: %s\n' "$1" >&2; exit 1 ;;
+esac
+
+case "$(uname -s)" in
+  Darwin) ;;
+  *) printf 'launchd-load: launchd is macOS-only; nothing to do.\n'; exit 0 ;;
+esac
+
+uid=$(id -u)
+domain="gui/$uid"
+loaded=0
+skipped=0
+failed=0
+
+# Discovered from the repo rather than listed, so a plist added to launchd/ is
+# picked up with no second place to remember -- the same discipline
+# bin/lint-shell applies to its targets.
+for plist in "$DOTFILES_DIR"/launchd/*.plist; do
+  [ -f "$plist" ] || continue
+  label=$(basename "$plist" .plist)
+  linked="$AGENTS_DIR/$label.plist"
+
+  # Load through the LINKED path, not the repo one: that is what launchd will
+  # hold on to, and loading the repo copy directly would leave a service whose
+  # path does not match what `relink` maintains.
+  if [ ! -e "$linked" ]; then
+    printf '  %-34s not linked (run relink)\n' "$label"
+    skipped=$((skipped + 1))
+    continue
+  fi
+
+  if launchctl print "$domain/$label" >/dev/null 2>&1; then
+    printf '  %-34s already loaded\n' "$label"
+    skipped=$((skipped + 1))
+    continue
+  fi
+
+  if [ "$status_only" -eq 1 ]; then
+    printf '  %-34s NOT loaded\n' "$label"
+    skipped=$((skipped + 1))
+    continue
+  fi
+
+  # `bootstrap` errors on an already-loaded service, which the check above
+  # handles. bootout-then-bootstrap is deliberately not used: restarting an
+  # agent that is running fine is worse than doing nothing.
+  if launchctl bootstrap "$domain" "$linked" 2>/dev/null; then
+    printf '  %-34s loaded\n' "$label"
+    loaded=$((loaded + 1))
+  else
+    # A machine with no Aqua session (ssh-only) has no gui/<uid> domain at all.
+    printf '  %-34s could not load into %s\n' "$label" "$domain" >&2
+    failed=$((failed + 1))
+  fi
+done
+
+[ "$loaded" -gt 0 ] && printf 'loaded %d agent(s)\n' "$loaded"
+[ "$failed" -eq 0 ]
