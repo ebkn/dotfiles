@@ -1,0 +1,197 @@
+#!/bin/sh
+# tmux-agent-view: show another tmux window inside a popup, so a Claude Code
+# session that is blocked -- on a permission prompt or on a question it asked --
+# can be answered without leaving the tab you are in.
+#
+# Reached from bin/tmux-agents (prefix + a) with ctrl-o. The picker owns the
+# decision of *which* agent and whether the geometry allows it; this script owns
+# the popup and the mirror session.
+#
+# Usage: tmux-agent-view <mode> <args...>
+#   open   <client> <window-id> <pane-id>   close the picker, open the mirror
+#   attach <client> <window-id> <pane-id>   run *inside* that popup
+#   list   <client>                         reopen the picker after detaching
+#
+# WHY A MIRROR AND NOT A RENDERED SUMMARY. The dialog is a TUI drawn in the
+# pane; there is no API to answer it. The state hook publishes the question text
+# as @claude_note, but answering from that alone would mean sending a keystroke
+# to a dialog whose option list we are guessing -- and this is the dialog that
+# approves command execution. What you answer must be what you see, so the pane
+# itself is what gets shown. Attaching a second client is what makes that both
+# live and correctly laid out: Claude Code renders the dialog at the real
+# geometry, and arrow keys, typing and Escape all work with no key table here to
+# get wrong.
+#
+# WHY THE MIRROR IS AN INSET, BORDERED POPUP, AND WHAT THAT COSTS. tmux sizes a
+# window to the latest client that used it (window-size latest, the default), so
+# a second client resizes the window it is looking at. The first version of this
+# script went to some length to avoid that: borderless, and sized to exactly
+# #{window_width} x #{window_height} + 1, which does hold the window at its own
+# size (verified: 80x23 stayed 80x23). It was the wrong trade. A popup covering
+# the terminal edge to edge is indistinguishable from having jumped to the tab
+# -- "the whole screen changed" -- and a view you cannot tell you are inside is
+# worse than one that costs a redraw.
+#
+# So it is inset and bordered, and the window does resize while it is open. What
+# that actually costs was measured rather than guessed: a 62x18 popup took an
+# 80x23 window to 60x15 and rewrapped its long lines (41 rows of history became
+# 75), and on close `capture-pane -S -60` came back byte-identical to before.
+# tmux reflows back losslessly, so the price is two redraws of a live TUI, not a
+# damaged transcript. (Measured against a static pane; a TUI redraws itself on
+# SIGWINCH either way, which is the same thing that happens when you resize the
+# terminal.)
+#
+# WHY THERE IS ALSO A FOOTER. The border says "popup"; it does not say how to
+# get out, and no key for that is guessable -- the first question asked of the
+# working view was "how do I get back?". The mirror session's own status line is
+# the natural place to answer it, and it costs no #() fork and no
+# status-interval redraw as long as status-format stays literal. The key it
+# names, C-], is bound in .tmux.conf and is advertised nowhere else, so
+# the two have to stay in step; the border title carries it as well, since the
+# footer sits under a full-screen TUI and is easy to miss.
+#
+# WHY THE POPUP IS CLOSED AND REOPENED RATHER THAN RESIZED. A display-popup
+# aimed at a client that already has one does not open a second popup: tmux
+# *modifies* the existing one, and -w, -h and the shell-command are all in the
+# set of options ignored in that case (see the display-popup entry in tmux(1)).
+# So the picker's popup has to go before the bigger one can exist, and -C is the
+# command that does it.
+#
+# WHY run-shell -b IS THE ONLY WAY TO SPAWN THE NEXT POPUP. Closing a popup
+# kills the process running in it. A helper started from inside the picker would
+# therefore die with the -C that has to precede its own display-popup. run-shell
+# forks on the tmux *server*, outside the popup's process tree, so it survives.
+# That is why bin/tmux-agents calls `tmux run-shell -b "... open ..."` instead of
+# running this directly, and why the detach path below re-enters the same way.
+set -eu
+
+# The sibling path, resolved from $0, rather than a bare name on $PATH: the next
+# hop runs under `tmux run-shell`, which uses the *server's* environment, not
+# the caller's -- so a $PATH that has ~/.local/bin only because a login shell
+# added it is not there. Both scripts are linked into the same directory (bin/
+# in the checkout, ~/.local/bin once relinked), so a sibling always resolves.
+# Symlinks are deliberately not followed: either directory holds both scripts.
+self=$0
+case $self in
+  */*) ;;
+  *) self=$(command -v -- "$self") ;;
+esac
+dir=$(CDPATH='' cd -- "$(dirname -- "$self")" && pwd)
+
+# Must match the `bind ... a display-popup` geometry in .tmux.conf: pressing
+# ctrl-o and then detaching should land you back on the same list you left, at
+# the size prefix + a gives it. Pinned by bin/tmux-agent-view.test.sh, because
+# nothing else would notice the two drifting apart.
+LIST_WIDTH=80%
+LIST_HEIGHT=60%
+
+# Bigger than the list, and deliberately not the whole terminal: the inset is
+# what makes it read as a popup at all (see the header).
+VIEW_WIDTH=90%
+VIEW_HEIGHT=85%
+
+# Everforest orange, the colour the picker gives 🔶 asking. Used for both the
+# border and the footer so the view is recognisable at a glance.
+ACCENT='#e69875'
+
+mode=${1:-}
+
+usage() {
+  echo "usage: ${0##*/} open|attach <client> <window-id> <pane-id>" >&2
+  echo "       ${0##*/} list <client>" >&2
+  exit 2
+}
+
+case $mode in
+  open | attach)
+    [ $# -eq 4 ] || usage
+    client=$2
+    window_id=$3
+    pane_id=$4
+    ;;
+  list)
+    [ $# -eq 2 ] || usage
+    client=$2
+    ;;
+  *) usage ;;
+esac
+
+case $mode in
+  open)
+    # Sweep mirror sessions nobody is attached to. One is left behind whenever a
+    # popup is closed from the outside (another -C, or the client going away):
+    # that SIGHUPs the attach below before its kill-session runs. They are
+    # harmless -- a grouped session owns no windows of its own, and the picker
+    # already skips `_*` sessions so they never show up as duplicate rows -- but
+    # they would accumulate for the life of the server.
+    tmux list-sessions -F '#{session_name} #{session_attached}' 2>/dev/null |
+      while read -r name attached; do
+        case $name in
+          _agent_*)
+            if [ "$attached" = 0 ]; then
+              tmux kill-session -t "$name" 2>/dev/null || true
+            fi
+            ;;
+        esac
+      done || true
+
+    # Resolved here rather than left to a #{window_name} in -T: display-popup
+    # would expand that against its own target, and the popup's target is the
+    # calling client's pane, not the agent's.
+    name=$(tmux display-message -p -t "$pane_id" '#{window_name}' 2>/dev/null) || name=""
+
+    tmux display-popup -C -c "$client" 2>/dev/null || true
+    exec tmux display-popup -c "$client" -E \
+      -w "$VIEW_WIDTH" -h "$VIEW_HEIGHT" \
+      -S "fg=$ACCENT" -T " answering ${name:-agent} — C-] to go back " \
+      "$self attach $client $window_id $pane_id"
+    ;;
+
+  attach)
+    # A session in the target's group: it shares the window list, so the mirror
+    # can show that window, but it carries its own current window -- attaching
+    # to the target session directly would repoint the real tab every time the
+    # mirror moved. $$ keeps two mirrors of the same window from colliding.
+    target=$(tmux display-message -p -t "$pane_id" '#{session_name}' 2>/dev/null) || exit 0
+    [ -n "$target" ] || exit 0
+    session="_agent_${window_id#@}_$$"
+
+    # The leading underscore is the same contract bin/tmux-popup relies on: the
+    # prefix + p/t/o/a bindings refuse to fire when #{session_name} matches _*,
+    # which is what stops a popup being opened from inside this one.
+    tmux new-session -d -t "$target" -s "$session"
+
+    # The footer. Session options, so none of this touches the target's own
+    # status line. `status-position bottom` is set explicitly because the global
+    # is `top` (.tmux.conf) and the point of this row is to sit at the foot of
+    # the popup, where a hint belongs. A literal status-format means the bar
+    # costs no #() fork and never redraws on status-interval.
+    tmux set-option -t "$session" status on
+    tmux set-option -t "$session" status-position bottom
+    tmux set-option -t "$session" status-style "bg=$ACCENT fg=#1e2326 bold"
+    tmux set-option -t "$session" status-format[0] \
+      '#[align=centre]C-]: back to the agent list   C-q C-q: send the prefix to the agent'
+
+    tmux select-window -t "$session:$window_id"
+    # The active pane is a property of the window, shared with the real tab, so
+    # this moves the cursor there too. Unavoidable: keys reach the agent only if
+    # its pane is the active one -- and it is the pane being answered.
+    tmux select-pane -t "$pane_id"
+
+    tmux attach-session -t "$session" || true
+    tmux kill-session -t "$session" 2>/dev/null || true
+
+    # Back to the picker, so several blocked agents can be answered in a row.
+    # Redrawn from scratch rather than restored, which is the point: the one
+    # just answered is no longer blocked and should not still say so.
+    exec tmux run-shell -b "$self list $client"
+    ;;
+
+  list)
+    # Bordered, unlike the mirror: this one is a popup that looks like a popup,
+    # and it is not mirroring a window whose size it has to match.
+    tmux display-popup -C -c "$client" 2>/dev/null || true
+    exec tmux display-popup -c "$client" -E \
+      -w "$LIST_WIDTH" -h "$LIST_HEIGHT" "$dir/tmux-agents"
+    ;;
+esac
