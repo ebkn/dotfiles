@@ -131,6 +131,9 @@ new_client() {
 }
 
 tty_on() { tmux list-clients -f "#{==:#{client_session},$1}" -F '#{client_tty}' | head -1; }
+# How many clients the server holds. `attach` ends by becoming one, so a rise
+# here is the one signal that says it got all the way through.
+client_count() { tmux list-clients -F x 2>/dev/null | wc -l | tr -d ' '; }
 
 tmux -f /dev/null new-session -d -s s1 "$IDLE"
 # Sessions that `attach` creates itself get their pane from default-command. It
@@ -197,10 +200,31 @@ MONITOR_PIDS=""
 # it is run under a pty like any other client and the assertions are on where it
 # landed.
 # ---------------------------------------------------------------------------
+# Run `attach` under a pty and return once tmux reports the client it became.
+#
+# Waiting for that client rather than sleeping a fixed three seconds, because
+# the assertions below otherwise read whatever the server happened to hold when
+# the timer expired -- and one of them passes in that state without `attach`
+# having done anything at all. "does not join a session another client holds"
+# expects `held 1`, which is exactly what `new_client held` already left there:
+# stopping the script just before it attaches leaves that assertion green.
+# Slowing `attach` to six seconds showed the other half of the same problem, a
+# late attach from one case being counted by the next case's wait.
+#
+# A timeout here is a failure of the script, not of the harness, so it is
+# reported as one instead of aborting -- the cases after it still say something.
 attach_as() { # attach_as <conn_id>
+  local before
+  before=$(client_count)
   in_pty "$SCRIPT" attach "$1"
   CLIENT_PIDS="$CLIENT_PIDS $!"
-  sleep 3
+  for _ in $(seq 1 100); do
+    [ "$(client_count)" -gt "$before" ] && return 0
+    sleep 0.1
+  done
+  printf 'FAIL attach as %s never became a client within 10s\n' "$1"
+  fails=$((fails + 1))
+  return 1
 }
 
 # A free recorded session is restored.
@@ -216,11 +240,18 @@ t "attach: restores a recorded session that is free" "1" \
 tmux new-session -d -s held "$IDLE"
 new_client held || exit 1
 record connD held
-attach_as connD
-t "attach: does not join a session another client holds" "1" \
-  "$(tmux list-sessions -F '#{session_name} #{session_attached}' | grep -c '^held 1$')"
-t "attach: falls back to its own conn_id session" "1" \
-  "$(tmux list-sessions -F '#{session_name} #{session_attached}' | grep -c '^connD 1$')"
+# The only assertion here whose expected value is also the state *before*
+# `attach` runs: `held` already has the one client new_client gave it, so
+# "still 1" is what a script that did nothing leaves behind. Its precondition is
+# therefore made explicit rather than assumed -- every other case in this file
+# expects a value that only appears once attach has done its work, and so goes
+# red on its own.
+if attach_as connD; then
+  t "attach: does not join a session another client holds" "1" \
+    "$(tmux list-sessions -F '#{session_name} #{session_attached}' | grep -c '^held 1$')"
+  t "attach: falls back to its own conn_id session" "1" \
+    "$(tmux list-sessions -F '#{session_name} #{session_attached}' | grep -c '^connD 1$')"
+fi
 
 # A record naming a session that no longer exists is pruned rather than kept.
 record connE gone-session
