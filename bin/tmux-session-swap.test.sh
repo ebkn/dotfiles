@@ -146,6 +146,41 @@ pos=$(where "$ttyA")
 "$SCRIPT" go no-such-session >/dev/null 2>&1
 t "dead target: the picker did not move"        "$pos"    "$(where "$ttyA")"
 
+# --- more than one client on the chosen session ------------------------------
+#
+# The loop over clients_on() exists for this, and every case above exercises it
+# with exactly one incumbent -- which the simplest possible wrong implementation
+# (move the first one, ignore the rest) also handles. Two incumbents is not a
+# contrived state: it is what tmux's own `w` produces, and what an earlier
+# bin/tmux-track-session bug produced on reconnect, so the repair path is the
+# reason to reach for this key rather than switch-client.
+#
+# What is promised here is about the *chosen* session, not about the whole
+# server: every client that was on it is moved off, so the picker lands there
+# alone. The doubling itself moves to the vacated session rather than being
+# cured -- a one-for-one swap cannot turn three clients into three sessions --
+# and asserting otherwise would pin behaviour this does not have.
+tmux new-session -d -s crowd "$IDLE"
+tmux new-session -d -s lonely "$IDLE"
+new_client crowd || exit 1
+ttyC=$(tty_on crowd)                        # read before crowd gains a second
+tmux switch-client -c "$ttyB" -t '=crowd'
+tmux switch-client -c "$ttyA" -t '=lonely'
+"$SCRIPT" arm "$ttyA"
+"$SCRIPT" go crowd
+t "crowded target: the picker ends up on it alone"  "1"      "$(attached_on crowd)"
+t "crowded target: and the picker is who is there"  "crowd"  "$(where "$ttyA")"
+t "crowded target: every incumbent was moved off"   "lonely lonely" \
+  "$(where "$ttyB") $(where "$ttyC")"
+
+# Not covered on purpose: the branch taken when the picking client vanished
+# between arm and go (`from_session` empty). Removing that guard changes
+# nothing observable -- the loop's switch-client is then handed an empty target
+# and fails, and so does the final one, leaving every client exactly where the
+# guard would have left them. A case asserting that outcome would pass with or
+# without the branch, which is the kind of assertion this file has one of too
+# many already.
+
 if [ "$fails" -eq 0 ]; then
   echo "PASS"
 else
