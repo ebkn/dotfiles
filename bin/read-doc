@@ -2,45 +2,19 @@
 #
 # read-doc — typeset a document as HTML and open it in the browser.
 #
-# Why not a terminal pager:
-#   A terminal is a grid of equal-size cells, so a glyph can only ever land at
-#   `column * cell_width`. That is the model, not a missing feature, which is
-#   why no pager — bat, glow, mdcat — can use a proportional face. Long-form
-#   Japanese is much easier to read in one, and once the text is in a browser
-#   the typeface, the measure and the leading are all ours to set. The whole
-#   point of this script is read-doc/style.css; pandoc is just the adapter.
+# The whole point of this script is read-doc/style.css: a terminal is a grid of
+# equal-size cells, so no pager can use a proportional face, and long-form
+# Japanese is much easier to read in one. pandoc is just the adapter -- kept
+# over the far smaller cmark-gfm because it highlights server-side, so the
+# colours survive with scripting off. Do not turn this into a terminal pager,
+# and do not "optimise" to cmark-gfm without solving highlighting.
 #
-# Why pandoc rather than the far smaller cmark-gfm:
-#   Syntax highlighting. cmark-gfm emits <pre><code class="language-zsh"> and
-#   stops; colouring it means vendoring highlight.js into this repo, and a
-#   minified blob under version control costs more than the 266MB pandoc
-#   binary saves. pandoc highlights server-side via skylighting, so the colours
-#   are baked into the markup and survive with scripting off.
-#   Do not "optimise" this back to cmark-gfm without solving highlighting.
-#
-# What the page loads: nothing. It is one self-contained file that works
-#   offline. read-doc/after-body.html adds a small inline script for the copy
-#   buttons and for retargeting links; both degrade to a perfectly readable
-#   document if it never runs, and the syntax colours do not depend on it.
-#
-# Why the output is self-contained, and why it is no longer --embed-resources:
-#   read-doc renders documents that arrive from elsewhere — pulled over ssh,
-#   forwarded from a remote pane — so the input is untrusted. pandoc therefore
-#   runs under --sandbox, which limits reader and writer IO to the files named
-#   on the command line and is what upstream tells anyone feeding pandoc
-#   untrusted input to use. That also blocks --embed-resources (a writer-side
-#   fetch), so style.css is read by this script and passed in as an inline
-#   <style> via header-includes instead. The consequence to know: a
-#   document-relative image no longer renders. That is the accepted price —
-#   the documents this exists for are prose, and a forwarded one has no
-#   readable path on this machine anyway.
-#
-# Why the page also carries a Content-Security-Policy <meta>:
-#   The gfm reader passes raw HTML through, so a document can carry markup we
-#   never wrote. `default-src 'none'` means none of it can reach the network,
-#   so a page cannot phone home about what it was rendered next to.
-#   `script-src 'unsafe-inline'` is the one relaxation, and it is required by
-#   read-doc/after-body.html; see the note at the policy itself.
+# The page loads nothing and works offline. The input is UNTRUSTED (documents
+# arrive over ssh or forwarded from a remote pane), so pandoc runs under
+# --sandbox and the page carries a Content-Security-Policy <meta>. The
+# consequences of both -- why style.css is inlined through header-includes
+# rather than --css, why a document-relative image no longer renders, and the
+# gap 'unsafe-inline' leaves open -- are in bin/read-doc.md.
 #
 # Three ways to run it, and why there are three:
 #   local      read-doc FILE            renders here, opens the browser here
@@ -48,14 +22,10 @@
 #   forward    read-doc FILE  (in ssh)  ships the SOURCE to the terminal's own
 #                                       machine, which renders and opens it
 #
-#   `forward` is the interesting one. Inside an ssh session `open` would launch
-#   a browser on the machine you are logged in to — invisible to you. So the
-#   source is written to the terminal as an OSC 1337 SetUserVar sequence and
-#   picked up by the user-var-changed handler in wezterm.lua, which renders it
-#   with the *local* read-doc. Deliberately the source and not the HTML: it
-#   means the remote needs no pandoc (nothing to install on a box you do not
-#   own), ships fewer bytes, and keeps read-doc/style.css a single source of
-#   truth instead of letting a stale remote checkout decide the typography.
+#   `forward` exists because inside an ssh session `open` would launch a browser
+#   on the machine you are logged in to, invisible to you. The SOURCE crosses
+#   the wire, not the HTML, so the remote needs no pandoc and style.css stays a
+#   single source of truth. Its three constraints are in bin/read-doc.md.
 #
 # Usage:
 #   read-doc README.md            # render and open in the default browser
@@ -329,19 +299,14 @@ if [ -z "${lang}" ] && [ -n "${src}" ] && [ -f "${src}" ]; then
 fi
 
 # The policy the rendered page carries. `default-src 'none'` is the part that
-# matters: whatever raw HTML a document smuggled through the reader, it cannot
-# fetch, XHR, or open a socket, so nothing about this machine leaks outward.
+# matters: whatever raw HTML a document smuggled through the reader cannot
+# fetch, XHR or open a socket, so nothing about this machine leaks outward. The
+# two 'unsafe-inline' relaxations are what our own output needs (pandoc's
+# highlighting rules, and read-doc/after-body.html).
 #
-# The two relaxations are exactly what our own output needs. `style-src
-# 'unsafe-inline'` covers pandoc's highlighting rules and the <style> below;
-# `script-src 'unsafe-inline'` covers read-doc/after-body.html, which is inline
-# by design (the page must work offline, loading nothing).
-#
-# Known gap, stated rather than hidden: 'unsafe-inline' also permits a script
-# the *document* brought with it, and CSP has no directive here that stops a
-# script navigating the top-level page. So this stops silent exfiltration, not
-# a visible redirect. Closing it means dropping 'unsafe-inline' for a sha256
-# hash of after-body.html's script, which is the next step if it ever matters.
+# Known gap: 'unsafe-inline' also permits a script the *document* brought with
+# it, and CSP cannot stop one navigating the top-level page here -- so this buys
+# silence, not immobility. See bin/read-doc.md for how to close it.
 CSP="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
 
 # header-includes rather than --css: --sandbox blocks the writer-side fetch

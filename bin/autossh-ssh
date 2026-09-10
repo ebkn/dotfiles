@@ -3,19 +3,15 @@
 # myssh (zsh/ssh.zsh). It exists to own the screen between reconnect attempts.
 #
 # When the link drops, the terminal still shows the remote tmux's last frame,
-# and two things then scribble on it. ssh writes a diagnostic per attempt
-# ("client_loop: send disconnect: Broken pipe", "ssh: connect to host ... port
-# 22: Operation timed out") and autossh retries about once a second. And the
-# remote tmux left mouse tracking on with nobody consuming it any more, so
-# moving the pointer floods the screen with raw SGR reports. Neither is
-# something to act on; both land on a frame that is already stale.
+# and two things scribble on it: ssh's diagnostic per attempt (autossh retries
+# about once a second), and -- the half that looks like a separate bug entirely
+# -- a flood of raw SGR reports, because the remote tmux left mouse tracking on
+# with nobody consuming it.
 #
-# Being AUTOSSH_PATH is what keeps this a *shim* rather than a reimplementation
-# of the reconnect loop: autossh keeps its restart policy, backoff and exit
-# handling, and this only gets a hook that runs once per attempt -- which is
-# the one thing a "reconnecting" display needs and cannot get any other way.
-# It is deliberately not named `ssh`, since it finds the real binary with
-# `command -v ssh` and a shim called ssh would find itself.
+# Being AUTOSSH_PATH is what keeps this a *shim*: autossh keeps its restart
+# policy, backoff and exit handling, and this only takes the one hook that runs
+# per attempt. It is deliberately not named `ssh`, since it finds the real
+# binary with `command -v ssh` and a shim called ssh would find itself.
 #
 # The first attempt is left completely alone: that one is the initial connect,
 # where ssh's own output is the useful thing on screen (host key prompts,
@@ -24,7 +20,7 @@
 # With AUTOSSH_NOTICE_STATE unset this is a transparent `exec ssh "$@"`, which
 # is what a caller that is not myssh gets.
 #
-# Tested by bin/autossh-ssh.test.sh.
+# See bin/autossh-ssh.md. Tested by bin/autossh-ssh.test.sh.
 
 state="${AUTOSSH_NOTICE_STATE:-}"
 host="${AUTOSSH_NOTICE_HOST:-the remote}"

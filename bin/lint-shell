@@ -13,6 +13,9 @@
 # noticing. Two categories cannot be discovered that way and are named below:
 # sourced fragments (no shebang) and zsh config modules (sourced from .zshrc).
 #
+# A GATE THAT DISCOVERS ITS OWN TARGETS FAILS BY CHECKING NOTHING AND REPORTING
+# OK, which is what happened here once; see bin/lint-shell.md.
+#
 # Usage:
 #   bin/lint-shell           check only (a shfmt diff fails the run)
 #   bin/lint-shell --write   apply shfmt's formatting in place
