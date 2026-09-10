@@ -84,6 +84,18 @@ case "${1:-}" in
       -F '#{client_session}' 2>/dev/null)
     # The picking client vanished between arm and go (tab closed mid-chooser).
     [ -n "$from_session" ] || exit 0
+    # Picking the session you are already on. This is a shortcut, NOT a safety
+    # gate -- do not build on it as though it were one. Removing it changes
+    # nothing observable: the loop below skips $from_tty by name, every other
+    # client on the session gets moved to a session it is already on, and the
+    # final switch puts the picker where it already is. Checked by running both
+    # versions against the hardest shape, a session already holding two clients,
+    # and diffing the client-to-session map tmux was left with: identical.
+    #
+    # What it buys is a handful of tmux round-trips (~5ms each) on a keypress
+    # path, which is why it stays. What it costs is that no test can defend it;
+    # the suite is green with the line deleted, and that is correct rather than
+    # a gap.
     [ "$from_session" = "$to_session" ] && exit 0
 
     # Move the incumbents first. They land on a session that still has its own
