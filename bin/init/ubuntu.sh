@@ -202,6 +202,8 @@ link_with_backup "${DOTFILES_DIR}/bin/tmux-restore-tabs" "${HOME}/.local/bin/tmu
 link_with_backup "${DOTFILES_DIR}/bin/tmux-pane-titles" "${HOME}/.local/bin/tmux-pane-titles"
 link_with_backup "${DOTFILES_DIR}/bin/tmux-track-session" "${HOME}/.local/bin/tmux-track-session"
 link_with_backup "${DOTFILES_DIR}/bin/tmux-agents" "${HOME}/.local/bin/tmux-agents"
+# Must sit next to tmux-agents: they resolve each other as siblings of $0.
+link_with_backup "${DOTFILES_DIR}/bin/tmux-agent-view" "${HOME}/.local/bin/tmux-agent-view"
 link_with_backup "${DOTFILES_DIR}/bin/tmux-cheatsheet" "${HOME}/.local/bin/tmux-cheatsheet"
 link_with_backup "${DOTFILES_DIR}/bin/tmux-tig" "${HOME}/.local/bin/tmux-tig"
 link_with_backup "${DOTFILES_DIR}/bin/tmux-popup" "${HOME}/.local/bin/tmux-popup"

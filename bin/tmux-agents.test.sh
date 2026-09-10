@@ -283,6 +283,84 @@ tmux -L "$socket" kill-window -t work:ssh-pane-a 2>/dev/null
 tmux -L "$socket" kill-window -t work:ssh-pane-b 2>/dev/null
 rm -f "$work/stub/ssh"
 
+# --- what the picked row turns into -------------------------------------------
+
+# fzf runs with --expect=ctrl-o, which prints the key that closed the picker on
+# its own first line -- EMPTY for a plain enter. Everything after that line is
+# the row, and the hidden first field of the row is the jump key. Misread that
+# by one line and the jump silently targets nothing: the popup closes and the
+# tab does not change, which looks like tmux having ignored the key.
+#
+# The observable end of the jump is `select-pane`, so the fixture puts the agent
+# in a window's SECOND pane -- if the row were misparsed, the active pane would
+# stay where tmux put it.
+tmux -L "$socket" new-window -t work -n pick-me "$IDLE"
+tmux -L "$socket" split-window -t "work:pick-me" "$IDLE"
+picked_pane=$(tmux -L "$socket" list-panes -t "work:pick-me" -F '#{pane_id}' | tail -1)
+other_pane=$(tmux -L "$socket" list-panes -t "work:pick-me" -F '#{pane_id}' | head -1)
+tmux -L "$socket" set-option -p -t "$picked_pane" @claude_state asking
+tmux -L "$socket" set-option -p -t "$picked_pane" @claude_since "$now"
+
+# select-pane back to the first one, so the assertion cannot pass by accident.
+select_first() { tmux -L "$socket" select-pane -t "$other_pane"; }
+active_pane() { tmux -L "$socket" display-message -p -t "work:pick-me" '#{pane_id}'; }
+
+# A picker that behaves like fzf closing on a key: the expect line, then the row.
+stub_pick() {
+  cat >"$work/stub/fzf" <<STUB
+#!/bin/sh
+row=\$(grep pick-me)
+printf '%s\n%s\n' "$1" "\$row"
+exit 0
+STUB
+  chmod +x "$work/stub/fzf"
+}
+
+run_pick() {
+  select_first
+  tmux -L "$socket" run-shell "cd $PWD && PATH=$work/stub:$PWD/bin:\$PATH tmux-agents >$work/out 2>&1"
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    [ "$(active_pane)" = "$picked_pane" ] && return 0
+    sleep 0.2
+  done
+  return 1
+}
+
+stub_pick ''
+if run_pick; then
+  pass "enter selects the picked pane despite the empty --expect line"
+else
+  fail "enter selects the picked pane despite the empty --expect line" \
+    "active pane is $(active_pane), wanted $picked_pane" "$(cat "$work/out" 2>/dev/null)"
+fi
+
+# ctrl-o asks for the answer-here view, which needs a client to open a popup on.
+# A throwaway server has none, and the rule is that everything the view refuses
+# falls through to the jump rather than doing nothing -- so the pane must still
+# be selected, and no mirror session may be left behind.
+stub_pick 'ctrl-o'
+if run_pick; then
+  pass "ctrl-o with no client to open a popup on still jumps"
+else
+  fail "ctrl-o with no client to open a popup on still jumps" \
+    "active pane is $(active_pane), wanted $picked_pane" "$(cat "$work/out" 2>/dev/null)"
+fi
+if tmux -L "$socket" list-sessions -F '#{session_name}' | grep -q '^_agent_'; then
+  fail "no mirror session is created when the view is refused" \
+    "$(tmux -L "$socket" list-sessions -F '#{session_name}')"
+else
+  pass "no mirror session is created when the view is refused"
+fi
+
+tmux -L "$socket" kill-window -t work:pick-me 2>/dev/null
+# Restore the picker stub the sections below expect.
+cat >"$work/stub/fzf" <<STUB
+#!/bin/sh
+cat >"$work/list"
+exit 1
+STUB
+chmod +x "$work/stub/fzf"
+
 # --- the empty case ----------------------------------------------------------
 
 # It must not exit instantly: in a popup that reads as a crash rather than as

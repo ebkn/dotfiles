@@ -191,15 +191,21 @@ fi
 export FZF_DEFAULT_OPTS=
 unset FZF_DEFAULT_OPTS_FILE
 
-selection=$(
+picked=$(
   printf '%s\n' "$list" |
     fzf --delimiter="$TAB" --with-nth=2.. \
       --no-multi --no-sort --reverse \
+      --expect=ctrl-o \
       --prompt='agent> ' \
-      --header='enter: jump to the tab'
+      --header='enter: jump to the tab   ctrl-o: answer it here (C-q d to leave)'
 ) || exit 0
 
-# --- jump --------------------------------------------------------------------
+# --expect prints the key that closed the picker on its own first line, empty
+# for plain enter.
+key=${picked%%$'\n'*}
+selection=${picked#*$'\n'}
+
+# --- resolve the pick ---------------------------------------------------------
 
 # $TMUX is "socket,pid,session-id"; the client attached to that session is the
 # one that opened this popup. `head -1` because a session can carry more than one
@@ -209,6 +215,52 @@ if [ -n "${TMUX:-}" ]; then
 fi
 
 IFS='|' read -r host window_id pane_id <<<"${selection%%$'\t'*}"
+
+# --- answer here (ctrl-o) ----------------------------------------------------
+
+# Everything this refuses falls through to the jump below rather than doing
+# nothing: the row is still the row you picked, and being taken to the tab is
+# the honest degradation of "show it to me here".
+if [ "$key" = "ctrl-o" ]; then
+  # Sibling of this script, for the reason spelled out in tmux-agent-view: the
+  # hop below runs under `tmux run-shell`, which uses the tmux server's
+  # environment, so $PATH cannot be relied on to hold ~/.local/bin.
+  self=$0
+  case $self in
+    */*) ;;
+    *) self=$(command -v -- "$self") ;;
+  esac
+  view="$(cd "$(dirname "$self")" && pwd)/tmux-agent-view"
+
+  if [ -n "$host" ]; then
+    # A remote agent lives in the remote tmux, so the mirror would have to be a
+    # nested `ssh -t <host> tmux attach` sized to the *remote* window. Both are
+    # reachable from here — the listing already queries that host — but neither
+    # is exercised by anything on this machine, so it is left out rather than
+    # shipped untested.
+    msg "answering a remote agent here is not supported yet; jumping instead"
+  elif [ -z "$outer_client" ]; then
+    msg "no attached client to open the view on; jumping instead"
+  else
+    # The mirror only leaves the target window unresized if the popup can be as
+    # large as that window (see tmux-agent-view). When it cannot — a smaller
+    # terminal on this tab than on the agent's — opening it anyway would reflow
+    # the transcript twice, which is exactly the kind of damage nobody would
+    # trace back to this key. Refuse and jump instead.
+    read -r win_w win_h < <(tmux display-message -p -t "$pane_id" '#{window_width} #{window_height}' 2>/dev/null || true)
+    read -r cli_w cli_h < <(tmux display-message -p -c "$outer_client" '#{client_width} #{client_height}' 2>/dev/null || true)
+    if [ -z "${win_w:-}" ] || [ -z "${cli_w:-}" ]; then
+      msg "could not measure the agent's window; jumping instead"
+    elif [ "$win_w" -gt "$cli_w" ] || [ "$win_h" -gt "$cli_h" ]; then
+      msg "agent window is ${win_w}x${win_h}, this tab only ${cli_w}x${cli_h}; jumping instead"
+    else
+      tmux run-shell -b "$view open $outer_client $window_id $pane_id"
+      exit 0
+    fi
+  fi
+fi
+
+# --- jump --------------------------------------------------------------------
 
 remote_note=""
 if [ -n "$host" ]; then

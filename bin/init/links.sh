@@ -104,6 +104,10 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/bin/tmux-pane-titles" "${HOME}/.local/bin/tmux-pane-titles"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-track-session" "${HOME}/.local/bin/tmux-track-session"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-agents" "${HOME}/.local/bin/tmux-agents"
+  # Must land in the same directory as tmux-agents: each resolves the other as a
+  # sibling of $0, because the hop between them runs under `tmux run-shell`,
+  # which uses the tmux server's $PATH rather than the caller's.
+  link_with_backup "${DOTFILES_DIR}/bin/tmux-agent-view" "${HOME}/.local/bin/tmux-agent-view"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-cheatsheet" "${HOME}/.local/bin/tmux-cheatsheet"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-tig" "${HOME}/.local/bin/tmux-tig"
   # Named by the prefix + p/t/o bindings in .tmux.conf, so an unlinked one makes
