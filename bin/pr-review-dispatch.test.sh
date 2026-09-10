@@ -39,14 +39,41 @@ has() { case "$2" in *"$3"*) ok "$1" ;; *) no "$1" "[$2] does not contain [$3]" 
 
 TMP=$(mktemp -d); TMP=$(cd "$TMP" && pwd -P)
 KILL_PIDS=""
+leaked=0
 cleanup() {
-  # A failing run is by definition one that leaked a process. This covers both
-  # the `sleep` holders standing in for live sessions and the `nc -lU` listeners,
-  # which outlive the run whenever a case asserts that nothing was sent.
+  # First pass: the pids we know about. The `sleep` holders standing in for live
+  # sessions, and the `nc -lU` listeners, which outlive the run whenever a case
+  # asserts that nothing was sent -- a listener nobody connects to waits forever,
+  # and `-w` does not bound one (verified: still alive after 3.5s with -w 2).
   for p in $KILL_PIDS; do kill "$p" 2>/dev/null; done
   # Reap them so job control cannot print "Terminated" over the results.
   wait 2>/dev/null
+
+  # Second pass, and the one that makes this hold up over time. The bookkeeping
+  # above is a rule every future spawn site has to remember, and the original
+  # leak here was precisely a site that could not follow it: `( nc ... & )`
+  # detached the job, so `$!` never reached the caller and no list could have
+  # contained it. Worse, such a process is reparented away, so neither `jobs -p`
+  # nor `pgrep -P $$` can see it either.
+  #
+  # What every spawn site here DOES have in common is that it names this run's
+  # temp directory -- sockets, capture files and fixtures all live under it -- so
+  # matching on that finds a straggler whatever mechanism started it. A leak is
+  # reported as a FAILURE rather than quietly swept, because a leak that only
+  # gets cleaned up is one nobody ever fixes.
+  local straggler
+  straggler=$(pgrep -f "$TMP" 2>/dev/null | grep -v "^$$\$")
+  if [ -n "$straggler" ]; then
+    leaked=1
+    printf '  FAIL leaked %s process(es) that cleanup could not reach:\n' "$(printf '%s\n' "$straggler" | wc -l | tr -d ' ')"
+    for p in $straggler; do
+      printf '       %s\n' "$(ps -o pid=,command= -p "$p" 2>/dev/null | cut -c1-100)"
+      kill "$p" 2>/dev/null
+    done
+  fi
+
   /bin/rm -rf "$TMP"
+  [ "$leaked" -eq 0 ] || exit 1
 }
 trap cleanup EXIT
 
