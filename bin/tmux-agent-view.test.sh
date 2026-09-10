@@ -18,8 +18,11 @@
 #     it worked, and it was wrong — edge to edge, the view is indistinguishable
 #     from having jumped to the tab. A stray -B, or a 100% geometry, silently
 #     brings that back.
-#   * the footer — the status line naming C-q d. The border says "popup" but not
-#     how to leave, and C-q d is not guessable.
+#   * the footer, and the border title, naming the key that leaves the view. The
+#     border says "popup" but not how to get out, and no key for that is
+#     guessable — "how do I get back?" was the first question the working view
+#     drew. The key lives in .tmux.conf and is advertised nowhere else, so the
+#     two files are checked against each other here.
 #   * -C before the second display-popup. Without it tmux MODIFIES the picker's
 #     popup instead of opening a new one, ignoring -w, -h and the command — so
 #     ctrl-o would appear to do nothing at all.
@@ -174,8 +177,15 @@ has 'the picker is reopened after detaching' \
 # So the key it names is asserted, not just the fact that a format was set.
 footer=$(grep 'status-format' "$work/calls" | head -1)
 case "$footer" in
-  *"C-q d"*) pass 'the footer names the key that leaves the view' ;;
+  *"C-q e"*) pass 'the footer names the key that leaves the view' ;;
   *) fail 'the footer names the key that leaves the view' "got: ${footer:-<no status-format call>}" ;;
+esac
+# The border title repeats it: the footer sits under a full-screen TUI and is
+# easy to miss, which is how the working view still drew the question "how do I
+# get back?".
+case "$open_call" in
+  *"C-q e"*) pass 'the border title names it too' ;;
+  *) fail 'the border title names it too' "got: $open_call" ;;
 esac
 case "$footer" in
   *align=centre*) pass 'the footer is centred' ;;
@@ -206,6 +216,21 @@ if grep -qE 'display-popup .*[^/]tmux-agents$' "$work/calls" &&
   fail 'the picker path is absolute' "$(grep tmux-agents "$work/calls")"
 else
   pass 'the picker path is absolute'
+fi
+
+# The other half of the same cross-file contract: the key the footer advertises
+# has to exist. Nothing else would notice it being renamed or dropped -- the
+# view would still open, and the way out would just be wrong.
+# Read from $footer, captured during the attach run: $work/calls has been
+# overwritten by the list run above.
+leave_key=$(grep -o 'C-q [a-z]: back' <<<"$footer" | head -1 | cut -d: -f1)
+if [ -z "$leave_key" ]; then
+  fail 'the footer advertises a leave key' "$(grep status-format "$work/calls")"
+elif grep -q "^bind -N \"agents: leave the answer view.*\" ${leave_key#C-q } " "$conf"; then
+  pass "the leave key the footer names ($leave_key) is bound in .tmux.conf"
+else
+  fail "the leave key the footer names ($leave_key) is bound in .tmux.conf" \
+    "$(grep -n 'agents: leave' "$conf" || echo 'no such binding')"
 fi
 
 # The geometry is duplicated in .tmux.conf on purpose (a binding cannot read it
