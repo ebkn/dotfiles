@@ -64,7 +64,7 @@ done <<<"$tracked"
 
 # Sourced by both zsh and bash, so they carry no shebang; each declares
 # `# shellcheck shell=bash` instead.
-sh_targets+=(bin/init/common.sh bin/init/links.sh bin/pr-review-lock.sh)
+sh_targets+=(bin/init/common.sh bin/init/links.sh bin/pr-review-common.sh)
 
 # -x follows `. "${SCRIPT_DIR}/common.sh"` into the sourced fragment instead of
 # reporting SC1091, so the init scripts are checked against the definitions they

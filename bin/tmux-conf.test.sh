@@ -82,6 +82,44 @@ else
   pass "every non-root binding in .tmux.conf has -N"
 fi
 
+# prefix + d detaches, and inside an ssh pane the chord is not passed through to
+# the remote tmux -- so a mistyped `d` drops the local client out of everything.
+# It must ask first, and the confirmation must survive as a real binding on the
+# server rather than as a note tmux happened to parse. Popups are exempt, which
+# is what the if-shell is for, so the assertion is on the whole command.
+# `list-keys -T prefix d` returns nothing on 3.7 -- the key argument is not
+# honoured there -- so the whole table is listed and the row picked out. The
+# note sits between the table and the key, hence the optional group.
+d_binding=$(tmux -L "$socket" list-keys -T prefix 2>/dev/null |
+  grep -E '^bind-key +(-N "[^"]*" +)?-T prefix +d ' | head -1)
+case "$d_binding" in
+  *confirm-before*detach-client*) pass "prefix + d asks before detaching" ;;
+  *) fail "prefix + d asks before detaching" "got: ${d_binding:-<unbound>}" ;;
+esac
+case "$d_binding" in
+  *'_*'*) pass "a popup is exempt from the detach confirmation" ;;
+  *) fail "a popup is exempt from the detach confirmation" "got: $d_binding" ;;
+esac
+
+# C-] is the way out of the answer view, and the footer that advertises it is
+# written by bin/tmux-agent-view -- so the binding has to exist here, be guarded
+# to the view's own sessions, and live in the ROOT table. A prefix chord would
+# be ambiguous inside a view whose pane holds a nested tmux over ssh, which is
+# the whole reason it is not one; demoting it back to the prefix table would
+# leave the popup advertising a key that does nothing.
+leave_binding=$(tmux -L "$socket" list-keys -T root 2>/dev/null |
+  grep -E "^bind-key +(-N \"[^\"]*\" +)?-T root +C-\] " | head -1)
+case "$leave_binding" in
+  *'_agent_*'*detach-client*) pass "C-] leaves an agent view, with no prefix" ;;
+  *) fail "C-] leaves an agent view, with no prefix" "got: ${leave_binding:-<unbound>}" ;;
+esac
+# Outside a view the key belongs to whatever is running in the pane: a root
+# binding is taken from every pane on the server, so it has to hand it back.
+case "$leave_binding" in
+  *'send-keys C-]'*) pass "C-] is passed through outside a view" ;;
+  *) fail "C-] is passed through outside a view" "got: $leave_binding" ;;
+esac
+
 # And the other direction: the notes must actually reach the server. A note that
 # tmux parsed as part of the command instead would pass the grep above.
 noted_on_server=$(tmux -L "$socket" list-keys -N -T prefix 2>/dev/null | grep -cE '^[^ ]+ +[a-z][a-z ]*:')

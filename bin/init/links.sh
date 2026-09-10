@@ -105,6 +105,10 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/bin/tmux-track-session" "${HOME}/.local/bin/tmux-track-session"
   link_with_backup "${DOTFILES_DIR}/bin/autossh-ssh" "${HOME}/.local/bin/autossh-ssh"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-agents" "${HOME}/.local/bin/tmux-agents"
+  # Must land in the same directory as tmux-agents: each resolves the other as a
+  # sibling of $0, because the hop between them runs under `tmux run-shell`,
+  # which uses the tmux server's $PATH rather than the caller's.
+  link_with_backup "${DOTFILES_DIR}/bin/tmux-agent-view" "${HOME}/.local/bin/tmux-agent-view"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-cheatsheet" "${HOME}/.local/bin/tmux-cheatsheet"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-tig" "${HOME}/.local/bin/tmux-tig"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-session-swap" "${HOME}/.local/bin/tmux-session-swap"
@@ -124,6 +128,12 @@ link_dotfiles() {
   # that does not exist, and it reports that only in its own log.
   link_with_backup "${DOTFILES_DIR}/bin/pr-review-watch" "${HOME}/.local/bin/pr-review-watch"
   link_with_backup "${DOTFILES_DIR}/bin/pr-review-dispatch" "${HOME}/.local/bin/pr-review-dispatch"
+  # Loads the agents whose plists are linked below. Linked here, but never CALLED
+  # from here: relink runs link_dotfiles on every update-all, and loading an
+  # agent is a decision about the machine rather than a fact about the file
+  # layout -- see the header of bin/launchd-load for why re-loading on every
+  # update would be actively wrong.
+  link_with_backup "${DOTFILES_DIR}/bin/launchd-load" "${HOME}/.local/bin/launchd-load"
   # macOS-only, but linked unconditionally like the Cursor paths above:
   # link_with_backup just creates a directory nobody reads on Linux, whereas a
   # platform guard here would have to be duplicated in relink's drift report.

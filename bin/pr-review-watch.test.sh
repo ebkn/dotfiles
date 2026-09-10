@@ -5,8 +5,8 @@
 # reviews arrived". That is why the assertions are on the queued job files
 # rather than on the exit status.
 #
-# Only the network-facing commands are stubbed -- gh, ghq, claude,
-# terminal-notifier. git is real and so are the worktrees, because
+# Only the network-facing commands are stubbed -- gh, ghq and claude.
+# git is real and so are the worktrees, because
 # worktree_for_branch's contract is what git actually reports, and a stubbed git
 # would keep passing if that changed.
 #
@@ -111,11 +111,6 @@ set -uo pipefail
 [ "${1:-}" = "agents" ] && cat "$FIX/agents.json" || exit 1
 EOF
 
-cat >"$STUB/terminal-notifier" <<'EOF'
-#!/bin/bash
-printf '%s\n' "$*" >> "$FIX/notified.log"
-EOF
-
 chmod +x "$STUB"/*
 
 # --- a real repository with the branch checked out in a worktree -------------
@@ -185,7 +180,6 @@ run() { # run [args...] -> stdout+stderr
   PATH="$STUB:$PATH" FIX="$FIX" \
     PR_REVIEW_WATCH_STATE_DIR="$STATE" \
     PR_REVIEW_WATCH_EXTRA_REPOS="" \
-    PR_REVIEW_WATCH_NOTIFY=1 \
     "$WATCH" "$@" 2>&1
 }
 
@@ -216,14 +210,12 @@ eq 'pending is ordered oldest first' 'true' "$(job '[.pending[].at] == ([.pendin
 # build is not review feedback, and routing it would wake a session per flake.
 eq 'ci_activity PR is not queued' '1' "$(find "$STATE/jobs" -name '*.json' | wc -l | tr -d ' ')"
 
-eq 'desktop notification fired once' '1' "$(wc -l <"$FIX/notified.log" | tr -d ' ')"
 eq 'Last-Modified stored after the batch' 'Mon, 07 Sep 2026 10:00:10 GMT' "$(cat "$STATE/poll.last-modified")"
 
 echo "-- re-poll with the same data queues nothing (the seen set is the high-water) --"
 before=$(job '.pending|length')
 run >/dev/null
 eq 'pending unchanged on re-poll' "$before" "$(job '.pending|length')"
-eq 'no second notification' '1' "$(wc -l <"$FIX/notified.log" | tr -d ' ')"
 
 echo "-- a review arriving while the session is busy ACCUMULATES, never replaces --"
 cat >"$FIX/issue_comments.json" <<'EOF'
@@ -266,6 +258,54 @@ eq 'leaves Last-Modified alone' 'no' "$([ -f "$STATE/poll.last-modified" ] && ec
 out=$(run --pr 'nonsense')
 eq 'rejects a malformed --pr' 'yes' "$(printf '%s' "$out" | grep -q 'owner/repo#number' && echo yes || echo no)"
 /bin/rm -f "$FIX/not-modified"
+
+echo "-- nested worktrees: the outer checkout must not claim an inner session --"
+# `gw` puts every worktree under <checkout>/git-worktrees/, so the main checkout
+# is a string prefix of all of them. Matching a session by containment alone made
+# a PR built from the main checkout resolve to whichever nested worktree had the
+# newest session -- an unrelated branch. Measured on the real machine before the
+# fix: worktree ~/dotfiles matched four sessions and picked one on another branch.
+MAIN_BRANCH=$(git -C "$REPO" symbolic-ref --short HEAD)
+git -C "$REPO" worktree add -q -b feature/nested "$REPO/git-worktrees/nested" >/dev/null 2>&1
+cat >"$FIX/pull.json" <<EOF
+{"head":{"ref":"$MAIN_BRANCH"},"html_url":"https://github.com/acme/widget/pull/42","title":"a title"}
+EOF
+# The only session sits in the NESTED worktree, not in the checkout the PR is on.
+cat >"$FIX/agents.json" <<EOF
+[{"pid":9,"cwd":"$REPO/git-worktrees/nested","kind":"interactive","sessionId":"nested-sess","startedAt":9,"status":"idle"}]
+EOF
+STATE="$TMP/state4"
+run --pr acme/widget#42 >/dev/null
+eq 'the PR resolves to the outer checkout' "$REPO" "$(job .worktree)"
+eq 'and claims no session at all' 'null' "$(job '.sessionId')"
+
+# The same layout, with a session actually in the outer checkout, must resolve.
+cat >"$FIX/agents.json" <<EOF
+[{"pid":9,"cwd":"$REPO/git-worktrees/nested","kind":"interactive","sessionId":"nested-sess","startedAt":9,"status":"idle"},
+ {"pid":10,"cwd":"$REPO","kind":"interactive","sessionId":"outer-sess","startedAt":10,"status":"idle"}]
+EOF
+STATE="$TMP/state5"
+run --pr acme/widget#42 >/dev/null
+eq 'the outer session is picked, not the newer nested one' 'outer-sess' "$(job .sessionId)"
+
+# And a cwd deeper than the worktree root still belongs to that worktree.
+cat >"$FIX/pull.json" <<'EOF'
+{"head":{"ref":"feature/nested"},"html_url":"https://github.com/acme/widget/pull/42","title":"a title"}
+EOF
+cat >"$FIX/agents.json" <<EOF
+[{"pid":11,"cwd":"$REPO/git-worktrees/nested/src/deep","kind":"interactive","sessionId":"deep-sess","startedAt":11,"status":"idle"}]
+EOF
+STATE="$TMP/state6"
+run --pr acme/widget#42 >/dev/null
+eq 'a session in a subdirectory still counts' 'deep-sess' "$(job .sessionId)"
+
+# Restore the fixtures the remaining cases expect.
+cat >"$FIX/pull.json" <<'EOF'
+{"head":{"ref":"feature/x"},"html_url":"https://github.com/acme/widget/pull/42","title":"a title"}
+EOF
+cat >"$FIX/agents.json" <<EOF
+[{"pid":1,"cwd":"$WT","kind":"interactive","sessionId":"sess-1","startedAt":1,"status":"idle"}]
+EOF
 
 echo "-- no worktree for the branch means no job to deliver --"
 STATE="$TMP/state2"

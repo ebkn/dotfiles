@@ -48,14 +48,12 @@
 # Environment:
 #   PR_REVIEW_WATCH_STATE_DIR   queue + poll state (default $XDG_STATE_HOME/pr-review-watch)
 #   PR_REVIEW_WATCH_EXTRA_REPOS colon-separated checkouts outside ghq (default ~/dotfiles)
-#   PR_REVIEW_WATCH_NOTIFY      0 to suppress the desktop notification
 #
-# Requires: gh (authenticated), jq, git. terminal-notifier is optional.
+# Requires: gh (authenticated), jq, git.
 set -uo pipefail
 
 STATE_DIR=${PR_REVIEW_WATCH_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/pr-review-watch}
 EXTRA_REPOS=${PR_REVIEW_WATCH_EXTRA_REPOS:-$HOME/dotfiles}
-NOTIFY=${PR_REVIEW_WATCH_NOTIFY:-1}
 
 # The subset of GitHub's notification `reason` vocabulary that can carry review
 # feedback. The full documented set is approval_requested, assign, author,
@@ -128,8 +126,8 @@ mkdir -p "$STATE_DIR/jobs"
 # Resolved through the symlink in ~/.local/bin, the same idiom read-doc uses to
 # find read-doc/style.css: the fragment sits next to the real script, not next
 # to the link. See it for why the lock is pid-based rather than time-based.
-# shellcheck source=pr-review-lock.sh
-. "$(dirname "$(readlink -f "$0")")/pr-review-lock.sh"
+# shellcheck source=pr-review-common.sh
+. "$(dirname "$(readlink -f "$0")")/pr-review-common.sh"
 
 lock="$STATE_DIR/.lock"
 if ! take_lock "$lock"; then exit 0; fi
@@ -226,12 +224,13 @@ worktree_for_branch() {
 # Queried once per run: it is the most expensive lookup in this script.
 agents_json=$(claude agents --json 2>/dev/null || printf '[]')
 
+# See session_in_worktree in pr-review-common.sh for why the worktree list has
+# to be passed in: worktrees nest here, so containment alone picks the wrong
+# session for the outermost one.
 session_for_worktree() {
-  printf '%s' "$agents_json" | jq -r --arg wt "$1" '
-    [ .[]
-      | select(.kind == "interactive")
-      | select(.cwd == $wt or (.cwd | startswith($wt + "/"))) ]
-    | sort_by(.startedAt) | last | .sessionId // empty' 2>/dev/null
+  local repo=$1 wt=$2
+  session_in_worktree "$agents_json" "$wt" "$(worktree_paths_json "$repo")" |
+    jq -r '.sessionId // empty' 2>/dev/null
 }
 
 # --- review items -----------------------------------------------------------
@@ -327,7 +326,7 @@ while IFS=$'\t' read -r repo pr cutoff; do
     continue
   }
 
-  session=$(session_for_worktree "$worktree")
+  session=$(session_for_worktree "$path" "$worktree")
   job="$STATE_DIR/jobs/${repo//\//__}__${pr}.json"
 
   items=$(fetch_items "$repo" "$pr")
@@ -371,15 +370,6 @@ while IFS=$'\t' read -r repo pr cutoff; do
       seen: ($seen + ($new | map(.id))),
       pending: ($prev + $new),
       updatedAt: $now }' >"$job.tmp" && mv "$job.tmp" "$job"
-
-  if [ "$NOTIFY" != 0 ] && command -v terminal-notifier >/dev/null 2>&1; then
-    authors=$(printf '%s' "$new" | jq -r '[ .[].author ] | unique | join(", ")')
-    terminal-notifier \
-      -title "PR review: ${repo}#${pr}" \
-      -subtitle "$title" \
-      -message "$new_count new from $authors" \
-      -open "$html_url" >/dev/null 2>&1
-  fi
 done <<<"$candidates"
 
 # Advanced only after the whole batch is queued. Storing it earlier would mean a

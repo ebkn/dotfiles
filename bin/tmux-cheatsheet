@@ -151,6 +151,15 @@ collect() {
   # action together, and the key sort inside it restores the vim order.
   {
     parse_table prefix 1 tagged
+    # No `parse_table root`: `list-keys -N -T root` returns NOTHING even for a
+    # root binding that does carry a note -- verified against 3.7 with
+    # `bind -N "..." -n C-]`, which `list-keys -T root` shows (without its note)
+    # and plain `list-keys -N` shows (with it, and with a spurious "C-q "
+    # prepended, the same prefix-for-every-table quirk noted above). Only the
+    # -T form is empty, and only for this table; `-N -T copy-mode-vi` works.
+    # So a noted root binding cannot be listed here without joining two
+    # listings, and the one that exists (C-] to leave the answer view) is
+    # advertised by the view itself, in its border title and its footer.
     parse_table copy-mode-vi 0 copy-mode
     if [ "$show_all" -eq 1 ]; then parse_table prefix 1 builtin; fi
   } | awk -F'\t' -v order="$GROUP_ORDER" '
