@@ -45,8 +45,14 @@ while [ $# -gt 0 ]; do
     --all) show_all=1 ;;
     # Pretend the popup is this wide. Exists so the column packing can be
     # verified without a pty -- see the testing note in CLAUDE.md.
-    --width) shift; force_cols="${1:-}" ;;
-    *) printf 'usage: %s [--all] [--width N]\n' "${0##*/}" >&2; exit 2 ;;
+    --width)
+      shift
+      force_cols="${1:-}"
+      ;;
+    *)
+      printf 'usage: %s [--all] [--width N]\n' "${0##*/}" >&2
+      exit 2
+      ;;
   esac
   shift
 done

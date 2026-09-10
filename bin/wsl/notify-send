@@ -24,23 +24,30 @@ summary=
 body=
 while [ $# -gt 0 ]; do
   case "$1" in
-    -u|--urgency|-t|--expire-time|-i|--icon|-a|--app-name|-c|--category|-h|--hint|-r|--replace-id)
-      shift 2 || break ;;
-    --urgency=*|--expire-time=*|--icon=*|--app-name=*|--category=*|--hint=*|--replace-id=*)
-      shift ;;
-    -p|--print-id|-w|--wait|-N|--transient|-e|--hint-server)
-      shift ;;
+    -u | --urgency | -t | --expire-time | -i | --icon | -a | --app-name | -c | --category | -h | --hint | -r | --replace-id)
+      shift 2 || break
+      ;;
+    --urgency=* | --expire-time=* | --icon=* | --app-name=* | --category=* | --hint=* | --replace-id=*)
+      shift
+      ;;
+    -p | --print-id | -w | --wait | -N | --transient | -e | --hint-server)
+      shift
+      ;;
     --)
-      shift; break ;;
+      shift
+      break
+      ;;
     -*)
-      shift ;;
+      shift
+      ;;
     *)
       if [ -z "$summary" ]; then
         summary="$1"
       elif [ -z "$body" ]; then
         body="$1"
       fi
-      shift ;;
+      shift
+      ;;
   esac
 done
 

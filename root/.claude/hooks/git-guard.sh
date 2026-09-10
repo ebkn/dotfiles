@@ -87,7 +87,7 @@ next_token() {
   [[ -n "$REST" ]] || return 1
   local q body
   case "$REST" in
-    \'*|\"*)
+    \'* | \"*)
       q="${REST:0:1}"
       body="${REST:1}"
       # An unterminated quote in the option region is unparseable, not benign.
@@ -111,8 +111,11 @@ scan_globals() {
   while true; do
     next_token && rc=0 || rc=$?
     case $rc in
-      1) return 0 ;;                                  # bare `git`
-      2) BAD="unparseable quoting before the subcommand"; return 1 ;;
+      1) return 0 ;; # bare `git`
+      2)
+        BAD="unparseable quoting before the subcommand"
+        return 1
+        ;;
     esac
 
     # First non-option token is the subcommand: everything before it was clean.
@@ -120,7 +123,10 @@ scan_globals() {
 
     if [[ "$TOKEN" == "-C" ]]; then
       next_token && rc=0 || rc=$?
-      [[ $rc -eq 0 ]] || { BAD="-C with no path"; return 1; }
+      [[ $rc -eq 0 ]] || {
+        BAD="-C with no path"
+        return 1
+      }
       continue
     fi
 
@@ -141,7 +147,10 @@ strip_wrappers() {
   while true; do
     local saved_rest=$REST
     next_token && rc=0 || rc=$?
-    [[ $rc -eq 0 ]] || { REST=$saved_rest; return 1; }
+    [[ $rc -eq 0 ]] || {
+      REST=$saved_rest
+      return 1
+    }
 
     case "$TOKEN" in
       # Leading environment assignment.
@@ -153,7 +162,10 @@ strip_wrappers() {
         while true; do
           saved_rest=$REST
           next_token && rc=0 || rc=$?
-          [[ $rc -eq 0 ]] || { REST=$saved_rest; return 1; }
+          [[ $rc -eq 0 ]] || {
+            REST=$saved_rest
+            return 1
+          }
           [[ "$TOKEN" == -* ]] || break
           if [[ "$w" == "nice" && "$TOKEN" == "-n" ]]; then
             next_token && rc=0 || rc=$?
@@ -165,7 +177,10 @@ strip_wrappers() {
         [[ "$w" == "timeout" ]] || REST="$TOKEN $REST"
         continue
         ;;
-      *) CMD_WORD=$TOKEN; return 0 ;;
+      *)
+        CMD_WORD=$TOKEN
+        return 0
+        ;;
     esac
   done
 }

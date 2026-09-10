@@ -168,12 +168,12 @@ segment_is_approved() {
 # argv verified above is the argv that would run.
 # ---------------------------------------------------------------------------
 
-QSTATE=''          # '' outside quotes, otherwise the open quote character
-CUR=''             # token being accumulated
-HAVE_CUR=0         # CUR is a token even when empty (`git commit -m ''`)
+QSTATE=''  # '' outside quotes, otherwise the open quote character
+CUR=''     # token being accumulated
+HAVE_CUR=0 # CUR is a token even when empty (`git commit -m ''`)
 TOKENS=()
-PENDING_TAGS=()    # heredoc tags whose bodies start after this line
-DATA_NEWLINE=0     # a newline landed inside a quoted argument or heredoc body
+PENDING_TAGS=() # heredoc tags whose bodies start after this line
+DATA_NEWLINE=0  # a newline landed inside a quoted argument or heredoc body
 SEGMENTS=0
 
 push_char() {
@@ -244,10 +244,13 @@ scan_line() {
       push_run "$pre"
       i=$((i + ${#pre}))
       case "${line:i:1}" in
-        '"') QSTATE=''; i=$((i + 1)) ;;
-        '$' | '`') return 1 ;;        # the shell would expand it; argv unknown
-        *)                            # backslash
-          ((i + 1 < n)) || return 1   # line continuation: not worth parsing
+        '"')
+          QSTATE=''
+          i=$((i + 1))
+          ;;
+        '$' | '`') return 1 ;;      # the shell would expand it; argv unknown
+        *)                          # backslash
+          ((i + 1 < n)) || return 1 # line continuation: not worth parsing
           push_char "${line:i+1:1}"
           i=$((i + 2))
           ;;
@@ -268,8 +271,14 @@ scan_line() {
     c=${line:i:1}
 
     case "$c" in
-      "'") QSTATE="'"; HAVE_CUR=1 ;;
-      '"') QSTATE='"'; HAVE_CUR=1 ;;
+      "'")
+        QSTATE="'"
+        HAVE_CUR=1
+        ;;
+      '"')
+        QSTATE='"'
+        HAVE_CUR=1
+        ;;
       \\)
         ((i + 1 < n)) || return 1
         i=$((i + 1))
@@ -285,10 +294,10 @@ scan_line() {
         if ((HAVE_CUR)); then push_char "$c"; else return 1; fi
         ;;
       '<')
-        [[ "${line:i+1:1}" == '<' ]] || return 1        # plain input redirect
+        [[ "${line:i+1:1}" == '<' ]] || return 1 # plain input redirect
         local j=$((i + 2))
-        [[ "${line:j:1}" == '<' ]] && return 1          # here-string
-        [[ "${line:j:1}" == '-' ]] && j=$((j + 1))      # <<- (tab-stripped)
+        [[ "${line:j:1}" == '<' ]] && return 1     # here-string
+        [[ "${line:j:1}" == '-' ]] && j=$((j + 1)) # <<- (tab-stripped)
         while [[ "${line:j:1}" == ' ' || "${line:j:1}" == $'\t' ]]; do
           j=$((j + 1))
         done
@@ -365,7 +374,7 @@ while ((li < TOTAL)); do
           break
         fi
       done
-      ((found)) || exit 0   # unterminated heredoc: unparseable
+      ((found)) || exit 0 # unterminated heredoc: unparseable
     done
     PENDING_TAGS=()
     DATA_NEWLINE=1

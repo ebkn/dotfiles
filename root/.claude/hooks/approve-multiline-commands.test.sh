@@ -17,8 +17,8 @@ fail=0
 
 check() {
   local expect=$1 label=$2 cmd=$3 out got
-  out=$(printf '%s' "$cmd" | jq -Rs '{tool_name:"Bash", tool_input:{command:.}}' \
-    | "$HOOK" 2>/dev/null)
+  out=$(printf '%s' "$cmd" | jq -Rs '{tool_name:"Bash", tool_input:{command:.}}' |
+    "$HOOK" 2>/dev/null)
   if printf '%s' "$out" | grep -q '"permissionDecision": *"allow"'; then
     got=ALLOW
   else
@@ -91,7 +91,13 @@ echo "-- a large body stays well inside the 5s hook timeout --"
 # The bound is deliberately loose (this takes ~0.1s here) so a slow CI runner
 # cannot make it flake -- it exists to catch a return to quadratic, not to
 # measure anything.
-BIG_BODY=$(i=1; while ((i <= 300)); do echo "line $i of the body, with prose"; i=$((i + 1)); done)
+BIG_BODY=$(
+  i=1
+  while ((i <= 300)); do
+    echo "line $i of the body, with prose"
+    i=$((i + 1))
+  done
+)
 start=$SECONDS
 check ALLOW '300-line heredoc body' "git commit -F - <<'EOF'
 fix: x

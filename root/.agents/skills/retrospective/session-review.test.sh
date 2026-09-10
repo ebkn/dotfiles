@@ -19,20 +19,25 @@ export XDG_CACHE_HOME="$tmp/cache"
 
 # One session: `users` human turns, then `calls` Bash round trips.
 mk_session() {
-  out="$1"; sid="$2"; day="$3"; users="$4"; calls="$5"; cwd="${6:-/repo}"
-  : > "$out"
+  out="$1"
+  sid="$2"
+  day="$3"
+  users="$4"
+  calls="$5"
+  cwd="${6:-/repo}"
+  : >"$out"
   i=1
   while [ "$i" -le "$users" ]; do
     printf '{"type":"user","sessionId":"%s","cwd":"%s","gitBranch":"main","version":"2.1.100","timestamp":"%sT00:00:0%s.000Z","uuid":"u%s","message":{"role":"user","content":"go"}}\n' \
-      "$sid" "$cwd" "$day" "$i" "$i" >> "$out"
+      "$sid" "$cwd" "$day" "$i" "$i" >>"$out"
     i=$((i + 1))
   done
   i=1
   while [ "$i" -le "$calls" ]; do
     printf '{"type":"assistant","sessionId":"%s","cwd":"%s","gitBranch":"main","version":"2.1.100","timestamp":"%sT00:01:0%s.000Z","uuid":"a%s","message":{"role":"assistant","usage":{"input_tokens":1,"output_tokens":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":1},"content":[{"type":"tool_use","id":"t%s","name":"Bash","input":{"command":"pwd"}}]}}\n' \
-      "$sid" "$cwd" "$day" "$i" "$i" "$i" >> "$out"
+      "$sid" "$cwd" "$day" "$i" "$i" "$i" >>"$out"
     printf '{"type":"user","sessionId":"%s","cwd":"%s","gitBranch":"main","version":"2.1.100","timestamp":"%sT00:02:0%s.000Z","uuid":"r%s","toolUseResult":{"stdout":"/repo","stderr":"","interrupted":false,"isImage":false,"noOutputExpected":false},"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t%s"}]}}\n' \
-      "$sid" "$cwd" "$day" "$i" "$i" "$i" >> "$out"
+      "$sid" "$cwd" "$day" "$i" "$i" "$i" >>"$out"
     i=$((i + 1))
   done
 }
@@ -59,8 +64,8 @@ mk_session "$projects/s10.jsonl" S10 2026-08-17 1 1 /tmp/claude-1000/-proj/abc/s
 # skill-injections.jsonl (bare timestamps, no sessionId) and workflow journals;
 # a bare timestamp is enough to give a summary a started_at.
 mkdir -p "$tmp/projects/-repo/vercel-plugin" "$projects/s6/subagents/workflows/wf_1"
-printf '{"timestamp":"2026-03-25T08:57:17.264Z","skill":"x"}\n' > "$tmp/projects/-repo/vercel-plugin/skill-injections.jsonl"
-printf '{"type":"result","agent":"a"}\n' > "$projects/s6/subagents/workflows/wf_1/journal.jsonl"
+printf '{"timestamp":"2026-03-25T08:57:17.264Z","skill":"x"}\n' >"$tmp/projects/-repo/vercel-plugin/skill-injections.jsonl"
+printf '{"type":"result","agent":"a"}\n' >"$projects/s6/subagents/workflows/wf_1/journal.jsonl"
 # The same basename in another project dir is a different session and must
 # not be served the first file's cached summary.
 mkdir -p "$tmp/projects/-other"
@@ -79,10 +84,12 @@ fi
 
 run() { "$review" --days 3650 --json "$@"; }
 
-a="$tmp/a.json"; b="$tmp/b.json"; c="$tmp/c.json"
-run > "$a"
-run > "$b"
-run --no-cache > "$c"
+a="$tmp/a.json"
+b="$tmp/b.json"
+c="$tmp/c.json"
+run >"$a"
+run >"$b"
+run --no-cache >"$c"
 
 fail=0
 assert() {
@@ -96,12 +103,12 @@ assert() {
 q() { jq -r "$1" "$a"; }
 
 assert "subagent transcripts are not sessions" 8 "$(q .session_count)"
-assert "subagent transcripts are counted"      1 "$(q .subagent_transcripts)"
-assert "and reported as excluded"          false "$(q .subagents_included)"
-assert "--include-subagents counts them"       9 "$("$review" --days 3650 --json --include-subagents | jq -r .session_count)"
+assert "subagent transcripts are counted" 1 "$(q .subagent_transcripts)"
+assert "and reported as excluded" false "$(q .subagents_included)"
+assert "--include-subagents counts them" 9 "$("$review" --days 3650 --json --include-subagents | jq -r .session_count)"
 assert "scratch sessions are not sessions, whatever the uid" 2 "$(q .scratch_sessions)"
-assert "and reported as excluded"          false "$(q .scratch_included)"
-assert "--include-scratch counts them"        10 "$("$review" --days 3650 --json --include-scratch | jq -r .session_count)"
+assert "and reported as excluded" false "$(q .scratch_included)"
+assert "--include-scratch counts them" 10 "$("$review" --days 3650 --json --include-scratch | jq -r .session_count)"
 
 # A .jsonl with no session id is not a session, however many timestamps it has.
 assert "non-transcript jsonl are not sessions" 0 "$(q '[.repos[] | select(.cwd == null)] | length')"
@@ -113,8 +120,9 @@ assert "same basename in two projects: two cache entries" 2 "$(find "$XDG_CACHE_
 # added later reads as uniformly zero -- indistinguishable from measured zero.
 sample="$(find "$XDG_CACHE_HOME/session-review/v4" -name '*__s6.json' | head -1)"
 before="$(stat -f %m "$sample")"
-sleep 1; touch "$here/session-extract"
-run > /dev/null
+sleep 1
+touch "$here/session-extract"
+run >/dev/null
 after="$(stat -f %m "$sample")"
 assert "a newer session-extract invalidates the cache" true "$([ "$after" -gt "$before" ] && echo true || echo false)"
 
@@ -131,8 +139,8 @@ assert "text outliers carry the source path" true \
 # The mean is deliberately absent: one 30-hour session drags it far enough to
 # describe nobody, and the report exists to surface the ends, not the middle.
 assert "no mean anywhere in the output" 0 "$(grep -c '"mean"' "$a" || true)"
-assert "median is reported"          true "$(q '.distributions.tool_calls | has("median")')"
-assert "p90 is reported"             true "$(q '.distributions.tool_calls | has("p90")')"
+assert "median is reported" true "$(q '.distributions.tool_calls | has("median")')"
+assert "p90 is reported" true "$(q '.distributions.tool_calls | has("p90")')"
 
 # Every metric states how much of the truth it can see. Tier 1 is decided by
 # record counts alone; Tier 2 and 3 will be partial and must say so.
@@ -142,16 +150,16 @@ assert "every distribution carries a tier" 0 \
 # Permission and safety metrics carry the tier of what they rest on: denial
 # records (1), command-text patterns (2), this repo's conventions (3). Totals
 # exist because a median of zero says nothing about events that are rare.
-assert "denials are tier 1"            1 "$(q .distributions.retries_after_denial.tier)"
-assert "risk patterns are tier 2"      2 "$(q .distributions.risky_commands.tier)"
-assert "conventions are tier 3"        3 "$(q .distributions.compound_cd.tier)"
+assert "denials are tier 1" 1 "$(q .distributions.retries_after_denial.tier)"
+assert "risk patterns are tier 2" 2 "$(q .distributions.risky_commands.tier)"
+assert "conventions are tier 3" 3 "$(q .distributions.compound_cd.tier)"
 assert "totals carry denials by kind" true "$(q '.totals.denials | has("classifier")')"
-assert "totals carry retries"          0 "$(q .totals.retries_after_denial)"
+assert "totals carry retries" 0 "$(q .totals.retries_after_denial)"
 
 # An outlier has to name a file that can actually be opened. The session id
 # cannot do that: a subagent transcript carries its parent's id.
-assert "outliers exist"                 true "$(q '(.outliers | length) > 0')"
-assert "outliers name a transcript"        0 \
+assert "outliers exist" true "$(q '(.outliers | length) > 0')"
+assert "outliers name a transcript" 0 \
   "$(q '[.outliers[] | select(has("transcript") | not)] | length')"
 assert "the busy session is an outlier" true \
   "$(q '[.outliers[] | select(.metric == "tool_calls") | .transcript] | index("s6") != null')"
@@ -160,9 +168,9 @@ assert "the busy session is an outlier" true \
 # read without them looks continuous when it is not.
 assert "the empty week is reported" true "$(q '(.missing_weeks | length) > 0')"
 
-assert "two cached runs agree"            same "$(if cmp -s "$a" "$b"; then echo same; else echo differ; fi)"
+assert "two cached runs agree" same "$(if cmp -s "$a" "$b"; then echo same; else echo differ; fi)"
 # Re-derivable from the transcripts alone: throwing the cache away must not
 # change a single number, or the cache has become the source of truth.
-assert "a cache-free run agrees with it"  same "$(if cmp -s "$a" "$c"; then echo same; else echo differ; fi)"
+assert "a cache-free run agrees with it" same "$(if cmp -s "$a" "$c"; then echo same; else echo differ; fi)"
 
 exit "$fail"

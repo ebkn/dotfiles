@@ -52,7 +52,7 @@ case "${1:-}" in
     tty="${2:-}"
     [ -n "$tty" ] || exit 0
     mkdir -p "$STATE_DIR"
-    printf '%s' "$tty" > "$ARM_FILE"
+    printf '%s' "$tty" >"$ARM_FILE"
     ;;
 
   go)

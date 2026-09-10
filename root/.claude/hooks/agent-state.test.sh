@@ -52,15 +52,24 @@ TMUX_ENV=$(tmux -L "$SOCK" display-message -p '#{socket_path},#{pid},0')
 pass=0
 fail=0
 
-ok()   { pass=$((pass + 1)); printf '  ok   %s\n' "$1"; }
-bad()  { fail=$((fail + 1)); printf '  FAIL %s\n' "$1"; }
+ok() {
+  pass=$((pass + 1))
+  printf '  ok   %s\n' "$1"
+}
+bad() {
+  fail=$((fail + 1))
+  printf '  FAIL %s\n' "$1"
+}
 
 # show-options prints a trailing newline and the glyph carries a meaningful
 # trailing space, so a bare $(...) would eat exactly the character under test.
 # The sentinel dot preserves it across the substitution.
 get_opt() {
   local v
-  v=$(tmux -L "$SOCK" show-options -p -t "$PANE" -qv "$1"; printf .)
+  v=$(
+    tmux -L "$SOCK" show-options -p -t "$PANE" -qv "$1"
+    printf .
+  )
   v=${v%.}
   printf '%s' "${v%$'\n'}"
 }
@@ -92,13 +101,16 @@ assert_exit_zero() {
 notify_json() { jq -cn --arg t "$1" --arg m "${2-}" '{notification_type:$t, message:$m}'; }
 
 echo "-- no tmux context: publishes nothing, never fails --"
-out=$(TMUX='' TMUX_PANE='' "$HOOK" busy 2>&1); assert_exit_zero "TMUX unset" $?
+out=$(TMUX='' TMUX_PANE='' "$HOOK" busy 2>&1)
+assert_exit_zero "TMUX unset" $?
 if [[ -z "$out" ]]; then ok "no output without tmux"; else bad "unexpected output: $out"; fi
-out=$(TMUX="$TMUX_ENV" TMUX_PANE='' "$HOOK" busy 2>&1); assert_exit_zero "TMUX_PANE unset" $?
+out=$(TMUX="$TMUX_ENV" TMUX_PANE='' "$HOOK" busy 2>&1)
+assert_exit_zero "TMUX_PANE unset" $?
 assert_opt @claude_state ''
 
 echo "-- busy --"
-run busy; assert_exit_zero "busy" $?
+run busy
+assert_exit_zero "busy" $?
 assert_opt @claude_state busy
 # The separator is per-glyph, not uniform: 🔶 🛑 🔘 are emoji-presentation and
 # already two cells wide, so only the narrow ▶ carries a trailing space.
@@ -106,7 +118,7 @@ assert_opt @claude_state busy
 assert_opt @claude_glyph '▶ '
 since=$(get_opt @claude_since)
 now=$(date +%s)
-if [[ "$since" =~ ^[0-9]+$ ]] && (( now - since >= 0 && now - since < 60 )); then
+if [[ "$since" =~ ^[0-9]+$ ]] && ((now - since >= 0 && now - since < 60)); then
   ok "@claude_since is a fresh epoch"
 else
   bad "@claude_since not a fresh epoch: [$since]"
@@ -139,7 +151,8 @@ assert_opt @claude_glyph '🔶'
 assert_opt @claude_note 'Which glyph wins?'
 
 run clear
-run ask 'not json at all'; assert_exit_zero "ask with malformed stdin" $?
+run ask 'not json at all'
+assert_exit_zero "ask with malformed stdin" $?
 # Still publishes: the dialog *is* open regardless of what jq made of the input,
 # and a missing glyph is a worse failure than a missing note.
 assert_opt @claude_state asking
@@ -207,7 +220,8 @@ echo "-- notify: informational types must not stick --"
 # overwriting a live state, not merely failing to set one.
 for t in auth_success agent_completed idle_prompt elicitation_result elicitation_url_result '' unknown_future_type; do
   run busy
-  run notify "$(notify_json "$t" "informational")"; status=$?
+  run notify "$(notify_json "$t" "informational")"
+  status=$?
   got=$(get_opt @claude_state)
   if [[ "$got" == busy && "$status" -eq 0 ]]; then
     ok "${t:-<empty>} left state untouched"
@@ -235,29 +249,35 @@ assert_opt @claude_state busy
 
 echo "-- notify: malformed input degrades quietly --"
 run busy
-run notify 'not json at all'; assert_exit_zero "malformed stdin" $?
+run notify 'not json at all'
+assert_exit_zero "malformed stdin" $?
 assert_opt @claude_state busy
 run busy
-run notify ''; assert_exit_zero "empty stdin" $?
+run notify ''
+assert_exit_zero "empty stdin" $?
 assert_opt @claude_state busy
 
 echo "-- done: the Stop transition publishes stalled --"
-run 'done'; assert_exit_zero 'done' $?
+run 'done'
+assert_exit_zero 'done' $?
 assert_opt @claude_state stalled
 assert_opt @claude_glyph '🔘'
 
 echo "-- clear --"
 run notify "$(notify_json permission_prompt 'something')"
-run clear; assert_exit_zero "clear" $?
+run clear
+assert_exit_zero "clear" $?
 for opt in @claude_state @claude_glyph @claude_since @claude_note; do
   assert_opt "$opt" ''
 done
 
 echo "-- unknown mode / no mode --"
 run busy
-run bogus_mode; assert_exit_zero "unknown mode" $?
+run bogus_mode
+assert_exit_zero "unknown mode" $?
 assert_opt @claude_state busy
-TMUX="$TMUX_ENV" TMUX_PANE="$PANE" "$HOOK" </dev/null; assert_exit_zero "no mode" $?
+TMUX="$TMUX_ENV" TMUX_PANE="$PANE" "$HOOK" </dev/null
+assert_exit_zero "no mode" $?
 assert_opt @claude_state busy
 
 echo "-- every glyph is emoji-presentation on its own, never VS16 --"
@@ -275,10 +295,16 @@ check_no_vs16() {
     ok "$label glyph needs no VS16"
   fi
 }
-run busy; check_no_vs16 busy
-run clear; run ask '{"tool_input":{"questions":[{"question":"q"}]}}'; check_no_vs16 asking
-run clear; run notify "$(notify_json permission_prompt 'p')"; check_no_vs16 waiting
-run 'done'; check_no_vs16 stalled
+run busy
+check_no_vs16 busy
+run clear
+run ask '{"tool_input":{"questions":[{"question":"q"}]}}'
+check_no_vs16 asking
+run clear
+run notify "$(notify_json permission_prompt 'p')"
+check_no_vs16 waiting
+run 'done'
+check_no_vs16 stalled
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]

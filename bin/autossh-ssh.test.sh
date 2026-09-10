@@ -24,12 +24,17 @@ trap 'rm -rf "$work"' EXIT
 
 failures=0
 pass() { printf 'ok   %s\n' "$1"; }
-fail() { printf 'FAIL %s\n' "$1"; shift; for l in "$@"; do printf '  %s\n' "$l"; done; failures=$((failures + 1)); }
+fail() {
+  printf 'FAIL %s\n' "$1"
+  shift
+  for l in "$@"; do printf '  %s\n' "$l"; done
+  failures=$((failures + 1))
+}
 
 # The stub is found as `ssh` on PATH, which is also the reason the shim is not
 # itself named ssh: `command -v ssh` inside a shim called ssh finds the shim.
 mkdir -p "$work/bin"
-cat > "$work/bin/ssh" <<'STUB'
+cat >"$work/bin/ssh" <<'STUB'
 #!/bin/sh
 printf '%s\n' "$@" > "$SSH_STUB_ARGV"
 [ -n "${SSH_STUB_STDERR:-}" ] && printf '%s\n' "$SSH_STUB_STDERR" >&2
@@ -44,11 +49,11 @@ run() { # run <stderr-file> [args...] — invoke the shim, capture its stderr
   local err=$1
   shift
   AUTOSSH_NOTICE_STATE="$state" AUTOSSH_NOTICE_HOST="thehost" \
-    "$shim" "$@" 2> "$err"
+    "$shim" "$@" 2>"$err"
 }
 
 # --- attempt 1: the initial connection is left completely alone ------------
-: > "$state"
+: >"$state"
 run "$work/err1" -o ControlPath=none -t thehost 'tmux attach'
 argv=$(cat "$SSH_STUB_ARGV")
 expected=$'-o\nControlPath=none\n-t\nthehost\ntmux attach'
@@ -68,7 +73,7 @@ fi
 # that is where "Permission denied" and a changed host key show up.
 SSH_STUB_STDERR="Permission denied (publickey)." \
   AUTOSSH_NOTICE_STATE="$work/first" AUTOSSH_NOTICE_HOST="thehost" \
-  "$shim" thehost 2> "$work/err1b"
+  "$shim" thehost 2>"$work/err1b"
 if grep -q 'Permission denied' "$work/err1b"; then
   pass "attempt 1: ssh's own stderr still reaches the terminal"
 else
@@ -142,7 +147,7 @@ fi
 # --- no state file: a transparent exec ------------------------------------
 # This is the shape on a machine where the shim is deployed but the caller is
 # not myssh, and the one that must not surprise anybody.
-env -u AUTOSSH_NOTICE_STATE SSH_STUB_STDERR="plain" "$shim" thehost 2> "$work/err4"
+env -u AUTOSSH_NOTICE_STATE SSH_STUB_STDERR="plain" "$shim" thehost 2>"$work/err4"
 if [ "$(cat "$SSH_STUB_ARGV")" = "thehost" ] && grep -q 'plain' "$work/err4"; then
   pass "without AUTOSSH_NOTICE_STATE: a transparent exec of ssh"
 else

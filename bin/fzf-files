@@ -63,8 +63,8 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
             for (k = 1; k <= ns; k++) printf "[ staged      ]\t%s\n", s[k]
             for (k = 1; k <= ng; k++) printf "[ unstaged    ]\t%s\n", g[k]
           }'
-        git log --relative --name-only --pretty='format:HASH:%h' -5 -- . \
-          | awk '/^HASH:/{n++; hash=$0; sub(/^HASH:/,"",hash); next} NF{printf "[ %-11s ]\t%s\n", hash"(-"n")", $0}'
+        git log --relative --name-only --pretty='format:HASH:%h' -5 -- . |
+          awk '/^HASH:/{n++; hash=$0; sub(/^HASH:/,"",hash); next} NF{printf "[ %-11s ]\t%s\n", hash"(-"n")", $0}'
       }
     )
 
@@ -72,7 +72,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     {
       while IFS=$'\t' read -r lbl f; do
         [[ -f "$f" ]] && printf '%s\t%s\n' "$lbl" "$f"
-      done <<< "$changed"
+      done <<<"$changed"
       "${rg_base[@]}" "$@"
     } | awk -F'\t' '!seen[$NF]++'
   else
@@ -93,7 +93,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     {
       while IFS= read -r f; do
         [[ -f "$f" ]] && printf '%s\n' "$f"
-      done <<< "$changed"
+      done <<<"$changed"
       "${rg_base[@]}" "$@"
     } | awk '!seen[$0]++'
   fi

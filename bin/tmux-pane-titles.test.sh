@@ -25,12 +25,20 @@ fi
 
 socket="titles-test-$$"
 work=$(mktemp -d)
-cleanup() { tmux -L "$socket" kill-server 2>/dev/null; rm -rf "$work"; }
+cleanup() {
+  tmux -L "$socket" kill-server 2>/dev/null
+  rm -rf "$work"
+}
 trap cleanup EXIT
 
 failures=0
 pass() { printf 'ok   %s\n' "$1"; }
-fail() { printf 'FAIL %s\n' "$1"; shift; for l in "$@"; do printf '  %s\n' "$l"; done; failures=$((failures + 1)); }
+fail() {
+  printf 'FAIL %s\n' "$1"
+  shift
+  for l in "$@"; do printf '  %s\n' "$l"; done
+  failures=$((failures + 1))
+}
 
 mkdir -p "$work/alpha" "$work/bravo" "$work/alpha-again"
 

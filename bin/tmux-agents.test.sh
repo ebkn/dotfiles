@@ -36,11 +36,19 @@ fi
 
 socket="agents-test-$$"
 work=$(mktemp -d)
-cleanup() { tmux -L "$socket" kill-server 2>/dev/null; rm -rf "$work"; }
+cleanup() {
+  tmux -L "$socket" kill-server 2>/dev/null
+  rm -rf "$work"
+}
 trap cleanup EXIT
 
 failures=0
-fail() { printf 'FAIL %s\n' "$1"; shift; for l in "$@"; do printf '  %s\n' "$l"; done; failures=$((failures + 1)); }
+fail() {
+  printf 'FAIL %s\n' "$1"
+  shift
+  for l in "$@"; do printf '  %s\n' "$l"; done
+  failures=$((failures + 1))
+}
 pass() { printf 'ok   %s\n' "$1"; }
 
 mkdir -p "$work/stub"
@@ -77,16 +85,16 @@ add_pane() {
   [ -n "$note" ] && tmux -L "$socket" set-option -p -t "$pane" @claude_note "$note"
 }
 
-add_pane busy-new    busy      10
-add_pane stalled-old stalled   7200
-add_pane asking-new  asking    30  "which one?"
-add_pane waiting-old waiting   600 "needs permission"
+add_pane busy-new busy 10
+add_pane stalled-old stalled 7200
+add_pane asking-new asking 30 "which one?"
+add_pane waiting-old waiting 600 "needs permission"
 # 400000s renders as "111h", four characters. That width is deliberate: the age
 # is printed with %4s, so for the usual three-character age ("10s", "2h") the
 # right-alignment contributes a leading space that exactly replaces the ▶
 # glyph's own padding -- and the glyph assertion below would pass even with the
 # padding removed. Only a four-character age makes the padding observable.
-add_pane busy-old    busy      400000
+add_pane busy-old busy 400000
 
 # A pane with no agent at all must not appear.
 tmux -L "$socket" new-window -t work -n plain-pane "$IDLE"
@@ -177,12 +185,12 @@ check_glyph() {
     *) fail "$desc" "row does not start with [$want]" "row: $row" ;;
   esac
 }
-check_glyph "asking renders as the orange diamond plus one space" asking-new  '🔶 '
-check_glyph "waiting renders as the stop sign plus one space"     waiting-old '🛑 '
-check_glyph "stalled renders as the grey circle plus one space"   stalled-old '🔘 '
+check_glyph "asking renders as the orange diamond plus one space" asking-new '🔶 '
+check_glyph "waiting renders as the stop sign plus one space" waiting-old '🛑 '
+check_glyph "stalled renders as the grey circle plus one space" stalled-old '🔘 '
 # Checked on the row with the four-character age, for the reason given where
 # busy-old is created: a shorter age hides a missing pad behind %4s.
-check_glyph "busy renders as ▶ padded out to the same two cells"  busy-old    '▶  '
+check_glyph "busy renders as ▶ padded out to the same two cells" busy-old '▶  '
 
 # Ages are rendered in the largest unit that fits, so the column stays narrow.
 check_age() {
@@ -201,9 +209,9 @@ case "$secs" in
   1[0-9]s) pass "an age under a minute is shown in seconds ($secs)" ;;
   *) fail "an age under a minute is shown in seconds" "want 1Xs, got $secs" ;;
 esac
-check_age "an age under an hour is shown in minutes"  waiting-old '10m'
-check_age "an age over an hour is shown in hours"     stalled-old '2h'
-check_age "an age of many hours is not abbreviated"   busy-old    '111h'
+check_age "an age under an hour is shown in minutes" waiting-old '10m'
+check_age "an age over an hour is shown in hours" stalled-old '2h'
+check_age "an age of many hours is not abbreviated" busy-old '111h'
 
 # The note is the last column and is what tells you why a session is blocked.
 if grep -q 'needs permission' "$work/list" && grep -q 'which one?' "$work/list"; then

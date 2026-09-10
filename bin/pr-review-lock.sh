@@ -33,13 +33,13 @@ take_lock() {
   local lock=$1 holder
 
   if mkdir "$lock" 2>/dev/null; then
-    printf '%s' "$$" > "$lock/pid" 2>/dev/null
+    printf '%s' "$$" >"$lock/pid" 2>/dev/null
     return 0
   fi
 
   holder=$(cat "$lock/pid" 2>/dev/null)
   case "$holder" in
-    ''|*[!0-9]*)
+    '' | *[!0-9]*)
       # No pid to ask about: fall back to age, and only for a lock old enough
       # that no plausible run is still inside it.
       [ -n "$(find "$lock" -maxdepth 0 -mmin +"$_PR_REVIEW_LOCK_STALE_MIN" 2>/dev/null)" ] || return 1
@@ -57,7 +57,7 @@ take_lock() {
   /bin/rm -f "$lock/pid" 2>/dev/null
   rmdir "$lock" 2>/dev/null
   if mkdir "$lock" 2>/dev/null; then
-    printf '%s' "$$" > "$lock/pid" 2>/dev/null
+    printf '%s' "$$" >"$lock/pid" 2>/dev/null
     return 0
   fi
   return 1

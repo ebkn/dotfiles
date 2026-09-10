@@ -92,8 +92,7 @@ detect_brew_bin() {
     "/opt/homebrew/bin/brew" \
     "/usr/local/bin/brew" \
     "/home/linuxbrew/.linuxbrew/bin/brew" \
-    "${HOME}/.linuxbrew/bin/brew"
-  do
+    "${HOME}/.linuxbrew/bin/brew"; do
     if [ -x "$candidate" ]; then
       printf "%s\n" "$candidate"
       return 0
@@ -341,18 +340,18 @@ install_or_upgrade_diff_highlight() {
 
   contrib_dir="/usr/share/doc/git/contrib/diff-highlight"
   if [ ! -f "${contrib_dir}/diff-highlight.perl" ] ||
-     [ ! -f "${contrib_dir}/DiffHighlight.pm" ] ||
-     [ ! -f "${contrib_dir}/Makefile" ]; then
+    [ ! -f "${contrib_dir}/DiffHighlight.pm" ] ||
+    [ ! -f "${contrib_dir}/Makefile" ]; then
     printf "warning: diff-highlight sources not found in %s\n" "$contrib_dir" >&2
     return 1
   fi
 
   build_dir="$(mktemp -d)"
   cp "${contrib_dir}/diff-highlight.perl" \
-     "${contrib_dir}/DiffHighlight.pm" \
-     "${contrib_dir}/Makefile" \
-     "$build_dir/"
-  if ! ( cd "$build_dir" && make diff-highlight >/dev/null ); then
+    "${contrib_dir}/DiffHighlight.pm" \
+    "${contrib_dir}/Makefile" \
+    "$build_dir/"
+  if ! (cd "$build_dir" && make diff-highlight >/dev/null); then
     printf "warning: failed to build diff-highlight in %s\n" "$build_dir" >&2
     rm -rf "$build_dir"
     return 1

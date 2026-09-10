@@ -83,20 +83,38 @@ force=0
 dry_run=0
 manual_pr=
 
-die() { printf 'pr-review-watch: %s\n' "$*" >&2; exit 1; }
+die() {
+  printf 'pr-review-watch: %s\n' "$*" >&2
+  exit 1
+}
 
 usage() { sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//; $d'; }
 
 while [ $# -gt 0 ]; do
   case $1 in
-    --print) shift; mkdir -p "$STATE_DIR/jobs"
+    --print)
+      shift
+      mkdir -p "$STATE_DIR/jobs"
       # `jq -s . </dev/null` yields [] , so an empty queue prints [] not an error.
       find "$STATE_DIR/jobs" -name '*.json' -exec cat {} + 2>/dev/null | jq -s '.'
-      exit 0 ;;
-    --force) force=1; shift ;;
-    --dry-run) dry_run=1; shift ;;
-    --pr) manual_pr=${2:-}; shift 2 || die "--pr needs <owner/repo#number>" ;;
-    -h|--help) usage; exit 0 ;;
+      exit 0
+      ;;
+    --force)
+      force=1
+      shift
+      ;;
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    --pr)
+      manual_pr=${2:-}
+      shift 2 || die "--pr needs <owner/repo#number>"
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -123,7 +141,7 @@ trap 'release_lock "$lock"' EXIT
 # eventually posts would re-trigger it.
 login_file="$STATE_DIR/login"
 if [ ! -s "$login_file" ]; then
-  gh api user --jq .login > "$login_file" 2>/dev/null || die "gh is not authenticated"
+  gh api user --jq .login >"$login_file" 2>/dev/null || die "gh is not authenticated"
 fi
 me=$(cat "$login_file")
 [ -n "$me" ] || die "could not determine the authenticated login"
@@ -165,14 +183,20 @@ fi
 repo_path() {
   local full=$1 p
   p=$(ghq list --full-path --exact "github.com/$full" 2>/dev/null | head -1)
-  if [ -n "$p" ] && [ -d "$p" ]; then printf '%s' "$p"; return 0; fi
+  if [ -n "$p" ] && [ -d "$p" ]; then
+    printf '%s' "$p"
+    return 0
+  fi
   local IFS=:
   for p in $EXTRA_REPOS; do
     [ -d "$p" ] || continue
     # The insteadOf rewrite in .gitconfig means the stored URL may be either
     # transport, so match on the owner/name tail rather than the whole URL.
     case "$(git -C "$p" remote get-url origin 2>/dev/null)" in
-      *"$full" | *"$full.git") printf '%s' "$p"; return 0 ;;
+      *"$full" | *"$full.git")
+        printf '%s' "$p"
+        return 0
+        ;;
     esac
   done
   return 1
@@ -186,7 +210,10 @@ worktree_for_branch() {
   while IFS= read -r line; do
     case "$line" in
       "worktree "*) path=${line#worktree } ;;
-      "branch refs/heads/$branch") printf '%s' "$path"; return 0 ;;
+      "branch refs/heads/$branch")
+        printf '%s' "$path"
+        return 0
+        ;;
     esac
   done < <(git -C "$repo" worktree list --porcelain 2>/dev/null)
   return 1
@@ -261,7 +288,7 @@ if [ -n "$manual_pr" ]; then
   esac
   candidates=$(printf '%s\t%s\t%s\n' "${manual_pr%%#*}" "${manual_pr##*#}" "1970-01-01T00:00:00Z")
 else
-candidates=$(printf '%s' "$body" | jq -r --argjson reasons "$REASONS" '
+  candidates=$(printf '%s' "$body" | jq -r --argjson reasons "$REASONS" '
   [ .[]
     | select(.subject.type == "PullRequest")
     | select(.reason as $r | $reasons | index($r))
@@ -278,10 +305,16 @@ queued_total=0
 while IFS=$'\t' read -r repo pr cutoff; do
   [ -n "${repo:-}" ] || continue
 
-  path=$(repo_path "$repo") || { printf 'skip %s#%s: no local checkout\n' "$repo" "$pr"; continue; }
+  path=$(repo_path "$repo") || {
+    printf 'skip %s#%s: no local checkout\n' "$repo" "$pr"
+    continue
+  }
 
   meta=$(gh api "repos/$repo/pulls/$pr" --jq '{branch: .head.ref, url: .html_url, title: .title}' 2>/dev/null)
-  [ -n "$meta" ] || { printf 'skip %s#%s: could not read the PR\n' "$repo" "$pr"; continue; }
+  [ -n "$meta" ] || {
+    printf 'skip %s#%s: could not read the PR\n' "$repo" "$pr"
+    continue
+  }
   branch=$(printf '%s' "$meta" | jq -r .branch)
   html_url=$(printf '%s' "$meta" | jq -r .url)
   title=$(printf '%s' "$meta" | jq -r .title)
@@ -337,7 +370,7 @@ while IFS=$'\t' read -r repo pr cutoff; do
       status: "pending",
       seen: ($seen + ($new | map(.id))),
       pending: ($prev + $new),
-      updatedAt: $now }' > "$job.tmp" && mv "$job.tmp" "$job"
+      updatedAt: $now }' >"$job.tmp" && mv "$job.tmp" "$job"
 
   if [ "$NOTIFY" != 0 ] && command -v terminal-notifier >/dev/null 2>&1; then
     authors=$(printf '%s' "$new" | jq -r '[ .[].author ] | unique | join(", ")')
@@ -347,13 +380,13 @@ while IFS=$'\t' read -r repo pr cutoff; do
       -message "$new_count new from $authors" \
       -open "$html_url" >/dev/null 2>&1
   fi
-done <<< "$candidates"
+done <<<"$candidates"
 
 # Advanced only after the whole batch is queued. Storing it earlier would mean a
 # crash mid-batch is indistinguishable from a clean run, and the 304 on the next
 # poll would hide the notifications this run never processed.
 if [ "$dry_run" -eq 0 ] && [ -n "$last_modified" ]; then
-  printf '%s' "$last_modified" > "$ims_file"
+  printf '%s' "$last_modified" >"$ims_file"
 fi
 
 [ "$queued_total" -gt 0 ] && printf 'queued %d item(s)\n' "$queued_total"

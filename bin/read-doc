@@ -90,14 +90,39 @@ src=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    -p | --print) print_only=1; shift ;;
-    --here) force_here=1; shift ;;
-    --name) name="${2-}"; [ -n "${name}" ] || { usage; exit 2; }; shift 2 ;;
-    -h | --help) usage; exit 0 ;;
-    -*) printf 'read-doc: unknown option %s\n' "$1" >&2; usage; exit 2 ;;
+    -p | --print)
+      print_only=1
+      shift
+      ;;
+    --here)
+      force_here=1
+      shift
+      ;;
+    --name)
+      name="${2-}"
+      [ -n "${name}" ] || {
+        usage
+        exit 2
+      }
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      printf 'read-doc: unknown option %s\n' "$1" >&2
+      usage
+      exit 2
+      ;;
     *)
-      [ -z "${src}" ] || { printf 'read-doc: one file at a time\n' >&2; exit 2; }
-      src="$1"; shift ;;
+      [ -z "${src}" ] || {
+        printf 'read-doc: one file at a time\n' >&2
+        exit 2
+      }
+      src="$1"
+      shift
+      ;;
   esac
 done
 
@@ -134,7 +159,7 @@ if [ -n "${src}" ] && [ ! -e "${src}" ] && printf '%s' "${src}" | grep -qE '^[A-
   # SC2029: client-side expansion is intended — remote_arg was quoted above
   # precisely so that this side decides what the remote shell receives.
   # shellcheck disable=SC2029
-  if ! ssh "${remote_host}" "cat -- ${remote_arg}" > "${fetched}"; then
+  if ! ssh "${remote_host}" "cat -- ${remote_arg}" >"${fetched}"; then
     printf 'read-doc: failed to fetch %s\n' "${src}" >&2
     exit 2
   fi
@@ -221,7 +246,7 @@ if [ -n "${SSH_CONNECTION:-}" ] && [ "${print_only}" -eq 0 ] && [ "${force_here}
   # The braces matter: a bare `cmd > /dev/tty 2>/dev/null` still lets the
   # shell print its own "Device not configured" to stderr, because that
   # message is emitted by the redirect, not by the command.
-  if ! { printf '%s' "${emit}" > /dev/tty; } 2>/dev/null; then
+  if ! { printf '%s' "${emit}" >/dev/tty; } 2>/dev/null; then
     printf '%s' "${emit}"
   fi
 
@@ -399,7 +424,7 @@ fi
 slug="$(printf '%s' "${key}" | shasum | cut -c1-8)"
 out="${out_dir}/${slug}-${title}.html"
 
-if ! feed | render > "${out}"; then
+if ! feed | render >"${out}"; then
   printf 'read-doc: render failed\n' >&2
   rm -f "${out}"
   exit 2

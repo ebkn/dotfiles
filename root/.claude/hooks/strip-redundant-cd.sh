@@ -63,19 +63,25 @@ target="${target%"${target##*[![:space:]]}"}"
 
 # strip a single layer of surrounding quotes
 case "$target" in
-  \"*\") target="${target#\"}"; target="${target%\"}" ;;
-  \'*\') target="${target#\'}"; target="${target%\'}" ;;
+  \"*\")
+    target="${target#\"}"
+    target="${target%\"}"
+    ;;
+  \'*\')
+    target="${target#\'}"
+    target="${target%\'}"
+    ;;
 esac
 
 # Refuse dynamic / non-literal targets — defer to normal flow.
 case "$target" in
-  ''|*'$'*|*'`'*|*'*'*|*'?'*|*'['*|'~'*) exit 0 ;;
+  '' | *'$'* | *'`'* | *'*'* | *'?'* | *'['* | '~'*) exit 0 ;;
 esac
 
 # Resolve target to an absolute, normalized path.
 case "$target" in
   /*) abs="$target" ;;
-  *)  abs="$CWD/$target" ;;
+  *) abs="$CWD/$target" ;;
 esac
 rp_target="$(cd "$abs" 2>/dev/null && pwd -P)" || exit 0
 rp_cwd="$(cd "$CWD" 2>/dev/null && pwd -P)" || exit 0

@@ -39,7 +39,7 @@ failures=0
 run() {
   local tmux_env="$1"
   shift
-  ( cd "$work/cwd" && PATH="$work/stub:$PATH" TMUX="$tmux_env" "$script" "$@" 2>&1 )
+  (cd "$work/cwd" && PATH="$work/stub:$PATH" TMUX="$tmux_env" "$script" "$@" 2>&1)
 }
 
 check() {
@@ -102,13 +102,23 @@ check 'every name matches the _* guard in .tmux.conf' 'yes' "$matches_guard"
 
 # Failure modes are worth pinning too: a popup closes the instant its command
 # exits, so a silent exit 0 would look exactly like a working chord.
-out=$(run '/tmp/s,1,0' 2>&1); rc=$?
+out=$(run '/tmp/s,1,0' 2>&1)
+rc=$?
 check 'no arguments is a usage error' 'rc=2' "rc=$rc"
-case "$out" in *usage*) ;; *) printf 'FAIL usage message missing\n  got: %s\n' "$out"; failures=$((failures + 1)) ;; esac
+case "$out" in *usage*) ;; *)
+  printf 'FAIL usage message missing\n  got: %s\n' "$out"
+  failures=$((failures + 1))
+  ;;
+esac
 
-out=$(run '' popup 2>&1); rc=$?
+out=$(run '' popup 2>&1)
+rc=$?
 check 'outside tmux is an error, not an empty session name' 'rc=1' "rc=$rc"
-case "$out" in *"not inside tmux"*) ;; *) printf 'FAIL missing-TMUX message wrong\n  got: %s\n' "$out"; failures=$((failures + 1)) ;; esac
+case "$out" in *"not inside tmux"*) ;; *)
+  printf 'FAIL missing-TMUX message wrong\n  got: %s\n' "$out"
+  failures=$((failures + 1))
+  ;;
+esac
 
 if [ "$failures" -ne 0 ]; then
   printf '\n%d test(s) failed\n' "$failures"

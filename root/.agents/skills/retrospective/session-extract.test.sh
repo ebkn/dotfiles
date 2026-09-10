@@ -23,7 +23,7 @@ fixture="$tmp/session.jsonl"
 #   3. Bash commands are multi-line and carry heredoc bodies containing code.
 #   4. toolUseResult is sometimes a bare string, not an object.
 #   5. permission-mode records do not exist in every session.
-cat > "$fixture" <<'FIXTURE'
+cat >"$fixture" <<'FIXTURE'
 {"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:00.000Z","uuid":"u1","isSidechain":false,"message":{"role":"user","content":"start"}}
 {"type":"assistant","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:01.000Z","uuid":"a1","isSidechain":false,"attributionSkill":"commit","message":{"role":"assistant","usage":{"input_tokens":10,"output_tokens":5,"cache_creation_input_tokens":100,"cache_read_input_tokens":200},"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"cd /repo && grep -n foo bar.txt"}}]}}
 {"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:02.000Z","uuid":"r1","isSidechain":false,"toolUseResult":{"stdout":"1:foo","stderr":"","interrupted":false,"isImage":false,"noOutputExpected":false},"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1"}]}}
@@ -58,22 +58,52 @@ FIXTURE
 # Timestamps sit between a8 (16.000) and r8 (17.000) so the range is unchanged.
 n=0
 bash_call() { # id, command, result kind: ok | err | rule | classifier | user | user-odd-text | hook
-  n=$((n + 1)); ts="2026-09-01T00:00:16.0$(printf '%02d' "$n")Z"
-  jq -nc --arg id "$1" --arg cmd "$2" --arg ts "$ts" '{type:"assistant",sessionId:"S1",cwd:"/repo",gitBranch:"main",version:"2.1.247",timestamp:$ts,uuid:("a-"+$id),message:{role:"assistant",content:[{type:"tool_use",id:$id,name:"Bash",input:{command:$cmd}}]}}' >> "$fixture"
-  n=$((n + 1)); ts="2026-09-01T00:00:16.0$(printf '%02d' "$n")Z"
+  n=$((n + 1))
+  ts="2026-09-01T00:00:16.0$(printf '%02d' "$n")Z"
+  jq -nc --arg id "$1" --arg cmd "$2" --arg ts "$ts" '{type:"assistant",sessionId:"S1",cwd:"/repo",gitBranch:"main",version:"2.1.247",timestamp:$ts,uuid:("a-"+$id),message:{role:"assistant",content:[{type:"tool_use",id:$id,name:"Bash",input:{command:$cmd}}]}}' >>"$fixture"
+  n=$((n + 1))
+  ts="2026-09-01T00:00:16.0$(printf '%02d' "$n")Z"
   case "$3" in
-    ok)         text=""; err=false; kind="" ;;\
-    err)        text="Exit code 1"; err=true; kind="" ;;
-    rule)       text="Permission to use Bash with command $2 has been denied."; err=true; kind=permission-rule ;;
-    classifier) text="Permission for this action was denied by the Claude Code auto mode classifier. Reason: Blocked by classifier."; err=true; kind=automode-blocked ;;
-    user)       text="The user doesn't want to proceed with this tool use. The tool use was rejected."; err=true; kind=user-rejected ;;\
-    user-odd-text) text="Some parts require approval. Output redirection to /tmp/x was blocked."; err=true; kind=user-rejected ;;
-    hook)       text="git-guard: refused '-c' before the git subcommand."; err=true; kind=permission-rule ;;
+    ok)
+      text=""
+      err=false
+      kind=""
+      ;;
+    err)
+      text="Exit code 1"
+      err=true
+      kind=""
+      ;;
+    rule)
+      text="Permission to use Bash with command $2 has been denied."
+      err=true
+      kind=permission-rule
+      ;;
+    classifier)
+      text="Permission for this action was denied by the Claude Code auto mode classifier. Reason: Blocked by classifier."
+      err=true
+      kind=automode-blocked
+      ;;
+    user)
+      text="The user doesn't want to proceed with this tool use. The tool use was rejected."
+      err=true
+      kind=user-rejected
+      ;;
+    user-odd-text)
+      text="Some parts require approval. Output redirection to /tmp/x was blocked."
+      err=true
+      kind=user-rejected
+      ;;
+    hook)
+      text="git-guard: refused '-c' before the git subcommand."
+      err=true
+      kind=permission-rule
+      ;;
   esac
   if [ "$err" = true ]; then
-    jq -nc --arg id "$1" --arg ts "$ts" --arg text "$text" --arg kind "$kind" '{type:"user",sessionId:"S1",cwd:"/repo",gitBranch:"main",version:"2.1.247",timestamp:$ts,uuid:("r-"+$id),toolUseResult:$text,message:{role:"user",content:[{type:"tool_result",tool_use_id:$id,is_error:true,content:$text}]}} + (if $kind == "" then {} else {toolDenialKind:$kind} end)' >> "$fixture"
+    jq -nc --arg id "$1" --arg ts "$ts" --arg text "$text" --arg kind "$kind" '{type:"user",sessionId:"S1",cwd:"/repo",gitBranch:"main",version:"2.1.247",timestamp:$ts,uuid:("r-"+$id),toolUseResult:$text,message:{role:"user",content:[{type:"tool_result",tool_use_id:$id,is_error:true,content:$text}]}} + (if $kind == "" then {} else {toolDenialKind:$kind} end)' >>"$fixture"
   else
-    jq -nc --arg id "$1" --arg ts "$ts" '{type:"user",sessionId:"S1",cwd:"/repo",gitBranch:"main",version:"2.1.247",timestamp:$ts,uuid:("r-"+$id),toolUseResult:{stdout:"",stderr:"",interrupted:false,isImage:false,noOutputExpected:false},message:{role:"user",content:[{type:"tool_result",tool_use_id:$id,content:""}]}}' >> "$fixture"
+    jq -nc --arg id "$1" --arg ts "$ts" '{type:"user",sessionId:"S1",cwd:"/repo",gitBranch:"main",version:"2.1.247",timestamp:$ts,uuid:("r-"+$id),toolUseResult:{stdout:"",stderr:"",interrupted:false,isImage:false,noOutputExpected:false},message:{role:"user",content:[{type:"tool_result",tool_use_id:$id,content:""}]}}' >>"$fixture"
   fi
 }
 # Denied, then the same deletion re-issued through git: one retry.
@@ -100,11 +130,11 @@ bash_call d11 'python3 -c "print(1)"' ok
 # shellcheck disable=SC2016  # the $(...) is the command under test, not ours to expand
 bash_call d12 'TOKEN=$(sed -n "s/oauth_token=//p" ~/.wrangler/config/x.toml); echo "$TOKEN" | wc -c' ok
 # A correction typed by the human, and a near-miss that must not count.
-printf '%s\n' '{"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.247","timestamp":"2026-09-01T00:00:16.090Z","uuid":"c1","message":{"role":"user","content":"判定ボタンはいらない。裏で自動判定して"}}' >> "$fixture"
-printf '%s\n' '{"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.247","timestamp":"2026-09-01T00:00:16.091Z","uuid":"c2","message":{"role":"user","content":"毎日1回実行するなら x30 で"}}' >> "$fixture"
+printf '%s\n' '{"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.247","timestamp":"2026-09-01T00:00:16.090Z","uuid":"c1","message":{"role":"user","content":"判定ボタンはいらない。裏で自動判定して"}}' >>"$fixture"
+printf '%s\n' '{"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.247","timestamp":"2026-09-01T00:00:16.091Z","uuid":"c2","message":{"role":"user","content":"毎日1回実行するなら x30 で"}}' >>"$fixture"
 
 out="$tmp/out.json"
-"$extract" "$fixture" > "$out"
+"$extract" "$fixture" >"$out"
 
 fail=0
 assert() {
@@ -117,19 +147,19 @@ assert() {
 }
 q() { jq -r "$1" "$out"; }
 
-assert "single line of output"  1     "$(wc -l < "$out" | tr -d ' ')"
-assert "schema"                 4     "$(q .schema)"
-assert "session_id"             S1    "$(q .session_id)"
-assert "cwd"                    /repo "$(q .cwd)"
-assert "git_branch"             main  "$(q .git_branch)"
+assert "single line of output" 1 "$(wc -l <"$out" | tr -d ' ')"
+assert "schema" 4 "$(q .schema)"
+assert "session_id" S1 "$(q .session_id)"
+assert "cwd" /repo "$(q .cwd)"
+assert "git_branch" main "$(q .git_branch)"
 
 # Trap: version changes mid-session. The last value is what the session ran as,
 # but the full set is what lets a report split metrics across a version bump.
-assert "cc_version is the last seen"    2.1.247            "$(q .cc_version)"
-assert "cc_versions lists all"          "2.1.100 2.1.247"  "$(q '.cc_versions|join(" ")')"
+assert "cc_version is the last seen" 2.1.247 "$(q .cc_version)"
+assert "cc_versions lists all" "2.1.100 2.1.247" "$(q '.cc_versions|join(" ")')"
 
 assert "started_at" 2026-09-01T00:00:00.000Z "$(q .started_at)"
-assert "ended_at"   2026-09-01T00:00:17.000Z "$(q .ended_at)"
+assert "ended_at" 2026-09-01T00:00:17.000Z "$(q .ended_at)"
 assert "wall_seconds" 17 "$(q .wall_seconds)"
 
 # A user record carrying toolUseResult is a tool result, not a turn the human
@@ -139,30 +169,30 @@ assert "wall_seconds" 17 "$(q .wall_seconds)"
 # The interrupt IS typed -- the human hit escape -- so it counts, giving 3.
 assert "user_turns exclude tool results and injected records" 5 "$(q .user_turns)"
 assert "friction.compactions" 1 "$(q .friction.compactions)"
-assert "friction.interrupts"  1 "$(q .friction.interrupts)"
-assert "assistant_turns"                 22 "$(q .assistant_turns)"
+assert "friction.interrupts" 1 "$(q .friction.interrupts)"
+assert "assistant_turns" 22 "$(q .assistant_turns)"
 
 # Trap 2: isSidechain is false on most records and absent on a8/r8. Testing
 # `== false` instead of `!= true` would misclassify the absent ones.
 assert "sidechain_turns" 1 "$(q .sidechain_turns)"
 
-assert "tokens.input"          60  "$(q .tokens.input)"
-assert "tokens.output"         45  "$(q .tokens.output)"
+assert "tokens.input" 60 "$(q .tokens.input)"
+assert "tokens.output" 45 "$(q .tokens.output)"
 assert "tokens.cache_creation" 100 "$(q .tokens.cache_creation)"
-assert "tokens.cache_read"     500 "$(q .tokens.cache_read)"
+assert "tokens.cache_read" 500 "$(q .tokens.cache_read)"
 
 # Tool names come from the tool_use blocks, never from guessing at the result
 # shape -- that is what makes trap 1 harmless here.
-assert "tools.Bash"       19 "$(q .tools.Bash)"
-assert "tools.Edit"       1 "$(q .tools.Edit)"
-assert "tools.Write"      1 "$(q .tools.Write)"
+assert "tools.Bash" 19 "$(q .tools.Bash)"
+assert "tools.Edit" 1 "$(q .tools.Edit)"
+assert "tools.Write" 1 "$(q .tools.Write)"
 assert "tools.ToolSearch" 1 "$(q .tools.ToolSearch)"
 
 # Trap 1: all six Bash result key sets must be attributed to Bash.
 assert "every Bash result shape attributed to Bash" 19 "$(q .tool_results.Bash)"
 assert "no result fell through to unknown" false "$(q '.tool_results|has("unknown")')"
-assert "tool_result_bytes has Bash"   true "$(q '.tool_result_bytes|has("Bash")')"
-assert "tool_result_bytes has Edit"   true "$(q '.tool_result_bytes|has("Edit")')"
+assert "tool_result_bytes has Bash" true "$(q '.tool_result_bytes|has("Bash")')"
+assert "tool_result_bytes has Edit" true "$(q '.tool_result_bytes|has("Edit")')"
 # Sized from the tool_result block the model was shown, not from the
 # harness-internal toolUseResult: for Edit that object carries originalFile
 # and a structured patch and ran 20-40x the block on real sessions. The base
@@ -170,8 +200,8 @@ assert "tool_result_bytes has Edit"   true "$(q '.tool_result_bytes|has("Edit")'
 assert "tool_result_bytes.Edit is the block, not the internal object" 0 "$(q .tool_result_bytes.Edit)"
 assert "tool_result_bytes.Bash counts denial texts shown to the model" true "$(q '.tool_result_bytes.Bash > 0')"
 
-assert "errors.bash_stderr"  1 "$(q .errors.bash_stderr)"
-assert "errors.interrupted"  1 "$(q .errors.interrupted)"
+assert "errors.bash_stderr" 1 "$(q .errors.bash_stderr)"
+assert "errors.interrupted" 1 "$(q .errors.interrupted)"
 
 assert "skills are distinct and sorted" "commit review-test" "$(q '.skills|join(" ")')"
 
@@ -181,13 +211,13 @@ assert "permission_mode is null" null "$(q .permission_mode)"
 
 # Denials are classified from the four result texts seen in real transcripts.
 # The order of checks matters: a classifier denial also contains "denied".
-assert "denials.rule"       2 "$(q .denials.rule)"
+assert "denials.rule" 2 "$(q .denials.rule)"
 assert "denials.classifier" 2 "$(q .denials.classifier)"
 # The second user denial carries a text the regex would file as rule or drop
 # ("parts require approval", "was blocked"); the structured toolDenialKind
 # on the record is what decides, and the text is only a fallback.
-assert "denials.user"       2 "$(q .denials.user)"
-assert "denials.hook"       1 "$(q .denials.hook)"
+assert "denials.user" 2 "$(q .denials.user)"
+assert "denials.hook" 1 "$(q .denials.hook)"
 
 # A retry is a denied Bash command followed, within the next three Bash calls,
 # by one sharing an intent class (delete, discard, push, remote, env, kill) or
@@ -198,34 +228,34 @@ assert "retries_after_denial" 2 "$(q .retries_after_denial)"
 
 # Risky patterns are matched on the command text (tier 2: heuristic, and a
 # heredoc body can trip them). One count per command, kinds tallied separately.
-assert "risky_commands"        5 "$(q .risky_commands)"
-assert "risky.delete"          2 "$(q .risky.delete)"
-assert "risky.remote_write"    1 "$(q .risky.remote_write)"
-assert "risky.privilege"       1 "$(q .risky.privilege)"
-assert "risky.credentials"     1 "$(q .risky.credentials)"
+assert "risky_commands" 5 "$(q .risky_commands)"
+assert "risky.delete" 2 "$(q .risky.delete)"
+assert "risky.remote_write" 1 "$(q .risky.remote_write)"
+assert "risky.privilege" 1 "$(q .risky.privilege)"
+assert "risky.credentials" 1 "$(q .risky.credentials)"
 
 # This repo's conventions (tier 3). The compound cd is t1 from the base fixture.
 assert "interpreter_oneliners" 2 "$(q .interpreter_oneliners)"
-assert "compound_cd"           1 "$(q .compound_cd)"
+assert "compound_cd" 1 "$(q .compound_cd)"
 
 # Corrections are a word list over typed prompts (tier 3). するなら must not
 # match するな -- the first false positive the list produced on real data.
-assert "corrections"           1 "$(q .corrections)"
+assert "corrections" 1 "$(q .corrections)"
 
 # --human-turns is what the skill reads transcripts with, so that it never needs
 # a general-purpose tool granted to it. Only turns the human typed: a user
 # record carrying toolUseResult is a tool result being fed back.
 human="$("$extract" --human-turns "$fixture")"
 assert "human turns: prompts, the interrupt, the corrections" 5 "$(printf '%s\n' "$human" | grep -c '^--- ')"
-assert "human turn text survives"         1 "$(printf '%s\n' "$human" | grep -c 'second turn')"
-assert "the interrupt is shown"           1 "$(printf '%s\n' "$human" | grep -c 'Request interrupted')"
-assert "tool output does not leak in"     0 "$(printf '%s\n' "$human" | grep -c 'No such file')"
+assert "human turn text survives" 1 "$(printf '%s\n' "$human" | grep -c 'second turn')"
+assert "the interrupt is shown" 1 "$(printf '%s\n' "$human" | grep -c 'Request interrupted')"
+assert "tool output does not leak in" 0 "$(printf '%s\n' "$human" | grep -c 'No such file')"
 # The same definition must drive both modes, or the count and the text disagree.
-assert "skill body is not a human turn"   0 "$(printf '%s\n' "$human" | grep -c 'Base directory for this skill')"
+assert "skill body is not a human turn" 0 "$(printf '%s\n' "$human" | grep -c 'Base directory for this skill')"
 assert "compaction summary is not either" 0 "$(printf '%s\n' "$human" | grep -c 'being continued')"
 assert "slash-command echo is not either" 0 "$(printf '%s\n' "$human" | grep -c 'command-name')"
 # Newer versions put <command-message> first; 31 of those in 60 real days.
 assert "nor when command-message comes first" 0 "$(printf '%s\n' "$human" | grep -c 'command-message')"
-assert "task notification is not either"  0 "$(printf '%s\n' "$human" | grep -c 'task-notification')"
+assert "task notification is not either" 0 "$(printf '%s\n' "$human" | grep -c 'task-notification')"
 
 exit "$fail"
