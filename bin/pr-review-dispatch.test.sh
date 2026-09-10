@@ -76,6 +76,15 @@ cleanup() {
   [ "$leaked" -eq 0 ] || exit 1
 }
 trap cleanup EXIT
+# A signal otherwise kills the shell without running the EXIT trap, leaving every
+# listener and holder behind -- and an interrupted run is exactly when nobody is
+# watching for stragglers. Each handler exits rather than handling anything, which
+# is what routes it through the EXIT trap above. (A straggler did appear once here
+# whose cause could not be reproduced by SIGPIPE or SIGTERM; this closes the class
+# rather than the one instance.)
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 STATE="$TMP/state"; mkdir -p "$STATE/jobs"
 SESS="$TMP/sessions"; mkdir -p "$SESS"
@@ -137,6 +146,22 @@ listen() {
 settle() {
   local i=0
   while [ $i -lt 60 ]; do [ -s "$1" ] && return 0; sleep 0.05; i=$((i + 1)); done
+  return 1
+}
+
+# wait_dead <pid> -- poll until the pid is really gone.
+#
+# `wait` cannot do this job here. spawn_holder is called as `$(spawn_holder)`, so
+# the process is a child of that command substitution's subshell, not of this
+# shell: `wait` on it fails immediately and synchronises nothing. A `kill`
+# followed by an unsynchronised `kill -0` is a race -- the signal is delivered
+# but the process can still be visible until it is reaped -- and in the liveness
+# case losing that race makes the STALE session (the newer one) win and the test
+# fail intermittently. Polling for the answer keeps a pass instant and makes only
+# a genuine failure pay the timeout.
+wait_dead() {
+  local i=0
+  while [ $i -lt 60 ]; do kill -0 "$1" 2>/dev/null || return 0; sleep 0.05; i=$((i + 1)); done
   return 1
 }
 
@@ -283,7 +308,8 @@ printf 'liveness\n'
 # live one and hold its job forever. Both entries here name the same worktree
 # and the dead one is NEWER.
 reset
-DEAD=$(spawn_holder); kill "$DEAD" 2>/dev/null; wait "$DEAD" 2>/dev/null
+DEAD=$(spawn_holder); kill "$DEAD" 2>/dev/null
+wait_dead "$DEAD" || no "the stale session's process did not exit"
 ALIVE=$(spawn_holder); WIRE="$TMP/wire-4"; SOCKP="$TMP/s4.sock"; DEADSOCK="$TMP/s4dead.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 listen "$DEADSOCK" "$TMP/wire-4dead" || no "dead listener came up"
@@ -294,6 +320,25 @@ run >/dev/null; settle "$WIRE"
 eq "a dead newer session does not shadow a live one" "delivered" "$(job .status)"
 eq "the live session got it" "user" "$(jq -r .type < "$WIRE" 2>/dev/null)"
 eq "the dead session's socket got nothing" "" "$(cat "$TMP/wire-4dead" 2>/dev/null)"
+
+# The socket file exists but nothing listens on it, so connecting is refused.
+# `[ -S ]` passes, which means the only thing that can catch this is the post's
+# exit status -- the one signal this design has, since the socket never replies.
+# The job must be held with its items intact: the feedback was NOT sent, and the
+# job is the only record that it is still owed.
+reset
+PID=$(spawn_holder)
+listen "$TMP/s-refuse.sock" "$TMP/wire-refuse" || no "listener came up"
+refuser=$(pgrep -f "nc -lU $TMP/s-refuse.sock" | head -1)
+kill "$refuser" 2>/dev/null
+wait_dead "$refuser" || no "the listener did not exit"
+session live "$PID" "$WT" "$TMP/s-refuse.sock" 100
+make_job
+out=$(run)
+eq "a refused socket holds the job" "pending" "$(job .status)"
+eq "and keeps its items" "2" "$(job '.pending | length')"
+has "and says the post failed" "$out" "could not post to"
+has "the summary counts it as held" "$out" "held 1 job(s)"
 
 # A session whose socket path names a file that is not there is not a target.
 reset
