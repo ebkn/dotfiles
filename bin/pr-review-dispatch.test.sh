@@ -549,6 +549,25 @@ eq "resumes when asked" "delivered" "$(job .status)"
 eq "and says so" "resume" "$(job .deliveredVia)"
 has "passes the session id to claude" "$(cat "$TMP/resume.log")" "--resume sess-1"
 
+# A branch that was merged and cleaned up takes its worktree with it (`gdmerged`
+# removes it), and the job outlives that -- nothing in this pipeline expires one.
+# The generic "no live session" line was wrong for it in a way that wasted the
+# reader's time: it points at PR_REVIEW_DISPATCH_RESUME=1, which tests for this
+# same directory and comes back to the same message, so the advice could never
+# work. Asserted under RESUME=1 precisely because that is where it misled.
+reset
+make_job "$TMP/gone-worktree"
+out=$(RESUME=1 run)
+eq "a job whose worktree is gone holds" "pending" "$(job .status)"
+eq "and keeps its items" "2" "$(job '.pending | length')"
+has "it says the worktree is gone" "$out" "worktree $TMP/gone-worktree is gone"
+eq "and does not attempt a resume" "absent" "$([ -f "$TMP/resume.log" ] || echo absent)"
+# The advice that cannot work must not be given.
+case "$out" in
+  *PR_REVIEW_DISPATCH_RESUME=1*) no "it does not repeat advice that cannot apply" "[$out]" ;;
+  *) ok "it does not repeat advice that cannot apply" ;;
+esac
+
 # A failed resume must leave the job queued -- it is the only copy.
 reset
 make_job

@@ -386,12 +386,29 @@ for job in "${jobs_todo[@]}"; do
   session=$(session_for_worktree "$sessions" "$worktree")
 
   if [ -z "$session" ]; then
+    # The worktree is gone -- the ordinary end of a merged branch, since
+    # `gdmerged` removes it. Reported separately because the generic line below
+    # was actively misleading here: it points at PR_REVIEW_DISPATCH_RESUME=1,
+    # which checks for this same directory and lands straight back on the same
+    # message, so following the advice changed nothing. A job has no expiry
+    # anywhere in this pipeline, so that held every 30 seconds, forever, saying
+    # nothing that was true.
+    #
+    # It still HOLDS rather than deleting the job: what to do with feedback whose
+    # branch was merged is a decision for a human, and the queue is the only copy.
+    if [ ! -d "$worktree" ]; then
+      printf 'hold  %s: worktree %s is gone; no session can be resolved and resume has nowhere to run\n' \
+        "$label" "$worktree"
+      held=$((held + 1))
+      continue
+    fi
+
     # No live session for this worktree. The conversation that wrote the code is
     # the one that should answer the review, so the fallback resumes it rather
     # than starting fresh -- but only when asked to, and never while a TUI is
     # open, which is the case that reaches here at all.
     sid=$(jq -r '.sessionId // empty' "$job")
-    if [ "$RESUME" != 1 ] || [ -z "$sid" ] || [ ! -d "$worktree" ]; then
+    if [ "$RESUME" != 1 ] || [ -z "$sid" ]; then
       printf 'hold  %s: no live session (set PR_REVIEW_DISPATCH_RESUME=1 to resume it)\n' "$label"
       held=$((held + 1))
       continue
