@@ -134,6 +134,37 @@ fi
 # Platform-common $HOME symlinks (see bin/init/links.sh). `relink` re-runs this
 # to sync links added after a machine was provisioned.
 link_dotfiles
+
+# --- launchd agents ---------------------------------------------------------
+#
+# Linking a plist is NOT loading it, and the gap is invisible: launchd never
+# runs the agent, nothing is logged anywhere, and the only symptom is a feature
+# quietly not happening. Both review-pipeline agents sat unloaded on this
+# machine with their symlinks perfectly in place, which is the whole reason
+# this section exists.
+#
+# It lives here and deliberately NOT in `link_dotfiles`, which `relink` calls
+# from `update-all`. Loading an agent is a decision about this machine, not a
+# fact about the file layout, and the two disagree: `launchctl bootout
+# gui/$UID/com.ebkn.pr-review-dispatch` is the documented way to stop delivery
+# while notifications keep arriving -- the entire reason the pipeline is split
+# into two agents -- and a bootstrap on every `update-all` would silently undo
+# it. The agent that posts into live sessions would come back from the dead on
+# a routine update. Provisioning runs once, so it cannot do that.
+# The work is in bin/launchd-load rather than inline here, because provisioning
+# runs once: an already-provisioned machine that gains a new agent would
+# otherwise have to re-run this whole script -- brew bundles included -- to load
+# it. Run it directly instead, or `launchd-load --status` to see what is up.
+#
+# Skipped on CI for the same reason mas and Xcode are: a runner has no business
+# starting a GitHub poller, and it has no session to deliver anything into.
+if [ "${CI:-}" = "true" ]; then
+  log_step "Skipping launchd agents (CI)"
+else
+  log_step "Loading launchd agents"
+  "${DOTFILES_DIR}/bin/launchd-load" || true
+fi
+
 install_or_upgrade_claude
 
 diff_highlight_source="$(brew --prefix)/opt/git/share/git-core/contrib/diff-highlight/diff-highlight"

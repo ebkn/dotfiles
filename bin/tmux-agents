@@ -8,7 +8,7 @@
 # correct as long as that contract holds.
 #
 # Takes no arguments. It still needs the calling client — a popup has no attached
-# client of its own, yet the status messages and the fallback jump have to act on
+# client of its own, yet the status messages and the answer view have to act on
 # the client that pressed the key — so it derives one from $TMUX instead of being
 # handed it. It cannot be handed it: display-popup expands #{...} formats only in
 # -d, never in the shell-command (see .tmux.conf), so `#{client_name}` would
@@ -61,12 +61,139 @@ readonly US=$'\037'
 now=$(date +%s)
 
 # Resolved after a selection is made, not here: it is needed only by msg() and
-# by the switch-client fallback, both of which run after the picker closes, and
+# by the answer view, both of which run after the picker closes, and
 # a tmux round-trip on the latency path for a value nobody may ever read is the
 # most expensive kind of eager evaluation. ${outer_client:+...} tolerates it
 # being empty, so nothing has to guard on it.
+# This script's own absolute path. Both the enter binding (which re-enters it as
+# --jump-check) and the answer view need it: the first because fzf runs a
+# transform through $SHELL, the second because that hop runs under
+# `tmux run-shell`, which uses the tmux server's environment -- so $PATH cannot
+# be relied on to hold ~/.local/bin in either case.
+self=$0
+case $self in
+  */*) ;;
+  *) self=$(command -v -- "$self") ;;
+esac
+self="$(cd "$(dirname "$self")" && pwd)/$(basename "$self")"
+view="$(dirname "$self")/tmux-agent-view"
+
 outer_client=""
 msg() { tmux display-message ${outer_client:+-c "$outer_client"} "$1" 2>/dev/null || true; }
+
+# --- where enter would land ---------------------------------------------------
+
+# resolve_jump <key field> — work out whether enter can do anything with this
+# row, and where it would go. Sets rj_reason to a human sentence when it cannot;
+# everything else is only meaningful when rj_reason is empty.
+#
+# It exists as a function because two callers need the SAME answer: the enter
+# binding, which asks through --jump-check below so it can refuse a row without
+# closing the picker, and the jump itself further down. Anything the picker
+# refuses must be refused for a reason the jump agrees with, or enter would
+# accept a row that then does nothing.
+rj_reason=""
+rj_pane=""
+rj_tty=""
+rj_tab=""
+rj_remote_note=""
+resolve_jump() {
+  local key=$1 host window_id pane_id state local_target client client_session
+  IFS='|' read -r host window_id pane_id state <<<"$key"
+  rj_reason=""
+  rj_remote_note=""
+
+  if [ -n "$host" ]; then
+    # A remote agent lives in the remote tmux, which this client cannot focus.
+    # Jump to the local pane holding that ssh connection instead, and name the
+    # remote window so the last hop is obvious.
+    local_target=$(
+      tmux list-panes -a -F $'#{pane_id}\t#{window_id}\t#{@ssh_host}' 2>/dev/null |
+        awk -F'\t' -v h="$host" '$3 == h { print $2 "\t" $1; exit }'
+    ) || true
+    if [ -z "$local_target" ]; then
+      rj_reason="no local pane is connected to $host"
+      return 0
+    fi
+    IFS=$'\t' read -r window_id pane_id <<<"$local_target"
+    rj_remote_note=" (remote window: $host)"
+  fi
+  rj_pane=$pane_id
+
+  # One WezTerm tab holds one tmux window, each through its own client, so the
+  # right move is to raise that tab — not to repoint the current client at
+  # another window, which would leave two tabs showing the same thing. tmux's
+  # client_tty and WezTerm's tty_name are the same device, which is what links
+  # them.
+  client=$(
+    tmux list-clients -F $'#{client_tty}\t#{window_id}\t#{client_session}' 2>/dev/null |
+      awk -F'\t' -v w="$window_id" '$2 == w { print $1 "\t" $3; exit }'
+  ) || true
+  IFS=$'\t' read -r rj_tty client_session <<<"$client"
+  if [ -z "$rj_tty" ]; then
+    rj_reason="nothing is showing that window — C-q w switches this tab"
+    return 0
+  fi
+
+  # An ssh client is never a WezTerm tab, so there is nothing to ask WezTerm
+  # about and the CLI is not run at all. tmux already knows: SSH_CONNECTION is
+  # in the default update-environment list, so it is copied into the session
+  # environment by the attaching client and can be read back with one
+  # format-free call. The alternative -- reading $SSH_CONNECTION out of this
+  # process -- would be the tmux *server's* environment, i.e. whatever it
+  # happened to be started with, which says nothing about the client showing
+  # that window now.
+  #
+  # show-environment prints "-NAME" for a variable that is unset in that
+  # session, so only the "NAME=value" shape counts.
+  case "$(tmux show-environment -t "$client_session" SSH_CONNECTION 2>/dev/null)" in
+    SSH_CONNECTION=*)
+      rj_reason="that window is shown over ssh, not by WezTerm — C-q w switches this tab"
+      return 0
+      ;;
+  esac
+
+  # --no-auto-start is what makes the answer immediate when there is no WezTerm
+  # to ask. Without it `wezterm cli list` tries to START a mux server before
+  # giving up: measured here, 3.0-3.4s against 0.00s with the flag, and every
+  # other step on this path costs 0ms. That whole delay landed between pressing
+  # enter and the warning, on exactly the hosts where the warning is the normal
+  # outcome. It cannot cost anything in the success case either -- the default
+  # is to prefer a running gui instance, and the flag only forbids starting one.
+  rj_tab=""
+  if command -v wezterm >/dev/null 2>&1; then
+    rj_tab=$(
+      wezterm cli --no-auto-start list --format json 2>/dev/null |
+        jq -r --arg t "$rj_tty" 'map(select(.tty_name == $t)) | .[0].tab_id // empty'
+    ) || true
+  fi
+  if [ -z "$rj_tab" ]; then
+    # Nothing to raise. This used to fall back to `switch-client`, which is
+    # worse than doing nothing: it repoints the tab you are sitting in at
+    # somebody else's window, leaving two clients on one session — the exact
+    # state bin/tmux-session-swap exists to prevent — and it is not what enter
+    # means. prefix + w is the key for changing what this tab shows.
+    rj_reason="no WezTerm tab shows that window here — C-q w switches this tab"
+  fi
+}
+
+# --jump-check <key field> — the enter binding's half of the above. Prints the
+# fzf actions to run: accept when the row can be jumped to, and otherwise only a
+# header, which leaves the picker standing with the reason on it. Refusing after
+# the picker has closed would be a popup that vanishes and a message on a status
+# line somewhere behind it, which is not an answer to "why did nothing happen".
+#
+# Runs before the listing below, so a keypress costs one process and the tmux
+# calls resolve_jump makes -- not a second collect.
+if [ "${1:-}" = "--jump-check" ]; then
+  resolve_jump "${2:-}"
+  if [ -n "$rj_reason" ]; then
+    printf 'change-header(enter: %s)\n' "$rj_reason"
+  else
+    printf 'print()+accept\n'
+  fi
+  exit 0
+fi
 
 # --- collect -----------------------------------------------------------------
 
@@ -188,8 +315,15 @@ list=$(
       # printf pads by bytes, so a multibyte separator in a %-28s column shifts
       # everything after it on exactly the rows that carry one.
       name = (label == "") ? $5 : $5 " [" label "]"
-      printf "%s\t%s\t%s|%s|%s\t%s %4s  %-12s %-28s %s\n", \
-        rank, since, $1, $3, $4, glyph, age(since), where, name, note
+      # The state travels in the key too: ctrl-o is only offered for a session
+      # that is actually blocked on the human, and re-deriving that from the
+      # glyph after the fact would be reading the rendering back. The state here
+      # belongs to the actor on this row, not to the pane as a whole, so the row
+      # only offers to answer the dialog it is actually reporting. (No
+      # apostrophes in this program: it is one long single-quoted shell string,
+      # and one would end it — the same trap session-review documents for jq.)
+      printf "%s\t%s\t%s|%s|%s|%s\t%s %4s  %-12s %-28s %s\n", \
+        rank, since, $1, $3, $4, st, glyph, age(since), where, name, note
     }
     $6 == "" { next }                                   # no agent in this pane
     $2 ~ /^_/ { next }                                  # _popup_ / _tig_ / _fzf_nvim_ sessions
@@ -241,15 +375,51 @@ fi
 export FZF_DEFAULT_OPTS=
 unset FZF_DEFAULT_OPTS_FILE
 
-selection=$(
+readonly HINT='enter: jump to the tab   ctrl-o: answer a blocked one here'
+
+# ctrl-o is refused per row, inside fzf, rather than after the picker has
+# closed. Refusing afterwards can only close the popup and print to the status
+# line, which is itself something happening — and what is wanted from a key that
+# does not apply is a warning and nothing else. So the binding decides from the
+# row's hidden key field (host|window|pane|state) and, when it does not apply,
+# only rewrites the header. `focus` puts the hint back as soon as the cursor
+# moves, so the warning cannot strand you without it.
+#
+# `print(...)+accept` reproduces exactly what --expect used to emit — the key on
+# its own first line, empty for enter — so the parsing below is unchanged. That
+# is the documented idiom for it (see the --bind examples in fzf(1)); --expect
+# cannot be used alongside a --bind on the same key, since the binding replaces
+# it and every ctrl-o would then read as a plain enter, i.e. as a jump.
+#
+# enter is refused per row the same way, but its answer cannot be read off the
+# row: whether a WezTerm tab exists for that window takes tmux and possibly
+# wezterm to work out. So it re-enters this script as --jump-check, which prints
+# the fzf actions to run. Paid only when enter is pressed, and never on the
+# latency path before the picker.
+#
+# The shell-side checks after the picker are kept as well. They are what a
+# headless test can reach, and they are the ones that still have to hold if a
+# future fzf changes what a transform may return.
+picked=$(
   printf '%s\n' "$list" |
     fzf --delimiter="$TAB" --with-nth=2.. \
       --no-multi --no-sort --reverse \
       --prompt='agent> ' \
-      --header='enter: jump to the tab'
+      --header="$HINT" \
+      --bind="focus:change-header($HINT)" \
+      --bind="enter:transform:$self --jump-check {1}" \
+      --bind='ctrl-o:transform:case {1} in
+                "|"*asking | "|"*waiting) echo "print(ctrl-o)+accept" ;;
+                *asking | *waiting) echo "change-header(ctrl-o: a remote agent cannot be answered here yet)" ;;
+                *) echo "change-header(ctrl-o: that session is not waiting on you)" ;;
+              esac'
 ) || exit 0
 
-# --- jump --------------------------------------------------------------------
+# The key that closed the picker is on its own first line, empty for enter.
+key=${picked%%$'\n'*}
+selection=${picked#*$'\n'}
+
+# --- resolve the pick ---------------------------------------------------------
 
 # $TMUX is "socket,pid,session-id"; the client attached to that session is the
 # one that opened this popup. `head -1` because a session can carry more than one
@@ -258,66 +428,73 @@ if [ -n "${TMUX:-}" ]; then
   outer_client=$(tmux list-clients -F '#{client_name}' -t "\$${TMUX##*,}" 2>/dev/null | head -1) || true
 fi
 
-IFS='|' read -r host window_id pane_id <<<"${selection%%$'\t'*}"
+IFS='|' read -r host window_id pane_id state <<<"${selection%%$'\t'*}"
 
-remote_note=""
-if [ -n "$host" ]; then
-  # A remote agent lives in the remote tmux, which this client cannot focus.
-  # Jump to the local pane holding that ssh connection instead, and name the
-  # remote window so the last hop is obvious.
-  remote_note=" (remote window: $host)"
-  local_target=$(
-    tmux list-panes -a -F $'#{pane_id}\t#{window_id}\t#{@ssh_host}' 2>/dev/null |
-      awk -F'\t' -v h="$host" '$3 == h { print $2 "\t" $1; exit }'
-  ) || true
-  if [ -z "$local_target" ]; then
-    msg "no local pane is connected to $host"
+# --- answer here (ctrl-o) ----------------------------------------------------
+
+# Refusing means doing nothing at all -- never falling back to the jump. The two
+# keys mean different things, and a ctrl-o that silently moved you to another
+# tab is worse than one that does not fire: you asked to stay where you are.
+# Each refusal says why on the status line and stops there.
+if [ "$key" = "ctrl-o" ]; then
+  case "$state" in
+    asking | waiting) ;;
+    *)
+      # Only a session with a dialog open has anything to answer. For a busy or
+      # a finished one there is nothing here to act on.
+      msg "that session is not waiting on you"
+      exit 0
+      ;;
+  esac
+
+  if [ -n "$host" ]; then
+    # A remote agent lives in the remote tmux, so the mirror would have to be a
+    # nested `ssh -t <host> tmux attach`. That is reachable from here — the
+    # listing already queries that host — but nothing on this machine exercises
+    # it, so it is left out rather than shipped untested.
+    msg "answering a remote agent here is not supported yet"
     exit 0
   fi
-  IFS=$'\t' read -r window_id pane_id <<<"$local_target"
+
+  # No client means nowhere to put a popup, and no status line to say so on.
+  [ -n "$outer_client" ] || exit 0
+
+  tmux run-shell -b "$view open $outer_client $window_id $pane_id"
+  exit 0
 fi
 
-tmux select-pane -t "$pane_id" 2>/dev/null || true
+# --- jump --------------------------------------------------------------------
 
-# One WezTerm tab holds one tmux window, each through its own client, so the
-# right move is to raise that tab — not to repoint the current client at another
-# window, which would leave two tabs showing the same thing. tmux's client_tty
-# and WezTerm's tty_name are the same device, which is what links them.
-client_tty=$(
-  tmux list-clients -F $'#{client_tty}\t#{window_id}' 2>/dev/null |
-    awk -F'\t' -v w="$window_id" '$2 == w { print $1; exit }'
-) || true
+resolve_jump "${selection%%$'\t'*}"
 
-tab_id=""
-if [ -n "$client_tty" ] && command -v wezterm >/dev/null 2>&1; then
-  tab_id=$(
-    wezterm cli list --format json 2>/dev/null |
-      jq -r --arg t "$client_tty" 'map(select(.tty_name == $t)) | .[0].tab_id // empty'
-  ) || true
+if [ -n "$rj_reason" ]; then
+  # Belt and braces: the picker refuses these rows before accepting (the enter
+  # binding asks the same function through --jump-check), so this is only
+  # reachable if that binding is gone. It must still not fall back to anything.
+  msg "$rj_reason"
+  exit 0
 fi
 
-if [ -n "$tab_id" ]; then
-  wezterm cli activate-tab --tab-id "$tab_id" 2>/dev/null || true
-  # activate-tab only re-points the tab bar of the window that owns the tab; it
-  # leaves OS focus where it was, so a jump across WezTerm windows raised nothing
-  # and looked like a no-op. There is no CLI verb for it (checked on 20240203) —
-  # window:focus() is Lua-only — so poke the user-var handler in wezterm.lua by
-  # writing OSC 1337 SetUserVar to the target pane's own tty: WezTerm attributes
-  # it to that pane and hands the handler its window. "MQ==" is base64 "1"; the
-  # value is ignored, only the event matters, and re-setting the same value does
-  # fire again. Harmless when the target is already focused, and inert on any
-  # terminal that is not WezTerm (unknown OSC, discarded).
-  printf '\033]1337;SetUserVar=focus_window=MQ==\007' >"$client_tty" 2>/dev/null || true
-else
-  # No WezTerm tab owns that window — it is detached, or this is a plain
-  # terminal / SSH session. Repointing the calling client is the best available
-  # move there.
-  tmux switch-client -c "$outer_client" -t "$window_id" 2>/dev/null || true
-fi
+# Only now: the pane is made active because the tab is about to be raised with
+# the agent in front. Refusing above must leave everything as it was.
+tmux select-pane -t "$rj_pane" 2>/dev/null || true
+
+wezterm cli --no-auto-start activate-tab --tab-id "$rj_tab" 2>/dev/null || true
+
+# activate-tab only re-points the tab bar of the window that owns the tab; it
+# leaves OS focus where it was, so a jump across WezTerm windows raised nothing
+# and looked like a no-op. There is no CLI verb for it (checked on 20240203) —
+# window:focus() is Lua-only — so poke the user-var handler in wezterm.lua by
+# writing OSC 1337 SetUserVar to the target pane's own tty: WezTerm attributes
+# it to that pane and hands the handler its window. "MQ==" is base64 "1"; the
+# value is ignored, only the event matters, and re-setting the same value does
+# fire again. Harmless when the target is already focused, and inert on any
+# terminal that is not WezTerm (unknown OSC, discarded).
+printf '\033]1337;SetUserVar=focus_window=MQ==\007' >"$rj_tty" 2>/dev/null || true
 
 # Plain `[ ... ] && msg` would make a local jump exit non-zero under set -e.
-if [ -n "$remote_note" ]; then
-  msg "jumped to$remote_note"
+if [ -n "$rj_remote_note" ]; then
+  msg "jumped to$rj_remote_note"
 fi
 
 exit 0
