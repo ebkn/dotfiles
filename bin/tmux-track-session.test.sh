@@ -38,18 +38,38 @@ export XDG_STATE_HOME="$DIR/state"
 unset TMUX TMUX_PANE
 mkdir -p "$TMUX_TMPDIR"
 SESSION_DIR="$XDG_STATE_HOME/tmux-track-session/session"
+PID_DIR="$XDG_STATE_HOME/tmux-track-session/pid"
 SCRIPT="$(cd "$(dirname "$0")" && pwd)/tmux-track-session"
 IDLE='sleep 600'
 CLIENT_PIDS=""
+MONITOR_PIDS=""
 INNER="track-inner-$$"
 OUTER="track-outer-$$"
 fails=0
 
 command -v tmux >/dev/null || { echo "tmux is required" >&2; exit 1; }
 
+# Every monitor this run started, by pid. Monitors started by hand contribute
+# their $!; monitors started by `attach` write their own pid into PID_DIR, which
+# is inside this run's XDG_STATE_HOME and so cannot name anybody else's.
+#
+# This used to be `pkill -f "tmux-track-session monitor"`, which matches on the
+# whole machine: a monitor belonging to a live ssh connection into this host, or
+# to a second copy of this suite running beside it, was killed along with ours.
+# Verified by leaving a process with that argv shape running across a full run
+# and finding it gone afterwards.
+kill_our_monitors() {
+  local p f
+  for p in $MONITOR_PIDS; do kill "$p" 2>/dev/null; done
+  for f in "$PID_DIR"/*; do
+    [ -f "$f" ] || continue
+    kill "$(cat "$f")" 2>/dev/null
+  done
+}
+
 cleanup() {
   for p in $CLIENT_PIDS; do kill "$p" 2>/dev/null; done
-  pkill -f "tmux-track-session monitor" 2>/dev/null
+  kill_our_monitors
   tmux kill-server 2>/dev/null
   tmux -L "$INNER" kill-server 2>/dev/null
   tmux -L "$OUTER" kill-server 2>/dev/null
@@ -68,6 +88,25 @@ t() { # t <name> <expected> <actual>
 
 record() { mkdir -p "$SESSION_DIR"; printf '%s' "$2" > "$SESSION_DIR/$1"; }
 read_record() { cat "$SESSION_DIR/$1" 2>/dev/null || echo '<none>'; }
+# Poll for a record to reach <expected> rather than sleeping a fixed amount and
+# reading once. Returns as soon as it matches, so a pass is immediate and only a
+# genuine failure pays the timeout -- and the value it echoes on timeout is the
+# real one, so the failure report names what was actually there.
+wait_record() { # wait_record <conn_id> <expected>
+  for _ in $(seq 1 60); do
+    [ "$(read_record "$1")" = "$2" ] && break
+    sleep 0.1
+  done
+  read_record "$1"
+}
+# Used by both suites, so it lives up here with the other shared helpers.
+wait_gone() { # wait_gone <pid>
+  for _ in $(seq 1 50); do
+    kill -0 "$1" 2>/dev/null || return 0
+    sleep 0.1
+  done
+  return 1
+}
 
 # script(1) is the only way to hand tmux a pty, and its command-line differs
 # between BSD (macOS: `script -q <file> <cmd...>`) and util-linux (CI:
@@ -115,19 +154,43 @@ ttyB=$(tty_on s2)
 record connA s1
 record connB s2
 "$SCRIPT" monitor connA "$ttyA" >/dev/null 2>&1 &
+MONITOR_PIDS="$MONITOR_PIDS $!"
 "$SCRIPT" monitor connB "$ttyB" >/dev/null 2>&1 &
-sleep 1
-tmux switch-client -c "$ttyB" -t '=s1'
-sleep 4   # the monitor polls every 2s
+MONITOR_PIDS="$MONITOR_PIDS $!"
 
-t "monitor: the claimant records the session"   "s1"      "$(read_record connB)"
-t "monitor: the previous owner is released"     "<none>"  "$(read_record connA)"
+# Wait for both monitors to be up before switching anything, by polling for the
+# pid file each writes on the way into its loop. A fixed sleep here was a guess
+# at how long two process starts take, and guessing wrong in the fast direction
+# means the switch happens before anybody is watching for it -- which shows up
+# much later, as the *next* assertion failing for no visible reason.
+wait_running() { # wait_running <conn_id>
+  for _ in $(seq 1 100); do
+    [ -s "$PID_DIR/$1" ] && return 0
+    sleep 0.1
+  done
+  echo "monitor for $1 never started" >&2
+  return 1
+}
+wait_running connA || exit 1
+wait_running connB || exit 1
+
+tmux switch-client -c "$ttyB" -t '=s1'
+
+# Poll rather than sleeping out two poll intervals. The second suite in this
+# file already established why: a fixed read made its regression case pass green
+# against the unfixed script, and the same hazard applies here -- the monitor is
+# inside `sleep 2` when the switch lands, so how long this takes is not bounded
+# by anything the test controls. wait_record returns the moment it matches and
+# reports the real value if it never does.
+t "monitor: the claimant records the session"   "s1"      "$(wait_record connB s1)"
+t "monitor: the previous owner is released"     "<none>"  "$(wait_record connA '<none>')"
 
 dupes=$(for f in "$SESSION_DIR"/*; do [ -f "$f" ] && { cat "$f"; echo; }; done | sort | uniq -d)
 t "monitor: no two conn_ids name the same session" "" "$dupes"
 
-pkill -f "tmux-track-session monitor" 2>/dev/null
-sleep 0.5
+kill_our_monitors
+for p in $MONITOR_PIDS; do wait_gone "$p"; done
+MONITOR_PIDS=""
 
 # ---------------------------------------------------------------------------
 # attach: resolution. It ends in `exec tmux new-session -A`, which attaches, so
@@ -165,6 +228,53 @@ record connF free
 attach_as connF
 t "attach: prunes a record naming a dead session" "<none>" "$(read_record connE)"
 
+# attach must also START the monitor, which is the half that keeps the record
+# up to date for the next reconnect. Nothing above reaches it: every case here
+# asserts only where attach landed, and the monitor suite below starts a monitor
+# by hand. So the one line that connects the two -- the `run-shell -b` in
+# attach -- had no coverage at all, and it invokes the script through a path
+# outside this checkout. With no seam that path is $HOME/.local/bin, which does
+# not exist on a CI runner (relink is never run there) and points at the *main*
+# checkout rather than the worktree under test on a developer machine: the
+# monitor then silently never starts, or starts from the wrong copy, and every
+# assertion still passes.
+#
+# A conn_id with no record of its own, so the session attach creates is named
+# after it and the value the monitor is expected to write is known in advance.
+attach_as connG
+t "attach: starts the monitor, which records the session" "connG" \
+  "$(wait_record connG connG)"
+
+# attach kills the previous connection's monitor on every reconnect, reading the
+# pid out of a file. A monitor that died without running its trap -- SIGKILL, or
+# the machine losing the process -- leaves that file behind, and the OS is then
+# free to hand the number to something else entirely. Signalling it blind kills
+# a bystander, on the remote, with nothing said anywhere.
+#
+# This is the opposite direction from bin/pr-review-lock.sh, where `kill -0` is
+# enough: there a recycled pid costs a missed steal, here it costs somebody
+# else's process, so the pid has to be identified and not merely found alive.
+sleep 600 &
+bystander=$!
+CLIENT_PIDS="$CLIENT_PIDS $bystander"
+mkdir -p "$XDG_STATE_HOME/tmux-track-session/pid"
+printf '%s' "$bystander" > "$XDG_STATE_HOME/tmux-track-session/pid/connH"
+attach_as connH
+t "attach: leaves an unrelated process holding a recycled pid alone" "alive" \
+  "$(kill -0 "$bystander" 2>/dev/null && echo alive || echo dead)"
+
+# The other half of the same decision: a pid that really is this conn_id's
+# monitor must still be killed, or every reconnect leaks one.
+"$SCRIPT" monitor connI "$ttyA" >/dev/null 2>&1 &
+monitor_i=$!
+CLIENT_PIDS="$CLIENT_PIDS $monitor_i"
+for _ in $(seq 1 50); do [ -s "$XDG_STATE_HOME/tmux-track-session/pid/connI" ] && break; sleep 0.1; done
+attach_as connI
+gone=dead
+for _ in $(seq 1 50); do kill -0 "$monitor_i" 2>/dev/null || break; sleep 0.1; done
+kill -0 "$monitor_i" 2>/dev/null && gone=alive
+t "attach: still kills this conn_id's own stale monitor" "dead" "$gone"
+
 # ---------------------------------------------------------------------------
 # The monitor must die quietly.
 #
@@ -195,14 +305,6 @@ done
 screen() { tmux -L "$OUTER" capture-pane -pJ; }
 clear_screen() { tmux -L "$INNER" send-keys -X cancel 2>/dev/null; }
 in_mode() { tmux -L "$INNER" display-message -p -t main '#{pane_in_mode}'; }
-wait_gone() {
-  for _ in $(seq 1 50); do
-    kill -0 "$1" 2>/dev/null || return 0
-    sleep 0.1
-  done
-  return 1
-}
-
 # wait_mode 1 -- poll until the pane enters a mode, rather than sleeping a fixed
 # amount and reading once. The delay between the job dying and the report
 # reaching the screen is neither instant nor bounded by anything this test
