@@ -84,6 +84,15 @@ assert "p90 is reported"             true "$(q '.distributions.tool_calls | has(
 assert "every distribution carries a tier" 0 \
   "$(q '[.distributions | to_entries[] | select(.value != null) | select(.value | has("tier") | not)] | length')"
 
+# Permission and safety metrics carry the tier of what they rest on: denial
+# records (1), command-text patterns (2), this repo's conventions (3). Totals
+# exist because a median of zero says nothing about events that are rare.
+assert "denials are tier 1"            1 "$(q .distributions.retries_after_denial.tier)"
+assert "risk patterns are tier 2"      2 "$(q .distributions.risky_commands.tier)"
+assert "conventions are tier 3"        3 "$(q .distributions.compound_cd.tier)"
+assert "totals carry denials by kind" true "$(q '.totals.denials | has("classifier")')"
+assert "totals carry retries"          0 "$(q .totals.retries_after_denial)"
+
 # An outlier has to name a file that can actually be opened. The session id
 # cannot do that: a subagent transcript carries its parent's id.
 assert "outliers exist"                 true "$(q '(.outliers | length) > 0')"

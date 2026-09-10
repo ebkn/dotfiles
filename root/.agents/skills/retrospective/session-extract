@@ -86,6 +86,48 @@ jq -n -c --arg path "$src" "${jq_defs}"'
          else 0 end;
   def blocks($m): $m | objects | .content | arrays | .[];
 
+  # A denial is an is_error tool_result carrying one of four texts. Order
+  # matters: the classifier text also contains "denied", so it goes first.
+  def denial_kind($t):
+    if   $t | test("auto mode classifier")          then "classifier"
+    elif $t | test("doesn.t want to proceed")       then "user"
+    elif $t | test("[a-z]+-guard: ")                then "hook"
+    elif $t | test("has been denied|requires approval|Permission to use") then "rule"
+    else null end;
+
+  # What a command is trying to do, coarsely. Used only to decide whether a
+  # Bash call after a denial is the same attempt in another form: rm -> git
+  # clean, reset --hard -> reset, --command "UPDATE" -> --file. These are the
+  # shapes actually seen; the list is deliberately short so that an ordinary
+  # follow-up (git status after a refused rm) does not read as a retry.
+  def intent($c): [
+    (if $c | test("(^|[ ;&|(])(rm|trash)\\b|git +(-C +\\S+ +)?clean\\b|-delete\\b")        then "delete"  else empty end),
+    (if $c | test("git +(-C +\\S+ +)?(reset|restore|checkout +--|stash +drop)\\b")        then "discard" else empty end),
+    (if $c | test("git +(-C +\\S+ +)?push\\b")                                            then "push"    else empty end),
+    (if $c | test("--remote\\b")                                                          then "remote"  else empty end),
+    (if $c | test("(^|[ ;&|(])(env|printenv)\\b")                                         then "env"     else empty end),
+    (if $c | test("(^|[ ;&|(])(pkill|kill)\\b")                                           then "kill"    else empty end)
+  ];
+
+  # Risk patterns over the whole command text. Heuristic (tier 2): a heredoc
+  # body that happens to contain "rm -rf" trips it too. One count per command.
+  def risk_kinds($c): [
+    (if $c | test("(^|[ ;&|(])rm +-[a-zA-Z]*[rf]|git +(-C +\\S+ +)?clean +-[a-zA-Z]*f")  then "delete"        else empty end),
+    (if $c | test("git +(-C +\\S+ +)?(reset +--hard|checkout +-- |restore\\b)")          then "discard"       else empty end),
+    (if $c | test("git +(-C +\\S+ +)?push\\b.*(--force|-f\\b|--delete)")                  then "force_push"    else empty end),
+    (if $c | test("(^|[ ;&|(])sudo\\b|chmod +777")                                        then "privilege"     else empty end),
+    (if $c | test("curl[^|\\n]*\\|\\s*(ba|z)?sh\\b")                                       then "pipe_to_shell" else empty end),
+    (if $c | test("--remote\\b.*\\b(UPDATE|DELETE|INSERT|DROP|ALTER)\\b")                  then "remote_write"  else empty end),
+    (if $c | test("(^|[ ;&|(])(pkill|kill +-9)\\b")                                        then "kill"          else empty end),
+    (if $c | test("--no-verify\\b")                                                        then "hooks_bypass"  else empty end),
+    (if $c | test("oauth_token|\\.aws/credentials|/hosts\\.yml|\\.wrangler/config|(^|[ ;&|(])(env|printenv)\\b *(\\||$)|(^|[ /])\\.env(\\.[a-z]+)?\\b") then "credentials" else empty end)
+  ];
+
+  # Typed prompts that push back. A word list (tier 3), so it under-counts and
+  # occasionally over-counts; するなら must not match するな.
+  def is_correction($t):
+    $t | test("いらない|いらん|不要|やめて|やめろ|違う|ちがう|戻して|やり直|だめ|ダメ|しないで|するな(?!ら)|勝手に|頼んでない|聞いてない|\\bdon.?t\\b|\\bdo not\\b|\\bstop\\b|\\bwrong\\b|\\brevert\\b|\\bundo\\b|not what I"; "i");
+
   reduce inputs as $r (
     {
       session_id: null, cwd: null, git_branch: null,
@@ -96,9 +138,14 @@ jq -n -c --arg path "$src" "${jq_defs}"'
       tools: {}, tool_results: {}, tool_result_bytes: {},
       errors: { bash_stderr: 0, interrupted: 0 },
       friction: { compactions: 0, interrupts: 0 },
+      denials: { rule: 0, classifier: 0, user: 0, hook: 0 },
+      retries_after_denial: 0,
+      risky: {}, risky_commands: 0,
+      interpreter_oneliners: 0, compound_cd: 0, absolute_bin: 0,
+      corrections: 0,
       skills: {},
       mode: null, permission_mode: null,
-      idmap: {}
+      idmap: {}, idcmd: {}, pending: []
     };
 
       (if $r.sessionId then .session_id = $r.sessionId else . end)
@@ -121,6 +168,7 @@ jq -n -c --arg path "$src" "${jq_defs}"'
     | (if is_prompt($r) then
            .user_turns += 1
          | (if is_interrupt(prompt_text($r)) then .friction.interrupts += 1 else . end)
+         | (if is_correction(prompt_text($r)) then .corrections += 1 else . end)
        else . end)
     # Each compaction means the context filled up once. Nine in one session is
     # a story the token totals alone do not tell.
@@ -139,6 +187,27 @@ jq -n -c --arg path "$src" "${jq_defs}"'
          | reduce (blocks($r.message) | select(.type == "tool_use")) as $t (.;
                .tools[$t.name] = ((.tools[$t.name] // 0) + 1)
              | .idmap[$t.id]   = $t.name
+             | (if $t.name == "Bash" then
+                  (($t.input.command // "") | tostring) as $c
+                  | .idcmd[$t.id] = $c
+                  # A denial is a decision. This is the check for it being
+                  # treated as an obstacle instead: the same attempt, same
+                  # intent class or same text, within the next three calls.
+                  | ([.pending[] | select(.left > 0)]) as $p
+                  | ($p | map(select(.cmd == $c or (((.classes - (.classes - intent($c))) | length) > 0)))) as $hit
+                  | .retries_after_denial += ($hit | length)
+                  | .pending = (($p - $hit) | map(.left -= 1))
+                  | (risk_kinds($c)) as $k
+                  | (if ($k | length) > 0
+                     then .risky_commands += 1
+                        | reduce $k[] as $kk (.; .risky[$kk] = ((.risky[$kk] // 0) + 1))
+                     else . end)
+                  # This repo forbids interpreter one-liners and compound cd;
+                  # an absolute /bin path is how a prefix rule gets sidestepped.
+                  | (if $c | test("(^|[ ;&|])(python3?|node|perl|ruby) +-[ce]\\b") then .interpreter_oneliners += 1 else . end)
+                  | (if ($c | split("\n")[0]) | test("^cd +[^;&|\n]*(&&|;)") then .compound_cd += 1 else . end)
+                  | (if $c | test("(^|[ ;&|])/(usr/)?bin/[a-z]+\\b") then .absolute_bin += 1 else . end)
+                else . end)
            )
        else . end)
 
@@ -152,6 +221,20 @@ jq -n -c --arg path "$src" "${jq_defs}"'
          | (.idmap[$tid] // "unknown") as $name
          | .tool_results[$name]      = ((.tool_results[$name] // 0) + 1)
          | .tool_result_bytes[$name] = ((.tool_result_bytes[$name] // 0) + ($r.toolUseResult | tojson | length))
+         # Denials live in the tool_result block, not in toolUseResult (which
+         # is then a bare string). Only a denied Bash call can be retried.
+         | (first(blocks($r.message) | select(.type == "tool_result")) // {}) as $blk
+         | (if $blk.is_error == true then
+              (($blk.content // "") | if type == "string" then . else (map(.text? // "") | join(" ")) end) as $txt
+              | (denial_kind($txt)) as $kind
+              | (if $kind != null then
+                   .denials[$kind] += 1
+                 | (if $name == "Bash" then
+                      (.idcmd[$tid] // "") as $dc
+                      | .pending += [{ cmd: $dc, classes: intent($dc), left: 3 }]
+                    else . end)
+                 else . end)
+            else . end)
          # toolUseResult is sometimes a bare string.
          | (if ($r.toolUseResult | type) == "object" then
                 (if $name == "Bash" and (($r.toolUseResult.stderr // "") | length) > 0
@@ -161,7 +244,7 @@ jq -n -c --arg path "$src" "${jq_defs}"'
        else . end)
   )
   | {
-      schema: 2,
+      schema: 3,
       source_path: $path,
       session_id, cwd, git_branch,
       cc_version,
@@ -172,6 +255,8 @@ jq -n -c --arg path "$src" "${jq_defs}"'
                      else null end),
       user_turns, assistant_turns, sidechain_turns,
       tokens, tools, tool_results, tool_result_bytes, errors, friction,
+      denials, retries_after_denial, risky, risky_commands,
+      interpreter_oneliners, compound_cd, absolute_bin, corrections,
       skills: (.skills | keys),
       mode, permission_mode
     }

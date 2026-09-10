@@ -35,7 +35,7 @@ usage: session-review [options]
                   them in makes every turns-per-prompt outlier a subagent.
   -h, --help      This message
 
-Cache lives in ${XDG_CACHE_HOME:-~/.cache}/session-review/v2/ -- outside the
+Cache lives in ${XDG_CACHE_HOME:-~/.cache}/session-review/v3/ -- outside the
 repo, because bin/ is symlinked into ~/.local/bin and writing derived data
 through that link would pollute the checkout.
 USAGE
@@ -58,7 +58,7 @@ if [ ! -d "$projects" ]; then
   exit 2
 fi
 
-cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/session-review/v2"
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/session-review/v3"
 mkdir -p "$cache_dir"
 
 summaries="$(mktemp)"
@@ -113,7 +113,20 @@ result="$(jq -n -c \
       bash_error_rate:    { tier: 1, value: (if (.tools.Bash // 0) > 0 then (.errors.bash_stderr / .tools.Bash) else null end) },
       interrupted:        { tier: 1, value: .errors.interrupted },
       compactions:        { tier: 1, value: (.friction.compactions // 0) },
-      interrupts:         { tier: 1, value: (.friction.interrupts // 0) }
+      interrupts:         { tier: 1, value: (.friction.interrupts // 0) },
+      # Permission and safety. Denials and retries come from result records
+      # (tier 1); risk and sidestep shapes are pattern matches on command text
+      # (tier 2); one-liners, compound cd and corrections are conventions of
+      # this repo and a word list (tier 3). No apostrophes in here: the whole
+      # program is a single-quoted shell string.
+      denials:              { tier: 1, value: ([.denials[]?] | add // 0) },
+      denials_user:         { tier: 1, value: (.denials.user // 0) },
+      retries_after_denial: { tier: 1, value: (.retries_after_denial // 0) },
+      risky_commands:       { tier: 2, value: (.risky_commands // 0) },
+      absolute_bin:         { tier: 2, value: (.absolute_bin // 0) },
+      interpreter_oneliners:{ tier: 3, value: (.interpreter_oneliners // 0) },
+      compound_cd:          { tier: 3, value: (.compound_cd // 0) },
+      corrections:          { tier: 3, value: (.corrections // 0) }
     };
 
   # A subagent run is written to its own agent-*.jsonl but carries the parent
@@ -188,6 +201,21 @@ result="$(jq -n -c \
       range: { from: ($rows | map(.started_at) | min), to: ($rows | map(.ended_at) | max) },
       repos: ($rows | group_by(.cwd) | map({ cwd: .[0].cwd, sessions: length }) | sort_by(-.sessions)),
       distributions: $dist,
+      # Sums, because most of these are zero in most sessions and a median of
+      # zero says nothing; what matters is how many happened at all, and where.
+      totals: {
+        denials: {
+          rule:       ($rows | map(.denials.rule       // 0) | add // 0),
+          classifier: ($rows | map(.denials.classifier // 0) | add // 0),
+          user:       ($rows | map(.denials.user       // 0) | add // 0),
+          hook:       ($rows | map(.denials.hook       // 0) | add // 0)
+        },
+        retries_after_denial: ($rows | map(.retries_after_denial // 0) | add // 0),
+        risky_by_kind: ($rows | map(.risky // {} | to_entries[]) | group_by(.key)
+                        | map({ (.[0].key): (map(.value) | add) }) | add // {}),
+        corrections: ($rows | map(.corrections // 0) | add // 0),
+        sessions_with_retries: ($rows | map(select((.retries_after_denial // 0) > 0)) | length)
+      },
       outliers: ($outliers | sort_by(.metric, -.value)),
       weeks: $weeks,
       missing_weeks: $missing_weeks
@@ -217,6 +245,12 @@ printf '%s\n' "$result" | jq -r '
     "  \("metric" | pad(22))\("tier" | pad(6))\("n" | pad(6))\("median" | pad(14))\("p90" | pad(14))max",
     (.distributions | to_entries[] | select(.value != null)
       | "  \(.key | pad(22))\(.value.tier | pad(6))\(.value.count | pad(6))\(.value.median | pad(14))\(.value.p90 | pad(14))\(.value.max)"),
+    "",
+    "permission & safety  (totals over the window)",
+    "  denials: rule=\(.totals.denials.rule) classifier=\(.totals.denials.classifier) user=\(.totals.denials.user) hook=\(.totals.denials.hook)",
+    "  retries after a denial: \(.totals.retries_after_denial) in \(.totals.sessions_with_retries) sessions  (a denial re-issued in another form)",
+    "  risky commands by kind: \(.totals.risky_by_kind | to_entries | map("\(.key)=\(.value)") | join(" ") | if . == "" then "none" else . end)",
+    "  corrections typed by the human: \(.totals.corrections)",
     "",
     "outliers  (past p90; open these first)",
     (if (.outliers | length) == 0 then "  none" else

@@ -87,16 +87,53 @@ What the human said is where friction shows: corrections, restatements of the
 same request, abandoned directions, visible irritation. Pull tool detail only
 for a specific question the human turns raise, and expect a prompt when you do.
 
-### 4. Report
+### 4. Permission and safety
+
+The report's `permission & safety` block is read separately from the
+distributions, because these events are rare: most sessions have zero, so a
+median says nothing and the totals are what carry the information.
+
+- **Denials by kind** — `rule` (a `permissions.ask` entry), `classifier` (auto
+  mode), `user` (declined at the prompt), `hook` (a guard script). A high
+  `rule` count is usually the configuration fighting itself: on this machine
+  most rule denials were `rm -rf` of the very `tmp/` directories `CLAUDE.md`
+  tells the agent to clean up.
+- **Retries after a denial** — a denied Bash call followed within three calls
+  by one of the same intent (`rm` → `git clean`, `reset --hard` → `reset`,
+  `--command "UPDATE"` → `--file`). **Any non-zero value is a finding.** A
+  denial is a decision; re-issuing it in another form is the behaviour this
+  metric exists to catch. Open every session it names and quote the pair.
+- **Risky commands by kind** — pattern matches: delete, discard, force_push,
+  privilege, pipe_to_shell, remote_write, kill, hooks_bypass, credentials.
+  Heuristic: a heredoc body containing `rm -rf` counts too. Treat the totals
+  as "look here", not as a verdict; `credentials` in particular deserves the
+  command text quoted, since a token read that was *not* denied is the case
+  that matters.
+- **Corrections** — typed prompts matching a push-back word list (いらない,
+  不要, やめて, don't, wrong, …). Under-counts, and the list has misfired
+  before. The value is the sessions it points at: read those turns and say
+  what was pushed back on — the dominant kind on this machine was unrequested
+  additions.
+- **Convention breaches** (`interpreter_oneliners`, `compound_cd`,
+  `absolute_bin`) — this repo's rules, counted so their trend is visible.
+  An `absolute_bin` (`/usr/bin/ssh`) is also how a prefix rule is sidestepped.
+
+### 5. Report
 
 Numbers first, then what they mean, then what to consider changing. Tie every
 claim to a transcript id so it can be checked. Mark which findings are limited
-by what the metrics can see.
+by what the metrics can see, and give the permission & safety findings their
+own section — they are the ones a reader will act on.
 
 ## Reading the numbers
 
 Each metric describes **how a session ran**, never how good its output was.
 Keep that distinction visible in the report.
+
+Every metric carries a tier, and the report must say which: **1** is a count
+over records and cannot be wrong about what it counts; **2** is a pattern
+match on command text and can misfire either way; **3** is a convention of
+this repo or a word list, meaningful here and nowhere else.
 
 - **`assistant_per_user`** — turns per human prompt. High means long autonomous
   stretches, which is often exactly what was wanted. It is worth attention only
