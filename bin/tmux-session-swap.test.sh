@@ -70,6 +70,14 @@ tty_on() { tmux list-clients -f "#{==:#{client_session},$1}" -F '#{client_tty}' 
 where() { tmux list-clients -f "#{==:#{client_tty},$1}" -F '#{client_session}'; }
 # Sessions holding more than one client, one per line. Must always be empty.
 doubled() { tmux list-sessions -f '#{>:#{session_attached},1}' -F '#{session_name}'; }
+# How many clients a session holds. Used where the interesting fact is that
+# *somebody* moved, rather than which particular client did.
+#
+# list-sessions, not `display-message -p -t "=$1"`: display-message expands a
+# session format against a *client*, so with nothing attached to the session it
+# prints an empty string and exits 0 rather than "0". That reads as a passing
+# comparison against another empty string, which is the wrong kind of quiet.
+attached_on() { tmux list-sessions -f "#{==:#{session_name},$1}" -F '#{session_attached}'; }
 
 tmux -f /dev/null new-session -d -s alpha "$IDLE"
 tmux set -g default-command "$IDLE"
@@ -111,8 +119,26 @@ t "same session: nothing moves"                 "$before" "$(where "$ttyA")"
 t "same session: no session has two clients"    ""        "$(doubled)"
 
 # --- without an arm it degrades to a plain switch, not to nothing -----------
+#
+# The exit status proves nothing on its own: that branch ends in an
+# unconditional `exit 0` and sends switch-client's own status to /dev/null, so
+# an assertion on $? passes even when the branch does nothing whatsoever --
+# confirmed by replacing its body with `:`, which left the suite green. What is
+# actually observable is that the target session gains a client.
+#
+# The assertion is on the target, not on a particular tty, because *which*
+# client moves is tmux's decision rather than this script's: there is no
+# recorded tty to move, so `switch-client` with no -c resolves the current
+# client itself (measured here: the most recently attached one).
+#
+# A session of its own, rather than one of the sessions above, so the case does
+# not depend on where the previous cases happened to leave the two clients.
+tmux new-session -d -s spare "$IDLE"
 rm -f "$XDG_STATE_HOME/tmux-session-swap/armed"
-t "unarmed: the key still does something"       "0"       "$("$SCRIPT" go idle >/dev/null 2>&1; echo $?)"
+before_spare=$(attached_on spare)
+"$SCRIPT" go spare >/dev/null 2>&1
+t "unarmed: exits cleanly"                      "0"       "$?"
+t "unarmed: the target session gains a client"  "0 -> 1"  "$before_spare -> $(attached_on spare)"
 
 # --- a target that no longer exists is ignored rather than erroring ---------
 pos=$(where "$ttyA")
