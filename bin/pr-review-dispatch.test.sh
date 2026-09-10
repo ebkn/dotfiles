@@ -149,9 +149,10 @@ session() {
       messagingSocketPath:$sock}' > "$SESS/$1.json"
 }
 
-make_job() { # make_job [worktree]
-  jq -n --arg wt "${1:-$WT}" '{
-    repo:"acme/widget", pr:42, url:"https://github.com/acme/widget/pull/42",
+make_job() { # make_job [worktree] [pr]
+  local pr=${2:-42}
+  jq -n --arg wt "${1:-$WT}" --argjson pr "$pr" '{
+    repo:"acme/widget", pr:$pr, url:("https://github.com/acme/widget/pull/" + ($pr|tostring)),
     title:"a title", branch:"feature/x", worktree:$wt, sessionId:"sess-1",
     status:"pending",
     seen:["review:11","issue:31"],
@@ -161,10 +162,11 @@ make_job() { # make_job [worktree]
       {id:"review:12", kind:"review", author:"carol", state:"CHANGES_REQUESTED", path:"a/b.ts", line:9,
        body:"", at:"2026-09-07T10:00:05Z"}
     ],
-    updatedAt:"2026-09-07T10:00:09Z"}' > "$STATE/jobs/acme__widget__42.json"
+    updatedAt:"2026-09-07T10:00:09Z"}' > "$STATE/jobs/acme__widget__$pr.json"
 }
 
 job() { jq -r "$1" "$STATE/jobs/acme__widget__42.json"; }
+jobf() { jq -r "$2" "$STATE/jobs/acme__widget__$1.json"; }  # jobf <pr> <filter>
 reset() { /bin/rm -f "$STATE"/jobs/* "$SESS"/*.json "$TMP"/wire-* "$TMP/resume.log" "$TMP/resume.fail"; }
 
 run() {
@@ -325,6 +327,49 @@ eq "a renamed socket field still holds the job" "pending" "$(job .status)"
 has "it names the field" "$out" "messagingSocketPath"
 has "it says delivery is dead, not just this job" "$out" "Nothing can be delivered"
 has "it names both causes rather than asserting one" "$out" "bare mode"
+
+# --- a queue with more than one job -----------------------------------------
+# Everything above runs with exactly one job, which left the program's actual
+# subject -- a QUEUE -- untested: the loop, both counters, the summary, and a run
+# where one job succeeds and another does not.
+
+printf 'multiple jobs\n'
+reset
+INNER=$(spawn_holder); OUTER=$(spawn_holder)
+listen "$TMP/s-in.sock" "$TMP/wire-in" || no "inner listener came up"
+listen "$TMP/s-out.sock" "$TMP/wire-out" || no "outer listener came up"
+# The INNER session is deliberately the NEWER one. Under the containment rule
+# this replaced, the outer checkout is a string prefix of the inner worktree, so
+# a job on the outer matched both and newest-won -- delivering to the wrong
+# branch. Longest-prefix has to send each job to the session at its own worktree.
+session outer "$OUTER" "$REPO" "$TMP/s-out.sock" 100
+session inner "$INNER" "$WT"   "$TMP/s-in.sock"  999
+make_job "$WT"   42
+make_job "$REPO" 43
+out=$(run)
+settle "$TMP/wire-in"  || no "nothing reached the inner session"
+settle "$TMP/wire-out" || no "nothing reached the outer session"
+eq "both jobs are delivered" "delivered delivered" "$(jobf 42 .status) $(jobf 43 .status)"
+has "the inner job went to the inner session" "$(jq -r .message.content < "$TMP/wire-in")" "pull/42"
+has "the outer job went to the outer session" "$(jq -r .message.content < "$TMP/wire-out")" "pull/43"
+has "the summary counts both" "$out" "delivered 2 job(s)"
+
+# One delivered, one held in the same run: the ordinary state of a real queue,
+# and the only case that exercises both counters at once.
+printf 'mixed outcomes\n'
+reset
+PID=$(spawn_holder)
+listen "$TMP/s-mix.sock" "$TMP/wire-mix" || no "listener came up"
+session live "$PID" "$WT" "$TMP/s-mix.sock" 100
+make_job "$WT"   42   # deliverable
+make_job "$REPO" 43   # no session at the outer checkout this time
+out=$(run)
+settle "$TMP/wire-mix" || no "nothing reached the socket"
+eq "the deliverable job is delivered" "delivered" "$(jobf 42 .status)"
+eq "the undeliverable job is left queued" "pending" "$(jobf 43 .status)"
+eq "and keeps its items" "2" "$(jobf 43 '.pending | length')"
+has "the summary counts the delivery" "$out" "delivered 1 job(s)"
+has "the summary counts the hold" "$out" "held 1 job(s)"
 
 # --- worktree ownership -----------------------------------------------------
 # The longest-prefix rule from pr-review-common.sh, which nesting makes
