@@ -61,7 +61,23 @@ pass=0
 fail=0
 
 ok()   { pass=$((pass + 1)); printf '  ok   %s\n' "$1"; }
-bad()  { fail=$((fail + 1)); printf '  FAIL %s\n' "$1"; }
+# A failure names its section. Most assertions here are made through assert_opt,
+# whose message can only describe a value -- "@claude_state want=[waiting]
+# got=[busy]" says nothing about which of the twenty-odd scenarios produced it,
+# and this file is one long script rather than a set of named cases.
+bad()  { fail=$((fail + 1)); printf '  FAIL [%s] %s\n' "$current_section" "$1"; }
+
+# Sections are also the reset point. Every one of them starts from a pane and a
+# record set that are empty, so a case cannot silently inherit state from the
+# case above it -- which used to mean four stale pane options and now means a
+# whole set of subagent records. Cases that want to build on something set it up
+# themselves, below the header.
+current_section="<none>"
+section() {
+  current_section=$1
+  run clear
+  printf -- '-- %s --\n' "$1"
+}
 
 # show-options prints a trailing newline and the glyph carries a meaningful
 # trailing space, so a bare $(...) would eat exactly the character under test.
@@ -99,13 +115,13 @@ assert_exit_zero() {
 
 notify_json() { jq -cn --arg t "$1" --arg m "${2-}" '{notification_type:$t, message:$m}'; }
 
-echo "-- no tmux context: publishes nothing, never fails --"
+section "no tmux context: publishes nothing, never fails"
 out=$(TMUX='' TMUX_PANE='' "$HOOK" busy 2>&1); assert_exit_zero "TMUX unset" $?
 if [[ -z "$out" ]]; then ok "no output without tmux"; else bad "unexpected output: $out"; fi
 out=$(TMUX="$TMUX_ENV" TMUX_PANE='' "$HOOK" busy 2>&1); assert_exit_zero "TMUX_PANE unset" $?
 assert_opt @claude_state ''
 
-echo "-- busy --"
+section "busy"
 run busy; assert_exit_zero "busy" $?
 assert_opt @claude_state busy
 # The separator is per-glyph, not uniform: 🔶 🛑 🔘 are emoji-presentation and
@@ -120,7 +136,7 @@ else
   bad "@claude_since not a fresh epoch: [$since]"
 fi
 
-echo "-- notify: types that mean 'a dialog is open' --"
+section "notify: types that mean 'a dialog is open'"
 for t in permission_prompt elicitation_dialog elicitation_url_dialog; do
   run clear
   run notify "$(notify_json "$t" "waiting on $t")"
@@ -129,14 +145,14 @@ for t in permission_prompt elicitation_dialog elicitation_url_dialog; do
 done
 assert_opt @claude_glyph '🛑'
 
-echo "-- notify: a background agent blocked on the human --"
+section "notify: a background agent blocked on the human"
 run clear
 run notify "$(notify_json agent_needs_input 'reviewer needs your input')"
 assert_opt @claude_state stalled
 assert_opt @claude_glyph '🔘'
 assert_opt @claude_note 'reviewer needs your input'
 
-echo "-- ask: the AskUserQuestion dialog --"
+section "ask: the AskUserQuestion dialog"
 run clear
 run ask '{"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"Which  glyph\nwins?"},{"question":"ignored"}]}}'
 assert_exit_zero "ask" $?
@@ -153,7 +169,7 @@ run ask 'not json at all'; assert_exit_zero "ask with malformed stdin" $?
 assert_opt @claude_state asking
 assert_opt @claude_note ''
 
-echo "-- precedence: nothing may demote an open dialog --"
+section "precedence: nothing may demote an open dialog"
 # One AskUserQuestion dialog fires PreToolUse *and*, after a delay, a
 # permission_prompt Notification indistinguishable from a tool's. Verified
 # against 2.1.247: both send {"notification_type":"permission_prompt",
@@ -210,7 +226,7 @@ for from in asking waiting; do
   if [[ "$got" == busy ]]; then ok "busy clears $from"; else bad "busy left $from as [$got]"; fi
 done
 
-echo "-- notify: informational types must not stick --"
+section "notify: informational types must not stick"
 # Set busy first: the bug this guards is an informational notification
 # overwriting a live state, not merely failing to set one.
 for t in auth_success agent_completed idle_prompt elicitation_result elicitation_url_result '' unknown_future_type; do
@@ -224,7 +240,7 @@ for t in auth_success agent_completed idle_prompt elicitation_result elicitation
   fi
 done
 
-echo "-- notify: message handling --"
+section "notify: message handling"
 run clear
 run notify "$(notify_json permission_prompt $'Bash command\n  wants   to run\trm -rf')"
 assert_opt @claude_note 'Bash command wants to run rm -rf'
@@ -241,7 +257,7 @@ run busy
 assert_opt @claude_note ''
 assert_opt @claude_state busy
 
-echo "-- notify: malformed input degrades quietly --"
+section "notify: malformed input degrades quietly"
 run busy
 run notify 'not json at all'; assert_exit_zero "malformed stdin" $?
 assert_opt @claude_state busy
@@ -249,26 +265,26 @@ run busy
 run notify ''; assert_exit_zero "empty stdin" $?
 assert_opt @claude_state busy
 
-echo "-- done: the Stop transition publishes stalled --"
+section "done: the Stop transition publishes stalled"
 run 'done'; assert_exit_zero 'done' $?
 assert_opt @claude_state stalled
 assert_opt @claude_glyph '🔘'
 
-echo "-- clear --"
+section "clear"
 run notify "$(notify_json permission_prompt 'something')"
 run clear; assert_exit_zero "clear" $?
 for opt in @claude_state @claude_glyph @claude_since @claude_note; do
   assert_opt "$opt" ''
 done
 
-echo "-- unknown mode / no mode --"
+section "unknown mode / no mode"
 run busy
 run bogus_mode; assert_exit_zero "unknown mode" $?
 assert_opt @claude_state busy
 TMUX="$TMUX_ENV" TMUX_PANE="$PANE" "$HOOK" </dev/null; assert_exit_zero "no mode" $?
 assert_opt @claude_state busy
 
-echo "-- every glyph is emoji-presentation on its own, never VS16 --"
+section "every glyph is emoji-presentation on its own, never VS16"
 # A base character promoted with VS16 (U+FE0F) is one cell in some terminals and
 # two in others. ⚠️ (U+26A0 U+FE0F) was tried for `asking` and visibly misaligned
 # the tab title, so the orange diamond stands in for it. Both consumers bake the
@@ -288,7 +304,7 @@ run clear; run ask '{"tool_input":{"questions":[{"question":"q"}]}}'; check_no_v
 run clear; run notify "$(notify_json permission_prompt 'p')"; check_no_vs16 waiting
 run 'done'; check_no_vs16 stalled
 
-echo "-- several actors in one pane --"
+section "several actors in one pane"
 # Hooks fire inside subagents too, carrying agent_id/agent_type, so one pane can
 # hold the main thread plus one state per running subagent. These cases are the
 # reason the hook keeps per-actor records at all: the published options are a
@@ -328,7 +344,7 @@ run busy "$(agent_json A Explore)"
 assert_opt @claude_state busy
 assert_opt @claude_glyph '▶ '
 
-echo "-- precedence across actors: blocked outranks running --"
+section "precedence across actors: blocked outranks running"
 for blocked in asking waiting; do
   run clear
   run subagent-start "$(agent_json A Explore)"
@@ -356,7 +372,7 @@ run ask "$(jq -cn '{agent_id:"A", agent_type:"Explore",
 assert_opt @claude_state asking
 assert_opt @claude_note 'Explore: pick one'
 
-echo "-- ties go to the actor blocked longest --"
+section "ties go to the actor blocked longest"
 run clear
 run subagent-start "$(agent_json A Explore)"
 run notify "$(agent_json A Explore permission_prompt 'older')"
@@ -369,7 +385,7 @@ run notify "$(notify_json permission_prompt 'newer')"
 assert_opt @claude_since "$older"
 assert_opt @claude_note 'Explore: older'
 
-echo "-- SubagentStop is what removes an actor --"
+section "SubagentStop is what removes an actor"
 run clear
 run busy                                    # main busy
 run subagent-start "$(agent_json A Explore)"
@@ -405,7 +421,7 @@ else
   bad "Stop left $count actors, want 3 (main + two subagents)"
 fi
 
-echo "-- concurrent actors: the hook races with itself --"
+section "concurrent actors: the hook races with itself"
 # Subagents launched in one message fire SubagentStart simultaneously, so several
 # copies of the hook derive and publish at once. Everything else in this file is
 # sequential and cannot see that. Before publish() re-derived after writing, a
@@ -508,7 +524,7 @@ else
   bad "the single-actor shortcut republished unexpectedly: [$got]"
 fi
 
-echo "-- @claude_agents: one entry per actor, readable from a format --"
+section "@claude_agents: one entry per actor, readable from a format"
 run clear
 run busy
 run subagent-start "$(agent_json A Explore)"
@@ -539,7 +555,7 @@ fi
 run clear
 assert_opt @claude_agents ''
 
-echo "-- the hot path stays cheap --"
+section "the hot path stays cheap"
 # These are behavioural assertions about *cost*, and cost is the one property
 # here that no functional test can notice: break any of them and every other
 # case in this file still passes, the hook just taxes the inner agent loop.
@@ -602,7 +618,7 @@ else
   bad "busy spawned jq $(count_calls jq) time(s) with a subagent registered"
 fi
 
-echo "-- free text cannot forge a record separator --"
+section "free text cannot forge a record separator"
 # The notes come from a permission prompt, a question, or an MCP server's
 # elicitation dialog, and the last of those is third-party text. RS and US were
 # chosen as separators because no *printable* delimiter is safe inside a note —
@@ -634,7 +650,7 @@ else
   bad "a note forged $count records out of one actor"
 fi
 
-echo "-- attribution comes from the top-level key, never from tool output --"
+section "attribution comes from the top-level key, never from tool output"
 # PostToolBatch carries the content of every tool result in the batch, so a file
 # the agent just read can contain the *text* "agent_id". Attributing on a shell
 # regex over the raw payload would file the main thread's state under a subagent
