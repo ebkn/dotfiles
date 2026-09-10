@@ -237,7 +237,7 @@ eq "a dead newer session does not shadow a live one" "delivered" "$(job .status)
 eq "the live session got it" "user" "$(jq -r .type < "$WIRE" 2>/dev/null)"
 eq "the dead session's socket got nothing" "" "$(cat "$TMP/wire-4dead" 2>/dev/null)"
 
-# A session with no socket bound (bare mode binds none) is not a target.
+# A session whose socket path names a file that is not there is not a target.
 reset
 PID=$(spawn_holder)
 session nosock "$PID" "$WT" "$TMP/absent.sock" 100
@@ -246,6 +246,29 @@ out=$(run)
 eq "a session with no socket holds" "pending" "$(job .status)"
 eq "and keeps its items" "2" "$(job '.pending | length')"
 has "and says why" "$out" "no live session"
+# One session missing its socket file is ordinary, so this must NOT raise the
+# schema alarm below -- the entry does carry the field.
+case "$out" in
+  *messagingSocketPath*) no "a missing socket file does not raise the schema alarm" "[$out]" ;;
+  *) ok "a missing socket file does not raise the schema alarm" ;;
+esac
+
+# The registry field disappearing is the failure that would otherwise be
+# invisible: the list comes back empty, which looks exactly like "nothing is
+# running", so every job holds as "no live session" and the pipeline stops for
+# good in silence. Entries existing while none carries the field is the shape
+# that tells the two apart.
+reset
+PID=$(spawn_holder)
+jq -n --argjson pid "$PID" --arg cwd "$WT" \
+  '{pid:$pid, sessionId:"s", name:"s", cwd:$cwd, kind:"interactive",
+    startedAt:100, status:"idle", inboxSocket:"/renamed/away.sock"}' > "$SESS/renamed.json"
+make_job
+out=$(run)
+eq "a renamed socket field still holds the job" "pending" "$(job .status)"
+has "it names the field" "$out" "messagingSocketPath"
+has "it says delivery is dead, not just this job" "$out" "Nothing can be delivered"
+has "it names both causes rather than asserting one" "$out" "bare mode"
 
 # --- worktree ownership -----------------------------------------------------
 # The longest-prefix rule from pr-review-common.sh, which nesting makes

@@ -143,9 +143,34 @@ fi
 # would accept a session whose socket never bound (bare mode binds none), and a
 # leftover socket file alone would accept a crashed one.
 live_sessions_json() {
-  local all live_pids pid sock
+  local all live_pids pid sock n_all n_sock
   all=$(jq -s '[ .[] | select(.kind == "interactive") ]' "$SESSIONS_DIR"/*.json 2>/dev/null) || all='[]'
   [ -n "$all" ] || all='[]'
+
+  # The one breakage this program could not otherwise report.
+  #
+  # Posting to a session's socket is a documented use, but finding ANOTHER
+  # session's socket has no documented API at all -- `/status` and
+  # $CLAUDE_CODE_MESSAGING_SOCKET both only ever name the asking session's own.
+  # So the lookup goes through `messagingSocketPath` in Claude Code's registry
+  # files, which is undocumented internal state. If that field is renamed the
+  # list comes back empty, and an empty list is **indistinguishable from nothing
+  # running**: every job reports "no live session" and the pipeline stops
+  # delivering for good, with nothing anywhere saying why.
+  #
+  # Registry entries existing while none of them carries the field is the shape
+  # that distinguishes the two, so say so. It cannot separate a rename from a
+  # machine whose every session runs in bare mode (which binds no inbox), so it
+  # names both rather than asserting the one.
+  n_all=$(printf '%s' "$all" | jq 'length' 2>/dev/null) || n_all=0
+  n_sock=$(printf '%s' "$all" | jq '[ .[] | select(.messagingSocketPath) ] | length' 2>/dev/null) || n_sock=0
+  if [ "${n_all:-0}" -gt 0 ] && [ "${n_sock:-0}" -eq 0 ]; then
+    printf 'pr-review-dispatch: %s lists %s interactive session(s), none with a messagingSocketPath.\n' \
+      "$SESSIONS_DIR" "$n_all" >&2
+    printf '  Nothing can be delivered, and every job below will hold as "no live session".\n' >&2
+    printf '  Either every session runs without an inbox (bare mode), or that field -- which is\n' >&2
+    printf '  undocumented internal state -- was renamed. Check one of %s/*.json.\n' "$SESSIONS_DIR" >&2
+  fi
 
   live_pids=$(
     printf '%s' "$all" |
