@@ -320,8 +320,12 @@ if run_picker; then
   else
     fail "actor rows join the same ranking as pane rows" "first row is $first"
   fi
-  explore_pos=$(cut -f2- "$work/list" | grep -n 'Explore' | cut -d: -f1)
-  busy_pos=$(cut -f2- "$work/list" | grep -n 'busy-old' | cut -d: -f1)
+  # head -1 on both: a second match -- a note that happens to mention Explore --
+  # would make these two line numbers instead of one, and the comparison below
+  # then dies with "integer expression expected" rather than saying anything
+  # about ranking.
+  explore_pos=$(cut -f2- "$work/list" | grep -n 'Explore' | head -1 | cut -d: -f1)
+  busy_pos=$(cut -f2- "$work/list" | grep -n 'busy-old' | head -1 | cut -d: -f1)
   if [ "$explore_pos" -lt "$busy_pos" ]; then
     pass "a blocked subagent outranks a busy pane"
   else

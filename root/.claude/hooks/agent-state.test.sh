@@ -524,6 +524,59 @@ else
   bad "the single-actor shortcut republished unexpectedly: [$got]"
 fi
 
+section "an actor's timestamp is when it entered the state"
+# The age column in the picker means "how long has it been like this", which is
+# the only reading that is useful for a pane blocked for an hour. Re-recording an
+# unchanged state must therefore keep its timestamp -- and this is the busy path,
+# which fires on every tool batch, so a restamp here would peg every age at 0s.
+# Pinned for `stalled` further up (through idle_prompt) but not for the state
+# that actually repeats.
+run busy
+since_busy=$(get_opt @claude_since)
+sleep 1
+run busy
+if [[ "$(get_opt @claude_since)" == "$since_busy" ]]; then
+  ok "a repeated busy does not restamp @claude_since"
+else
+  bad "a repeated busy restamped @claude_since"
+fi
+# ...but a real transition does, or the age would describe the wrong state.
+run 'done'
+if [[ "$(get_opt @claude_since)" != "$since_busy" ]]; then
+  ok "a change of state does restamp it"
+else
+  bad "busy -> stalled kept the old @claude_since"
+fi
+
+section "the pane empties when the last actor goes"
+# Reached only through subagent-stop: `clear` wipes the directory outright, so
+# the empty-derivation path -- records exist, none of them survives -- has no
+# other caller. Its failure is a pane keeping a glyph for an agent that ended.
+run subagent-start "$(agent_json A Explore)"
+assert_opt @claude_state busy
+run subagent-stop "$(agent_json A Explore)"
+for opt in @claude_state @claude_glyph @claude_since @claude_note @claude_agents; do
+  assert_opt "$opt" ''
+done
+
+section "a long note is truncated with its label, not around it"
+# The label leads the note, so the two share the 120-character budget: truncating
+# the note first and prefixing afterwards would push the option past what a title
+# can hold, on exactly the rows that already have the least room.
+run subagent-start "$(agent_json A Explore)"
+long=$(printf 'y%.0s' {1..300})
+run notify "$(agent_json A Explore permission_prompt "$long")"
+note=$(get_opt @claude_note)
+if [[ ${#note} -eq 120 ]]; then
+  ok "the labelled note is 120 characters, label included"
+else
+  bad "the labelled note is ${#note} characters, want 120"
+fi
+case "$note" in
+  'Explore: '*) ok "the label survives the truncation" ;;
+  *) bad "the label was truncated away: [${note:0:20}...]" ;;
+esac
+
 section "@claude_agents: one entry per actor, readable from a format"
 run clear
 run busy
