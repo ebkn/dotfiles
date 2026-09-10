@@ -556,6 +556,7 @@
   },
   "effortLevel": "medium",
   "fastMode": true,
+  "askUserQuestionTimeout": "never",
   "autoUpdatesChannel": "latest",
   "tui": "fullscreen",
   "voice": {
@@ -563,9 +564,11 @@
     "mode": "hold"
   },
   "prefersReducedMotion": true,
+  "autoMemoryEnabled": false,
   "skipWorkflowUsageWarning": true,
   "theme": "dark-ansi",
   "editorMode": "normal",
+  "preferredNotifChannel": "auto",
   "remoteControlAtStartup": true,
   "agentPushNotifEnabled": false,
   "skipAutoPermissionPrompt": true,
