@@ -248,6 +248,102 @@ check_key_state "the key carries the state, for the ctrl-o gate" asking-new aski
 check_key_state "the key carries the state for a waiting row" waiting-old waiting
 check_key_state "the key carries the state for a busy row" busy-new busy
 
+# --- one row per actor ---------------------------------------------------------
+
+# A pane running subagents holds several states at once, and agent-state.sh
+# publishes them as @claude_agents alongside the aggregate. Expanding that into
+# a row each is the whole reason the picker exists in a world with subagents:
+# with only the aggregate, three agents where one is blocked look exactly like
+# three agents where none is, and the tab glyph already told you that much.
+RS=$'\036'
+US=$'\037'
+
+tmux -L "$socket" new-window -t work -n multi-win "$IDLE"
+multi_pane=$(tmux -L "$socket" list-panes -t work:multi-win -F '#{pane_id}' | head -1)
+# The aggregate, as the hook would publish it: the blocked subagent wins.
+tmux -L "$socket" set-option -p -t "$multi_pane" @claude_state waiting
+tmux -L "$socket" set-option -p -t "$multi_pane" @claude_since "$((now - 300))"
+multi_listing="busy${US}$((now - 5))${US}${US}${RS}"
+multi_listing+="waiting${US}$((now - 300))${US}Explore${US}needs permission${RS}"
+multi_listing+="busy${US}$((now - 20))${US}Plan${US}${RS}"
+# A record with no state is not an actor, and must be skipped rather than
+# rendered as a plausible grey circle with no age. Only the hook writes this
+# option, so the way one arrives is truncation or a stray writer -- but the row
+# it produces looks exactly like a real agent, which is why it is pinned.
+multi_listing+="${US}$((now - 10))${US}${US}${RS}"
+tmux -L "$socket" set-option -p -t "$multi_pane" @claude_agents "$multi_listing"
+
+if run_picker; then
+  rows=$(grep -c 'multi-win' "$work/list" || true)
+  if [ "$rows" -eq 3 ]; then
+    pass "a pane with three actors contributes three rows, and the state-less record none"
+  else
+    fail "a pane with three actors contributes three rows, and the state-less record none" \
+      "got $rows" "$(grep 'multi-win' "$work/list")"
+  fi
+
+  # The aggregate must not be emitted on top of the listing: it is derived from
+  # exactly those records, so a fourth row would be one of them counted twice.
+  agg=$(grep 'multi-win' "$work/list" | grep -c 'needs permission' || true)
+  if [ "$agg" -eq 1 ]; then
+    pass "the aggregate is not listed again beside the actors it summarises"
+  else
+    fail "the aggregate is not listed again beside the actors it summarises" "got $agg rows"
+  fi
+
+  # The key carries the *actor's* state, not the pane's aggregate: ctrl-o is
+  # offered per row, and a busy subagent's row must not inherit the right to
+  # answer a dialog belonging to a different actor in the same pane.
+  blocked_key=$(grep 'multi-win' "$work/list" | grep -F 'Explore' | head -1 | cut -f1)
+  case "$blocked_key" in
+    *'|waiting') pass "an actor row's key carries that actor's state" ;;
+    *) fail "an actor row's key carries that actor's state" "key: ${blocked_key:-<missing>}" ;;
+  esac
+  running_key=$(grep 'multi-win' "$work/list" | grep -F 'Plan' | head -1 | cut -f1)
+  case "$running_key" in
+    *'|busy') pass "a running actor's row is not keyed as blocked" ;;
+    *) fail "a running actor's row is not keyed as blocked" "key: ${running_key:-<missing>}" ;;
+  esac
+
+  blocked=$(grep 'multi-win' "$work/list" | grep -F 'Explore' | cut -f2-)
+  case "$blocked" in
+    '🛑 '*) pass "the blocked subagent keeps its own glyph, not the pane's" ;;
+    *) fail "the blocked subagent keeps its own glyph, not the pane's" "row: ${blocked:-<missing>}" ;;
+  esac
+  case "$blocked" in
+    *"multi-win [Explore]"*"needs permission"*)
+      pass "the row names which subagent it is and carries its note"
+      ;;
+    *) fail "the row names which subagent it is and carries its note" "row: ${blocked:-<missing>}" ;;
+  esac
+
+  # Ranking is per actor too: the blocked subagent sorts above every busy row,
+  # including the two from its own pane. Anything else and the row that needs a
+  # human is below the fold, which is the failure this picker exists to prevent.
+  first=$(cut -f2- "$work/list" | head -1 | awk '{ print $4 }')
+  if [ "$first" = "waiting-old" ]; then
+    pass "actor rows join the same ranking as pane rows"
+  else
+    fail "actor rows join the same ranking as pane rows" "first row is $first"
+  fi
+  # head -1 on both: a second match -- a note that happens to mention Explore --
+  # would make these two line numbers instead of one, and the comparison below
+  # then dies with "integer expression expected" rather than saying anything
+  # about ranking.
+  explore_pos=$(cut -f2- "$work/list" | grep -n 'Explore' | head -1 | cut -d: -f1)
+  busy_pos=$(cut -f2- "$work/list" | grep -n 'busy-old' | head -1 | cut -d: -f1)
+  if [ "$explore_pos" -lt "$busy_pos" ]; then
+    pass "a blocked subagent outranks a busy pane"
+  else
+    fail "a blocked subagent outranks a busy pane" "Explore at $explore_pos, busy-old at $busy_pos"
+  fi
+else
+  fail "the per-actor path produces a list" "fzf stub was never reached"
+fi
+
+# Back to the aggregate-only fixture: the remote and empty cases below assume it.
+tmux -L "$socket" kill-window -t work:multi-win 2>/dev/null
+
 # --- remote hosts -------------------------------------------------------------
 
 # The remote path had no coverage while it was an awk pass over a second pane
@@ -272,6 +368,15 @@ echo "\$cmd" >>"$work/ssh-calls"
 fmt=\${cmd#*-F \'}
 prefix=\${fmt%%#\{*}
 printf '%s%s\t@9\t%%9\tremote-win\tasking\t%s\tremote note\n' "\$prefix" remote-sess $((now - 900))
+# A second remote pane, running subagents. The per-actor listing has to survive
+# the format expansion done by the *remote* tmux and the ssh transport, which is
+# the one thing no local case can check -- and its separators are control
+# characters, so a transport that scrubbed them would fail here and nowhere else.
+# The separators live in the *format*, never in an argument: printf expands
+# escapes in the format string only, so a '\037' passed as %s arrives as four
+# literal characters and the record silently keeps its separator as text.
+printf '%s%s\t@8\t%%8\tremote-multi\twaiting\t%s\tremote block\tbusy\037%s\037\037\036waiting\037%s\037Explore\037remote block\036\n' \\
+  "\$prefix" remote-sess $((now - 120)) $((now - 60)) $((now - 120))
 STUB
 chmod +x "$work/stub/ssh"
 
@@ -294,6 +399,24 @@ if run_picker; then
   case "$remote_row" in
     *"remote note"*) pass "the remote row keeps every column, note included" ;;
     *) fail "the remote row keeps every column, note included" "row: ${remote_row:-<missing>}" ;;
+  esac
+
+  # The per-actor listing over ssh. Its separators are control characters, so
+  # this is also the only case that would notice a transport scrubbing them.
+  multi_rows=$(cut -f2- "$work/list" | grep -c 'remote-multi' || true)
+  if [ "$multi_rows" = 2 ]; then
+    pass "a remote pane's actors are expanded into a row each"
+  else
+    fail "a remote pane's actors are expanded into a row each" "got $multi_rows row(s)" \
+      "$(cut -f2- "$work/list" | grep 'remote-multi')"
+  fi
+  remote_agent_row=$(cut -f2- "$work/list" | grep 'remote-multi \[Explore\]' | head -1)
+  case "$remote_agent_row" in
+    '🛑 '*bakery*'remote block'*)
+      pass "the remote subagent keeps its glyph, host and note"
+      ;;
+    *) fail "the remote subagent keeps its glyph, host and note" \
+      "row: ${remote_agent_row:-<missing>}" ;;
   esac
 
   calls=$(wc -l <"$work/ssh-calls" | tr -d ' ')
