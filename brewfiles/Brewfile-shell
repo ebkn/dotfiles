@@ -25,6 +25,11 @@ brew 'ripgrep'
 # linter
 brew 'shellcheck'
 
+# shell formatter (bin/lint-shell enforces `shfmt -i 2 -ci`)
+# Keep the version in step with the pin in .github/workflows/lint-and-test.yml,
+# or local and CI disagree about what "formatted" means.
+brew 'shfmt'
+
 # static analysis (security)
 brew 'semgrep'
 
