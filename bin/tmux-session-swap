@@ -3,34 +3,21 @@
 # tmux-session-swap: keep "one client per session" when switching sessions.
 #
 # The whole setup here rests on one WezTerm tab == one tmux client == one tmux
-# session. tmux itself does not enforce that: switch-client happily puts a
+# session, which tmux itself does not enforce: switch-client happily puts a
 # second client on a session another client already shows, and the two then
-# mirror each other -- same window, same cursor, one tab's keystrokes moving the
-# other tab's pane. Picking an "unattached" session in choose-tree is the only
-# case that is safe by construction, and it is the case that leaves the session
-# you came *from* unattached instead, ready for the next pick to double up on.
-#
-# So `w` does not switch, it *swaps*: the client that owns the chosen session
-# (if any) is moved to the session the picker is leaving, and only then is the
-# picker moved to its choice. Both tabs stay bound to exactly one session and no
-# session is orphaned.
+# mirror each other. So `w` does not switch, it *swaps* -- the client that owns
+# the chosen session is moved to the session the picker is leaving, and only
+# then is the picker moved to its choice.
 #
 # On the remote side this also keeps bin/tmux-track-session's per-connection
-# binding single-valued -- two connections converging on one session is what
-# made a reconnect land two WezTerm tabs on the same remote session.
+# binding single-valued.
 #
 # Subcommands (both called from the `w` binding in .tmux.conf):
 #   arm <client_tty>   record the picking client before choose-tree opens
 #   go  <target>       swap into the chosen target, then disarm
 #
-# Why two steps: choose-tree's command template substitutes %% but the picking
-# client is not available there, and set-option stores its value literally
-# rather than expanding #{...}. run-shell *does* expand formats, against the
-# client that pressed the key -- so the tty is captured in the binding body and
-# parked in a file for the "go" step to read. The window between the two is one
-# keystroke wide; two clients opening the chooser inside it would have the
-# second overwrite the first, which costs a wrong swap and nothing worse.
-
+# Why two steps, and why `go` clears the arm before anything else: see
+# bin/tmux-session-swap.md.
 set -u
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tmux-session-swap"
@@ -61,11 +48,8 @@ case "${1:-}" in
 
     # Read and clear the arm before anything can return early. The file means
     # "a chooser is open right now", so every path out of `go` has to consume
-    # it -- including the ones that decide there is nothing to do. Resolving
-    # the target first left the tty on disk whenever the pick resolved to
-    # nothing, which the binding papers over by re-arming before every chooser,
-    # but a stale file that outlives its chooser is not a state this should be
-    # in.
+    # it, including the ones that decide there is nothing to do -- resolving the
+    # target first left the tty on disk whenever the pick resolved to nothing.
     from_tty=""
     [ -f "$ARM_FILE" ] && from_tty=$(cat "$ARM_FILE")
     rm -f "$ARM_FILE"
@@ -84,18 +68,12 @@ case "${1:-}" in
       -F '#{client_session}' 2>/dev/null)
     # The picking client vanished between arm and go (tab closed mid-chooser).
     [ -n "$from_session" ] || exit 0
-    # Picking the session you are already on. This is a shortcut, NOT a safety
-    # gate -- do not build on it as though it were one. Removing it changes
-    # nothing observable: the loop below skips $from_tty by name, every other
-    # client on the session gets moved to a session it is already on, and the
-    # final switch puts the picker where it already is. Checked by running both
-    # versions against the hardest shape, a session already holding two clients,
-    # and diffing the client-to-session map tmux was left with: identical.
-    #
-    # What it buys is a handful of tmux round-trips (~5ms each) on a keypress
-    # path, which is why it stays. What it costs is that no test can defend it;
-    # the suite is green with the line deleted, and that is correct rather than
-    # a gap.
+    # Picking the session you are already on. A shortcut, NOT a safety gate --
+    # do not build on it as though it were one. Removing it changes nothing
+    # observable (verified against a session already holding two clients: the
+    # resulting client-to-session map is identical); it buys a few tmux
+    # round-trips on a keypress path, which is why it stays. No test can defend
+    # it, and the suite being green without it is correct rather than a gap.
     [ "$from_session" = "$to_session" ] && exit 0
 
     # Move the incumbents first. They land on a session that still has its own

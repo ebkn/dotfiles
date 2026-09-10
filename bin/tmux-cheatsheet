@@ -3,36 +3,26 @@
 #
 # Bound to prefix + ?, opened in a display-popup. The status bar carries a
 # "push C-q+? to show help" hint so the key that opens this is itself
-# discoverable -- a list you cannot remember how to reach is no better than
-# no list.
+# discoverable.
 #
 # The list is DERIVED from the running tmux server, never hand-maintained:
 # `tmux list-keys -N` prints only bindings that carry a note (`bind -N`), so
 # adding a note in .tmux.conf is the single act that both documents a binding
-# and puts it here. A cheatsheet stored as its own list would drift from the
-# config the first time a key moved.
+# and puts it here.
 #
-# Two classes of entry, separated by rules that are cheap and explicit:
+# Two classes of entry:
 #
-#   1. Our prefix bindings. tmux ships notes on its own prefix keys too, so the
-#      table alone cannot separate ours. Ours are tagged: the note reads
-#      "<category>: <description>" (lowercase tag, which may contain spaces,
-#      then a colon and a space) and the tag
-#      becomes the group heading. tmux's built-in notes are sentence-style
-#      ("Split window vertically") and never match. If upstream ever adds a
-#      note shaped like a tag it lands in the wrong group -- cosmetic only.
-#   2. Our copy-mode-vi bindings. tmux ships NO notes outside the prefix table
-#      (verified: `list-keys -N -T copy-mode-vi` is empty on a stock server),
-#      so everything listed there is ours and needs no tag.
+#   1. Our prefix bindings, tagged "<category>: <description>" -- tmux ships
+#      notes on its own prefix keys too, and the tag is what separates ours.
+#   2. Our copy-mode-vi bindings; tmux ships no notes outside the prefix table,
+#      so everything there is ours and needs no tag.
 #
-# tmux's own ~85 prefix keys are EXCLUDED unless --all is given. They are what
-# makes a single list unreadable, and they are not what gets forgotten -- this
-# exists because your own bindings are the ones with no upstream manual. The
-# footer points at `C-q :list-keys -N` for the complete set.
+# tmux's own ~85 prefix keys are EXCLUDED unless --all is given. Read-only by
+# construction: it runs `tmux list-keys` and nothing else.
 #
-# Read-only, by construction: it runs `tmux list-keys` and nothing else. A list
-# you open to remember "how do I kill this pane" must not kill the pane, so
-# there is deliberately no way to execute a binding from here.
+# The heuristics, the layout rules and the four silent traps (tput inside a
+# popup, notes only in the prefix table, the prefix token prepended to every
+# table, and awk's SUBSEP++ parse) are in bin/tmux-cheatsheet.md.
 
 set -euo pipefail
 

@@ -2,39 +2,27 @@
 # tmux-agents: list every Claude Code session by state and jump to the one you pick.
 #
 # Bound to prefix + a, which opens it in a display-popup. The state itself is
-# published by ~/.claude/hooks/agent-state.sh as tmux pane user options
-# (@claude_state / @claude_glyph / @claude_since / @claude_note, plus the
-# per-actor @claude_agents listing); this script only reads them, so it stays
-# correct as long as that contract holds.
+# published by ~/.claude/hooks/agent-state.sh as tmux pane user options; this
+# script only reads them, so it stays correct as long as that contract holds.
 #
-# Takes no arguments. It still needs the calling client — a popup has no attached
-# client of its own, yet the status messages and the answer view have to act on
-# the client that pressed the key — so it derives one from $TMUX instead of being
-# handed it. It cannot be handed it: display-popup expands #{...} formats only in
-# -d, never in the shell-command (see .tmux.conf), so `#{client_name}` would
-# arrive as that literal string and every tmux call taking it would fail quietly.
+# Takes no arguments. It derives the calling client from $TMUX because a popup
+# has no attached client of its own and cannot be handed one: display-popup
+# expands #{...} formats only in -d, never in the shell-command, so
+# `#{client_name}` would arrive as that literal string and every tmux call
+# taking it would fail quietly.
 #
 # Scope covers this machine plus every host reachable through an open `myssh`
-# pane — the same dotfiles run there, so the remote panes carry the same options.
+# pane — the same dotfiles run there, so the remote panes carry the same
+# options.
 #
-# EVERYTHING BEFORE THE PICKER IS ON THE LATENCY PATH. The popup is already on
-# screen by the time this starts, so each millisecond here is time spent looking
-# at an empty box. Measured on this machine: a tmux round-trip costs ~5ms and a
-# process spawn ~1.6ms, and there is no real work to speak of — the cost *is*
-# the process count. Hence one tmux call rather than three, rows in a shell
-# variable rather than temp files, one awk pass rather than two, and
-# `tmux list-clients` deferred until something has actually been picked. Adding
-# a convenient pipeline stage here is not free; it is ~2ms of visible lag.
+# EVERYTHING BEFORE THE PICKER IS ON THE LATENCY PATH: the popup is already on
+# screen by the time this starts, so the cost *is* the process count (~5ms per
+# tmux round-trip, ~1.6ms per spawn, no real work to speak of). Do not add a
+# convenient pipeline stage here without reading the measurements in
+# bin/tmux-agents.md, which also covers the jump path, the ctrl-o gate, the
+# remote listing and why there is deliberately no age cutoff.
 
 set -euo pipefail
-
-# There is deliberately no age cutoff. State lives on the pane, so it cannot
-# outlive the tab that holds it — closing the tab is the eviction. An agent that
-# finished days ago is still a tab you have open on purpose, and hiding it makes
-# the list disagree with the tab bar, which is the one thing this list exists to
-# explain. The residue that survives is a session killed without its SessionEnd
-# hook running, whose pane stays open: it keeps its last state until you close
-# the pane, or until SessionStart clears it when you start Claude there again.
 
 # tmux does not interpret \t in -F, so the separators must be literal tabs;
 # $'' supplies them. The same string is sent to remote hosts verbatim.
@@ -45,11 +33,10 @@ readonly FMT=$'#{session_name}\t#{window_id}\t#{pane_id}\t#{window_name}\t#{@cla
 readonly TAB=$'\t'
 
 # @claude_agents holds one record per actor in the pane — the main thread plus
-# every running subagent — because hooks fire inside subagents too and a pane
-# has as many states as it has actors (see agent-state.sh). Records are
-# separated by ASCII RS and their fields by US: a record carries a note taken
-# from a question or a permission prompt, so any printable delimiter would
-# eventually turn up inside one and split a row in half.
+# every running subagent — because hooks fire inside subagents too (see
+# agent-state.sh). Records are separated by ASCII RS and their fields by US: a
+# record carries a note taken from a question or a permission prompt, so any
+# printable delimiter would eventually turn up inside one and split a row.
 #
 # @claude_state and friends stay the *aggregate* over those records, which is
 # what the tab glyph reads. This script prefers the listing when it is there and
@@ -60,11 +47,11 @@ readonly US=$'\037'
 
 now=$(date +%s)
 
-# Resolved after a selection is made, not here: it is needed only by msg() and
-# by the answer view, both of which run after the picker closes, and
-# a tmux round-trip on the latency path for a value nobody may ever read is the
-# most expensive kind of eager evaluation. ${outer_client:+...} tolerates it
-# being empty, so nothing has to guard on it.
+# The calling client is resolved after a selection is made, not here: it is
+# needed only by msg() and the answer view, both post-picker, and a tmux
+# round-trip on the latency path for a value nobody may read is the most
+# expensive kind of eager evaluation. ${outer_client:+...} tolerates it empty.
+
 # This script's own absolute path. Both the enter binding (which re-enters it as
 # --jump-check) and the answer view need it: the first because fzf runs a
 # transform through $SHELL, the second because that hop runs under
@@ -135,17 +122,11 @@ resolve_jump() {
     return 0
   fi
 
-  # An ssh client is never a WezTerm tab, so there is nothing to ask WezTerm
-  # about and the CLI is not run at all. tmux already knows: SSH_CONNECTION is
-  # in the default update-environment list, so it is copied into the session
-  # environment by the attaching client and can be read back with one
-  # format-free call. The alternative -- reading $SSH_CONNECTION out of this
-  # process -- would be the tmux *server's* environment, i.e. whatever it
-  # happened to be started with, which says nothing about the client showing
-  # that window now.
-  #
-  # show-environment prints "-NAME" for a variable that is unset in that
-  # session, so only the "NAME=value" shape counts.
+  # An ssh client is never a WezTerm tab, so the CLI is not run at all. Read
+  # from the *session* environment, never from $SSH_CONNECTION in this process:
+  # that is the tmux server's environment, which says nothing about the client
+  # showing that window now. show-environment prints "-NAME" for a variable
+  # unset there, so only the "NAME=value" shape counts.
   case "$(tmux show-environment -t "$client_session" SSH_CONNECTION 2>/dev/null)" in
     SSH_CONNECTION=*)
       rj_reason="that window is shown over ssh, not by WezTerm — C-q w switches this tab"
@@ -153,13 +134,11 @@ resolve_jump() {
       ;;
   esac
 
-  # --no-auto-start is what makes the answer immediate when there is no WezTerm
-  # to ask. Without it `wezterm cli list` tries to START a mux server before
-  # giving up: measured here, 3.0-3.4s against 0.00s with the flag, and every
-  # other step on this path costs 0ms. That whole delay landed between pressing
-  # enter and the warning, on exactly the hosts where the warning is the normal
-  # outcome. It cannot cost anything in the success case either -- the default
-  # is to prefer a running gui instance, and the flag only forbids starting one.
+  # --no-auto-start is load-bearing: without it `wezterm cli list` tries to
+  # START a mux server before giving up — 3.0-3.4s against 0.00s, on exactly the
+  # hosts where "no tab" is the normal answer. It costs nothing in the success
+  # case, since the default already prefers a running gui instance. Asserted by
+  # the test, because a missing flag is otherwise invisible: only slower.
   rj_tab=""
   if command -v wezterm >/dev/null 2>&1; then
     rj_tab=$(
@@ -168,23 +147,20 @@ resolve_jump() {
     ) || true
   fi
   if [ -z "$rj_tab" ]; then
-    # Nothing to raise. This used to fall back to `switch-client`, which is
-    # worse than doing nothing: it repoints the tab you are sitting in at
-    # somebody else's window, leaving two clients on one session — the exact
-    # state bin/tmux-session-swap exists to prevent — and it is not what enter
-    # means. prefix + w is the key for changing what this tab shows.
+    # Nothing to raise, and deliberately no `switch-client` fallback: that
+    # repoints the tab you are sitting in, leaving two clients on one session —
+    # the state bin/tmux-session-swap exists to prevent. prefix + w is the key
+    # for changing what this tab shows.
     rj_reason="no WezTerm tab shows that window here — C-q w switches this tab"
   fi
 }
 
 # --jump-check <key field> — the enter binding's half of the above. Prints the
-# fzf actions to run: accept when the row can be jumped to, and otherwise only a
-# header, which leaves the picker standing with the reason on it. Refusing after
-# the picker has closed would be a popup that vanishes and a message on a status
-# line somewhere behind it, which is not an answer to "why did nothing happen".
-#
-# Runs before the listing below, so a keypress costs one process and the tmux
-# calls resolve_jump makes -- not a second collect.
+# fzf actions: accept when the row can be jumped to, otherwise only a header,
+# which leaves the picker standing with the reason on it. Refusing after the
+# picker has closed would be a popup that vanishes and a message on a status
+# line behind it. Runs before the listing below, so a keypress costs one process
+# plus resolve_jump's tmux calls, not a second collect.
 if [ "${1:-}" = "--jump-check" ]; then
   resolve_jump "${2:-}"
   if [ -n "$rj_reason" ]; then
@@ -209,20 +185,17 @@ rows=$(tmux list-panes -a -F "${TAB}${FMT}${TAB}#{@ssh_my_machine}${TAB}#{@ssh_h
 # to be theirs, i.e. one running tmux and these dotfiles. Plain `ssh` panes may
 # be jump boxes or CI runners where this query is meaningless or unwelcome.
 #
-# Done with shell builtins over the rows already in hand. `awk | sort -u` reads
-# better and is what this used to be, but it is two processes and a second pane
-# listing spent on what is usually the empty answer.
+# Done with shell builtins over the rows already in hand: `awk | sort -u` reads
+# better, but it is two processes and a second pane listing spent on what is
+# usually the empty answer.
 #
-# The two columns are peeled off the end with parameter expansion rather than
-# split into fields, because `IFS=$'\t' read -r a b c ...` DOES NOT WORK HERE.
-# Tab is an IFS *whitespace* character no matter that IFS holds nothing else, so
-# the shell collapses runs of tabs and strips leading ones — and these rows are
-# full of empty columns (@claude_state, @claude_since and @claude_note are all
-# unset on an ordinary pane), so a full row arrives with most of its columns
-# missing and every field after the first gap is the wrong one. awk -F'\t' does
-# not do this, which is
-# why the version that used awk never had to know. Reading from the end sidesteps
-# field counting altogether.
+# The two columns are peeled off the END with parameter expansion, because
+# `IFS=$'\t' read -r a b c ...` DOES NOT WORK HERE. Tab is an IFS *whitespace*
+# character however narrow IFS is, so the shell collapses runs of tabs and
+# strips leading ones — and an ordinary pane has @claude_state, @claude_since
+# and @claude_note all unset, so a ten-field row arrives as six with everything
+# after the first gap shifted. awk -F'\t' does not do this, which is why the
+# awk version never had to know.
 hosts=""
 while IFS= read -r row; do
   ssh_host=${row##*"$TAB"}

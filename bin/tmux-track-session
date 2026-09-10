@@ -1,28 +1,20 @@
 #!/bin/bash
 # tmux-track-session: Track tmux session changes for SSH auto-reconnect.
 #
-# Problem: autossh reconnects to a hardcoded remote tmux session name.
-# If the user switches to a different session on the remote, the reconnect
-# lands in the wrong session.
+# Problem: autossh reconnects to a hardcoded remote tmux session name, so
+# switching to a different session on the remote makes the reconnect land in the
+# wrong one.
 #
-# Solution: A per-connection monitor polls the client's current session
-# and persists it. On reconnect, the saved session name is used.
-# Unlike the previous hook-based approach (global client-session-changed +
-# tty-to-conn_id mapping), this avoids race conditions from stale tty
-# mappings when PTY numbers are reused on reconnect.
+# Solution: a per-connection monitor polls the client's current session and
+# persists it; on reconnect the saved name is used. Unlike the previous
+# hook-based approach (global client-session-changed + tty-to-conn_id mapping),
+# this avoids race conditions from stale tty mappings when PTY numbers are
+# reused on reconnect.
 #
 # The binding must stay single-valued in BOTH directions: one conn_id names one
-# session, and one session is named by at most one conn_id. Nothing enforced
-# that, and switching sessions on the remote (prefix + w) is exactly what breaks
-# it — the monitor records the new session under this conn_id while the conn_id
-# that was already there keeps its own record. Both then resolve to the same
-# session on the next autossh reconnect, tmux puts two clients on it, and the two
-# WezTerm tabs mirror each other while the session one of them came from sits
-# orphaned. Observed here as `local-5023 attached=2` with `local-2` and
-# `local-259` both pointing at it. So the monitor now releases a session from any
-# other conn_id when it claims it (last visitor wins, and the released tab falls
-# back to its own conn_id session), and attach refuses to join a session that
-# already has a client rather than mirroring it.
+# session, AND one session is named by at most one conn_id. See
+# bin/tmux-track-session.md for what broke when only the first half held, why
+# dead records are pruned, and why the monitor must never die by a signal.
 #
 # State directory: $XDG_STATE_HOME/tmux-track-session/
 #   session/  — {conn_id} files containing last session name
@@ -40,15 +32,13 @@ PID_DIR="$STATE_DIR/pid"
 # shell's, so a relative $0 would not resolve there.
 #
 # Derived from $0, not hardcoded to $HOME/.local/bin: the copy that is running
-# is the copy that should keep running. Hardcoding it meant the monitor was
-# always taken from the ~/.local/bin symlink no matter which copy started it --
-# so a change tested in a git worktree ran the *main* checkout's monitor (the
-# same class of trap as .zshrc resolving its own directory), and on a machine
-# where relink has never run, such as a CI runner, the path does not exist at
-# all and the monitor simply never starts. Neither says anything: attach still
-# lands in the right session, and only the tracking is gone.
+# is the copy that should keep running. Hardcoding it ran the *main* checkout's
+# monitor for a change tested in a worktree, and never started at all on a
+# machine where relink has not run. Neither says anything -- attach still lands
+# in the right session, and only the tracking is gone.
 #
 # The fallback covers $0 arriving as a bare PATH-resolved name, where
+# `readlink -f` would resolve it against the current directory instead.
 # `readlink -f` would resolve it against the current directory instead.
 SELF=$(readlink -f "$0" 2>/dev/null)
 case "$SELF" in
