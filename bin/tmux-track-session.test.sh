@@ -68,6 +68,17 @@ t() { # t <name> <expected> <actual>
 
 record() { mkdir -p "$SESSION_DIR"; printf '%s' "$2" > "$SESSION_DIR/$1"; }
 read_record() { cat "$SESSION_DIR/$1" 2>/dev/null || echo '<none>'; }
+# Poll for a record to reach <expected> rather than sleeping a fixed amount and
+# reading once. Returns as soon as it matches, so a pass is immediate and only a
+# genuine failure pays the timeout -- and the value it echoes on timeout is the
+# real one, so the failure report names what was actually there.
+wait_record() { # wait_record <conn_id> <expected>
+  for _ in $(seq 1 60); do
+    [ "$(read_record "$1")" = "$2" ] && break
+    sleep 0.1
+  done
+  read_record "$1"
+}
 
 # script(1) is the only way to hand tmux a pty, and its command-line differs
 # between BSD (macOS: `script -q <file> <cmd...>`) and util-linux (CI:
@@ -164,6 +175,23 @@ record connE gone-session
 record connF free
 attach_as connF
 t "attach: prunes a record naming a dead session" "<none>" "$(read_record connE)"
+
+# attach must also START the monitor, which is the half that keeps the record
+# up to date for the next reconnect. Nothing above reaches it: every case here
+# asserts only where attach landed, and the monitor suite below starts a monitor
+# by hand. So the one line that connects the two -- the `run-shell -b` in
+# attach -- had no coverage at all, and it invokes the script through a path
+# outside this checkout. With no seam that path is $HOME/.local/bin, which does
+# not exist on a CI runner (relink is never run there) and points at the *main*
+# checkout rather than the worktree under test on a developer machine: the
+# monitor then silently never starts, or starts from the wrong copy, and every
+# assertion still passes.
+#
+# A conn_id with no record of its own, so the session attach creates is named
+# after it and the value the monitor is expected to write is known in advance.
+attach_as connG
+t "attach: starts the monitor, which records the session" "connG" \
+  "$(wait_record connG connG)"
 
 # ---------------------------------------------------------------------------
 # The monitor must die quietly.

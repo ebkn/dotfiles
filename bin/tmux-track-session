@@ -35,7 +35,27 @@
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tmux-track-session"
 SESSION_DIR="$STATE_DIR/session"
 PID_DIR="$STATE_DIR/pid"
-SELF="$HOME/.local/bin/tmux-track-session"
+# How `attach` re-invokes this script to start the monitor. It has to be an
+# absolute path: run-shell executes with tmux's environment rather than this
+# shell's, so a relative $0 would not resolve there.
+#
+# Derived from $0, not hardcoded to $HOME/.local/bin: the copy that is running
+# is the copy that should keep running. Hardcoding it meant the monitor was
+# always taken from the ~/.local/bin symlink no matter which copy started it --
+# so a change tested in a git worktree ran the *main* checkout's monitor (the
+# same class of trap as .zshrc resolving its own directory), and on a machine
+# where relink has never run, such as a CI runner, the path does not exist at
+# all and the monitor simply never starts. Neither says anything: attach still
+# lands in the right session, and only the tracking is gone.
+#
+# The fallback covers $0 arriving as a bare PATH-resolved name, where
+# `readlink -f` would resolve it against the current directory instead.
+SELF=$(readlink -f "$0" 2>/dev/null)
+case "$SELF" in
+  /*) [ -f "$SELF" ] || SELF="" ;;
+  *) SELF="" ;;
+esac
+[ -n "$SELF" ] || SELF="$HOME/.local/bin/tmux-track-session"
 
 ensure_dirs() {
   mkdir -p "$SESSION_DIR" "$PID_DIR"
