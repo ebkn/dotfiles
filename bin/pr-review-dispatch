@@ -120,6 +120,25 @@ lock="$STATE_DIR/.dispatch-lock"
 if ! take_lock "$lock"; then exit 0; fi
 trap 'release_lock "$lock"' EXIT
 
+# Everything below is skipped when there is nothing to deliver, and that matters
+# more than it reads. launchd fires this every 30 seconds with stdout AND stderr
+# going to one log file, so the overwhelmingly common tick is an empty queue --
+# and both diagnostics below are emitted per RUN, not per job. A machine with a
+# renamed registry field and an empty queue would therefore write its four-line
+# warning every 30s, about 11,500 lines a day, burying the one signal it exists
+# to raise. Scanning first also keeps the registry slurp and the per-job `git
+# worktree list` off every idle tick.
+#
+# The scan is not folded into the delivery loop below, because the point is to
+# decide BEFORE reading the registry.
+jobs_todo=()
+for job in "$STATE_DIR"/jobs/*.json; do
+  [ -f "$job" ] || continue
+  [ "$(jq -r '.pending | length' "$job" 2>/dev/null || echo 0)" -gt 0 ] || continue
+  jobs_todo+=("$job")
+done
+[ ${#jobs_todo[@]} -gt 0 ] || exit 0
+
 # The session registry is now the ONLY source this program reads, where the old
 # one crossed `claude agents --json` with the same files to get a tmux pane.
 # One source cannot disagree with itself, and the field that matters --
@@ -142,10 +161,24 @@ fi
 # worktree and hold its job forever. Both halves are required. `kill -0` alone
 # would accept a session whose socket never bound (bare mode binds none), and a
 # leftover socket file alone would accept a crashed one.
+#
+# This is deliberately NOT minimised for process count the way `bin/tmux-agents`
+# is. There a human is looking at an empty popup while it runs, so every spawn is
+# visible lag; here launchd runs it with nobody waiting, and the early exit above
+# already keeps the whole function off the common tick. Clarity wins.
 live_sessions_json() {
-  local all live_pids pid sock n_all n_sock
+  local all cand live_pids pid sock n_all n_cand
   all=$(jq -s '[ .[] | select(.kind == "interactive") ]' "$SESSIONS_DIR"/*.json 2>/dev/null) || all='[]'
   [ -n "$all" ] || all='[]'
+
+  # Addressable at all: both halves are needed to be a possible target. The
+  # guard and the liveness filter below must agree on what counts, so they read
+  # this one list instead of each carrying its own copy of the predicate -- two
+  # copies would let an entry be "not broken" to the guard and "not a candidate"
+  # to the filter at the same time, which is exactly the silent hold the guard
+  # exists to rule out.
+  cand=$(printf '%s' "$all" | jq -c '[ .[] | select(.pid and .messagingSocketPath) ]' 2>/dev/null) || cand='[]'
+  [ -n "$cand" ] || cand='[]'
 
   # The one breakage this program could not otherwise report.
   #
@@ -163,8 +196,8 @@ live_sessions_json() {
   # machine whose every session runs in bare mode (which binds no inbox), so it
   # names both rather than asserting the one.
   n_all=$(printf '%s' "$all" | jq 'length' 2>/dev/null) || n_all=0
-  n_sock=$(printf '%s' "$all" | jq '[ .[] | select(.messagingSocketPath) ] | length' 2>/dev/null) || n_sock=0
-  if [ "${n_all:-0}" -gt 0 ] && [ "${n_sock:-0}" -eq 0 ]; then
+  n_cand=$(printf '%s' "$cand" | jq 'length' 2>/dev/null) || n_cand=0
+  if [ "${n_all:-0}" -gt 0 ] && [ "${n_cand:-0}" -eq 0 ]; then
     printf 'pr-review-dispatch: %s lists %s interactive session(s), none with a messagingSocketPath.\n' \
       "$SESSIONS_DIR" "$n_all" >&2
     printf '  Nothing can be delivered, and every job below will hold as "no live session".\n' >&2
@@ -172,11 +205,18 @@ live_sessions_json() {
     printf '  undocumented internal state -- was renamed. Check one of %s/*.json.\n' "$SESSIONS_DIR" >&2
   fi
 
+  # `IFS=$'\t' read` is the trap CLAUDE.md documents for bin/tmux-agents: tab is
+  # an IFS *whitespace* character however narrow IFS is set, so runs of tabs
+  # collapse and leading ones are stripped, and a row with an empty field
+  # silently arrives short with everything after it shifted. It is safe here only
+  # because `cand` guarantees BOTH fields are present and non-empty, so no empty
+  # field can occur and there is exactly one separator. **Adding a third column
+  # that can be empty breaks this silently** -- peel trailing fields off with
+  # ${row##*"$TAB"} instead of widening the read.
   live_pids=$(
-    printf '%s' "$all" |
-      jq -r '.[] | select(.pid and .messagingSocketPath) | "\(.pid)\t\(.messagingSocketPath)"' 2>/dev/null |
+    printf '%s' "$cand" |
+      jq -r '.[] | "\(.pid)\t\(.messagingSocketPath)"' 2>/dev/null |
       while IFS=$'\t' read -r pid sock; do
-        [ -n "$pid" ] && [ -n "$sock" ] || continue
         [ -S "$sock" ] || continue
         kill -0 "$pid" 2>/dev/null || continue
         printf '%s\n' "$pid"
@@ -185,7 +225,10 @@ live_sessions_json() {
   )
   [ -n "$live_pids" ] || live_pids='[]'
 
-  printf '%s' "$all" | jq -c --argjson live "$live_pids" \
+  # Filtered from `cand`, not `all`: a live pid can only have come from `cand`, so
+  # the two are equivalent here -- but selecting from the same list the pids were
+  # drawn from is one fewer thing for a reader to have to verify.
+  printf '%s' "$cand" | jq -c --argjson live "$live_pids" \
     '[ .[] | select(.pid as $p | $live | index($p)) ]' 2>/dev/null || printf '[]'
 }
 
@@ -284,10 +327,11 @@ sessions=$(live_sessions_json)
 delivered=0
 held=0
 
-for job in "$STATE_DIR"/jobs/*.json; do
-  [ -f "$job" ] || continue
-  [ "$(jq -r '.pending | length' "$job" 2>/dev/null || echo 0)" -gt 0 ] || continue
-
+# Over the list the scan above produced, not a second glob with a second copy of
+# the "has pending items" test. Two scans could disagree -- a job arriving between
+# them would be delivered without ever having been counted -- and the decision to
+# run at all was made from the first one.
+for job in "${jobs_todo[@]}"; do
   repo=$(jq -r .repo "$job"); pr=$(jq -r .pr "$job")
   worktree=$(jq -r .worktree "$job")
   label="$repo#$pr"

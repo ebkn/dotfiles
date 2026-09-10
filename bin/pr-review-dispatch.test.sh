@@ -342,5 +342,24 @@ out=$(run); rc=$?
 eq "exits 0 with nothing to do" "0" "$rc"
 eq "and says nothing" "" "$out"
 
+# Silence on an idle tick has to hold even when the registry is broken, and this
+# is a real consequence rather than tidiness: launchd runs this every 30s with
+# stdout and stderr going to one log file, and these diagnostics are per-run, not
+# per-job. Emitting them on empty ticks would write thousands of lines a day and
+# bury the occurrence that matters.
+reset
+PID=$(spawn_holder)
+jq -n --argjson pid "$PID" --arg cwd "$WT" \
+  '{pid:$pid, sessionId:"s", name:"s", cwd:$cwd, kind:"interactive",
+    startedAt:100, status:"idle", inboxSocket:"/renamed/away.sock"}' > "$SESS/renamed.json"
+out=$(run)
+eq "a broken registry stays quiet while the queue is empty" "" "$out"
+
+# Same for the missing-directory warning, which is also per-run.
+reset
+out=$(CLAUDE_SESSIONS_DIR="$TMP/no-such-dir" PATH="$STUB:$PATH" \
+  PR_REVIEW_WATCH_STATE_DIR="$STATE" "$DISPATCH" 2>&1)
+eq "a missing registry dir stays quiet while the queue is empty" "" "$out"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
