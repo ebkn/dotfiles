@@ -349,12 +349,22 @@ run_pick() {
   return 1
 }
 
+# enter raises the agent's WezTerm tab, and does NOTHING when there is no such
+# tab to raise -- a picker run on an ssh host can never reach the WezTerm in
+# front of you, and repointing the tab you are sitting in (which is what the old
+# `switch-client` fallback did) is both not what enter means and the two-clients-
+# on-one-session state bin/tmux-session-swap exists to prevent. prefix + w is the
+# key for that. Nothing here can raise a tab, so nothing may move: in particular
+# select-pane must not run, since that would reach into the agent's window.
 stub_pick ''
-if run_pick; then
-  pass "enter selects the picked pane despite the empty --expect line"
+select_first
+tmux -L "$socket" run-shell "cd $PWD && PATH=$work/stub:$PWD/bin:\$PATH tmux-agents >$work/out 2>&1"
+sleep 1
+if [ "$(active_pane)" = "$other_pane" ]; then
+  pass "enter with no WezTerm tab to raise leaves the agent's window alone"
 else
-  fail "enter selects the picked pane despite the empty --expect line" \
-    "active pane is $(active_pane), wanted $picked_pane" "$(cat "$work/out" 2>/dev/null)"
+  fail "enter with no WezTerm tab to raise leaves the agent's window alone" \
+    "active pane moved to $(active_pane)" "$(cat "$work/out" 2>/dev/null)"
 fi
 
 # ctrl-o needs a client to open a popup on, and a throwaway server has none.
@@ -435,10 +445,25 @@ fi
 # suite used to show about once in ten runs. A pipe nobody ever writes to keeps
 # the pty open for as long as the test needs it.
 pty_attach() {
-  if script -q /dev/null true >/dev/null 2>&1; then
-    { sleep 120 | script -q /dev/null tmux -L "$socket" attach -t "$1"; } >/dev/null 2>&1 &
+  # Output kept, not discarded: when this fails the reason is in it, and a
+  # failure with no diagnostic is what made this flake take three sittings.
+  #
+  # The BSD/GNU split is decided from $OSTYPE, NOT by running `script` and
+  # seeing whether it succeeds. That probe was the flake: it spawns a pty of its
+  # own, and when it failed -- which it did about one run in ten, under load or
+  # with the caller's stdin already closed -- the code fell through to the GNU
+  # spelling on a BSD script(1), which answers "illegal option -- c" and leaves
+  # no client behind. A platform is not something to discover by trial.
+  #
+  # $TMUX is cleared for the attach. The suite is normally run from inside tmux,
+  # and tmux then refuses the attach as nested ("sessions should be nested with
+  # care") even though this is a different socket -- silently, since the client
+  # simply never appears. Nothing here wants nesting semantics: the throwaway
+  # server is not the one the test is being typed into.
+  if [ "${OSTYPE:-}" != "${OSTYPE#darwin}" ]; then
+    { sleep 120 | TMUX='' script -q /dev/null tmux -L "$socket" attach -t "$1"; } >"$work/pty.log" 2>&1 &
   else
-    { sleep 120 | script -q -c "tmux -L $socket attach -t $1" /dev/null; } >/dev/null 2>&1 &
+    { sleep 120 | TMUX='' script -q -c "tmux -L $socket attach -t $1" /dev/null; } >"$work/pty.log" 2>&1 &
   fi
   # Remembered so cleanup can end it: the sleep outlives the test otherwise, and
   # anything inheriting its stdout would wait two minutes for the pipe to close.
@@ -476,7 +501,9 @@ done
 
 if [ -z "$client" ]; then
   fail "a pty client can be attached for the ctrl-o cases" \
-    "script(1) produced no client after 10s; the two cases below are untested"
+    "script(1) produced no client; the cases below are untested" \
+    "script output: [$(tr -d '\r' <"$work/pty.log" 2>/dev/null | head -3 | tr '\n' '|')]" \
+    "sessions: $(tmux -L "$socket" list-sessions -F '#{session_name}' 2>&1 | tr '\n' ' ')"
 else
   # Picks the row whose window name is in $PICK and reports it as chosen with
   # ctrl-o, which is what --expect prints on its own first line.
@@ -639,44 +666,59 @@ else
   # --- enter, through the real fzf ---------------------------------------------
   #
   # enter and ctrl-o are two different features and must stay that way: enter
-  # goes to the agent's tab, ctrl-o brings the agent here. Everything above that
-  # exercises enter does it through a STUBBED fzf, so the binding enter actually
-  # runs -- `enter:print()+accept`, which replaced --expect when ctrl-o became a
-  # transform -- was never covered. If that print() ever stops emitting its
-  # empty first line, the row is read one line off and the jump silently targets
-  # nothing; if it emitted the wrong key name, enter would open the view.
+  # raises the agent's WezTerm tab, ctrl-o brings the agent here. Everything
+  # above that exercises enter does it through a STUBBED fzf, so the binding
+  # enter actually runs -- `enter:print()+accept`, which replaced --expect when
+  # ctrl-o became a transform -- was never covered. If that print() ever stops
+  # emitting its empty first line, the row is read one line off and the jump
+  # silently targets nothing; if it emitted the wrong key name, enter would open
+  # the answer view instead.
   #
-  # The observable end of the jump is select-pane, so the agent sits in the
-  # SECOND pane of its window and the first is made active beforehand.
+  # Both halves of the jump are covered, because both are silent when wrong:
+  # with no WezTerm tab to raise, NOTHING may happen (not even select-pane);
+  # with one, the tab must actually be raised. The second needs a `wezterm` that
+  # answers, so it is stubbed -- the real one cannot be driven from a test, and
+  # a machine with no WezTerm would otherwise leave the whole success path
+  # untested. jq is NOT stubbed: the filter that matches client_tty against
+  # tty_name is this repo's, and it is exactly the part that can rot.
   tmux -L "$socket" new-window -t bindB -n b-jump "$IDLE"
   tmux -L "$socket" split-window -t bindB:b-jump "$IDLE"
   jump_target=$(tmux -L "$socket" list-panes -t bindB:b-jump -F '#{pane_id}' | tail -1)
   jump_other=$(tmux -L "$socket" list-panes -t bindB:b-jump -F '#{pane_id}' | head -1)
   tmux -L "$socket" set-option -p -t "$jump_target" @claude_state waiting
   tmux -L "$socket" set-option -p -t "$jump_target" @claude_since "$(date +%s)"
-  tmux -L "$socket" select-pane -t "$jump_other"
 
-  tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
-    "sh -c 'PATH=$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
-  if ! wait_screen 'b-jump'; then
-    fail "the picker lists the jump fixture" "$(screen)"
-  else
-    # b-jump is `waiting` and b-ask `asking`; both share the top rank and the
-    # older one sorts first, so the cursor is not assumed -- it is moved onto
-    # the row by matching, which is what a person does too.
-    tmux -L "$socket" send-keys -t "$fzf_pane" "b-jump"
+  # press_enter <window name> — type enough to select that row, then Enter.
+  press_enter() {
+    tmux -L "$socket" select-pane -t "$jump_other"
+    tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
+      "sh -c 'PATH=$work/wstub:$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
+    wait_screen "$1" || return 1
+    tmux -L "$socket" send-keys -t "$fzf_pane" "$1"
     sleep 0.4
     tmux -L "$socket" send-keys -t "$fzf_pane" Enter
     for _ in $(seq 1 40); do
       [ "$(dead)" = 1 ] && break
       sleep 0.25
     done
+    return 0
+  }
+
+  # A directory of its own, NOT $work/stub: that one holds the fzf stub, and
+  # putting it on the path here would replace the real fzf this section exists
+  # to drive -- the picker would render nothing and every case below would fail
+  # for a reason that has nothing to do with the jump.
+  mkdir -p "$work/wstub"
+  rm -f "$work/wstub/wezterm"
+  if ! press_enter b-jump; then
+    fail "the picker lists the jump fixture" "$(screen)"
+  else
     active=$(tmux -L "$socket" display-message -p -t bindB:b-jump '#{pane_id}')
-    if [ "$active" = "$jump_target" ]; then
-      pass "enter jumps to the picked pane through the real fzf"
+    if [ "$active" = "$jump_other" ]; then
+      pass "enter with no WezTerm tab to raise touches nothing"
     else
-      fail "enter jumps to the picked pane through the real fzf" \
-        "active pane is $active, wanted $jump_target" "$(cat "$work/real2" 2>/dev/null)"
+      fail "enter with no WezTerm tab to raise touches nothing" \
+        "active pane moved to $active" "$(cat "$work/real2" 2>/dev/null)"
     fi
     if [ "$(mirrors)" = 0 ]; then
       pass "enter opens no answer view -- the two keys stay separate features"
@@ -684,6 +726,54 @@ else
       fail "enter opens no answer view -- the two keys stay separate features" \
         "$(tmux -L "$socket" list-sessions -F '#{session_name}')"
     fi
+  fi
+
+  # Now with a WezTerm that answers. The stub reports the tty of the client
+  # attached to the agent's window, which is what the jump has to match on --
+  # get that lookup wrong and it silently reports no tab, i.e. the case above.
+  pty_attach bindB
+  agent_tty=""
+  for _ in $(seq 1 24); do
+    agent_tty=$(tmux -L "$socket" list-clients -F '#{client_name} #{client_session}' |
+      awk '$2 == "bindB" { print $1; exit }')
+    [ -n "$agent_tty" ] && break
+    sleep 0.25
+  done
+
+  if [ -z "$agent_tty" ]; then
+    fail "a pty client can be attached to the agent's session" \
+      "script output: [$(tr -d '\r' <"$work/pty.log" 2>/dev/null | head -3 | tr '\n' '|')]"
+  else
+    cat >"$work/wstub/wezterm" <<STUB
+#!/bin/sh
+printf '%s\n' "\$*" >>"$work/wezterm-calls"
+case "\$*" in
+  *"cli list"*) printf '[{"tab_id": 77, "tty_name": "%s"}]\n' "$agent_tty" ;;
+esac
+exit 0
+STUB
+    chmod +x "$work/wstub/wezterm"
+    : >"$work/wezterm-calls"
+
+    if ! press_enter b-jump; then
+      fail "the picker lists the jump fixture (wezterm case)" "$(screen)"
+    else
+      if grep -q 'activate-tab --tab-id 77' "$work/wezterm-calls" 2>/dev/null; then
+        pass "enter raises the WezTerm tab that shows the agent's window"
+      else
+        fail "enter raises the WezTerm tab that shows the agent's window" \
+          "wezterm calls: [$(tr '\n' '|' <"$work/wezterm-calls" 2>/dev/null)]" \
+          "$(cat "$work/real2" 2>/dev/null)"
+      fi
+      active=$(tmux -L "$socket" display-message -p -t bindB:b-jump '#{pane_id}')
+      if [ "$active" = "$jump_target" ]; then
+        pass "and puts the agent's pane in front inside it"
+      else
+        fail "and puts the agent's pane in front inside it" \
+          "active pane is $active, wanted $jump_target"
+      fi
+    fi
+    rm -f "$work/wstub/wezterm"
   fi
 fi
 

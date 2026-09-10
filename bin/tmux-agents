@@ -7,7 +7,7 @@
 # only reads them, so it stays correct as long as that contract holds.
 #
 # Takes no arguments. It still needs the calling client — a popup has no attached
-# client of its own, yet the status messages and the fallback jump have to act on
+# client of its own, yet the status messages and the answer view have to act on
 # the client that pressed the key — so it derives one from $TMUX instead of being
 # handed it. It cannot be handed it: display-popup expands #{...} formats only in
 # -d, never in the shell-command (see .tmux.conf), so `#{client_name}` would
@@ -46,7 +46,7 @@ readonly TAB=$'\t'
 now=$(date +%s)
 
 # Resolved after a selection is made, not here: it is needed only by msg() and
-# by the switch-client fallback, both of which run after the picker closes, and
+# by the answer view, both of which run after the picker closes, and
 # a tmux round-trip on the latency path for a value nobody may ever read is the
 # most expensive kind of eager evaluation. ${outer_client:+...} tolerates it
 # being empty, so nothing has to guard on it.
@@ -305,8 +305,6 @@ if [ -n "$host" ]; then
   IFS=$'\t' read -r window_id pane_id <<<"$local_target"
 fi
 
-tmux select-pane -t "$pane_id" 2>/dev/null || true
-
 # One WezTerm tab holds one tmux window, each through its own client, so the
 # right move is to raise that tab — not to repoint the current client at another
 # window, which would leave two tabs showing the same thing. tmux's client_tty
@@ -324,24 +322,34 @@ if [ -n "$client_tty" ] && command -v wezterm >/dev/null 2>&1; then
   ) || true
 fi
 
-if [ -n "$tab_id" ]; then
-  wezterm cli activate-tab --tab-id "$tab_id" 2>/dev/null || true
-  # activate-tab only re-points the tab bar of the window that owns the tab; it
-  # leaves OS focus where it was, so a jump across WezTerm windows raised nothing
-  # and looked like a no-op. There is no CLI verb for it (checked on 20240203) —
-  # window:focus() is Lua-only — so poke the user-var handler in wezterm.lua by
-  # writing OSC 1337 SetUserVar to the target pane's own tty: WezTerm attributes
-  # it to that pane and hands the handler its window. "MQ==" is base64 "1"; the
-  # value is ignored, only the event matters, and re-setting the same value does
-  # fire again. Harmless when the target is already focused, and inert on any
-  # terminal that is not WezTerm (unknown OSC, discarded).
-  printf '\033]1337;SetUserVar=focus_window=MQ==\007' >"$client_tty" 2>/dev/null || true
-else
-  # No WezTerm tab owns that window — it is detached, or this is a plain
-  # terminal / SSH session. Repointing the calling client is the best available
-  # move there.
-  tmux switch-client -c "$outer_client" -t "$window_id" 2>/dev/null || true
+if [ -z "$tab_id" ]; then
+  # Nothing to raise: the window is detached, or this tmux is not the one
+  # WezTerm is drawing — a picker run on an ssh host can never reach the WezTerm
+  # in front of you. This used to fall back to `switch-client`, which is worse
+  # than doing nothing: it repoints the tab you are sitting in at somebody
+  # else's window, leaving two clients on one session — the exact state
+  # bin/tmux-session-swap exists to prevent — and it is not what enter means.
+  # prefix + w is the key for changing what this tab shows, so say so and stop.
+  msg "no WezTerm tab shows that window here — C-q w switches this tab"
+  exit 0
 fi
+
+# Only now: the pane is made active because the tab is about to be raised with
+# the agent in front. Refusing above must leave everything as it was.
+tmux select-pane -t "$pane_id" 2>/dev/null || true
+
+wezterm cli activate-tab --tab-id "$tab_id" 2>/dev/null || true
+
+# activate-tab only re-points the tab bar of the window that owns the tab; it
+# leaves OS focus where it was, so a jump across WezTerm windows raised nothing
+# and looked like a no-op. There is no CLI verb for it (checked on 20240203) —
+# window:focus() is Lua-only — so poke the user-var handler in wezterm.lua by
+# writing OSC 1337 SetUserVar to the target pane's own tty: WezTerm attributes
+# it to that pane and hands the handler its window. "MQ==" is base64 "1"; the
+# value is ignored, only the event matters, and re-setting the same value does
+# fire again. Harmless when the target is already focused, and inert on any
+# terminal that is not WezTerm (unknown OSC, discarded).
+printf '\033]1337;SetUserVar=focus_window=MQ==\007' >"$client_tty" 2>/dev/null || true
 
 # Plain `[ ... ] && msg` would make a local jump exit non-zero under set -e.
 if [ -n "$remote_note" ]; then
