@@ -402,6 +402,104 @@ else
   pass "does not open the picker when there is nothing to pick"
 fi
 
+# --- ctrl-o against a real client ---------------------------------------------
+
+# The two things this section pins are the two that were reported broken by eye
+# before they were covered, and neither is reachable without an attached client:
+# opening the view needs display-popup, and display-popup needs a client.
+#
+#   * ctrl-o on a session that is NOT blocked must not attach anything. The
+#     picker with no client refuses for a different reason (there is nowhere to
+#     put a popup), so the case above cannot tell a working gate from a missing
+#     one.
+#   * the view must be INSET. Sized to the terminal it is indistinguishable from
+#     having jumped — "the whole screen changed" — which is a regression a
+#     percentage geometry cannot express and only a measurement catches.
+#
+# The client is a pty from script(1), whose argument order differs between BSD
+# and GNU; both spellings are tried. Inside the popup tmux sets $TMUX, so a bare
+# `tmux` in the script under test reaches this server with no shim.
+pty_attach() {
+  if script -q /dev/null true >/dev/null 2>&1; then
+    script -q /dev/null tmux -L "$socket" attach -t "$1" >/dev/null 2>&1 &
+  else
+    script -q -c "tmux -L $socket attach -t $1" /dev/null >/dev/null 2>&1 &
+  fi
+}
+
+tmux -L "$socket" new-session -d -s tabA "$IDLE"
+tmux -L "$socket" new-session -d -s tabB -n busy-win "$IDLE"
+tmux -L "$socket" new-window -t tabB -n ask-win "$IDLE"
+for wn in busy-win:busy ask-win:asking; do
+  p=$(tmux -L "$socket" list-panes -t "tabB:${wn%%:*}" -F '#{pane_id}' | head -1)
+  tmux -L "$socket" set-option -p -t "$p" @claude_state "${wn##*:}"
+  tmux -L "$socket" set-option -p -t "$p" @claude_since "$(date +%s)"
+done
+
+pty_attach tabA
+client=""
+for _ in $(seq 1 40); do
+  client=$(tmux -L "$socket" list-clients -F '#{client_name}' | head -1)
+  [ -n "$client" ] && break
+  sleep 0.25
+done
+
+if [ -z "$client" ]; then
+  fail "a pty client can be attached for the ctrl-o cases" \
+    "script(1) produced no client after 10s; the two cases below are untested"
+else
+  # Picks the row whose window name is in $PICK and reports it as chosen with
+  # ctrl-o, which is what --expect prints on its own first line.
+  cat >"$work/stub/fzf" <<STUB
+#!/bin/sh
+cat >"$work/list"
+printf 'ctrl-o\n%s\n' "\$(grep \$PICK "$work/list")"
+exit 0
+STUB
+  chmod +x "$work/stub/fzf"
+
+  press_ctrl_o() {
+    tmux -L "$socket" display-popup -c "$client" -E -w 60 -h 20 \
+      "sh -c 'PICK=$1 PATH=$work/stub:$PWD/bin:\$PATH tmux-agents >$work/out 2>&1'"
+    sleep 2
+  }
+  mirrors() { tmux -L "$socket" list-sessions -F '#{session_name}' | grep -c '^_agent_' || true; }
+
+  press_ctrl_o busy-win
+  if [ "$(mirrors)" = 0 ]; then
+    pass "ctrl-o on a session that is not blocked attaches nothing"
+  else
+    fail "ctrl-o on a session that is not blocked attaches nothing" \
+      "$(tmux -L "$socket" list-sessions -F '#{session_name}')"
+  fi
+
+  press_ctrl_o ask-win
+  # Both sizes come out of one list-clients, matched by name. `display-message
+  # -p -c <client> '#{client_width}'` does NOT report that client here -- with a
+  # popup open it answered with the popup's size, which made the assertion below
+  # compare the mirror against itself and pass for the wrong reason.
+  clients=$(tmux -L "$socket" list-clients -F '#{client_name} #{client_session} #{client_width} #{client_height}')
+  read -r cli_w cli_h < <(awk -v c="$client" '$1 == c { print $3, $4; exit }' <<<"$clients")
+  read -r mir_w mir_h < <(awk '$2 ~ /^_agent_/ { print $3, $4; exit }' <<<"$clients")
+  if [ -n "${mir_w:-}" ]; then
+    pass "ctrl-o on a blocked session opens the view"
+    if [ "$mir_w" -lt "$cli_w" ] && [ "$mir_h" -lt "$cli_h" ]; then
+      pass "the view is inset, not the whole terminal (${mir_w}x${mir_h} in ${cli_w}x${cli_h})"
+    else
+      fail "the view is inset, not the whole terminal" \
+        "view ${mir_w}x${mir_h}, terminal ${cli_w}x${cli_h}"
+    fi
+  else
+    fail "ctrl-o on a blocked session opens the view" "no _agent_ client attached" \
+      "$(cat "$work/out" 2>/dev/null)"
+  fi
+
+  for m in $(tmux -L "$socket" list-clients -F '#{client_name} #{client_session}' |
+    awk '$2 ~ /^_agent_/ { print $1 }'); do
+    tmux -L "$socket" detach-client -t "$m" 2>/dev/null
+  done
+fi
+
 if [ "$failures" -ne 0 ]; then
   printf '\n%d test(s) failed\n' "$failures"
   exit 1
