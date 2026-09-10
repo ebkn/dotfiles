@@ -309,10 +309,30 @@ fi
 # right move is to raise that tab — not to repoint the current client at another
 # window, which would leave two tabs showing the same thing. tmux's client_tty
 # and WezTerm's tty_name are the same device, which is what links them.
-client_tty=$(
-  tmux list-clients -F $'#{client_tty}\t#{window_id}' 2>/dev/null |
-    awk -F'\t' -v w="$window_id" '$2 == w { print $1; exit }'
+client=$(
+  tmux list-clients -F $'#{client_tty}\t#{window_id}\t#{client_session}' 2>/dev/null |
+    awk -F'\t' -v w="$window_id" '$2 == w { print $1 "\t" $3; exit }'
 ) || true
+IFS=$'\t' read -r client_tty client_session <<<"$client"
+
+# An ssh client is never a WezTerm tab, so there is nothing to ask WezTerm about
+# and the CLI is not run at all. tmux already knows: SSH_CONNECTION is in the
+# default update-environment list, so it is copied into the session environment
+# by the attaching client and can be read back with one format-free call. The
+# alternative -- reading $SSH_CONNECTION out of this process -- would be the
+# tmux *server's* environment, i.e. whatever it happened to be started with,
+# which says nothing about the client showing that window now.
+#
+# show-environment prints "-NAME" for a variable that is unset in that session,
+# so only the "NAME=value" shape counts.
+if [ -n "$client_session" ]; then
+  case "$(tmux show-environment -t "$client_session" SSH_CONNECTION 2>/dev/null)" in
+    SSH_CONNECTION=*)
+      msg "that window is shown over ssh, not by WezTerm — C-q w switches this tab"
+      exit 0
+      ;;
+  esac
+fi
 
 # --no-auto-start is what makes the answer immediate when there is no WezTerm to
 # ask. Without it `wezterm cli list` tries to START a mux server before giving

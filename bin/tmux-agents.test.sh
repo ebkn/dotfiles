@@ -460,10 +460,18 @@ pty_attach() {
   # care") even though this is a different socket -- silently, since the client
   # simply never appears. Nothing here wants nesting semantics: the throwaway
   # server is not the one the test is being typed into.
+  #
+  # SSH_CONNECTION is cleared as well, and with `env -u` rather than an empty
+  # value: it is in tmux's default update-environment, so an attaching client
+  # that has it makes the session look like an ssh login to the jump -- which is
+  # true of every client attached from a suite run over ssh, and would make the
+  # WezTerm cases below unreachable on exactly the machines they matter least to
+  # break on. `-u` removes it from the session environment; SSH_CONNECTION= would
+  # set it to the empty string, which still reads as present.
   if [ "${OSTYPE:-}" != "${OSTYPE#darwin}" ]; then
-    { sleep 120 | TMUX='' script -q /dev/null tmux -L "$socket" attach -t "$1"; } >"$work/pty.log" 2>&1 &
+    { sleep 120 | env -u TMUX -u SSH_CONNECTION script -q /dev/null tmux -L "$socket" attach -t "$1"; } >"$work/pty.log" 2>&1 &
   else
-    { sleep 120 | TMUX='' script -q -c "tmux -L $socket attach -t $1" /dev/null; } >"$work/pty.log" 2>&1 &
+    { sleep 120 | env -u TMUX -u SSH_CONNECTION script -q -c "tmux -L $socket attach -t $1" /dev/null; } >"$work/pty.log" 2>&1 &
   fi
   # Remembered so cleanup can end it: the sleep outlives the test otherwise, and
   # anything inheriting its stdout would wait two minutes for the pipe to close.
@@ -786,6 +794,31 @@ STUB
           "active pane is $active, wanted $jump_target"
       fi
     fi
+    # And the ssh case: a client attached over ssh is never a WezTerm tab, so
+    # the CLI must not be run at all. This is the normal state of every row when
+    # the picker itself runs on a remote host, and running wezterm there is pure
+    # latency for an answer already known -- the assertion is therefore that the
+    # stub recorded NOTHING, not merely that the jump was refused.
+    tmux -L "$socket" set-environment -t bindB SSH_CONNECTION "10.0.0.1 1 10.0.0.2 22"
+    : >"$work/wezterm-calls"
+    if ! press_enter b-jump; then
+      fail "the picker lists the jump fixture (ssh case)" "$(screen)"
+    else
+      if [ ! -s "$work/wezterm-calls" ]; then
+        pass "enter on a window shown over ssh never runs wezterm at all"
+      else
+        fail "enter on a window shown over ssh never runs wezterm at all" \
+          "wezterm calls: [$(tr '\n' '|' <"$work/wezterm-calls")]"
+      fi
+      active=$(tmux -L "$socket" display-message -p -t bindB:b-jump '#{pane_id}')
+      if [ "$active" = "$jump_other" ]; then
+        pass "and touches nothing"
+      else
+        fail "and touches nothing" "active pane moved to $active"
+      fi
+    fi
+    tmux -L "$socket" set-environment -u -t bindB SSH_CONNECTION
+
     rm -f "$work/wstub/wezterm"
   fi
 fi
