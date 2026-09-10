@@ -134,6 +134,58 @@ fi
 # Platform-common $HOME symlinks (see bin/init/links.sh). `relink` re-runs this
 # to sync links added after a machine was provisioned.
 link_dotfiles
+
+# --- launchd agents ---------------------------------------------------------
+#
+# Linking a plist is NOT loading it, and the gap is invisible: launchd never
+# runs the agent, nothing is logged anywhere, and the only symptom is a feature
+# quietly not happening. Both review-pipeline agents sat unloaded on this
+# machine with their symlinks perfectly in place, which is the whole reason
+# this section exists.
+#
+# It lives here and deliberately NOT in `link_dotfiles`, which `relink` calls
+# from `update-all`. Loading an agent is a decision about this machine, not a
+# fact about the file layout, and the two disagree: `launchctl bootout
+# gui/$UID/com.ebkn.pr-review-dispatch` is the documented way to stop delivery
+# while notifications keep arriving -- the entire reason the pipeline is split
+# into two agents -- and a bootstrap on every `update-all` would silently undo
+# it. The agent that posts into live sessions would come back from the dead on
+# a routine update. Provisioning runs once, so it cannot do that.
+bootstrap_launch_agent() {
+  local label="$1"
+  local plist="${HOME}/Library/LaunchAgents/${label}.plist"
+
+  if [ ! -e "$plist" ]; then
+    printf "  %s: no plist linked, skipping\n" "$label"
+    return 0
+  fi
+  # Ask before acting rather than bootout-then-bootstrap: `bootstrap` errors on
+  # an already-loaded service, but restarting one that is running fine is worse
+  # than doing nothing.
+  if launchctl print "gui/$(id -u)/${label}" >/dev/null 2>&1; then
+    printf "  %s: already loaded\n" "$label"
+    return 0
+  fi
+  if launchctl bootstrap "gui/$(id -u)" "$plist" 2>/dev/null; then
+    printf "  %s: loaded\n" "$label"
+  else
+    # A machine with no Aqua session (ssh-only) has no gui/<uid> domain to load
+    # into. Report it rather than failing the whole provisioning run.
+    printf "  %s: could not load into gui/%s; run launchctl bootstrap by hand\n" \
+      "$label" "$(id -u)" >&2
+  fi
+}
+
+# Skipped on CI for the same reason mas and Xcode are: a runner has no business
+# starting a GitHub poller, and it has no session to deliver anything into.
+if [ "${CI:-}" = "true" ]; then
+  log_step "Skipping launchd agents (CI)"
+else
+  log_step "Loading launchd agents"
+  bootstrap_launch_agent com.ebkn.pr-review-watch
+  bootstrap_launch_agent com.ebkn.pr-review-dispatch
+fi
+
 install_or_upgrade_claude
 
 diff_highlight_source="$(brew --prefix)/opt/git/share/git-core/contrib/diff-highlight/diff-highlight"
