@@ -213,6 +213,9 @@ myssh() {
   local decorate=false
   [ -t 1 ] && decorate=true
 
+  # Scratch file for the reconnect notice; see the autossh call below.
+  local notice_state=""
+
   # @ssh_my_machine only when autossh is actually taking over: the option
   # promises a nested remote tmux for prefix + p/t/o/u to reach, and the
   # fallback path below is a plain one-shot ssh with nothing to reach.
@@ -238,6 +241,29 @@ myssh() {
     # same endpoint the tunnel itself uses. See _ssh_keepalive_start.
     _ssh_keepalive_start \
       "$(command ssh -G "$host" 2>/dev/null | awk '/^hostname /{print $2; exit}')"
+    # AUTOSSH_PATH points autossh at bin/autossh-ssh, which draws the centred
+    # "reconnecting" notice once per attempt and keeps ssh's per-attempt
+    # diagnostics off the stale remote frame. It is a shim, not a replacement
+    # for autossh: the restart policy stays autossh's. The state file is its
+    # only memory between attempts (autossh execs it afresh each time) and is
+    # per-connection, so it is created here and removed below; without it the
+    # shim is a transparent `exec ssh`, which is also what happens when the
+    # shim is not deployed on this machine.
+    #
+    # `local -x` rather than a command prefix: `${var:+FOO=bar} autossh` does
+    # not work, because a command's assignment prefixes are recognised when the
+    # line is parsed, so an assignment produced by an expansion arrives as an
+    # ordinary argument. Exporting for the function's scope is the same
+    # lifetime as the connection.
+    local notice_shim="$HOME/.local/bin/autossh-ssh"
+    if $decorate && [ -x "$notice_shim" ]; then
+      notice_state=$(mktemp -t myssh-notice 2>/dev/null)
+      if [ -n "$notice_state" ]; then
+        local -x AUTOSSH_PATH="$notice_shim"
+        local -x AUTOSSH_NOTICE_STATE="$notice_state"
+        local -x AUTOSSH_NOTICE_HOST="$host"
+      fi
+    fi
     # ControlPath=none: bypass stale ControlMaster sockets that can block reconnection.
     # autossh manages its own reconnection; shared sockets from ControlPersist interfere.
     # tmux-track-session: reattach to the last-used session if the user switched
@@ -249,6 +275,11 @@ myssh() {
     command ssh "$@"
   fi
   local ret=$?
+
+  # After $?, never before: the notice state is per-connection scratch, and
+  # cleaning it up ahead of the read would report rm's status as the
+  # connection's.
+  [ -n "$notice_state" ] && rm -f "$notice_state" "$notice_state.log"
 
   _ssh_keepalive_stop
 

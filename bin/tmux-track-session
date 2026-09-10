@@ -11,6 +11,19 @@
 # tty-to-conn_id mapping), this avoids race conditions from stale tty
 # mappings when PTY numbers are reused on reconnect.
 #
+# The binding must stay single-valued in BOTH directions: one conn_id names one
+# session, and one session is named by at most one conn_id. Nothing enforced
+# that, and switching sessions on the remote (prefix + w) is exactly what breaks
+# it — the monitor records the new session under this conn_id while the conn_id
+# that was already there keeps its own record. Both then resolve to the same
+# session on the next autossh reconnect, tmux puts two clients on it, and the two
+# WezTerm tabs mirror each other while the session one of them came from sits
+# orphaned. Observed here as `local-5023 attached=2` with `local-2` and
+# `local-259` both pointing at it. So the monitor now releases a session from any
+# other conn_id when it claims it (last visitor wins, and the released tab falls
+# back to its own conn_id session), and attach refuses to join a session that
+# already has a client rather than mirroring it.
+#
 # State directory: $XDG_STATE_HOME/tmux-track-session/
 #   session/  — {conn_id} files containing last session name
 #   pid/      — {conn_id} files containing monitor PID
@@ -22,7 +35,27 @@
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tmux-track-session"
 SESSION_DIR="$STATE_DIR/session"
 PID_DIR="$STATE_DIR/pid"
-SELF="$HOME/.local/bin/tmux-track-session"
+# How `attach` re-invokes this script to start the monitor. It has to be an
+# absolute path: run-shell executes with tmux's environment rather than this
+# shell's, so a relative $0 would not resolve there.
+#
+# Derived from $0, not hardcoded to $HOME/.local/bin: the copy that is running
+# is the copy that should keep running. Hardcoding it meant the monitor was
+# always taken from the ~/.local/bin symlink no matter which copy started it --
+# so a change tested in a git worktree ran the *main* checkout's monitor (the
+# same class of trap as .zshrc resolving its own directory), and on a machine
+# where relink has never run, such as a CI runner, the path does not exist at
+# all and the monitor simply never starts. Neither says anything: attach still
+# lands in the right session, and only the tracking is gone.
+#
+# The fallback covers $0 arriving as a bare PATH-resolved name, where
+# `readlink -f` would resolve it against the current directory instead.
+SELF=$(readlink -f "$0" 2>/dev/null)
+case "$SELF" in
+  /*) [ -f "$SELF" ] || SELF="" ;;
+  *) SELF="" ;;
+esac
+[ -n "$SELF" ] || SELF="$HOME/.local/bin/tmux-track-session"
 
 ensure_dirs() {
   mkdir -p "$SESSION_DIR" "$PID_DIR"
@@ -36,20 +69,80 @@ case "${1:-}" in
     # Migrate: clean up tty mapping directory from previous implementation
     [ -d "$STATE_DIR/tty" ] && rm -rf "$STATE_DIR/tty"
 
-    # Kill any stale monitor for this conn_id from a previous connection
+    # Kill any stale monitor for this conn_id from a previous connection.
+    #
+    # The pid is identified before it is signalled. A monitor that died without
+    # running its trap -- SIGKILL, or the machine losing the process -- leaves
+    # this file behind, and the OS is then free to hand that number to something
+    # unrelated, so a blind `kill` signals whatever owns it now. On a long-lived
+    # remote that is a real window, not a theoretical one, and the damage lands
+    # on a machine nobody is looking at.
+    #
+    # bin/pr-review-lock.sh settles for `kill -0` because a recycled pid there
+    # only costs a missed steal. The mistake in this direction is destructive,
+    # so liveness is not the question -- identity is. Matching on the monitor's
+    # own argv (this script's name, the `monitor` mode, this conn_id) is what
+    # establishes it; the name is taken from $SELF rather than spelled out so
+    # renaming the script cannot quietly turn the check into "never matches".
     pid_file="$PID_DIR/$conn_id"
     if [ -f "$pid_file" ]; then
-      kill "$(cat "$pid_file")" 2>/dev/null
+      stale_pid=$(cat "$pid_file" 2>/dev/null)
+      case "$stale_pid" in
+        '' | *[!0-9]*) ;;
+        *)
+          # -ww, or procps truncates to the terminal width and the conn_id --
+          # which sits after an absolute path in the monitor's argv -- falls off
+          # the end. The match would then never succeed on Linux and every
+          # reconnect would leak a monitor, silently. BSD ps accepts it too.
+          case "$(ps -ww -p "$stale_pid" -o command= 2>/dev/null)" in
+            *"${SELF##*/}"*monitor*"$conn_id"*) kill "$stale_pid" 2>/dev/null ;;
+          esac
+          ;;
+      esac
       rm -f "$pid_file"
     fi
+
+    # Two listings, not one has-session per record: this runs on every autossh
+    # reconnect, and 177 records (the count found here for 10 live sessions)
+    # times a ~5ms tmux round-trip is most of a second of reconnect latency.
+    # Both are newline-delimited on both sides so a match cannot be a prefix of
+    # a longer name ("local-5" against "local-50").
+    all_sessions="
+$(tmux list-sessions -F '#{session_name}' 2>/dev/null)
+"
+    free_sessions="
+$(tmux list-sessions -f '#{==:#{session_attached},0}' -F '#{session_name}' 2>/dev/null)
+"
+
+    # Drop records naming a session that no longer exists. They already had no
+    # effect (the lookup below rejects them), but they accumulate forever, and a
+    # tmux pane id is only unique within one server lifetime — so a stale record
+    # outliving its server can be handed to a new connection that reuses the id.
+    for f in "$SESSION_DIR"/*; do
+      [ -f "$f" ] || continue
+      case "$all_sessions" in
+        *"
+$(cat "$f")
+"*) ;;
+        *) rm -f "$f" ;;
+      esac
+    done
 
     target="$conn_id"
     state_file="$SESSION_DIR/$conn_id"
     if [ -f "$state_file" ]; then
       saved=$(cat "$state_file")
-      if tmux has-session -t "=$saved" 2>/dev/null; then
-        target="$saved"
-      fi
+      # Only follow the record when the session is actually free. A session with
+      # a client belongs to another connection: joining it would mirror that tab
+      # rather than restore this one. Falling back to $conn_id gives this
+      # connection its own session back (new-session -A creates it if needed),
+      # which is the state it would have had if it had never switched.
+      case "$free_sessions" in
+        *"
+$saved
+"*) target="$saved" ;;
+        *) rm -f "$state_file" ;;
+      esac
     fi
 
     # Attach (or create) the target session, then start a monitor.
@@ -67,6 +160,18 @@ case "${1:-}" in
     # Guard: if tmux didn't expand #{client_tty}, skip silently
     [ -z "$client_tty" ] || [ "$client_tty" = '#{client_tty}' ] && exit 0
     ensure_dirs
+
+    # Exit 0 on a signal, and clean up while doing it.
+    #
+    # tmux reports a run-shell job that dies by a signal as
+    #   '<cmd>' terminated by signal 15
+    # and opens that report in a *view mode* covering the pane -- which on a
+    # reconnect is the remote screen, so the message lands on top of whatever
+    # was drawn there and has to be dismissed by hand. `attach` TERMs the
+    # previous connection's monitor on every reconnect, so this fired every
+    # time the link came back. tmux reports only a non-zero exit or a signal,
+    # so exiting 0 is what keeps the reconnect silent.
+    trap 'rm -f "$PID_DIR/$conn_id"; exit 0' TERM INT HUP
 
     # Record monitor PID so attach can kill us on reconnect
     printf '%s' "$$" > "$PID_DIR/$conn_id"
@@ -92,6 +197,15 @@ case "${1:-}" in
       fi
 
       if [ "$session" != "$prev" ]; then
+        # Claim the session exclusively: whoever visited last owns it. Without
+        # this the previous owner keeps its record and both connections restore
+        # onto the same session. The released connection has no record left, so
+        # it falls back to its own $conn_id session.
+        for f in "$SESSION_DIR"/*; do
+          [ -f "$f" ] || continue
+          [ "$f" = "$SESSION_DIR/$conn_id" ] && continue
+          [ "$(cat "$f")" = "$session" ] && rm -f "$f"
+        done
         printf '%s' "$session" > "$SESSION_DIR/$conn_id"
         prev="$session"
       fi

@@ -269,6 +269,7 @@ link_with_backup "${DOTFILES_DIR}/.sqliterc" "${HOME}/.sqliterc"
 link_with_backup "${DOTFILES_DIR}/bin/tmux-restore-tabs" "${HOME}/.local/bin/tmux-restore-tabs"
 link_with_backup "${DOTFILES_DIR}/bin/tmux-pane-titles" "${HOME}/.local/bin/tmux-pane-titles"
 link_with_backup "${DOTFILES_DIR}/bin/tmux-track-session" "${HOME}/.local/bin/tmux-track-session"
+link_with_backup "${DOTFILES_DIR}/bin/autossh-ssh" "${HOME}/.local/bin/autossh-ssh"
 link_with_backup "${DOTFILES_DIR}/bin/tmux-agents" "${HOME}/.local/bin/tmux-agents"
 # Must sit next to tmux-agents: they resolve each other as siblings of $0.
 link_with_backup "${DOTFILES_DIR}/bin/tmux-agent-view" "${HOME}/.local/bin/tmux-agent-view"

@@ -63,6 +63,16 @@ jobs:
       - name: tmux config and cheatsheet
         run: bash bin/tmux-conf.test.sh
 
+      # One WezTerm tab means one tmux session; tmux enforces nothing of the
+      # sort. Both of these keep that invariant, and both fail silently -- the
+      # tab you switched away from starts mirroring another one, minutes later,
+      # after an autossh reconnect.
+      - name: tmux-session-swap
+        run: bash bin/tmux-session-swap.test.sh
+
+      - name: tmux-track-session
+        run: bash bin/tmux-track-session.test.sh
+
       # Both of these turn pane options into something a person reads -- a tab
       # label and the prefix + a list. Every mistake renders a plausible wrong
       # answer rather than an error.
@@ -71,6 +81,28 @@ jobs:
 
       - name: tmux-agents
         run: bash bin/tmux-agents.test.sh
+
+      # The lock both review-pipeline programs take. Refusing to steal a dead
+      # holder's lock stops the pipeline forever with no output, since both
+      # programs exit 0 when they cannot take it; stealing a live one lets two
+      # runs interleave writes to the same job file.
+      - name: pr-review lock
+        run: bash bin/pr-review-lock.test.sh
+
+      # pr-review-watch queues review feedback for the session working on the
+      # branch. Both of its failure modes are silence: a filter that matches
+      # nothing looks exactly like "no reviews arrived", and one that stops
+      # dropping the token's own comments builds a reply loop. gh, ghq, claude
+      # and terminal-notifier are stubbed, so nothing here touches the network.
+      - name: pr-review-watch
+        run: bash bin/pr-review-watch.test.sh
+
+      # pr-review-dispatch types into live Claude sessions. Its failure mode is
+      # not "nothing happens" but "something happens at the wrong moment" -- a
+      # send-keys into a pane with a permission dialog open answers that dialog.
+      # The suite runs a throwaway tmux server, so tmux must be on the runner.
+      - name: pr-review-dispatch
+        run: bash bin/pr-review-dispatch.test.sh
 
       # _ssh_parse_argv decides which argv element is the host. Its option list
       # is a hand-copied subset of ssh(1), so it rots silently whenever openssh
