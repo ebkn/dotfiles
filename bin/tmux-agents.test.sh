@@ -534,6 +534,14 @@ fi
 # terminal), keys go in with send-keys, and the assertions read the rendered
 # screen. `remain-on-exit` keeps the pane inspectable after fzf accepts, which
 # is how acceptance is told apart from a binding that quietly did nothing.
+# The mirror opened above is torn down asynchronously, and its popup lives on
+# the client attached to tabA -- so wait for it to be gone before killing that
+# client out from under it, rather than racing the teardown.
+for _ in $(seq 1 20); do
+  tmux -L "$socket" list-clients -F '#{client_session}' 2>/dev/null |
+    grep -q '^_agent_' || break
+  sleep 0.25
+done
 tmux -L "$socket" kill-session -t tabA 2>/dev/null
 tmux -L "$socket" kill-session -t tabB 2>/dev/null
 tmux -L "$socket" new-session -d -s bindA -x 100 -y 14 "$IDLE"
