@@ -33,7 +33,7 @@ footer points at `C-q :list-keys -N` instead.
    `--width N` exists so the packing can be checked without a pty.
 2. **`list-keys -N` lists only keys that carry a note**, and tmux ships notes on
    its own prefix keys but on **no other table** (`list-keys -N -T copy-mode-vi`
-   is empty on a stock server). Hence separating ours by the `<tag>: ` shape of
+   is empty on a stock server). Hence separating ours by the `<tag>:` + space shape of
    the note — a heuristic whose worst case is a wrong heading. It holds because
    tmux's own notes are sentence-case, so the leading lowercase letter alone
    rules them out. The order list is comma-separated for the same reason a

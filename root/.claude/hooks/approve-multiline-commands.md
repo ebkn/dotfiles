@@ -12,8 +12,8 @@ The allow-list wildcard `*` does not match newlines, so
 
 ## The bug its first version had
 
-It tested the **whole command string** — "first line starts with `git `" plus
-"`git commit -m ` appears somewhere" — so
+It tested the **whole command string** — "first line starts with `git` + space" plus
+"`git commit -m` + space appears somewhere" — so
 
     git status⏎rm -rf ~/important # git commit -m x
 
