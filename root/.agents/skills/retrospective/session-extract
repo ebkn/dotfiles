@@ -60,9 +60,12 @@ jq_defs='
 '
 
 # --human-turns exists so that reading a transcript needs no general-purpose
-# tool. A skill that granted itself `Bash(jq *)` to do this would also be
-# granting `jq . x > ~/.zshrc`, since a Bash prefix grant covers the redirect
-# too. This mode can only read.
+# tool granted to the skill: allowed-tools is a grant, not a restriction, and
+# `Bash(jq *)` would pre-approve every jq invocation for as long as the skill
+# runs. (An earlier version of this comment claimed the grant would also cover
+# a redirect such as `jq . x > ~/.zshrc`; the boundary eval showed a redirect
+# being denied under a prefix grant, so that claim is withdrawn. The decision
+# stands on the narrower ground.) This mode can only read.
 if [ "$mode" = human ]; then
   jq -r "${jq_defs}"'
     select(is_prompt(.))
