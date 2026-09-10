@@ -309,16 +309,45 @@ post_to_socket() {
   esac
 }
 
+# Returns non-zero when the job could not be marked, which the caller MUST report.
+#
+# This is the worst failure this program has, because the message is already
+# gone and nothing can take it back. The job keeps its `pending` items, so the
+# next run resolves the same session and posts the same feedback again -- every
+# 30 seconds, for as long as the condition lasts. It is also completely silent:
+# both call sites used to ignore the return value, and the receiver only
+# de-duplicates identical messages arriving within a short window, which 30s
+# exceeds.
+#
+# It cannot be fixed, only reported. Every way of recording "already delivered"
+# -- this file, a sentinel beside it, anything -- is a write to the same state
+# directory that just refused one, so there is no fallback to fall back to.
+#
+# The partial file is removed because nothing else would ever touch it: the job
+# scan globs *.json, so a left-over *.json.tmp is never matched, never cleaned,
+# and never noticed.
 mark_delivered() {
   local job=$1 how=$2
-  jq --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg how "$how" '
+  if jq --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg how "$how" '
     # `seen` is untouched: it is the watcher high-water and must survive
     # delivery, or the same feedback is queued again on the next poll.
     .deliveredAt = $now
     | .deliveredVia = $how
     | .deliveredCount = ((.deliveredCount // 0) + (.pending | length))
     | .status = "delivered"
-    | .pending = []' "$job" > "$job.tmp" && mv "$job.tmp" "$job"
+    | .pending = []' "$job" > "$job.tmp" && mv "$job.tmp" "$job"; then
+    return 0
+  fi
+  /bin/rm -f "$job.tmp" 2>/dev/null
+  return 1
+}
+
+# The message is out; only the bookkeeping failed. Counting it as delivered is
+# the truth, and the error is the part that needs a human.
+report_unmarked() {
+  printf 'ERROR %s: delivered, but %s could not be marked.\n' "$1" "$2" >&2
+  printf '  The feedback WILL be sent again on every run until this is fixed.\n' >&2
+  printf '  Check that %s is writable and that the job file is valid JSON.\n' "$STATE_DIR/jobs" >&2
 }
 
 # --- main -------------------------------------------------------------------
@@ -359,7 +388,7 @@ for job in "${jobs_todo[@]}"; do
     [ "$dry_run" -eq 0 ] || continue
     write_prompt_file "$job" "$prompt_file"
     if (cd "$worktree" && claude --bg --resume "$sid" "$(prompt_text "$job" "$prompt_file")" >/dev/null 2>&1); then
-      mark_delivered "$job" "resume"
+      mark_delivered "$job" "resume" || report_unmarked "$label" "the resumed job"
       delivered=$((delivered + 1))
     else
       printf 'hold  %s: claude --bg --resume failed\n' "$label"
@@ -393,7 +422,7 @@ for job in "${jobs_todo[@]}"; do
     continue
   fi
 
-  mark_delivered "$job" "socket"
+  mark_delivered "$job" "socket" || report_unmarked "$label" "the job"
   delivered=$((delivered + 1))
 done
 

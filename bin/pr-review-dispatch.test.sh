@@ -40,8 +40,12 @@ has() { case "$2" in *"$3"*) ok "$1" ;; *) no "$1" "[$2] does not contain [$3]" 
 TMP=$(mktemp -d); TMP=$(cd "$TMP" && pwd -P)
 KILL_PIDS=""
 cleanup() {
-  # A failing run is by definition one that leaked a process.
+  # A failing run is by definition one that leaked a process. This covers both
+  # the `sleep` holders standing in for live sessions and the `nc -lU` listeners,
+  # which outlive the run whenever a case asserts that nothing was sent.
   for p in $KILL_PIDS; do kill "$p" 2>/dev/null; done
+  # Reap them so job control cannot print "Terminated" over the results.
+  wait 2>/dev/null
   /bin/rm -rf "$TMP"
 }
 trap cleanup EXIT
@@ -85,9 +89,18 @@ spawn_holder() {
 
 # listen <path> <outfile> -- a real inbox socket. `nc -lU` serves exactly one
 # connection and exits, which matches one delivery per run.
+#
+# Its pid is recorded, and that is not housekeeping. Several cases here assert
+# that NOTHING was sent, and a listener that is never connected to **waits
+# forever**: measured before this, every run leaked three of them (the
+# dead-session, worktree-ownership and dry-run cases), still alive hours later
+# holding sockets in deleted temp directories. The subshell it used to start in
+# (`( nc ... & )`) was what made that invisible -- it detached the job so `$!`
+# never reached the caller and nothing could clean up.
 listen() {
   /bin/rm -f "$1"
-  ( nc -lU "$1" > "$2" 2>/dev/null & )
+  nc -lU "$1" > "$2" 2>/dev/null &
+  KILL_PIDS="$KILL_PIDS $!"
   local i=0
   while [ $i -lt 60 ]; do [ -S "$1" ] && return 0; sleep 0.05; i=$((i + 1)); done
   return 1
@@ -335,6 +348,27 @@ eq "a failed resume holds the job" "pending" "$(job .status)"
 has "and says so" "$out" "claude --bg --resume failed"
 
 # --- empty queue ------------------------------------------------------------
+
+# --- bookkeeping that cannot be written -------------------------------------
+# The worst outcome available: the message is already gone, so a job that cannot
+# be marked is re-sent on every subsequent run -- every 30s under launchd,
+# forever, into somebody's live session. Nothing can prevent it (recording
+# "delivered" anywhere means writing to the state directory that just refused a
+# write), so the contract is that it is reported loudly rather than swallowed.
+
+printf 'unmarkable job\n'
+reset
+PID=$(spawn_holder); WIRE="$TMP/wire-8"; SOCKP="$TMP/s8.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session live "$PID" "$WT" "$SOCKP" 100
+make_job
+chmod 500 "$STATE/jobs"          # writable job file, unwritable directory
+out=$(run 2>&1); settle "$WIRE"
+chmod 700 "$STATE/jobs"
+eq "the message still went out" "user" "$(jq -r .type < "$WIRE" 2>/dev/null)"
+has "the failure is reported" "$out" "could not be marked"
+has "it names the consequence" "$out" "WILL be sent again"
+eq "no .tmp file is left behind" "" "$(ls "$STATE"/jobs/*.tmp 2>/dev/null)"
 
 printf 'empty queue\n'
 reset
