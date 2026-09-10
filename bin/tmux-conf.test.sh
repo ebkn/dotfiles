@@ -87,7 +87,40 @@ else
   pass "tagged notes reach the running server ($noted_on_server)"
 fi
 
-# --- 3. the cheatsheet renders them -----------------------------------------
+# --- 3. the swap binding survives tmux's own parser -------------------------
+
+# prefix + w is the one binding here whose body is a two-level quoting puzzle:
+# choose-tree's command template is a string inside the binding, and the %%
+# substitution inside *that* has to reach bin/tmux-session-swap with its quotes
+# intact. bin/tmux-session-swap.test.sh covers the script in thirteen cases, but
+# nothing covered the wiring, so the whole feature could stop working with every
+# one of those still green.
+#
+# It fails quietly in both directions. If the arm half is lost, `go` finds no
+# recorded tty and degrades to a plain switch -- the mirroring bug the swap
+# exists to prevent, back with no message. If the %% escaping is lost, `go`
+# receives a target it cannot resolve, `session_of` returns empty, and w simply
+# does nothing.
+#
+# Asserted against the server rather than the file: the file only says what was
+# written, and the question is what tmux parsed.
+w_binding=$(tmux -L "$socket" list-keys -T prefix 2>/dev/null | grep -E '^bind-key .* w[[:space:]]+run-shell')
+case "$w_binding" in
+  *"tmux-session-swap arm '#{client_tty}'"*)
+    pass "prefix + w arms the swap with the picking client's tty" ;;
+  *)
+    fail "prefix + w arms the swap with the picking client's tty" \
+      "the arm half is missing from what tmux parsed:" "${w_binding:-<no w binding found>}" ;;
+esac
+case "$w_binding" in
+  *'tmux-session-swap go \"%%\"'*)
+    pass "prefix + w passes choose-tree's %% through to the swap" ;;
+  *)
+    fail "prefix + w passes choose-tree's %% through to the swap" \
+      "the %% template did not survive parsing:" "${w_binding:-<no w binding found>}" ;;
+esac
+
+# --- 4. the cheatsheet renders them -----------------------------------------
 
 # --width avoids needing a pty; the real geometry comes from stty.
 tmux -L "$socket" run-shell "cd $PWD && PATH=$PWD/bin:\$PATH tmux-cheatsheet --width 120 >$work/wide 2>$work/wide.err"
