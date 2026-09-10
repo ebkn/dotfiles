@@ -269,6 +269,33 @@ eq "deliveredCount counts the items" "2" "$(job .deliveredCount)"
 # queue the same feedback again, forever.
 eq "seen survives delivery" "review:11 issue:31" "$(job '.seen | join(" ")')"
 
+# --- a job with nothing pending is not a job --------------------------------
+# The single predicate that stops a delivered job being sent again is
+# `.pending | length > 0` in the scan that runs before the registry is read.
+# Nothing else checks it -- `status` is not consulted anywhere in this program --
+# so losing it would re-post the same feedback into a live session every 30
+# seconds under launchd, which is the failure mark_delivered's own comment calls
+# the worst this program has.
+#
+# The "empty queue" case further down cannot catch that: `reset` removes the job
+# FILES, so the predicate is never reached. This one leaves a job file in exactly
+# the state a successful delivery leaves behind, with a live session still sitting
+# in its worktree -- the state every tick after a delivery is in.
+printf 'nothing pending\n'
+reset
+PID=$(spawn_holder); WIRE="$TMP/wire-np"; SOCKP="$TMP/snp.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session live "$PID" "$WT" "$SOCKP" 100
+make_job
+jq '.pending = [] | .status = "delivered" | .deliveredCount = 2' \
+  "$STATE/jobs/acme__widget__42.json" > "$TMP/np.json"
+mv "$TMP/np.json" "$STATE/jobs/acme__widget__42.json"
+out=$(run); rc=$?
+eq "a delivered job is not sent again" "" "$(cat "$WIRE" 2>/dev/null)"
+eq "and nothing is reported" "" "$out"
+eq "and the run still exits 0" "0" "$rc"
+eq "and the count is not touched" "2" "$(job .deliveredCount)"
+
 printf 'prompt file\n'
 arrange_and_deliver 3
 body=$(cat "$STATE/jobs/acme__widget__42.prompt.md")
@@ -291,7 +318,11 @@ PID=$(spawn_holder); WIRE="$TMP/wire-2"; SOCKP="$TMP/s2.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session live "$PID" "$WT" "$SOCKP" 100 busy
 make_job
-out=$(run); settle "$WIRE"
+# `out` is deliberately not captured: the assertions below read the job and the
+# wire, and the reason settle's result is checked is the one arrange_and_deliver
+# states -- an unchecked timeout makes the NEXT assertion read an empty file and
+# fail as though the wire format were wrong.
+run >/dev/null; settle "$WIRE" || no "nothing reached the socket (busy)"
 eq "a busy session is delivered to" "delivered" "$(job .status)"
 eq "the line still arrived" "user" "$(jq -r .type < "$WIRE" 2>/dev/null)"
 
@@ -302,7 +333,7 @@ PID=$(spawn_holder); WIRE="$TMP/wire-3"; SOCKP="$TMP/s3.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session live "$PID" "$WT" "$SOCKP" 100 some-future-status
 make_job
-run >/dev/null; settle "$WIRE"
+run >/dev/null; settle "$WIRE" || no "nothing reached the socket (unknown status)"
 eq "an unknown status is delivered to" "delivered" "$(job .status)"
 
 # --- liveness ---------------------------------------------------------------
@@ -321,7 +352,7 @@ listen "$DEADSOCK" "$TMP/wire-4dead" || no "dead listener came up"
 session alive "$ALIVE" "$WT" "$SOCKP" 100
 session stale "$DEAD" "$WT" "$DEADSOCK" 999
 make_job
-run >/dev/null; settle "$WIRE"
+run >/dev/null; settle "$WIRE" || no "nothing reached the live session's socket"
 eq "a dead newer session does not shadow a live one" "delivered" "$(job .status)"
 eq "the live session got it" "user" "$(jq -r .type < "$WIRE" 2>/dev/null)"
 eq "the dead session's socket got nothing" "" "$(cat "$TMP/wire-4dead" 2>/dev/null)"
@@ -377,6 +408,47 @@ eq "a renamed socket field still holds the job" "pending" "$(job .status)"
 has "it names the field" "$out" "messagingSocketPath"
 has "it says delivery is dead, not just this job" "$out" "Nothing can be delivered"
 has "it names both causes rather than asserting one" "$out" "bare mode"
+
+# Only INTERACTIVE sessions are targets, and that predicate exists twice -- once
+# in live_sessions_json's slurp and once inside session_in_worktree. The
+# duplication means a regression in one is masked by the other, which is exactly
+# why neither was pinned: a tidying pass that consolidates them could drop both
+# with nothing going red. The consequence is not cosmetic. The `--bg` resume
+# fallback puts background sessions in this same registry, so losing the filter
+# routes review feedback into an unattended agent editing code -- the one thing
+# this program keeps behind PR_REVIEW_DISPATCH_RESUME=1 on purpose.
+reset
+PID=$(spawn_holder); WIRE="$TMP/wire-kind"; SOCKP="$TMP/skind.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session live "$PID" "$WT" "$SOCKP" 100
+# Live pid, real socket, right worktree -- the only disqualifying thing is .kind.
+jq '.kind = "background"' "$SESS/live.json" > "$TMP/k.json"
+mv "$TMP/k.json" "$SESS/live.json"
+make_job
+out=$(run)
+eq "a non-interactive session is not a target" "pending" "$(job .status)"
+eq "nothing was sent to it" "" "$(cat "$WIRE" 2>/dev/null)"
+has "and it reports no live session" "$out" "no live session"
+# It must also not trip the schema alarm: the entry is perfectly well-formed, it
+# is simply not the kind of session this delivers to.
+case "$out" in
+  *messagingSocketPath*) no "a non-interactive session does not raise the schema alarm" "[$out]" ;;
+  *) ok "a non-interactive session does not raise the schema alarm" ;;
+esac
+
+# The registry directory being absent is the other way the lookup can go blind,
+# and its diagnostic is the only thing that would ever point at
+# CLAUDE_SESSIONS_DIR. The empty-queue case further down asserts this stays
+# SILENT on an idle tick -- but the early exit sits before the check, so that
+# assertion never reaches the warning at all and the warning itself was
+# unexercised. This is the other half: with something actually owed, it must speak.
+reset
+make_job
+out=$(CLAUDE_SESSIONS_DIR="$TMP/no-such-dir" PATH="$STUB:$PATH" \
+  PR_REVIEW_WATCH_STATE_DIR="$STATE" "$DISPATCH" 2>&1)
+eq "a missing registry dir still holds the job" "pending" "$(job .status)"
+has "it names the directory" "$out" "$TMP/no-such-dir"
+has "it names the override" "$out" "CLAUDE_SESSIONS_DIR"
 
 # --- a queue with more than one job -----------------------------------------
 # Everything above runs with exactly one job, which left the program's actual
@@ -443,7 +515,7 @@ mkdir -p "$WT/src/deep"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session deep "$PID" "$WT/src/deep" "$SOCKP" 100
 make_job
-run >/dev/null; settle "$WIRE"
+run >/dev/null; settle "$WIRE" || no "nothing reached the socket (deep cwd)"
 eq "a cwd below the worktree root still belongs to it" "delivered" "$(job .status)"
 
 # --- dry run ----------------------------------------------------------------
@@ -532,6 +604,54 @@ reset
 out=$(CLAUDE_SESSIONS_DIR="$TMP/no-such-dir" PATH="$STUB:$PATH" \
   PR_REVIEW_WATCH_STATE_DIR="$STATE" "$DISPATCH" 2>&1)
 eq "a missing registry dir stays quiet while the queue is empty" "" "$out"
+
+# --- the lock ---------------------------------------------------------------
+# take_lock/release_lock live in pr-review-common.sh, which has no suite of its
+# own, so neither program pinned them. launchd fires this every 30 seconds and
+# does not care that the previous run is still going, so overlapping runs are the
+# normal case, not an edge one -- and both failure directions are silent and
+# unrecoverable by retrying. Refusing to steal a dead holder's lock stops the
+# pipeline FOREVER (the program exits 0 when it cannot take it, so there is no
+# output anywhere); stealing a live one lets two runs deliver the same job twice.
+#
+# The lock is taken BEFORE the "is anything pending" scan, so these cases need a
+# real job to prove the run got no further than the lock.
+
+printf 'lock\n'
+LOCK="$STATE/.dispatch-lock"
+
+# A live holder: skip, silently, touching nothing.
+reset
+HOLDER=$(spawn_holder)
+PID=$(spawn_holder); WIRE="$TMP/wire-lock"; SOCKP="$TMP/slock.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session live "$PID" "$WT" "$SOCKP" 100
+make_job
+mkdir -p "$LOCK"; printf '%s' "$HOLDER" > "$LOCK/pid"
+out=$(run); rc=$?
+eq "a live holder makes the run exit 0" "0" "$rc"
+eq "and say nothing" "" "$out"
+eq "and deliver nothing" "" "$(cat "$WIRE" 2>/dev/null)"
+eq "the job is left queued" "pending" "$(job .status)"
+# A run that skipped must NOT free somebody else's lock on its way out, or a busy
+# machine would hand the lock to whoever asked next and the single-holder rule
+# would mean nothing. Two things enforce that and the assertion is on the outcome
+# rather than either of them: this program installs the EXIT trap only AFTER
+# take_lock succeeds, so a skipped run has no trap at all, and release_lock
+# refuses to act unless the pid file names the caller. Removing only the pid
+# check therefore leaves this green -- which is the point of asserting on the
+# lock file instead of on the mechanism.
+eq "and the holder's lock survives" "$HOLDER" "$(cat "$LOCK/pid" 2>/dev/null)"
+
+# A dead holder's lock is stolen rather than honoured forever.
+kill "$HOLDER" 2>/dev/null
+wait_dead "$HOLDER" || no "the lock holder did not exit"
+out=$(run); settle "$WIRE" || no "nothing reached the socket after stealing the lock"
+eq "a dead holder's lock is stolen" "delivered" "$(job .status)"
+has "and the delivery is reported" "$out" "send  acme/widget#42"
+# Released on the way out, or the next run would have to steal from a pid that no
+# longer exists -- which works, but only because of the fallback above.
+eq "the lock is released afterwards" "absent" "$([ -d "$LOCK" ] || echo absent)"
 
 # --- the socat branch -------------------------------------------------------
 # Auto-detection picks `nc` on every machine this runs on, so socat was a
