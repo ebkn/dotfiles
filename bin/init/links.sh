@@ -135,4 +135,14 @@ link_dotfiles() {
   # your sessions can be booted out on its own while notifications keep coming.
   link_with_backup "${DOTFILES_DIR}/launchd/com.ebkn.pr-review-dispatch.plist" \
     "${HOME}/Library/LaunchAgents/com.ebkn.pr-review-dispatch.plist"
+  # The retrospective skill owns these two, so they live beside its SKILL.md
+  # rather than under bin/. They are still put on PATH, because the skill runs
+  # from whatever project the session is in: naming them by absolute path would
+  # bake $HOME into the Bash prefixes in the skill's allowed-tools, and a bare
+  # `Bash` grant there would widen permissions for as long as the skill runs.
+  # Both are needed -- session-review looks for session-extract beside itself.
+  link_with_backup "${DOTFILES_DIR}/root/.agents/skills/retrospective/session-extract" \
+    "${HOME}/.local/bin/session-extract"
+  link_with_backup "${DOTFILES_DIR}/root/.agents/skills/retrospective/session-review" \
+    "${HOME}/.local/bin/session-review"
 }

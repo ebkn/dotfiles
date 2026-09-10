@@ -70,6 +70,14 @@ tty_on() { tmux list-clients -f "#{==:#{client_session},$1}" -F '#{client_tty}' 
 where() { tmux list-clients -f "#{==:#{client_tty},$1}" -F '#{client_session}'; }
 # Sessions holding more than one client, one per line. Must always be empty.
 doubled() { tmux list-sessions -f '#{>:#{session_attached},1}' -F '#{session_name}'; }
+# How many clients a session holds. Used where the interesting fact is that
+# *somebody* moved, rather than which particular client did.
+#
+# list-sessions, not `display-message -p -t "=$1"`: display-message expands a
+# session format against a *client*, so with nothing attached to the session it
+# prints an empty string and exits 0 rather than "0". That reads as a passing
+# comparison against another empty string, which is the wrong kind of quiet.
+attached_on() { tmux list-sessions -f "#{==:#{session_name},$1}" -F '#{session_attached}'; }
 
 tmux -f /dev/null new-session -d -s alpha "$IDLE"
 tmux set -g default-command "$IDLE"
@@ -111,14 +119,81 @@ t "same session: nothing moves"                 "$before" "$(where "$ttyA")"
 t "same session: no session has two clients"    ""        "$(doubled)"
 
 # --- without an arm it degrades to a plain switch, not to nothing -----------
+#
+# The exit status proves nothing on its own: that branch ends in an
+# unconditional `exit 0` and sends switch-client's own status to /dev/null, so
+# an assertion on $? passes even when the branch does nothing whatsoever --
+# confirmed by replacing its body with `:`, which left the suite green. What is
+# actually observable is that the target session gains a client.
+#
+# The assertion is on the target, not on a particular tty, because *which*
+# client moves is tmux's decision rather than this script's: there is no
+# recorded tty to move, so `switch-client` with no -c resolves the current
+# client itself (measured here: the most recently attached one).
+#
+# A session of its own, rather than one of the sessions above, so the case does
+# not depend on where the previous cases happened to leave the two clients.
+tmux new-session -d -s spare "$IDLE"
 rm -f "$XDG_STATE_HOME/tmux-session-swap/armed"
-t "unarmed: the key still does something"       "0"       "$("$SCRIPT" go idle >/dev/null 2>&1; echo $?)"
+before_spare=$(attached_on spare)
+"$SCRIPT" go spare >/dev/null 2>&1
+t "unarmed: exits cleanly"                      "0"       "$?"
+t "unarmed: the target session gains a client"  "0 -> 1"  "$before_spare -> $(attached_on spare)"
 
 # --- a target that no longer exists is ignored rather than erroring ---------
 pos=$(where "$ttyA")
 "$SCRIPT" arm "$ttyA"
 "$SCRIPT" go no-such-session >/dev/null 2>&1
 t "dead target: the picker did not move"        "$pos"    "$(where "$ttyA")"
+# `go` consumes the arm, on every path. The dead-target branch used to return
+# before reaching the removal, so a pick that resolved to nothing left the tty
+# on disk. Harmless in the binding, which re-arms before every chooser, but it
+# means the file no longer says "a chooser is open right now" -- and that is the
+# only thing it is for.
+t "dead target: the arm was consumed anyway"    "gone" \
+  "$([ -f "$XDG_STATE_HOME/tmux-session-swap/armed" ] && echo left-behind || echo gone)"
+
+# --- anything that is not arm or go is a usage error ------------------------
+# A silent exit 0 here would look exactly like a working key, which is the same
+# reason bin/tmux-popup.test.sh pins its own usage path.
+out=$("$SCRIPT" wobble 2>&1); rc=$?
+t "unknown subcommand: exits non-zero"          "1"       "$rc"
+t "unknown subcommand: says how to call it"     "usage"   "$(case "$out" in *Usage*) echo usage ;; *) echo "silent: $out" ;; esac)"
+
+# --- more than one client on the chosen session ------------------------------
+#
+# The loop over clients_on() exists for this, and every case above exercises it
+# with exactly one incumbent -- which the simplest possible wrong implementation
+# (move the first one, ignore the rest) also handles. Two incumbents is not a
+# contrived state: it is what tmux's own `w` produces, and what an earlier
+# bin/tmux-track-session bug produced on reconnect, so the repair path is the
+# reason to reach for this key rather than switch-client.
+#
+# What is promised here is about the *chosen* session, not about the whole
+# server: every client that was on it is moved off, so the picker lands there
+# alone. The doubling itself moves to the vacated session rather than being
+# cured -- a one-for-one swap cannot turn three clients into three sessions --
+# and asserting otherwise would pin behaviour this does not have.
+tmux new-session -d -s crowd "$IDLE"
+tmux new-session -d -s lonely "$IDLE"
+new_client crowd || exit 1
+ttyC=$(tty_on crowd)                        # read before crowd gains a second
+tmux switch-client -c "$ttyB" -t '=crowd'
+tmux switch-client -c "$ttyA" -t '=lonely'
+"$SCRIPT" arm "$ttyA"
+"$SCRIPT" go crowd
+t "crowded target: the picker ends up on it alone"  "1"      "$(attached_on crowd)"
+t "crowded target: and the picker is who is there"  "crowd"  "$(where "$ttyA")"
+t "crowded target: every incumbent was moved off"   "lonely lonely" \
+  "$(where "$ttyB") $(where "$ttyC")"
+
+# Not covered on purpose: the branch taken when the picking client vanished
+# between arm and go (`from_session` empty). Removing that guard changes
+# nothing observable -- the loop's switch-client is then handed an empty target
+# and fails, and so does the final one, leaving every client exactly where the
+# guard would have left them. A case asserting that outcome would pass with or
+# without the branch, which is the kind of assertion this file has one of too
+# many already.
 
 if [ "$fails" -eq 0 ]; then
   echo "PASS"
