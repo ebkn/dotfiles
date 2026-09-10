@@ -39,6 +39,16 @@ jobs:
       - name: approve-multiline-commands hook
         run: bash root/.claude/hooks/approve-multiline-commands.test.sh
 
+      # The retrospective skill's two scripts. Both tests run against synthetic
+      # transcripts, so they need only jq (on the runner image) and nothing
+      # from ~/.claude. The reporter test also does a bash -n on the script:
+      # it is one long single-quoted jq program, and an apostrophe in a jq
+      # comment has twice ended the string and failed every case at once.
+      - name: retrospective session-extract
+        run: bash root/.agents/skills/retrospective/session-extract.test.sh
+      - name: retrospective session-review
+        run: bash root/.agents/skills/retrospective/session-review.test.sh
+
       # agent-state.sh drives the tab glyph and the prefix+a picker off tmux
       # pane options. The test runs a throwaway tmux server, so tmux has to be
       # on the runner -- the test fails rather than skips without it, on
