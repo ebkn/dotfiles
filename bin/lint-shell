@@ -13,12 +13,44 @@
 # noticing. Two categories cannot be discovered that way and are named below:
 # sourced fragments (no shebang) and zsh config modules (sourced from .zshrc).
 #
-# Usage: bin/lint-shell        (exit 0 = clean; run from anywhere in the repo)
+# Usage:
+#   bin/lint-shell           check only (a shfmt diff fails the run)
+#   bin/lint-shell --write   apply shfmt's formatting in place
+# exit 0 = clean; run from anywhere in the repo.
 set -uo pipefail
 
 cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
 
+write=false
+case "${1:-}" in
+  "") ;;
+  --write) write=true ;;
+  *)
+    printf 'lint-shell: unknown argument: %s\n' "$1" >&2
+    printf 'Usage: bin/lint-shell [--write]\n' >&2
+    exit 1
+    ;;
+esac
+
 status=0
+
+# The listing is read through a command substitution, not the process
+# substitution (`done < <(git ls-files)`) this used to use. A process
+# substitution's exit status propagates to neither `set -e` nor `pipefail`, so
+# a failed listing left the loops with zero iterations, the targets fell back
+# to the sourced fragments named inline below, and the gate printed `ok` having
+# skipped every discovered script in the repo. Vacuous green is the one failure
+# a lint gate must not have, and nothing reports it.
+if ! tracked=$(git ls-files); then
+  printf 'lint-shell: git ls-files failed\n' >&2
+  exit 1
+fi
+# git can succeed and still return nothing — a stale index, or a checkout that
+# is not one. The inline fallback targets would make that read as a clean run.
+if [ -z "$tracked" ]; then
+  printf 'lint-shell: git ls-files returned no files; not a checkout?\n' >&2
+  exit 1
+fi
 
 # `\bsh\b` deliberately does not match `zsh` — there is no word boundary between
 # `z` and `s` — so zsh scripts fall through to the zsh pass below.
@@ -28,7 +60,7 @@ while IFS= read -r f; do
   if head -n 1 "$f" | grep -qE '^#!.*\b(bash|sh|dash)\b'; then
     sh_targets+=("$f")
   fi
-done < <(git ls-files)
+done <<<"$tracked"
 
 # Sourced by both zsh and bash, so they carry no shebang; each declares
 # `# shellcheck shell=bash` instead.
@@ -46,6 +78,28 @@ else
   status=1
 fi
 
+# shfmt is fed the shellcheck target list rather than its own `shfmt -f`
+# listing. `shfmt -f` claims *.zsh by extension — 21 files here — and shfmt
+# parses as bash, so it would rewrite zsh modules through a parser that cannot
+# represent them. The shebang discovery above already excludes zsh correctly.
+#
+# -i 2 matches the majority of scripts here; -ci keeps `case` branches indented,
+# which is this repo's existing style — without it shfmt de-indents every one of
+# them and the adoption diff nearly doubles for no reading benefit.
+
+if [ "$write" = true ]; then
+  printf -- '\n--- shfmt -w (%d files) ---\n' "${#sh_targets[@]}"
+  shfmt_args=(-w -i 2 -ci)
+else
+  printf -- '\n--- shfmt -d (%d files) ---\n' "${#sh_targets[@]}"
+  shfmt_args=(-d -i 2 -ci)
+fi
+if shfmt "${shfmt_args[@]}" "${sh_targets[@]}"; then
+  printf 'ok\n'
+else
+  status=1
+fi
+
 # The entrypoints have no shebang and live outside zsh/, so name them; the
 # `zsh/*.zsh` case below picks up the modules (including .p10k.zsh — a `case`
 # pattern has no dotfile exclusion, unlike pathname expansion).
@@ -56,7 +110,7 @@ while IFS= read -r f; do
     zsh/*.zsh) zsh_targets+=("$f") ;;
     *) head -n 1 "$f" | grep -qE '^#!.*\bzsh\b' && zsh_targets+=("$f") ;;
   esac
-done < <(git ls-files)
+done <<<"$tracked"
 
 printf -- '\n--- zsh -n (%d files) ---\n' "${#zsh_targets[@]}"
 zsh_status=0
