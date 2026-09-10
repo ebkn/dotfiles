@@ -107,6 +107,23 @@ wait_gone() { # wait_gone <pid>
   done
   return 1
 }
+# Poll for a monitor to reach its loop, which it announces by writing its pid.
+#
+# Reported as a FAIL rather than exiting, for the reason attach_as does the
+# same: this aborted the whole run, so a monitor that never started printed one
+# line of stderr and *no assertion results at all* -- not one ok, not one FAIL,
+# no count. Verified by stopping the monitor from writing its pid file: the
+# entire output was "monitor for connA never started". A red CI job that says
+# nothing about which contract broke is barely better than a green one.
+wait_running() { # wait_running <conn_id>
+  for _ in $(seq 1 100); do
+    [ -s "$PID_DIR/$1" ] && return 0
+    sleep 0.1
+  done
+  printf 'FAIL monitor for %s never started within 10s\n' "$1"
+  fails=$((fails + 1))
+  return 1
+}
 
 # script(1) is the only way to hand tmux a pty, and its command-line differs
 # between BSD (macOS: `script -q <file> <cmd...>`) and util-linux (CI:
@@ -161,21 +178,11 @@ MONITOR_PIDS="$MONITOR_PIDS $!"
 "$SCRIPT" monitor connB "$ttyB" >/dev/null 2>&1 &
 MONITOR_PIDS="$MONITOR_PIDS $!"
 
-# Wait for both monitors to be up before switching anything, by polling for the
-# pid file each writes on the way into its loop. A fixed sleep here was a guess
-# at how long two process starts take, and guessing wrong in the fast direction
-# means the switch happens before anybody is watching for it -- which shows up
-# much later, as the *next* assertion failing for no visible reason.
-wait_running() { # wait_running <conn_id>
-  for _ in $(seq 1 100); do
-    [ -s "$PID_DIR/$1" ] && return 0
-    sleep 0.1
-  done
-  echo "monitor for $1 never started" >&2
-  return 1
-}
-wait_running connA || exit 1
-wait_running connB || exit 1
+# Both monitors have to be watching before anything is switched, or the switch
+# lands before anybody is looking and the failure surfaces much later, as the
+# next assertion going red for no visible reason.
+wait_running connA
+wait_running connB
 
 tmux switch-client -c "$ttyB" -t '=s1'
 
