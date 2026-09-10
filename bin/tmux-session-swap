@@ -59,14 +59,22 @@ case "${1:-}" in
     target="${2:-}"
     [ -n "$target" ] || exit 0
 
+    # Read and clear the arm before anything can return early. The file means
+    # "a chooser is open right now", so every path out of `go` has to consume
+    # it -- including the ones that decide there is nothing to do. Resolving
+    # the target first left the tty on disk whenever the pick resolved to
+    # nothing, which the binding papers over by re-arming before every chooser,
+    # but a stale file that outlives its chooser is not a state this should be
+    # in.
+    from_tty=""
+    [ -f "$ARM_FILE" ] && from_tty=$(cat "$ARM_FILE")
+    rm -f "$ARM_FILE"
+
     to_session=$(session_of "$target")
     [ -n "$to_session" ] || exit 0
 
     # Without a recorded tty there is nobody to swap with; fall back to the
     # plain switch so the key still does the obvious thing.
-    from_tty=""
-    [ -f "$ARM_FILE" ] && from_tty=$(cat "$ARM_FILE")
-    rm -f "$ARM_FILE"
     if [ -z "$from_tty" ]; then
       tmux switch-client -t "=$to_session" 2>/dev/null
       exit 0
