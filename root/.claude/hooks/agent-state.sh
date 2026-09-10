@@ -119,6 +119,16 @@ read_stdin() {
 # own comments and misattribute the state to a subagent that does not exist. jq
 # reads the top-level key and cannot be fooled that way, so the choice is jq or
 # nothing, and `has_agents` below decides which.
+# Every piece of free text that reaches a record goes through this. Collapsing
+# whitespace keeps the value on one line, because the readers here are all
+# line-based — but the control characters have to go for a second reason: ASCII
+# RS and US separate the records inside @claude_agents, so a note containing one
+# splits its own record in half. Verified: a message carrying RS made the picker
+# render a phantom row whose state was the tail of the note. `\s` does not cover
+# them, and the text is not always Claude's own — an elicitation_dialog message
+# comes from whichever MCP server raised it.
+readonly JQ_CLEAN='def clean: gsub("[[:cntrl:]]"; " ") | gsub("\\s+"; " ");'
+
 agent_id=""
 agent_type=""
 parse_agent() {
@@ -419,8 +429,8 @@ case "$mode" in
       IFS= read -r question
       IFS= read -r agent_id
       IFS= read -r agent_type
-    } < <(printf '%s' "$json" | jq -r '
-      (.tool_input.questions[0].question // "" | gsub("\\s+"; " ")),
+    } < <(printf '%s' "$json" | jq -r "$JQ_CLEAN"'
+      (.tool_input.questions[0].question // "" | clean),
       (.agent_id // ""),
       (.agent_type // "" | gsub("[^A-Za-z0-9 ._:-]"; ""))
     ' 2>/dev/null)
@@ -450,9 +460,9 @@ case "$mode" in
       IFS= read -r message
       IFS= read -r agent_id
       IFS= read -r agent_type
-    } < <(printf '%s' "$json" | jq -r '
+    } < <(printf '%s' "$json" | jq -r "$JQ_CLEAN"'
       (.notification_type // ""),
-      (.message // "" | gsub("\\s+"; " ")),
+      (.message // "" | clean),
       (.agent_id // ""),
       (.agent_type // "" | gsub("[^A-Za-z0-9 ._:-]"; ""))
     ' 2>/dev/null)

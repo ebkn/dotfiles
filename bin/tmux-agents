@@ -202,6 +202,18 @@ list=$(
       for (i = 1; i <= n; i++) {
         if (records[i] == "") continue                  # trailing separator
         split(records[i], f, usep)
+        # An empty state is not an actor — the same rule as $6 above, which is
+        # what keeps a pane with no agent out of the list. A record can arrive
+        # that way if the option was ever written or truncated by something
+        # other than the hook, and a state-less row renders as a plausible
+        # grey circle with no age, which is worse than not being there.
+        #
+        # An *unrecognised* state is deliberately still rendered, as the last
+        # glyph in emit(). Dropping it would mean an older copy of this script
+        # hides an agent whose state a newer hook has just learned to publish,
+        # and a hidden blocked session is the one failure this list exists to
+        # prevent. A wrong glyph on a visible row is the cheaper mistake.
+        if (f[1] == "") continue
         emit(f[1], f[2], f[4], f[3])
       }
     }

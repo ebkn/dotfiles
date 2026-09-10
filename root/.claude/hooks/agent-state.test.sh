@@ -539,6 +539,38 @@ fi
 run clear
 assert_opt @claude_agents ''
 
+echo "-- free text cannot forge a record separator --"
+# The notes come from a permission prompt, a question, or an MCP server's
+# elicitation dialog, and the last of those is third-party text. RS and US were
+# chosen as separators because no *printable* delimiter is safe inside a note —
+# but that reasoning only holds if the control characters are stripped, which
+# they were not: a message carrying RS split its own record in two and the
+# picker rendered a phantom row whose state was the tail of the note.
+run clear
+run subagent-start "$(agent_json A Explore)"
+run notify "$(agent_json A Explore permission_prompt "before${US}after${RS}more")"
+note=$(get_opt @claude_note)
+if printf '%s' "$note" | LC_ALL=C grep -q '[[:cntrl:]]'; then
+  bad "a control character survived into @claude_note: [$note]"
+else
+  ok "control characters are stripped from a note"
+fi
+# The text must survive as text, only flattened -- dropping the note entirely
+# would pass the check above while losing the one thing it exists to carry.
+case "$note" in
+  *before*after*more*) ok "the note keeps its words after flattening" ;;
+  *) bad "the note lost its content: [$note]" ;;
+esac
+count=0
+while IFS= read -r entry; do
+  [[ -n "$entry" ]] && count=$((count + 1))
+done <<<"$(get_opt @claude_agents | tr "$RS" '\n')"
+if [[ "$count" -eq 1 ]]; then
+  ok "one actor still produces exactly one record"
+else
+  bad "a note forged $count records out of one actor"
+fi
+
 echo "-- attribution comes from the top-level key, never from tool output --"
 # PostToolBatch carries the content of every tool result in the batch, so a file
 # the agent just read can contain the *text* "agent_id". Attributing on a shell

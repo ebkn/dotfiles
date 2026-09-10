@@ -238,14 +238,19 @@ tmux -L "$socket" set-option -p -t "$multi_pane" @claude_since "$((now - 300))"
 multi_listing="busy${US}$((now - 5))${US}${US}${RS}"
 multi_listing+="waiting${US}$((now - 300))${US}Explore${US}needs permission${RS}"
 multi_listing+="busy${US}$((now - 20))${US}Plan${US}${RS}"
+# A record with no state is not an actor, and must be skipped rather than
+# rendered as a plausible grey circle with no age. Only the hook writes this
+# option, so the way one arrives is truncation or a stray writer -- but the row
+# it produces looks exactly like a real agent, which is why it is pinned.
+multi_listing+="${US}$((now - 10))${US}${US}${RS}"
 tmux -L "$socket" set-option -p -t "$multi_pane" @claude_agents "$multi_listing"
 
 if run_picker; then
   rows=$(grep -c 'multi-win' "$work/list" || true)
   if [ "$rows" -eq 3 ]; then
-    pass "a pane with three actors contributes three rows, not one"
+    pass "a pane with three actors contributes three rows, and the state-less record none"
   else
-    fail "a pane with three actors contributes three rows, not one" \
+    fail "a pane with three actors contributes three rows, and the state-less record none" \
       "got $rows" "$(grep 'multi-win' "$work/list")"
   fi
 
@@ -316,6 +321,15 @@ echo "\$cmd" >>"$work/ssh-calls"
 fmt=\${cmd#*-F \'}
 prefix=\${fmt%%#\{*}
 printf '%s%s\t@9\t%%9\tremote-win\tasking\t%s\tremote note\n' "\$prefix" remote-sess $((now - 900))
+# A second remote pane, running subagents. The per-actor listing has to survive
+# the format expansion done by the *remote* tmux and the ssh transport, which is
+# the one thing no local case can check -- and its separators are control
+# characters, so a transport that scrubbed them would fail here and nowhere else.
+# The separators live in the *format*, never in an argument: printf expands
+# escapes in the format string only, so a '\037' passed as %s arrives as four
+# literal characters and the record silently keeps its separator as text.
+printf '%s%s\t@8\t%%8\tremote-multi\twaiting\t%s\tremote block\tbusy\037%s\037\037\036waiting\037%s\037Explore\037remote block\036\n' \\
+  "\$prefix" remote-sess $((now - 120)) $((now - 60)) $((now - 120))
 STUB
 chmod +x "$work/stub/ssh"
 
@@ -338,6 +352,23 @@ if run_picker; then
   case "$remote_row" in
     *"remote note"*) pass "the remote row keeps every column, note included" ;;
     *) fail "the remote row keeps every column, note included" "row: ${remote_row:-<missing>}" ;;
+  esac
+
+  # The per-actor listing over ssh. Its separators are control characters, so
+  # this is also the only case that would notice a transport scrubbing them.
+  multi_rows=$(cut -f2- "$work/list" | grep -c 'remote-multi' || true)
+  if [ "$multi_rows" = 2 ]; then
+    pass "a remote pane's actors are expanded into a row each"
+  else
+    fail "a remote pane's actors are expanded into a row each" "got $multi_rows row(s)" \
+      "$(cut -f2- "$work/list" | grep 'remote-multi')"
+  fi
+  remote_agent_row=$(cut -f2- "$work/list" | grep 'remote-multi \[Explore\]' | head -1)
+  case "$remote_agent_row" in
+    '🛑 '*bakery*'remote block'*)
+      pass "the remote subagent keeps its glyph, host and note" ;;
+    *) fail "the remote subagent keeps its glyph, host and note" \
+      "row: ${remote_agent_row:-<missing>}" ;;
   esac
 
   calls=$(wc -l <"$work/ssh-calls" | tr -d ' ')
