@@ -539,6 +539,69 @@ fi
 run clear
 assert_opt @claude_agents ''
 
+echo "-- the hot path stays cheap --"
+# These are behavioural assertions about *cost*, and cost is the one property
+# here that no functional test can notice: break any of them and every other
+# case in this file still passes, the hook just taxes the inner agent loop.
+# PostToolBatch fires once per tool batch, so a fork added here is paid on every
+# batch of every session.
+#
+# Real commands behind the counters, not stubs that fake an answer: the point is
+# how many times they are reached, and a fake jq would change what the hook then
+# does with the output.
+countdir="$XDG_STATE_HOME/counters"
+mkdir -p "$countdir/bin"
+for tool in jq tmux; do
+  {
+    printf '#!/bin/sh\n'
+    printf 'echo x >>"%s/%s-calls"\n' "$countdir" "$tool"
+    printf 'exec %s "$@"\n' "$(command -v "$tool")"
+  } >"$countdir/bin/$tool"
+  chmod +x "$countdir/bin/$tool"
+done
+counted_run() {
+  local mode=$1 stdin=${2-}
+  printf '%s' "$stdin" |
+    PATH="$countdir/bin:$PATH" TMUX="$TMUX_ENV" TMUX_PANE="$PANE" "$HOOK" "$mode"
+}
+count_calls() {
+  local n=0
+  [[ -f "$countdir/$1-calls" ]] && n=$(grep -c . "$countdir/$1-calls")
+  printf '%s' "$n"
+}
+
+run clear
+: >"$countdir/jq-calls"
+counted_run busy '{"hook_event_name":"PostToolBatch"}'
+counted_run busy '{"hook_event_name":"PostToolBatch"}'
+if [[ "$(count_calls jq)" -eq 0 ]]; then
+  ok "busy parses no JSON while the pane has one actor"
+else
+  bad "busy spawned jq $(count_calls jq) time(s) with no subagent registered"
+fi
+
+# The no-change republish: the records say exactly what was last published, so
+# there is nothing for a consumer to see and no reason to pay a tmux round trip.
+: >"$countdir/tmux-calls"
+counted_run busy '{"hook_event_name":"PostToolBatch"}'
+if [[ "$(count_calls tmux)" -eq 0 ]]; then
+  ok "an unchanged state costs no tmux call"
+else
+  bad "an unchanged state cost $(count_calls tmux) tmux call(s)"
+fi
+
+# Once a subagent is registered the payload has something to say, so exactly one
+# jq pass is expected -- and attribution must not be attempted with a shell
+# regex over a payload that carries tool output.
+run subagent-start "$(agent_json A Explore)"
+: >"$countdir/jq-calls"
+counted_run busy "$(agent_json A Explore)"
+if [[ "$(count_calls jq)" -eq 1 ]]; then
+  ok "busy attributes with a single jq pass once a subagent exists"
+else
+  bad "busy spawned jq $(count_calls jq) time(s) with a subagent registered"
+fi
+
 echo "-- free text cannot forge a record separator --"
 # The notes come from a permission prompt, a question, or an MCP server's
 # elicitation dialog, and the last of those is third-party text. RS and US were
