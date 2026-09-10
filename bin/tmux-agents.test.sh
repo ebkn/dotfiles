@@ -351,16 +351,19 @@ else
     "active pane is $(active_pane), wanted $picked_pane" "$(cat "$work/out" 2>/dev/null)"
 fi
 
-# ctrl-o asks for the answer-here view, which needs a client to open a popup on.
-# A throwaway server has none, and the rule is that everything the view refuses
-# falls through to the jump rather than doing nothing -- so the pane must still
-# be selected, and no mirror session may be left behind.
+# ctrl-o needs a client to open a popup on, and a throwaway server has none.
+# Refusing must then do NOTHING -- in particular it must not fall back to the
+# jump. The two keys mean different things, and a ctrl-o that quietly moved you
+# to another tab is worse than one that does not fire.
 stub_pick 'ctrl-o'
-if run_pick; then
-  pass "ctrl-o with no client to open a popup on still jumps"
+select_first
+tmux -L "$socket" run-shell "cd $PWD && PATH=$work/stub:$PWD/bin:\$PATH tmux-agents >$work/out 2>&1"
+sleep 1
+if [ "$(active_pane)" = "$other_pane" ]; then
+  pass "a refused ctrl-o does not jump"
 else
-  fail "ctrl-o with no client to open a popup on still jumps" \
-    "active pane is $(active_pane), wanted $picked_pane" "$(cat "$work/out" 2>/dev/null)"
+  fail "a refused ctrl-o does not jump" \
+    "active pane moved to $(active_pane)" "$(cat "$work/out" 2>/dev/null)"
 fi
 if tmux -L "$socket" list-sessions -F '#{session_name}' | grep -q '^_agent_'; then
   fail "no mirror session is created when the view is refused" \
@@ -472,6 +475,16 @@ STUB
     fail "ctrl-o on a session that is not blocked attaches nothing" \
       "$(tmux -L "$socket" list-sessions -F '#{session_name}')"
   fi
+  # And it does not jump either: the client must still be on the session it was
+  # attached to. This is the half a headless run cannot see, since with no
+  # client there is no session for a jump to move.
+  on=$(tmux -L "$socket" list-clients -F '#{client_name} #{client_session}' |
+    awk -v c="$client" '$1 == c { print $2 }')
+  if [ "$on" = tabA ]; then
+    pass "a refused ctrl-o leaves the client where it was"
+  else
+    fail "a refused ctrl-o leaves the client where it was" "client moved to $on"
+  fi
 
   press_ctrl_o ask-win
   # Both sizes come out of one list-clients, matched by name. `display-message
@@ -498,6 +511,86 @@ STUB
     awk '$2 ~ /^_agent_/ { print $1 }'); do
     tmux -L "$socket" detach-client -t "$m" 2>/dev/null
   done
+fi
+
+# --- the real fzf binding ------------------------------------------------------
+
+# Every case above stubs fzf, which means none of them touch the --bind that
+# actually decides whether ctrl-o does anything. That binding is where the
+# behaviour lives: refusing after the picker has closed can only close the popup
+# and print to the status line, which is itself something happening, so the
+# refusal is made inside fzf and leaves the list standing with a warning in its
+# header. It is also the most fragile part of the script -- a shell case
+# statement inside a --bind inside a shell string -- and when the quoting is
+# wrong fzf simply does nothing, which looks exactly like a working refusal.
+#
+# So this drives the real thing: the picker runs in a real pane (fzf needs a
+# terminal), keys go in with send-keys, and the assertions read the rendered
+# screen. `remain-on-exit` keeps the pane inspectable after fzf accepts, which
+# is how acceptance is told apart from a binding that quietly did nothing.
+tmux -L "$socket" kill-session -t tabA 2>/dev/null
+tmux -L "$socket" kill-session -t tabB 2>/dev/null
+tmux -L "$socket" new-session -d -s bindA -x 100 -y 14 "$IDLE"
+tmux -L "$socket" set-option -t bindA remain-on-exit on
+tmux -L "$socket" new-session -d -s bindB -n b-busy "$IDLE"
+tmux -L "$socket" new-window -t bindB -n b-ask "$IDLE"
+for pair in b-busy:busy b-ask:asking; do
+  p=$(tmux -L "$socket" list-panes -t "bindB:${pair%%:*}" -F '#{pane_id}' | head -1)
+  tmux -L "$socket" set-option -p -t "$p" @claude_state "${pair##*:}"
+  tmux -L "$socket" set-option -p -t "$p" @claude_since "$(date +%s)"
+done
+
+fzf_pane=$(tmux -L "$socket" list-panes -t bindA -F '#{pane_id}' | head -1)
+tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
+  "sh -c 'PATH=$PWD/bin:\$PATH tmux-agents >$work/real 2>&1'"
+sleep 2
+
+screen() { tmux -L "$socket" capture-pane -p -t "$fzf_pane"; }
+dead() { tmux -L "$socket" display-message -p -t "$fzf_pane" '#{pane_dead}'; }
+
+if ! grep -q 'b-ask' <<<"$(screen)"; then
+  fail "the picker renders in a real pane" "$(screen)" "$(cat "$work/real" 2>/dev/null)"
+else
+  pass "the picker renders in a real pane"
+
+  # asking sorts above busy, so the second row is the one ctrl-o must refuse.
+  tmux -L "$socket" send-keys -t "$fzf_pane" Down
+  sleep 0.6
+  tmux -L "$socket" send-keys -t "$fzf_pane" C-o
+  sleep 1
+
+  after=$(screen)
+  if grep -q 'not waiting on you' <<<"$after"; then
+    pass "ctrl-o on a row that is not blocked warns in the header"
+  else
+    fail "ctrl-o on a row that is not blocked warns in the header" "$after"
+  fi
+  if [ "$(dead)" = 0 ] && grep -q 'b-busy' <<<"$after"; then
+    pass "the refused ctrl-o leaves the picker open"
+  else
+    fail "the refused ctrl-o leaves the picker open" "pane_dead=$(dead)" "$after"
+  fi
+
+  # Moving the cursor must put the hint back, or the warning strands you with no
+  # reminder of what either key does.
+  tmux -L "$socket" send-keys -t "$fzf_pane" Up
+  sleep 0.6
+  if grep -q 'enter: jump to the tab' <<<"$(screen)"; then
+    pass "moving off the row restores the hint"
+  else
+    fail "moving off the row restores the hint" "$(screen)"
+  fi
+
+  # And the eligible row still accepts. There is no client here, so the script
+  # stops at its own no-client guard -- but fzf having accepted is what makes
+  # the pane exit at all, and exit 0 is what says it got that far.
+  tmux -L "$socket" send-keys -t "$fzf_pane" C-o
+  sleep 1.5
+  if [ "$(dead)" = 1 ]; then
+    pass "ctrl-o on a blocked row is accepted"
+  else
+    fail "ctrl-o on a blocked row is accepted" "picker still running" "$(screen)"
+  fi
 fi
 
 if [ "$failures" -ne 0 ]; then

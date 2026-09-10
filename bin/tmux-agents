@@ -194,17 +194,41 @@ fi
 export FZF_DEFAULT_OPTS=
 unset FZF_DEFAULT_OPTS_FILE
 
+readonly HINT='enter: jump to the tab   ctrl-o: answer a blocked one here'
+
+# ctrl-o is refused per row, inside fzf, rather than after the picker has
+# closed. Refusing afterwards can only close the popup and print to the status
+# line, which is itself something happening — and what is wanted from a key that
+# does not apply is a warning and nothing else. So the binding decides from the
+# row's hidden key field (host|window|pane|state) and, when it does not apply,
+# only rewrites the header. `focus` puts the hint back as soon as the cursor
+# moves, so the warning cannot strand you without it.
+#
+# `print(...)+accept` reproduces exactly what --expect used to emit — the key on
+# its own first line, empty for enter — so the parsing below is unchanged. That
+# is the documented idiom for it (see the --bind examples in fzf(1)); --expect
+# cannot be used alongside a --bind on the same key, since the binding replaces
+# it and every ctrl-o would then read as a plain enter, i.e. as a jump.
+#
+# The shell-side checks after the picker are kept as well. They are what a
+# headless test can reach, and they are the ones that still have to hold if a
+# future fzf changes what a transform may return.
 picked=$(
   printf '%s\n' "$list" |
     fzf --delimiter="$TAB" --with-nth=2.. \
       --no-multi --no-sort --reverse \
-      --expect=ctrl-o \
       --prompt='agent> ' \
-      --header='enter: jump to the tab   ctrl-o: answer a 🔶/🛑 one here'
+      --header="$HINT" \
+      --bind="focus:change-header($HINT)" \
+      --bind='enter:print()+accept' \
+      --bind='ctrl-o:transform:case {1} in
+                "|"*asking | "|"*waiting) echo "print(ctrl-o)+accept" ;;
+                *asking | *waiting) echo "change-header(ctrl-o: a remote agent cannot be answered here yet)" ;;
+                *) echo "change-header(ctrl-o: that session is not waiting on you)" ;;
+              esac'
 ) || exit 0
 
-# --expect prints the key that closed the picker on its own first line, empty
-# for plain enter.
+# The key that closed the picker is on its own first line, empty for enter.
 key=${picked%%$'\n'*}
 selection=${picked#*$'\n'}
 
@@ -221,9 +245,10 @@ IFS='|' read -r host window_id pane_id state <<<"${selection%%$'\t'*}"
 
 # --- answer here (ctrl-o) ----------------------------------------------------
 
-# Everything this refuses falls through to the jump below rather than doing
-# nothing: the row is still the row you picked, and being taken to the tab is
-# the honest degradation of "show it to me here".
+# Refusing means doing nothing at all -- never falling back to the jump. The two
+# keys mean different things, and a ctrl-o that silently moved you to another
+# tab is worse than one that does not fire: you asked to stay where you are.
+# Each refusal says why on the status line and stops there.
 if [ "$key" = "ctrl-o" ]; then
   # Sibling of this script, for the reason spelled out in tmux-agent-view: the
   # hop below runs under `tmux run-shell`, which uses the tmux server's
@@ -236,27 +261,29 @@ if [ "$key" = "ctrl-o" ]; then
   view="$(cd "$(dirname "$self")" && pwd)/tmux-agent-view"
 
   case "$state" in
-    asking | waiting) blocked=yes ;;
-    *) blocked="" ;;
+    asking | waiting) ;;
+    *)
+      # Only a session with a dialog open has anything to answer. For a busy or
+      # a finished one there is nothing here to act on.
+      msg "that session is not waiting on you"
+      exit 0
+      ;;
   esac
 
-  if [ -z "$blocked" ]; then
-    # Only a session with a dialog open has anything to answer. For a busy or a
-    # finished one the view would be no more than a second way of looking at a
-    # tab that is one keypress away, so ctrl-o means enter there.
-    msg "that session is not waiting on you; jumping instead"
-  elif [ -n "$host" ]; then
+  if [ -n "$host" ]; then
     # A remote agent lives in the remote tmux, so the mirror would have to be a
     # nested `ssh -t <host> tmux attach`. That is reachable from here — the
     # listing already queries that host — but nothing on this machine exercises
     # it, so it is left out rather than shipped untested.
-    msg "answering a remote agent here is not supported yet; jumping instead"
-  elif [ -z "$outer_client" ]; then
-    msg "no attached client to open the view on; jumping instead"
-  else
-    tmux run-shell -b "$view open $outer_client $window_id $pane_id"
+    msg "answering a remote agent here is not supported yet"
     exit 0
   fi
+
+  # No client means nowhere to put a popup, and no status line to say so on.
+  [ -n "$outer_client" ] || exit 0
+
+  tmux run-shell -b "$view open $outer_client $window_id $pane_id"
+  exit 0
 fi
 
 # --- jump --------------------------------------------------------------------
