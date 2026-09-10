@@ -29,7 +29,7 @@ session-review --days 90
 
 Flags: `--repo PATTERN` restricts to one project, `--json` gives the full structure, `--days N` changes the window. The window is on transcript **mtime**, so a session resumed yesterday is in range even if it began months ago.
 
-Read the header before the numbers: session count, date range, how many subagent transcripts and scratch sessions were excluded, and which weeks have nothing in them. Scratch sessions are ones Claude ran from its own `/tmp/claude-501` area — evals of this skill, typically — and are not the user's work; `--include-scratch` brings them back deliberately.
+Read the header before the numbers: session count, date range, how many subagent transcripts and scratch sessions were excluded, and which weeks have nothing in them. Scratch sessions are ones Claude ran from its own `/tmp/claude-<uid>` area — evals of this skill, typically — and are not the user's work; `--include-scratch` brings them back deliberately.
 
 ### 2. Decide whether the distribution can be read at all
 
@@ -39,7 +39,7 @@ Under roughly 20 sessions a p90 is three or four data points. Say so and hedge e
 
 Take at most five, preferring sessions that are outliers on **more than one** metric — a single high number is usually a long task, while several together is usually a session that went badly.
 
-Each outlier in `--json` carries a `source_path`. Use it rather than reconstructing a path from the session id: a subagent transcript carries its parent's session id, so the id does not identify a file.
+Each outlier is printed with its `source_path` (in `--json` as a field). Use it rather than reconstructing a path from the session id: a subagent transcript carries its parent's session id, so the id does not identify a file.
 
 Read the human turns only — a full transcript is megabytes and will not fit:
 

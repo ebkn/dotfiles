@@ -1,5 +1,5 @@
 #!/bin/bash
-# Unit test for bin/session-extract.
+# Unit test for session-extract (beside this file).
 #
 # The fixture is synthetic on purpose: a real transcript carries work-repo paths
 # and source, runs to megabytes, and cannot be pinned as an expected value. What
@@ -41,6 +41,7 @@ cat > "$fixture" <<'FIXTURE'
 {"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:13.100Z","uuid":"i1","isSidechain":false,"isMeta":true,"message":{"role":"user","content":[{"type":"text","text":"Base directory for this skill: /x/skills/commit\n\nCommit changes quickly."}]}}
 {"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:13.200Z","uuid":"i2","isSidechain":false,"isCompactSummary":true,"isVisibleInTranscriptOnly":true,"message":{"role":"user","content":"This session is being continued from a previous conversation that ran out of context."}}
 {"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:13.300Z","uuid":"i3","isSidechain":false,"message":{"role":"user","content":"<command-name>/compact</command-name>\n<command-message>compact</command-message>"}}
+{"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:13.350Z","uuid":"i3b","isSidechain":false,"message":{"role":"user","content":"<command-message>commit</command-message>\n<command-name>/commit</command-name>"}}
 {"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:13.400Z","uuid":"i4","isSidechain":false,"message":{"role":"user","content":"<local-command-stdout>Compacted</local-command-stdout>"}}
 {"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:13.500Z","uuid":"i5","isSidechain":false,"message":{"role":"user","content":"<task-notification>\n<task-id>abc</task-id>\n<status>completed</status>\n</task-notification>"}}
 {"type":"user","sessionId":"S1","cwd":"/repo","gitBranch":"main","version":"2.1.100","timestamp":"2026-09-01T00:00:13.600Z","uuid":"i6","isSidechain":false,"message":{"role":"user","content":"[Request interrupted by user for tool use]"}}
@@ -56,19 +57,21 @@ FIXTURE
 # tool_result whose text is one of the four forms seen in real transcripts.
 # Timestamps sit between a8 (16.000) and r8 (17.000) so the range is unchanged.
 n=0
-bash_call() { # id, command, result kind: ok | rule | classifier | user | hook
+bash_call() { # id, command, result kind: ok | err | rule | classifier | user | user-odd-text | hook
   n=$((n + 1)); ts="2026-09-01T00:00:16.0$(printf '%02d' "$n")Z"
   jq -nc --arg id "$1" --arg cmd "$2" --arg ts "$ts" '{type:"assistant",sessionId:"S1",cwd:"/repo",gitBranch:"main",version:"2.1.247",timestamp:$ts,uuid:("a-"+$id),message:{role:"assistant",content:[{type:"tool_use",id:$id,name:"Bash",input:{command:$cmd}}]}}' >> "$fixture"
   n=$((n + 1)); ts="2026-09-01T00:00:16.0$(printf '%02d' "$n")Z"
   case "$3" in
-    ok)         text=""; err=false ;;
-    rule)       text="Permission to use Bash with command $2 has been denied."; err=true ;;
-    classifier) text="Permission for this action was denied by the Claude Code auto mode classifier. Reason: Blocked by classifier."; err=true ;;
-    user)       text="The user doesn't want to proceed with this tool use. The tool use was rejected."; err=true ;;
-    hook)       text="git-guard: refused '-c' before the git subcommand."; err=true ;;
+    ok)         text=""; err=false; kind="" ;;\
+    err)        text="Exit code 1"; err=true; kind="" ;;
+    rule)       text="Permission to use Bash with command $2 has been denied."; err=true; kind=permission-rule ;;
+    classifier) text="Permission for this action was denied by the Claude Code auto mode classifier. Reason: Blocked by classifier."; err=true; kind=automode-blocked ;;
+    user)       text="The user doesn't want to proceed with this tool use. The tool use was rejected."; err=true; kind=user-rejected ;;\
+    user-odd-text) text="Some parts require approval. Output redirection to /tmp/x was blocked."; err=true; kind=user-rejected ;;
+    hook)       text="git-guard: refused '-c' before the git subcommand."; err=true; kind=permission-rule ;;
   esac
   if [ "$err" = true ]; then
-    jq -nc --arg id "$1" --arg ts "$ts" --arg text "$text" '{type:"user",sessionId:"S1",cwd:"/repo",gitBranch:"main",version:"2.1.247",timestamp:$ts,uuid:("r-"+$id),toolUseResult:$text,message:{role:"user",content:[{type:"tool_result",tool_use_id:$id,is_error:true,content:$text}]}}' >> "$fixture"
+    jq -nc --arg id "$1" --arg ts "$ts" --arg text "$text" --arg kind "$kind" '{type:"user",sessionId:"S1",cwd:"/repo",gitBranch:"main",version:"2.1.247",timestamp:$ts,uuid:("r-"+$id),toolUseResult:$text,message:{role:"user",content:[{type:"tool_result",tool_use_id:$id,is_error:true,content:$text}]}} + (if $kind == "" then {} else {toolDenialKind:$kind} end)' >> "$fixture"
   else
     jq -nc --arg id "$1" --arg ts "$ts" '{type:"user",sessionId:"S1",cwd:"/repo",gitBranch:"main",version:"2.1.247",timestamp:$ts,uuid:("r-"+$id),toolUseResult:{stdout:"",stderr:"",interrupted:false,isImage:false,noOutputExpected:false},message:{role:"user",content:[{type:"tool_result",tool_use_id:$id,content:""}]}}' >> "$fixture"
   fi
@@ -83,6 +86,11 @@ bash_call d5 'npx wrangler d1 execute db --remote --file ./tmp/a.sql' classifier
 # User said no; the next call is unrelated, so no retry.
 bash_call d6 'curl -s https://example.com/' user
 bash_call d7 'ls' ok
+bash_call d7b 'cat x > /tmp/x' user-odd-text
+# An ordinary failed command: is_error, but no toolDenialKind and no denial
+# text. Must count as an error result and not as a denial -- and must not
+# derail the reduce (it did once, through a `strings` filter in a condition).
+bash_call d7c 'ls /nope2' err
 # Hook refusal.
 bash_call d8 'git -c core.x=y status' hook
 # Risky but permitted, plus the two convention breaches.
@@ -110,7 +118,7 @@ assert() {
 q() { jq -r "$1" "$out"; }
 
 assert "single line of output"  1     "$(wc -l < "$out" | tr -d ' ')"
-assert "schema"                 3     "$(q .schema)"
+assert "schema"                 4     "$(q .schema)"
 assert "session_id"             S1    "$(q .session_id)"
 assert "cwd"                    /repo "$(q .cwd)"
 assert "git_branch"             main  "$(q .git_branch)"
@@ -132,7 +140,7 @@ assert "wall_seconds" 17 "$(q .wall_seconds)"
 assert "user_turns exclude tool results and injected records" 5 "$(q .user_turns)"
 assert "friction.compactions" 1 "$(q .friction.compactions)"
 assert "friction.interrupts"  1 "$(q .friction.interrupts)"
-assert "assistant_turns"                 20 "$(q .assistant_turns)"
+assert "assistant_turns"                 22 "$(q .assistant_turns)"
 
 # Trap 2: isSidechain is false on most records and absent on a8/r8. Testing
 # `== false` instead of `!= true` would misclassify the absent ones.
@@ -145,16 +153,22 @@ assert "tokens.cache_read"     500 "$(q .tokens.cache_read)"
 
 # Tool names come from the tool_use blocks, never from guessing at the result
 # shape -- that is what makes trap 1 harmless here.
-assert "tools.Bash"       17 "$(q .tools.Bash)"
+assert "tools.Bash"       19 "$(q .tools.Bash)"
 assert "tools.Edit"       1 "$(q .tools.Edit)"
 assert "tools.Write"      1 "$(q .tools.Write)"
 assert "tools.ToolSearch" 1 "$(q .tools.ToolSearch)"
 
 # Trap 1: all six Bash result key sets must be attributed to Bash.
-assert "every Bash result shape attributed to Bash" 17 "$(q .tool_results.Bash)"
+assert "every Bash result shape attributed to Bash" 19 "$(q .tool_results.Bash)"
 assert "no result fell through to unknown" false "$(q '.tool_results|has("unknown")')"
 assert "tool_result_bytes has Bash"   true "$(q '.tool_result_bytes|has("Bash")')"
 assert "tool_result_bytes has Edit"   true "$(q '.tool_result_bytes|has("Edit")')"
+# Sized from the tool_result block the model was shown, not from the
+# harness-internal toolUseResult: for Edit that object carries originalFile
+# and a structured patch and ran 20-40x the block on real sessions. The base
+# fixture's Edit block has no content at all, so it must size to zero.
+assert "tool_result_bytes.Edit is the block, not the internal object" 0 "$(q .tool_result_bytes.Edit)"
+assert "tool_result_bytes.Bash counts denial texts shown to the model" true "$(q '.tool_result_bytes.Bash > 0')"
 
 assert "errors.bash_stderr"  1 "$(q .errors.bash_stderr)"
 assert "errors.interrupted"  1 "$(q .errors.interrupted)"
@@ -169,7 +183,10 @@ assert "permission_mode is null" null "$(q .permission_mode)"
 # The order of checks matters: a classifier denial also contains "denied".
 assert "denials.rule"       2 "$(q .denials.rule)"
 assert "denials.classifier" 2 "$(q .denials.classifier)"
-assert "denials.user"       1 "$(q .denials.user)"
+# The second user denial carries a text the regex would file as rule or drop
+# ("parts require approval", "was blocked"); the structured toolDenialKind
+# on the record is what decides, and the text is only a fallback.
+assert "denials.user"       2 "$(q .denials.user)"
 assert "denials.hook"       1 "$(q .denials.hook)"
 
 # A retry is a denied Bash command followed, within the next three Bash calls,
@@ -207,6 +224,8 @@ assert "tool output does not leak in"     0 "$(printf '%s\n' "$human" | grep -c 
 assert "skill body is not a human turn"   0 "$(printf '%s\n' "$human" | grep -c 'Base directory for this skill')"
 assert "compaction summary is not either" 0 "$(printf '%s\n' "$human" | grep -c 'being continued')"
 assert "slash-command echo is not either" 0 "$(printf '%s\n' "$human" | grep -c 'command-name')"
+# Newer versions put <command-message> first; 31 of those in 60 real days.
+assert "nor when command-message comes first" 0 "$(printf '%s\n' "$human" | grep -c 'command-message')"
 assert "task notification is not either"  0 "$(printf '%s\n' "$human" | grep -c 'task-notification')"
 
 exit "$fail"

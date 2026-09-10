@@ -36,12 +36,12 @@ usage: session-review [options]
                   them in makes every turns-per-prompt outlier a subagent.
   --include-scratch
                   Count sessions whose cwd is under Claude's own scratch area
-                  (/private/tmp/claude-501/...). Off by default: those are
+                  (/private/tmp/claude-<uid>/...). Off by default: those are
                   evals of this skill and the like, not the user's work, and a
                   batch of them drags every weekly median towards one call.
   -h, --help      This message
 
-Cache lives in ${XDG_CACHE_HOME:-~/.cache}/session-review/v3/ -- outside the
+Cache lives in ${XDG_CACHE_HOME:-~/.cache}/session-review/v4/ -- outside the
 repo, because bin/ is symlinked into ~/.local/bin and writing derived data
 through that link would pollute the checkout.
 USAGE
@@ -65,7 +65,7 @@ if [ ! -d "$projects" ]; then
   exit 2
 fi
 
-cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/session-review/v3"
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/session-review/v4"
 mkdir -p "$cache_dir"
 
 summaries="$(mktemp)"
@@ -74,9 +74,16 @@ trap 'rm -f "$summaries"' EXIT
 # The cache is keyed on session id and invalidated by mtime, so a resumed
 # session is re-extracted rather than served stale.
 find "$projects" -name '*.jsonl' -mtime -"$days" -print | while IFS= read -r f; do
-  id="$(basename "$f" .jsonl)"
-  cached="$cache_dir/$id.json"
-  if [ "$use_cache" -eq 1 ] && [ -f "$cached" ] && [ ! "$f" -nt "$cached" ]; then
+  # Keyed on the path under projects/, not the basename: a transcript id is
+  # only unique within its project dir, and the store also holds files like
+  # vercel-plugin/skill-injections.jsonl in every project dir.
+  rel="${f#"$projects"/}"
+  id="${rel//\//__}"
+  cached="$cache_dir/${id%.jsonl}.json"
+  # Stale if the transcript grew (resumed) or the extractor changed: a metric
+  # added later would otherwise read as uniformly zero from every cached
+  # summary, indistinguishable from measured zero.
+  if [ "$use_cache" -eq 1 ] && [ -f "$cached" ] && [ ! "$f" -nt "$cached" ] && [ ! "$extract" -nt "$cached" ]; then
     cat "$cached"
   else
     # Per-process temp name: two reviews running at once (the skill under eval,
@@ -143,14 +150,17 @@ result="$(jq -n -c \
   # turns-per-prompt outlier slot with subagents and hides the real ones.
   def transcript_id: .source_path | split("/") | last | rtrimstr(".jsonl");
   # Claude runs its own throwaway work -- evals of this skill included -- from
-  # a scratch area under /tmp/claude-501. Those sessions are real, but they are
+  # a scratch area under /tmp/claude-<uid>. Those sessions are real, but they are
   # not the work being reviewed, and a batch of one-turn evals pulled the
   # median of a whole week down to one tool call. The reviewer itself is the
   # thing most likely to pollute what it measures, so this is on by default.
   # (No apostrophes in these comments: the program is a single-quoted string.)
-  def is_scratch: (.cwd // "") | test("^/(private/)?tmp/claude-501/");
+  def is_scratch: (.cwd // "") | test("^/(private/)?tmp/claude-[0-9]+/");
 
-  ($s | map(select(.started_at != null))
+  # A .jsonl with no session id is not a transcript, whatever timestamps it
+  # carries: the store keeps skill-injections.jsonl and workflow journals
+  # under the same project dirs.
+  ($s | map(select(.started_at != null and .session_id != null))
       | map(select($repo == "" or (.cwd // "" | contains($repo))))
       | map(. + { transcript: transcript_id })
       | map(select($subagents == 1 or ((.transcript | startswith("agent-")) | not)))
@@ -200,8 +210,11 @@ result="$(jq -n -c \
 
   # Gaps matter: the store has whole months missing, so a series read without
   # them looks continuous when it is not.
+  # The window is by mtime, so a session resumed yesterday but begun months
+  # ago is in range; the span of expected weeks still starts at the window,
+  # or that one session manufactures months of empty weeks before it.
   | (if ($rows | length) == 0 then [] else
-       ($rows | map(.started_at | ts) | min) as $lo
+       ([($rows | map(.started_at | ts) | min), (now - ($days * 86400))] | max) as $lo
        | ($rows | map(.started_at | ts) | max) as $hi
        | ([range(0; (($hi - $lo) / 86400 | floor) + 1)
            | ($lo + . * 86400) | gmtime | strftime("%G-W%V")] | unique) as $span
@@ -276,7 +289,7 @@ printf '%s\n' "$result" | jq -r '
     "",
     "outliers  (past p90; open these first)",
     (if (.outliers | length) == 0 then "  none" else
-      (.outliers[] | "  \(.metric | pad(22))\(.value | pad(14))p90=\(.p90 | pad(12))\(.transcript)")
+      (.outliers[] | "  \(.metric | pad(22))\(.value | pad(14))p90=\(.p90 | pad(12))\(.transcript)\n      \(.source_path)")
     end),
     "",
     "weekly",

@@ -52,7 +52,7 @@ jq_defs='
   def injected($r; $t):
     ($r.isMeta == true)
     or ($r.isCompactSummary == true)
-    or ($t | test("^\\s*<(local-command-caveat|local-command-stdout|command-name|task-notification)"));
+    or ($t | test("^\\s*<(local-command-caveat|local-command-stdout|command-name|command-message|task-notification)"));
   def is_prompt($r):
     $r.type == "user" and $r.toolUseResult == null
     and (prompt_text($r) as $t | (injected($r; $t) | not));
@@ -89,13 +89,24 @@ jq -n -c --arg path "$src" "${jq_defs}"'
          else 0 end;
   def blocks($m): $m | objects | .content | arrays | .[];
 
-  # A denial is an is_error tool_result carrying one of four texts. Order
-  # matters: the classifier text also contains "denied", so it goes first.
-  def denial_kind($t):
-    if   $t | test("auto mode classifier")          then "classifier"
-    elif $t | test("doesn.t want to proceed")       then "user"
-    elif $t | test("[a-z]+-guard: ")                then "hook"
-    elif $t | test("has been denied|requires approval|Permission to use") then "rule"
+  # A denial record carries a structured toolDenialKind (permission-rule,
+  # user-rejected, automode-blocked, automode-unavailable); that decides. The
+  # text is only a fallback for records without it -- a regex over the text
+  # misfiled 18 of 26 real user rejections, whose wording varies ("parts
+  # require approval", "was blocked"). A guard hook is spotted by its text
+  # first, since the harness files it under permission-rule.
+  def denial_kind($r; $t):
+    if   $t | test("[a-z]+-guard: ")                        then "hook"
+    elif $r.toolDenialKind == "permission-rule"             then "rule"
+    elif $r.toolDenialKind == "user-rejected"               then "user"
+    # Not `| strings`: on a record without the key that yields empty, the if
+    # yields empty, the reduce step yields empty, and the accumulator is null
+    # from then on -- the extractor dies on the next record with a message
+    # about iterating null, far from the cause.
+    elif (($r.toolDenialKind // "") | startswith("automode")) then "classifier"
+    elif $t | test("auto mode classifier")                  then "classifier"
+    elif $t | test("doesn.t want to proceed")               then "user"
+    elif $t | test("has been denied|requires? approval|Permission to use|was blocked") then "rule"
     else null end;
 
   # What a command is trying to do, coarsely. Used only to decide whether a
@@ -223,13 +234,16 @@ jq -n -c --arg path "$src" "${jq_defs}"'
            (first(blocks($r.message) | select(.type == "tool_result") | .tool_use_id) // "unknown") as $tid
          | (.idmap[$tid] // "unknown") as $name
          | .tool_results[$name]      = ((.tool_results[$name] // 0) + 1)
-         | .tool_result_bytes[$name] = ((.tool_result_bytes[$name] // 0) + ($r.toolUseResult | tojson | length))
+         | (first(blocks($r.message) | select(.type == "tool_result")) // {}) as $blk
+         | (($blk.content // "") | if type == "string" then . else (map(.text? // "") | join(" ")) end) as $txt
+         # Size what the model was shown -- the tool_result block -- not the
+         # harness-internal toolUseResult, which for Edit carries the whole
+         # original file and a structured patch and ran 20-40x the block.
+         | .tool_result_bytes[$name] = ((.tool_result_bytes[$name] // 0) + ($txt | utf8bytelength))
          # Denials live in the tool_result block, not in toolUseResult (which
          # is then a bare string). Only a denied Bash call can be retried.
-         | (first(blocks($r.message) | select(.type == "tool_result")) // {}) as $blk
          | (if $blk.is_error == true then
-              (($blk.content // "") | if type == "string" then . else (map(.text? // "") | join(" ")) end) as $txt
-              | (denial_kind($txt)) as $kind
+                (denial_kind($r; $txt)) as $kind
               | (if $kind != null then
                    .denials[$kind] += 1
                  | (if $name == "Bash" then
@@ -247,7 +261,7 @@ jq -n -c --arg path "$src" "${jq_defs}"'
        else . end)
   )
   | {
-      schema: 3,
+      schema: 4,
       source_path: $path,
       session_id, cwd, git_branch,
       cc_version,

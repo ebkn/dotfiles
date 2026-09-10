@@ -1,5 +1,5 @@
 #!/bin/bash
-# Output-contract test for bin/session-review.
+# Output-contract test for session-review (beside this file).
 #
 # Runs against a synthetic transcript dir rather than the real store, because
 # the live store is being written to while the test runs -- the current session
@@ -53,6 +53,21 @@ mk_session "$projects/agent-abc123.jsonl" S1 2026-08-03 1 9
 # typically. It is real, but it is not the user's work, and a batch of them
 # drags every weekly median towards one tool call. Excluded by default.
 mk_session "$projects/s7.jsonl" S7 2026-08-17 1 1 /private/tmp/claude-501/-proj/abc/scratchpad/e1
+# The scratch area is named after the uid; 501 here, 1000 on the Linux hosts.
+mk_session "$projects/s10.jsonl" S10 2026-08-17 1 1 /tmp/claude-1000/-proj/abc/scratchpad/e1
+# Files under projects/ that are not transcripts. The real store holds 127
+# skill-injections.jsonl (bare timestamps, no sessionId) and workflow journals;
+# a bare timestamp is enough to give a summary a started_at.
+mkdir -p "$tmp/projects/-repo/vercel-plugin" "$projects/s6/subagents/workflows/wf_1"
+printf '{"timestamp":"2026-03-25T08:57:17.264Z","skill":"x"}\n' > "$tmp/projects/-repo/vercel-plugin/skill-injections.jsonl"
+printf '{"type":"result","agent":"a"}\n' > "$projects/s6/subagents/workflows/wf_1/journal.jsonl"
+# The same basename in another project dir is a different session and must
+# not be served the first file's cached summary.
+mkdir -p "$tmp/projects/-other"
+mk_session "$tmp/projects/-other/s1.jsonl" S8 2026-08-17 1 6
+# An old session whose file was touched recently, i.e. resumed. In range by
+# mtime, but its start must not stretch the weekly span back by a year.
+mk_session "$projects/s9.jsonl" S9 2025-01-06 1 1
 
 # The reporter is one long single-quoted jq program, so an apostrophe in a jq
 # comment ends the shell string and every case below fails at once. Twice now.
@@ -80,13 +95,38 @@ assert() {
 }
 q() { jq -r "$1" "$a"; }
 
-assert "subagent transcripts are not sessions" 6 "$(q .session_count)"
+assert "subagent transcripts are not sessions" 8 "$(q .session_count)"
 assert "subagent transcripts are counted"      1 "$(q .subagent_transcripts)"
 assert "and reported as excluded"          false "$(q .subagents_included)"
-assert "--include-subagents counts them"       7 "$("$review" --days 3650 --json --include-subagents | jq -r .session_count)"
-assert "scratch sessions are not sessions"     1 "$(q .scratch_sessions)"
+assert "--include-subagents counts them"       9 "$("$review" --days 3650 --json --include-subagents | jq -r .session_count)"
+assert "scratch sessions are not sessions, whatever the uid" 2 "$(q .scratch_sessions)"
 assert "and reported as excluded"          false "$(q .scratch_included)"
-assert "--include-scratch counts them"         7 "$("$review" --days 3650 --json --include-scratch | jq -r .session_count)"
+assert "--include-scratch counts them"        10 "$("$review" --days 3650 --json --include-scratch | jq -r .session_count)"
+
+# A .jsonl with no session id is not a session, however many timestamps it has.
+assert "non-transcript jsonl are not sessions" 0 "$(q '[.repos[] | select(.cwd == null)] | length')"
+# Cache entries are keyed on the path under projects/, so two transcripts that
+# share a basename get two entries rather than one serving both.
+assert "same basename in two projects: two cache entries" 2 "$(find "$XDG_CACHE_HOME/session-review/v4" -name '*__s1.json' | wc -l | tr -d ' ')"
+
+# A change to session-extract must reach every cached summary, or a metric
+# added later reads as uniformly zero -- indistinguishable from measured zero.
+sample="$(find "$XDG_CACHE_HOME/session-review/v4" -name '*__s6.json' | head -1)"
+before="$(stat -f %m "$sample")"
+sleep 1; touch "$here/session-extract"
+run > /dev/null
+after="$(stat -f %m "$sample")"
+assert "a newer session-extract invalidates the cache" true "$([ "$after" -gt "$before" ] && echo true || echo false)"
+
+# The window is by mtime, so an old resumed session is in range; its start
+# must not manufacture a year of empty weeks before the window.
+assert "resumed old session does not stretch missing_weeks" 0 \
+  "$("$review" --days 30 --json | jq -r '[.missing_weeks[] | select(startswith("2025"))] | length')"
+
+# The text report is what step 1 of the skill runs, and step 3 needs a path it
+# can hand to session-extract; the id alone cannot be turned into one.
+assert "text outliers carry the source path" true \
+  "$("$review" --days 3650 | grep -q 'projects/-repo/s6.jsonl' && echo true || echo false)"
 
 # The mean is deliberately absent: one 30-hour session drags it far enough to
 # describe nobody, and the report exists to surface the ends, not the middle.
