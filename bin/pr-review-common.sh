@@ -5,27 +5,18 @@
 #
 # A single-holder lock for the two review-pipeline programs. Both are driven by
 # launchd, which fires on a fixed interval and does not care that the previous
-# run is still going, so overlapping runs are the normal case rather than an
-# edge one: two watchers would interleave writes to the same job file, and two
-# dispatchers would deliver one job twice.
+# run is still going, so overlapping runs are the normal case: two watchers
+# would interleave writes to the same job file, and two dispatchers would
+# deliver one job twice.
 #
 # mkdir is the test-and-set, because it is atomic on every filesystem that
 # matters and macOS ships no flock(1).
 #
-# The interesting part is what happens to a lock whose holder died. An earlier
-# version stole any lock older than ten minutes, which quietly assumed no run
-# ever legitimately takes that long -- an assumption nothing enforced and
-# nothing checked. It is replaced here by asking the only question that actually
-# matters: is the process that took this lock still alive? The holder's pid is
-# written into the directory, and a lock is stolen only when `kill -0` says that
-# pid is gone. There is no timeout to tune and no slow-run hazard left.
-#
-# The age check survives only as the fallback for a lock with no readable pid,
-# which is a real state: mkdir succeeds and the write of the pid file can still
-# fail (a full or read-only volume), and a lock from an older version of this
-# code has no pid file at all. An hour is deliberately far longer than the ten
-# minutes it replaces, because this branch is now guesswork rather than the
-# primary mechanism and should almost never be the thing that frees a lock.
+# THE LOCK IS PID-BASED, NOT TIME-BASED: the holder's pid goes in the directory
+# and a lock is stolen only when `kill -0` says that pid is gone, so there is no
+# timeout to tune. The age check below survives only as the fallback for a lock
+# with no readable pid. Both failure directions are silent and unrecoverable --
+# see bin/pr-review-common.md.
 _PR_REVIEW_LOCK_STALE_MIN=${_PR_REVIEW_LOCK_STALE_MIN:-60}
 
 # take_lock <dir> -- 0 if this process now holds it, 1 if somebody else does.
@@ -67,20 +58,12 @@ take_lock() {
 #
 # Which live Claude Code session is working in a given worktree.
 #
-# The obvious rule -- cwd equals the worktree, or sits under it -- is WRONG the
-# moment worktrees nest, and this repo nests them by convention: `gw` puts every
-# worktree under `<checkout>/git-worktrees/`, so the main checkout is a prefix of
-# all of them. A PR whose branch is checked out in the main checkout would then
-# match every session in every sibling worktree and, taking the newest, deliver
-# a review to whoever happened to start a session last. Measured here: worktree
-# `~/dotfiles` matched four sessions and picked one on an unrelated branch.
-#
-# The rule that holds under nesting is ownership by LONGEST prefix: a cwd
-# belongs to the deepest worktree that contains it, and only that one. So the
-# caller passes every worktree of the repo and a session counts only when the
-# worktree that owns its cwd is the one being asked about. `git worktree list`
-# is the source of that list, which also means a directory that merely looks
-# nested (an unrelated checkout inside the tree) is not mistaken for a worktree.
+# Ownership is by LONGEST PREFIX, never by containment. Containment is WRONG the
+# moment worktrees nest, and `gw` nests them by convention under
+# `<checkout>/git-worktrees/`, making the main checkout a prefix of all of them:
+# a PR on the main checkout matched every sibling session and delivered a review
+# to an unrelated branch. So a cwd belongs to the deepest worktree containing
+# it, and only that one. See bin/pr-review-common.md.
 #
 # The paths are compared as plain strings, so they must arrive already resolved
 # the way git reports them -- on macOS git says /private/var where the shell says

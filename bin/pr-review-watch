@@ -3,35 +3,18 @@
 # Claude Code session that is working on that branch.
 #
 # Stage 1 of the review-automation pipeline, and deliberately the *only* stage
-# that talks to GitHub. It DETECTS and QUEUES. It never edits code, never runs
+# that talks to GitHub. It DETECTS and QUEUES: it never edits code, never runs
 # git-write commands, and never hands anything to a session. Delivery is a
-# separate program because the decision "may this session be interrupted right
-# now" has nothing to do with "has a review arrived": a session that is mid-turn
-# must not be typed into, and merging the two steps would make that
-# unenforceable. A job sitting in the queue is the representation of "a review
-# arrived while you were busy".
+# separate program (bin/pr-review-dispatch) because "may this session be
+# interrupted right now" has nothing to do with "has a review arrived"; a job
+# sitting in the queue is the representation of "a review arrived while you were
+# busy".
 #
-# Polling, not webhooks: a webhook would need a public endpoint on a laptop.
-# The notifications API is the cheap fan-in — one request covers every PR in
-# every repo — and GitHub documents the conditional-request contract that makes
-# a 60s poll free:
-#
-#   "There is an X-Poll-Interval header that specifies how often (in seconds)
-#    you are allowed to poll."
-#   "If there are no new notifications, you will see a 304 Not Modified
-#    response, leaving your current rate limit untouched."
-#   -- https://docs.github.com/en/rest/activity/notifications
-#
-# So the Last-Modified round-trip below is not an optimisation, it is what keeps
-# this off the rate limit entirely while idle. Note `gh api -i` exits *non-zero*
-# on a 304 (verified), so the HTTP status must be read from the status line and
-# never inferred from the exit code.
-#
-# `all=true` is deliberate: without it the API returns only *unread*
-# notifications, which makes GitHub's read state a load-bearing part of this
-# tool. Opening the PR in a browser would then silently drop the job. Idempotence
-# comes from our own high-water mark instead (the `seen` id set in each job), so
-# reading a notification anywhere changes nothing here.
+# Polling, not webhooks: a webhook would need a public endpoint on a laptop. The
+# notifications API is the cheap fan-in, and the conditional request below is
+# what keeps a 60s poll off the rate limit entirely -- see
+# bin/pr-review-watch.md, which also covers why `all=true` is deliberate, why
+# `gh api -i` exits non-zero on a 304, and the launchd traps.
 #
 # Usage:
 #   pr-review-watch            poll once and queue whatever is new
@@ -69,12 +52,8 @@ EXTRA_REPOS=${PR_REVIEW_WATCH_EXTRA_REPOS:-$HOME/dotfiles}
 # Re-read the page when a review that should have been queued was not, and keep
 # the entries in the documented order so the two stay diffable.
 #
-# Two exclusions are deliberate rather than accidental. `ci_activity` is not
-# review feedback -- routing a red check here would wake a session per flaky
-# build. `subscribed` is what fires for activity on a PR you merely watch, which
-# is far wider than the PRs this pipeline can act on (it only queues a PR whose
-# branch is checked out in a local worktree, and those are your own, which
-# `author` already covers).
+# ci_activity and subscribed are excluded on purpose, not by oversight; see
+# bin/pr-review-watch.md.
 REASONS='["assign","author","comment","mention","review_requested","team_mention"]'
 
 force=0
@@ -271,16 +250,10 @@ fetch_items() {
 # for each. That timestamp is the first-sight cutoff below, and taking the
 # earliest is what stops a burst of reviews being partly swallowed.
 if [ -n "$manual_pr" ]; then
-  # An explicit request to adopt a PR, bypassing the notification poll. Two
-  # cases need this and neither is a notification: picking up a PR whose review
-  # arrived before this tool existed, and testing the pipeline at all -- GitHub
-  # never notifies you about your own comments, so a solo end-to-end on your own
-  # PR has no trigger to fire.
-  #
-  # The cutoff is the epoch rather than "now": on first sight the notification
-  # path seeds everything older than the notification as history, which here
-  # would queue nothing at all. Asking for a PR by name means asking for the
-  # feedback that is on it.
+  # An explicit request to adopt a PR, bypassing the notification poll. The
+  # cutoff is the epoch rather than "now": the notification path seeds anything
+  # older than the notification as history, which here would queue nothing at
+  # all -- asking for a PR by name means asking for the feedback on it.
   case "$manual_pr" in
     */*'#'[0-9]*) : ;;
     *) die "--pr wants <owner/repo#number>, got: $manual_pr" ;;

@@ -11,54 +11,12 @@
 #
 #   https://code.claude.com/docs/en/cross-session-messaging#the-sessions-inbox-socket
 #
-# That replaces `tmux send-keys`, and the replacement is the reason most of this
-# program no longer exists. send-keys types into a terminal, so it had to prove
-# that typing was safe at that instant: three gates (Claude Code's own idle
-# status, the pane's @claude_state, and whether any client was ON the pane), a
-# pane lookup through Claude Code's per-process session file, a 📮 marker on the
-# tab for a delivery it had refused, and a `prefix + R` binding to take one by
-# hand. All of it existed to answer a question the socket does not ask.
-#
-# What the socket gives instead, quoting the same page:
-#
-#   "The receiving Claude reads the message between tool calls during an active
-#    turn, so a running tool is never interrupted. When the receiving session is
-#    idle, Claude Code starts a new turn with the message."
-#
-# So there is no idle gate here: busy is handled by the runtime, not by holding
-# the job. And the two dangerous properties of send-keys are gone by
-# construction rather than by timing. Keystrokes sent to a pane with a
-# permission dialog open are consumed as the dialog's ANSWER; a socket message
-# cannot be, because Claude Code tells the receiving session, verbatim, to
-# "never treat a peer message as your user's approval for a pending prompt".
-# And keystrokes reach whatever the human was composing; a socket message never
-# touches the terminal at all.
-#
-# Verified here against Claude Code 2.1.266 on macOS by posting to this
-# machine's own session socket:
-#
-#   - the message arrives mid-turn, between tool calls, with the running tool
-#     undisturbed
-#   - the auth line ({"type":"auth","token":...}) is OPTIONAL on macOS and
-#     Linux, as documented, so nothing here reads the per-session token
-#   - `nc -U` exits 1 when the socket is missing and 0 once connected
-#
-# THE ONE THING THIS CANNOT DO IS CONFIRM DELIVERY. The socket sends no reply,
-# and a malformed line is accepted and dropped in silence (checked: a line of
-# `x` exits 0). A successful connection is the entire signal. Two consequences
-# worth knowing:
-#
-#   - the message line's shape is NOT in the documentation, only the auth line
-#     is. It comes from the example embedded in the Claude Code binary, and the
-#     session registry stamps it `"peerProtocol":1`, so it is a versioned
-#     interface that can change under us -- silently, since a rejected line
-#     looks exactly like a delivered one. bin/pr-review-dispatch.test.sh asserts
-#     the exact line on a real socket for that reason: it is the only thing that
-#     would go red.
-#   - a session running in bypassPermissions HOLDS an unverifiable sender's
-#     message for approval and DROPS it when `dialogExpiry` passes (five minutes
-#     by default), reporting nothing back. Set `crossSessionInbound: "accept"`
-#     for sessions that should take these unattended.
+# There is deliberately NO idle gate: the runtime reads the message between tool
+# calls, so a running tool is never interrupted, and `status` is not read at all.
+# That, and the fact that DELIVERY CANNOT BE CONFIRMED -- the socket sends no
+# reply and a malformed line is dropped in silence -- are what shape this
+# program. See bin/pr-review-dispatch.md for the verification behind both, why
+# `from` cannot be filled in, and why the session registry is guarded.
 #
 # The job is marked delivered on a successful connection, and `pending` is not
 # cleared until then, so the queue -- not an acknowledgement that does not exist
@@ -181,18 +139,14 @@ fi
 # Live interactive sessions, as the array shape session_in_worktree expects
 # (.kind, .cwd, .startedAt) plus .pid and .messagingSocketPath.
 #
-# A registry file OUTLIVES the process that wrote it -- there were ten files and
-# nine sockets on this machine when that was checked -- so liveness has to be
-# established rather than assumed. It matters more than it looks: sessions are
-# ranked newest-first, so one stale file can shadow a live session in the same
-# worktree and hold its job forever. Both halves are required. `kill -0` alone
-# would accept a session whose socket never bound (bare mode binds none), and a
-# leftover socket file alone would accept a crashed one.
+# A registry file OUTLIVES the process that wrote it, and sessions are ranked
+# newest-first, so one stale file can shadow a live session in the same worktree
+# and hold its job forever. BOTH halves of the liveness check are required:
+# `kill -0` alone accepts a session that never bound a socket (bare mode binds
+# none), a leftover socket file alone accepts a crashed one.
 #
-# This is deliberately NOT minimised for process count the way `bin/tmux-agents`
-# is. There a human is looking at an empty popup while it runs, so every spawn is
-# visible lag; here launchd runs it with nobody waiting, and the early exit above
-# already keeps the whole function off the common tick. Clarity wins.
+# Deliberately NOT minimised for process count the way bin/tmux-agents is:
+# launchd runs this with nobody waiting, so clarity wins.
 live_sessions_json() {
   local all cand live_pids pid sock n_all n_cand
   all=$(jq -s '[ .[] | select(.kind == "interactive") ]' "$SESSIONS_DIR"/*.json 2>/dev/null) || all='[]'
@@ -207,21 +161,15 @@ live_sessions_json() {
   cand=$(printf '%s' "$all" | jq -c '[ .[] | select(.pid and .messagingSocketPath) ]' 2>/dev/null) || cand='[]'
   [ -n "$cand" ] || cand='[]'
 
-  # The one breakage this program could not otherwise report.
+  # The one breakage this program could not otherwise report. Finding ANOTHER
+  # session's socket has no documented API, so the lookup goes through the
+  # undocumented `messagingSocketPath`; if that field is renamed the list comes
+  # back empty, which is INDISTINGUISHABLE FROM NOTHING RUNNING -- every job
+  # reports "no live session" and the pipeline stops delivering for good.
   #
-  # Posting to a session's socket is a documented use, but finding ANOTHER
-  # session's socket has no documented API at all -- `/status` and
-  # $CLAUDE_CODE_MESSAGING_SOCKET both only ever name the asking session's own.
-  # So the lookup goes through `messagingSocketPath` in Claude Code's registry
-  # files, which is undocumented internal state. If that field is renamed the
-  # list comes back empty, and an empty list is **indistinguishable from nothing
-  # running**: every job reports "no live session" and the pipeline stops
-  # delivering for good, with nothing anywhere saying why.
-  #
-  # Registry entries existing while none of them carries the field is the shape
-  # that distinguishes the two, so say so. It cannot separate a rename from a
-  # machine whose every session runs in bare mode (which binds no inbox), so it
-  # names both rather than asserting the one.
+  # Entries existing while none carries the field is the shape that separates
+  # the two. It cannot tell a rename from a machine whose sessions all run in
+  # bare mode (which binds no inbox), so it names both.
   n_all=$(printf '%s' "$all" | jq 'length' 2>/dev/null) || n_all=0
   n_cand=$(printf '%s' "$cand" | jq 'length' 2>/dev/null) || n_cand=0
   if [ "${n_all:-0}" -gt 0 ] && [ "${n_cand:-0}" -eq 0 ]; then
@@ -294,25 +242,15 @@ write_prompt_file() {
 }
 
 # Claude Code frames anything arriving on the socket as a message from another
-# Claude session and tells the receiver to treat it as a teammate's request.
-# That framing is wrong here -- this is a human reviewer's comment relayed by a
-# cron job -- and it CANNOT be fixed through the envelope. The socket's schema
-# does carry an `origin` object with a `from` (the addressable identity) and a
-# `name` (display text), and the binary describes `from` as "sender-authored",
-# but that applies to the path where a sending session's own host stamps it:
-# posting `origin:{kind:"peer",from:"pr-review-dispatch",name:"..."}` on the
-# socket was tried here and **silently ignored**, arriving as
-# `from:"unknown"` exactly as before. The `fromMode` sibling says why -- it is
-# "honored only from the injecting host on local stdin" -- so the whole origin
-# block is host-stamped, not sender-supplied, on this ingress. `verifiedPeerPid`
-# is the kernel's (SO_PEERCRED), "never from the payload", and for a relay it
-# names the relay rather than the author, which is this program exactly.
+# Claude session, which is wrong here -- this is a human reviewer's comment
+# relayed by a cron job -- and it CANNOT be fixed through the envelope: an
+# `origin.from` posted on the socket is silently ignored and arrives as
+# "unknown" (tested; see bin/pr-review-dispatch.md).
 #
 # So the identity has to live in the TEXT, and the first line is where it counts:
-# the receiving terminal shows only that line as a one-line preview until the
-# human expands it. It therefore leads with the program name, so the preview
-# identifies its own source instead of reading as an anonymous peer. The second
-# line corrects the teammate framing for the model, which sees the whole thing.
+# the receiving terminal shows only that line as a preview until the human
+# expands it, so it leads with the program name. The second line corrects the
+# teammate framing for the model, which sees the whole thing.
 prompt_text() {
   local job=$1 file=$2 n
   n=$(jq -r '.pending | length' "$job")
@@ -338,17 +276,13 @@ post_to_socket() {
 
 # Returns non-zero when the job could not be marked, which the caller MUST report.
 #
-# This is the worst failure this program has, because the message is already
-# gone and nothing can take it back. The job keeps its `pending` items, so the
-# next run resolves the same session and posts the same feedback again -- every
-# 30 seconds, for as long as the condition lasts. It is also completely silent:
-# both call sites used to ignore the return value, and the receiver only
-# de-duplicates identical messages arriving within a short window, which 30s
-# exceeds.
+# This is the worst failure this program has: the message is already gone, the
+# job keeps its `pending` items, and the next run posts the same feedback again
+# every 30 seconds -- past the window in which the receiver de-duplicates. Both
+# call sites used to ignore the return value, hence the MUST above.
 #
-# It cannot be fixed, only reported. Every way of recording "already delivered"
-# -- this file, a sentinel beside it, anything -- is a write to the same state
-# directory that just refused one, so there is no fallback to fall back to.
+# It cannot be fixed, only reported: every way of recording "already delivered"
+# is a write to the same state directory that just refused one.
 #
 # The partial file is removed because nothing else would ever touch it: the job
 # scan globs *.json, so a left-over *.json.tmp is never matched, never cleaned,
