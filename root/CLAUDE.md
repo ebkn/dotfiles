@@ -32,6 +32,12 @@
 - When changing behavior, update related documentation (README, CLAUDE.md, inline docs) in the same commit. Code and docs should stay in sync.
 - Write comments that explain **why**, not what. Leave reasoning, intent, and non-obvious constraints as comments. Omit comments that merely restate the code.
 
+# Test Review
+
+- Use the `review-test` skill whenever a batch of test-file changes is complete, without waiting to be asked, and before the `commit` skill runs. Tests are the specification of behavior; the moment just after writing them is the cheapest time to fix them.
+- Skip it when the user says review is unnecessary, when nothing under test changed, or when the change cannot alter what the tests assert (typos, formatting, import order).
+- Fix the P1 findings and re-run the review until P1 is empty, at most three rounds; report what is left instead of looping. P2 and P3 are reported, not auto-fixed.
+
 # Commits
 
 - Use the `commit` skill to commit. The user may invoke it explicitly (`/commit`), but by default call it automatically whenever changes reach a natural commit boundary — do not wait to be asked.
