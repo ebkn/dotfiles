@@ -52,6 +52,8 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   ├── git-generated      #   Locally hide linguist-generated files from diffs via .git/info/attributes
 │   ├── lint-shell         #   shellcheck + shfmt + zsh -n over every shell script (same command CI runs)
 │   ├── lint-shell.test.sh #   Pins the target enumeration (a failed listing must not report ok)
+│   ├── skill-eval         #   Run a skill's eval cases against a throwaway fixture (calls the API; costs money)
+│   ├── skill-eval-*.sh    #   Assertions and fixture helpers the cases source
 │   ├── textlint-docs      #   Run textlint/ rules on any repo (symlinked to ~/.local/bin; backs the lint-docs skill)
 │   ├── read-doc           #   Typeset a document as HTML and open it in the browser (symlinked to ~/.local/bin)
 │   │                      #   (session-extract / session-review, which back the retrospective skill, live beside its SKILL.md and are linked the same way)
@@ -144,6 +146,7 @@ Each entry names the doc to read first.
 - **Document reading** (`bin/read-doc` + `read-doc/style.css`) — the point is the stylesheet, not the converter; **do not turn it into a terminal pager.** Untrusted input, so pandoc runs `--sandbox` behind a CSP. Includes the ssh forward mode. → [bin/read-doc.md](bin/read-doc.md)
 - **PR review automation** — two stages on purpose: [watch](bin/pr-review-watch.md) detects and queues, [dispatch](bin/pr-review-dispatch.md) delivers to a session's inbox socket. The queue is what makes interruption avoidable, so **it must never be bypassed.** Shared lock and worktree lookup: [pr-review-common.md](bin/pr-review-common.md). Loading the launchd agents is a separate decision: [launchd-load.md](bin/launchd-load.md).
 - **Japanese prose linting** (`textlint/` + `bin/textlint-docs`, backing the `lint-docs` skill) — the rules are materialized into a cache dir, so the target project gets no config. Narrowing to Japanese files is the caller's job. → [bin/textlint-docs.md](bin/textlint-docs.md)
+- **Skill evals** (`bin/skill-eval`) — a skill's behaviour is invisible in its diff, so editing a `SKILL.md` is otherwise unmeasurable. Cases live beside the skill in `evals/`; running them calls the API and costs money, so CI runs only the runner's own test. → [bin/skill-eval.md](bin/skill-eval.md)
 - **Session retrospective** (`/retrospective`) — aggregates transcripts into distributions, never a mean. → [root/.agents/skills/retrospective/NOTES.md](root/.agents/skills/retrospective/NOTES.md)
 
 ## Shell Script Conventions
@@ -178,6 +181,7 @@ silent.
 | Suite | Doc |
 | --- | --- |
 | `bin/lint-shell.test.sh` | [lint-shell.md](bin/lint-shell.md) |
+| `bin/skill-eval.test.sh` | [skill-eval.md](bin/skill-eval.md) |
 | `bin/tmux-agents.test.sh` | [tmux-agents.md](bin/tmux-agents.md) |
 | `bin/tmux-agent-view.test.sh` | [tmux-agent-view.md](bin/tmux-agent-view.md) |
 | `bin/tmux-popup.test.sh`, `bin/tmux-tig` | [tmux-popup.md](bin/tmux-popup.md) |

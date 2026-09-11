@@ -171,3 +171,8 @@ and `retrospective`.
 
 `agents/openai.yaml` inside a skill supplies Codex UI metadata and is ignored
 elsewhere.
+
+`evals/` inside a skill holds its eval cases, run by `bin/skill-eval` — see
+[bin/skill-eval.md](../bin/skill-eval.md). Nothing but that runner reads them,
+but because skills are linked as whole directories, the cases do ship to every
+machine that runs `relink`.

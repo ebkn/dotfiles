@@ -10,3 +10,7 @@ brewfiles/*.lock.json
 # bin/textlint-docs installs into a cache dir outside the repo; this guards
 # against a stray `npm install` inside textlint/ landing in the checkout.
 textlint/node_modules
+
+# bin/skill-eval writes transcripts and grading logs here, and CLAUDE.md sends
+# scratch work here too.
+tmp/
