@@ -1,169 +1,169 @@
 ---
 name: review-test
-description: テストコードのレビューを行う。公開契約（入出力・エラー契約・副作用保証）を起点に、テストが振る舞いの仕様として機能しているかを評価し、改善点を優先度付きで報告する。「テストをレビューして」「テストのレビューをお願い」「test review」「review the tests」などテストそのもののレビューを依頼された時、または /review-test コマンドで起動する。加えて、テストコード（`*.test.*` / `*.spec.*` / `*_test.*` / `*_spec.*` 等）を新規作成・変更し終わったときは、レビューを明示的に依頼されていなくても自ら起動する。
+description: Review test code. Start from the module's public contract (inputs and outputs, error conditions, guaranteed side effects) and judge whether the tests hold as a specification of behavior, then report what to improve, ranked P1/P2/P3. Use when asked to review the tests themselves — "テストをレビューして", "テストのレビューをお願い", "test review", "review the tests" — or via the /review-test command. Use it proactively as well — once test files (`*.test.*`, `*.spec.*`, `*_test.*`, `*_spec.*`) have been written or changed, start without being asked.
 effort: max
 allowed-tools: Read, Glob, Grep
 ---
 
-テストコードをレビューし、改善点を優先度(P1/P2/P3)付きで報告する。
+Review test code and report what to improve, ranked P1/P2/P3.
 
-**出力言語: 全て日本語で記述すること。** コード片やファイルパスはそのまま記載してよい。
+**Match the user's language.** Answer a Japanese request in Japanese, an English one in English. Quote code, file paths, and command output verbatim.
 
-**このスキルの境界: 読み取りとテスト実行のみ。** ファイルの変更や git 操作（`git add` / `git commit` / `git push`、`gh pr create` / `edit` など）は一切行わない。`Bash` はテスト／カバレッジコマンドの実行と、レビューに必要な情報収集（設定ファイルの確認など）に限って使い、書き込み・破壊的操作には使わない。修正はスキルの外で行う（「## レビュー後の反復」参照）。
+**Boundary of this skill: reading, plus running tests.** Never edit a file, never run git (`git add` / `git commit` / `git push`) or `gh pr create` / `gh pr edit`. `Bash` is for the project's test and coverage commands and for the reading a review needs — checking a config file, say — never for writing or destructive operations. Acting on the findings happens outside the skill (see "After the review").
 
-**`Bash` は `allowed-tools` に**含めていない**。** `allowed-tools` は制限ではなく事前承認の付与なので、素の `Bash` を書くとこのスキルが動いている間だけセッションの標準権限より広い許可が生まれ、本文が禁じている操作まで無言で通ってしまう。テストコマンドは任意のコード実行そのもので、プロジェクトごとに何が走るか事前に列挙できない以上、承認プロンプトが出るのが正しい。**テスト実行時にプロンプトが出るのは想定どおり**であり、回避しようとしないこと。
+**`Bash` is deliberately absent from `allowed-tools`.** That field grants pre-approval; it does not impose a limit. A bare `Bash` entry would therefore widen the session's normal permissions for as long as this skill runs, and the operations this body forbids would go through in silence. A test command is arbitrary code execution, and nothing can enumerate in advance what a given project runs, so a prompt is the right outcome. **Expect to be asked before tests run**, and do not work around it.
 
-**この境界は自分で守るルールであり、実行環境に依存しない。** frontmatter の `allowed-tools` を尊重しないホストがある（Codex は `name` と `description` しか読まない）。そうしたホストでは上記の git / gh コマンドが事前承認済みで、確認プロンプトなしにそのまま実行される。**プロンプトが出ないことは許可を意味しない。** 実行できるかどうかではなく、このスキルの契約として行わない。
+**The boundary is this skill's own contract, not something the host enforces.** Some hosts ignore `allowed-tools` outright — Codex reads only `name` and `description` — and there the git and gh commands above are already pre-approved and execute without confirmation. **The absence of a prompt is not permission.** What matters is not what can run but what this skill promises not to do.
 
-## 起動タイミング
+## When to start
 
-レビューを依頼されたときに加えて、**テストコードを新規作成・変更し終わった時点で、依頼が無くても自ら起動する**。テストは振る舞いの仕様であり、書いた直後が最も安く直せる。
+Beyond an explicit request, **start once a batch of test-code changes is finished, even if no one asked**. Tests are the specification of behavior, and the moment right after writing them is when they are cheapest to fix.
 
-- **起動する**: テストファイル（`*.test.ts` / `*.spec.ts` / `*_test.go` / `*_spec.rb` / `*.test.sh` / `*.test.zsh` 等、言語を問わない）の追加・変更が一区切りついたとき。`commit` スキルで commit する前に起動する
-- **起動しない**:
-  - ユーザーが「レビューは不要」「そのまま commit して」等と明示しているとき
-  - 変更がテストコードに及んでいないとき（実装のみの変更、設定ファイルのみの変更）
-  - typo 修正・フォーマット・import の並べ替えなど、テストが検証する振る舞いが変わらない変更のみのとき
+- **Start** when additions or changes to test files reach a natural stopping point — `*.test.ts`, `*.spec.ts`, `*_test.go`, `*_spec.rb`, `*.test.sh`, `*.test.zsh`, whatever the language. Run before the `commit` skill commits them.
+- **Don't start** when:
+  - the user has said a review is unnecessary, or to commit as is
+  - the change never reached test code (implementation only, configuration only)
+  - nothing the tests assert could have changed — a typo, formatting, reordered imports
 
-この起動条件を呼び出し元の設定ファイル（CLAUDE.md 等）だけに書かない。`name` と `description` しか読まないホスト（Codex）や、このリポジトリの CLAUDE.md を読まない文脈でも起動する必要があるため、条件は SKILL.md 本体に持たせている。
+Do not leave this condition to the caller's configuration alone (a `CLAUDE.md` or equivalent). Hosts that read nothing but `name` and `description` still have to trigger, and so does any repository whose configuration this skill never sees. That is why the condition lives here.
 
-## レビュー後の反復
+## After the review
 
-このスキルの実行中はファイルを変更しない（上記「このスキルの境界」）。呼び出し元は、スキルが報告を返した後に次の手順を踏む。
+This skill changes no files while it runs, per the boundary above. Once it reports, the caller takes over.
 
-1. **P1 の指摘を修正する**。P1 はマージ前に対処すべき問題として定義されているため、報告して終わりにしない
-2. 修正後に**もう一度このスキルでレビューする**。修正がテストの他の部分を壊していないか、新たな P1 を生んでいないかを見る
-3. **P1 がゼロになるまで 1〜2 を繰り返す**。ただし**最大 3 周**とし、3 周で P1 が消えない場合は残った指摘とその理由を報告して止め、ユーザーの判断を仰ぐ。同じ指摘が 2 周続けて消えない場合も、機械的に直し続けずに止める
-4. **P2 / P3 は自動では修正しない**。報告に留め、対処するかはユーザーが決める
+1. **Fix the P1 findings.** P1 means "deal with this before merging", so reporting and stopping does not discharge it.
+2. **Review again** with this skill. A fix can break another part of the test or introduce a new P1, and this is where that surfaces.
+3. **Repeat 1–2 until no P1 is left, for at most three rounds.** If P1 survives three rounds, report what remains and why, then let the user decide. Stop on the same terms when one finding survives two rounds — an LLM's findings wobble, and grinding on it mechanically is not convergence.
+4. **Never auto-fix P2 or P3.** Report them; acting on them is the user's call.
 
-## レビューの手順
+## Procedure
 
-以下の5段階で進める。順序を守ること。
+Five phases, in this order.
 
-### Phase 1: 公開契約の分析
+### Phase 1: Read the public contract
 
-レビュー対象モジュールの**公開契約**を特定する。テストは振る舞いの仕様である。起点は「この実装が内部でどう動くか」ではなく「このモジュールは呼び出し元に何を約束しているか」である。
+Identify what the module under review **promises to its callers**. Tests are a specification of behavior, so the starting point is that promise, never the internal workings of the implementation.
 
-1. **公開インターフェースの特定**: export された関数・クラス・resolver・endpoint の型定義（入力型・出力型・エラー型）
-2. **契約の明文化**: 型・JSDoc から読み取れる明示的な契約（正常系の入出力、エラー条件、副作用）
-3. **暗黙の契約の推定**: 型では表現できない保証（null 非返却、配列順序、冪等性など）を実装から推定。内部分岐の網羅ではなく「呼び出し元が依存しうる振る舞い」に絞る
-4. **境界の特定**: 入力ドメインの境界（空配列、null/undefined、上限下限）を型と契約から導出
+1. **Public interface**: the exported functions, classes, resolvers, and endpoints, and their types — input, output, error
+2. **Explicit contract**: what the types and doc comments state outright — the successful input-output pairs, the error conditions, the side effects
+3. **Implicit contract**: guarantees the types cannot express (never returns null, preserves array order, is idempotent), inferred from the implementation. Keep to behavior a caller could rely on; do not enumerate internal branches.
+4. **Boundaries**: the edges of the input domain — empty collections, null/undefined, upper and lower limits — derived from the types and the contract
 
-実装の内部ロジック（private メソッドの分岐など）はテストケース設計の起点にしない。
+Internal logic, such as a branch inside a private method, is not a starting point for test-case design.
 
-### Phase 2: あるべきテストケースの設計
+### Phase 2: Design the tests that ought to exist
 
-Phase 1 の公開契約をもとに、呼び出し元が依存する振る舞いの観点でテストケースを設計する。
+From the contract in Phase 1, design test cases around the behavior callers depend on.
 
-**設計の原則:** テストケースは「内部の分岐」ではなく「呼び出し元が期待する振る舞い」から導出する。良いテストは内部リファクタリングで壊れない。
+**The design principle:** derive cases from what a caller expects, not from internal branching. A good test survives a refactor that leaves behavior intact.
 
-**導出手順:**
-1. Phase 1 の各契約（正常系の入出力、エラー契約、副作用保証）に対してテストケースを1つ以上設計する
-2. Phase 1 で特定した境界を、対応する契約のバリエーションとして紐づける
-3. Phase 1 の暗黙の契約のうち、呼び出し元が実際に依存しうるものについてテストケースを設計する
+**How to derive them:**
+1. Design at least one case per contract from Phase 1 — successful input and output, error conditions, guaranteed side effects
+2. Attach each boundary from Phase 1 to the contract it belongs to, as a variation of it
+3. Design cases for the implicit contracts from Phase 1 that a caller could genuinely rely on
 
-**必須のテストケース種別:**
-- **正常系**: 主要な成功シナリオ（入力 → 期待出力）
-- **異常系**: 契約で定義されたエラー条件（バリデーション、権限、外部依存の失敗）
-- **境界値**: 入力ドメインの境界（空配列、null/undefined、上限下限）
-- **副作用**: 契約に含まれる副作用（DB書き込み、外部API、イベント発行）が期待通り発生すること
+**Categories that must be covered:**
+- **Success**: the main successful scenarios (input → expected output)
+- **Failure**: the error conditions the contract defines (validation, permissions, a failing external dependency)
+- **Boundaries**: the edges of the input domain (empty collections, null/undefined, upper and lower limits)
+- **Side effects**: that the effects the contract promises — a database write, an external API call, an emitted event — actually happen
 
-テストスコープ × テストサイズの選択は、プロジェクトのテストガイドラインがあればそれに従う。
+Follow the project's own testing guidelines, where they exist, for the choice of test scope and test size.
 
-### Phase 3: 既存テストとのギャップ分析
+### Phase 3: Compare against the tests that exist
 
-Phase 2 のテストケースと実際のテストコードを突き合わせる。
+Put the cases from Phase 2 next to the real test code.
 
-**網羅性:** Phase 2 で挙げたケースのうち、欠けているものを特定する。正常系の主要パスが欠けていれば即 P1。
+**Coverage of cases:** find which of the Phase 2 cases are missing. A missing main success path is P1 on its own.
 
-**品質チェック:**
-- **テスト名**: 期待動作を明確に記述しているか
-- **AAA パターン**: Arrange → Act → Assert に従っているか
-- **独立性**: テスト間の実行順序依存がないか
-- **粒度**: 1テスト1検証になっているか
-- **スコープ×サイズ**: Unit が DB アクセスしていないか、Integration のモックが統合の本質を損なっていないか
-- **アサーションの意味**: 公開契約の振る舞いを検証しているか。存在確認だけ（JS の `toBeDefined()` など）で済ませていないか。内部の実装詳細をアサートしていないか
-- **モックの適切性**: モックライブラリの正しい使用。過剰モックで実動作と乖離していないか
-- **実装結合度**: private メソッドのテスト、内部呼び出し順序の検証、リファクタリングで壊れる構造、実装の分岐条件をそのままテスト分割基準にしていないか
-- **Flaky の兆候**: 時刻依存（`Date.now()` 未モック）、ランダム値、タイミング/競合状態、共有状態変更、未モックのネットワーク呼び出し
-- **テストデータ**: プロジェクトにテストデータ生成の仕組み（factory, fixture, template 等）があれば、それを活用しているか
-- **クリーンアップ**: DB を使う結合テストでデータの後片付けが適切に行われているか
-- **環境変数・グローバル状態の不変性**: テスト内で直接変更していないか（JS の `process.env` など）
+**Quality:**
+- **Names**: does each state the expected behavior plainly?
+- **AAA**: Arrange → Act → Assert?
+- **Independence**: is there any dependence on execution order between tests?
+- **Granularity**: one assertion of one thing per test?
+- **Scope against size**: is a unit test reaching a database? Does an integration test's mocking hollow out the integration it exists to check?
+- **What the assertions mean**: do they check the behavior of the public contract? Is anything settled by a bare existence check (`toBeDefined()` in JS and the like)? Do any of them assert internal implementation detail?
+- **Mocking**: is the mocking library used correctly? Has over-mocking drifted away from how the code actually behaves?
+- **Coupling to implementation**: tests of private methods, assertions on the order of internal calls, structures a refactor would break, test splits that simply mirror the implementation's branches
+- **Signs of flakiness**: dependence on the clock (`Date.now()` unmocked), random values, timing and race conditions, mutated shared state, unmocked network calls
+- **Test data**: if the project has a way to build test data (factory, fixture, template), do the tests use it?
+- **Cleanup**: in integration tests that touch a database, is the data cleaned up properly?
+- **Environment and global state**: is anything mutated in place inside a test (`process.env` in JS and the like)?
 
-**実装側の問題検出:**
+**Problems in the implementation:**
 
-テストコードのレビューが主目的だが、Phase 1 で公開契約を分析する過程や Phase 3 で実装結合度を評価する過程でバグの可能性や明らかにおかしい箇所を発見した場合は記録しておく。P1/P2/P3 とは別の「実装への指摘」セクションで報告する。
+The subject of the review is the test code. But reading the public contract in Phase 1 and judging coupling in Phase 3 turns up possible bugs and plainly wrong code, so write those down. Report them in a separate section rather than as P1/P2/P3.
 
-### Phase 4: カバレッジ情報の取得
+### Phase 4: Collect coverage
 
-テストを実行してカバレッジ情報を収集し、Phase 3 のギャップと照合する。
+Run the tests, collect coverage, and check it against the gaps from Phase 3.
 
-プロジェクトのカバレッジ取得コマンド（例: `yarn test:coverage`, `npm run test:coverage`, `go test -cover` 等）を使用する。コマンドが不明な場合は `package.json` やプロジェクト設定から特定すること。
+Use the project's own command (`yarn test:coverage`, `npm run test:coverage`, `go test -cover`, and so on). Where it is unclear, find it in `package.json` or the project's configuration.
 
-カバレッジは参考情報。100% が目標ではなく、重要なパスがカバーされているかが本質。
+Coverage is a hint, not a target. 100% is not the goal; whether the paths that matter are exercised is.
 
-### Phase 5: レビュー結果の出力
+### Phase 5: Report
 
-以下のフォーマットで出力する。
+Use this format. Translate the headings into the language of the report.
 
 ```
-## テストレビュー: [対象の説明]
+## Test review: [what was reviewed]
 
-### 概要
-- 対象: [ファイルパスまたはモジュール名]
-- テストファイル数: N
-- テストケース数: N
-- カバレッジ: N% (lines)
+### Summary
+- Target: [file path or module name]
+- Test files: N
+- Test cases: N
+- Coverage: N% (lines)
 
 ### P1 (Critical)
-- [具体的な指摘内容と理由]
+- [the finding, and why it matters]
 - [ ] ...
 
 ### P2 (Important)
-- [具体的な指摘内容と理由]
+- [the finding, and why it matters]
 - [ ] ...
 
 ### P3 (Nice to have)
-- [具体的な指摘内容と理由]
+- [the finding, and why it matters]
 - [ ] ...
 
-### 実装への指摘
-- [テストレビュー中に発見した実装側のバグや問題]
+### Findings in the implementation
+- [bugs or problems in the implementation found during the review]
 ```
 
-該当する指摘がない優先度セクション・実装への指摘セクションは省略してよい。
+Drop any priority section with nothing in it, and the implementation section too.
 
-## 優先度の判断基準
+## How to assign priority
 
-P1/P2/P3 は**絶対的な基準**で判断する。均等に振り分けるのではなく、基準に該当するかで分類する。品質の高いテストに対して無理に P1 を探す必要はない。
+P1/P2/P3 are **absolute criteria**, not a distribution. Classify by whether a finding meets the criterion; do not spread findings evenly across the three, and do not manufacture a P1 for tests that are already good.
 
-**P1 (Critical)** — マージ前に対処すべき問題。放置するとバグの見逃しやリグレッションに直結する。
+**P1 (Critical)** — must be dealt with before merging. Left alone, it leads directly to a missed bug or a regression.
 
-次の**いずれか**に該当する場合のみ P1 とする。
-- 公開契約で約束された主要な振る舞いに対するテストが存在しない
-- アサーションがない、または存在確認だけ（JS の `toBeDefined()` など）で振る舞いを検証していない（偽の安心を生む）
-- テストが公開契約の振る舞いを一切検証せず、内部実装の詳細（private メソッドの呼び出し回数、内部状態の中間値など）のみをアサートしている（偽のカバレッジを生み、リファクタリングを阻害する）
-- テストスコープ×サイズの選択が不適切（Unit Test が外部リソースに依存、etc.）
-- テスト間に暗黙の実行順序依存があり、並列実行やランダム実行で壊れる
-- グローバル状態・環境変数をテスト内で直接変更している（JS の `process.env` など）
-- エラーハンドリングの**主要パス**（公開契約で定義されたエラー条件）がテストされていない（副次的なエラーパスの不足は P2）
+P1 only if **any one** of these holds.
+- No test exists for a main behavior the public contract promises
+- A test has no assertion, or checks nothing beyond existence (`toBeDefined()` in JS and the like), which manufactures false confidence
+- A test asserts only internal detail — how often a private method was called, an intermediate internal value — and never the behavior of the public contract, which manufactures false coverage and obstructs refactoring
+- The choice of test scope and size is wrong (a unit test depending on an external resource, and so on)
+- Tests depend implicitly on execution order and break when run in parallel or in random order
+- Global state or environment variables are mutated inside a test (`process.env` in JS and the like)
+- A **main** error path — an error condition the public contract defines — is untested (a missing secondary error path is P2)
 
-**P2 (Important)** — 品質向上のために対処すべき問題。テストの信頼性や保守性に影響する。
+**P2 (Important)** — worth dealing with for quality. It affects how much the tests can be trusted and how well they can be maintained.
 
-次の**いずれか**に該当する場合に P2 とする。
-- 境界値テストの不足
-- テスト名が振る舞いを適切に記述していない
-- AAA パターンに従っていない
-- 過剰なモックにより実動作との乖離が生じている
-- テストが内部実装の詳細に過度に結合しており、振る舞いを変えないリファクタリングで壊れやすい構造になっている
-- Flaky の兆候がある（時刻・ランダム値・タイミング・共有状態・ネットワーク依存）
-- カバレッジレポートで変更行のテスト漏れがある
-- 副次的なエラーパスのテストが不足している
+P2 if **any one** of these holds.
+- Boundary cases are missing
+- A test name does not describe the behavior it checks
+- The test does not follow AAA
+- Over-mocking has pulled the test away from real behavior
+- The test is coupled tightly enough to implementation detail that a behavior-preserving refactor would break it
+- There are signs of flakiness (clock, random values, timing, shared state, network)
+- The coverage report shows changed lines left untested
+- A secondary error path is untested
 
-**P3 (Nice to have)** — 改善すると良いが、必須ではない。
+**P3 (Nice to have)** — an improvement, not an obligation.
 
-- テストファイルの構造・整理の改善
-- 冗長なアサーションの整理
-- テストセットアップの簡素化
-- テストのグルーピング階層の改善（JS の `describe` ブロックなど）
-- テストケースの分割が契約/振る舞いではなく実装の分岐構造に基づいている（機能的には問題ないが、保守性の観点で改善の余地がある）
+- The structure and organization of the test files
+- Redundant assertions
+- Simpler test setup
+- The grouping hierarchy (`describe` blocks in JS and the like)
+- Test cases split along the implementation's branches rather than along contracts and behavior — it works, but it costs maintainability
