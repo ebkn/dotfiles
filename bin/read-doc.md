@@ -51,9 +51,11 @@ Two consequences, both deliberate:
    which the html5 template emits after `$styles.html()$` exactly where `--css`
    used to land. `--include-after-body` is read by the CLI itself and is
    unaffected.
-2. **A document-relative image no longer renders** — `--sandbox` will not fetch
-   it and `img-src data:` would refuse it anyway. That is the accepted price for
-   prose documents that mostly arrive from elsewhere.
+2. **A document-relative image is inlined by the script, not fetched by pandoc**
+   — `--sandbox` will not fetch it and `img-src data:` would refuse it anyway.
+   So `read-doc` makes a second pass over the rendered HTML and rewrites each
+   `<img src>` to a `data:` URI. See "Images" below for what that pass will and
+   will not touch.
 
 **The known gap worth stating:** `script-src 'unsafe-inline'` is required by
 `after-body.html` and therefore also permits a script the *document* smuggled
@@ -111,6 +113,36 @@ prose, which is how this first went wrong.
 
 Unknown extensions deliberately fall through to prose: rendering source without
 colour is a milder failure than hiding a document behind a scrollbar.
+
+## Images
+
+`![](./images/a.svg)` is inlined as a `data:` URI by a second pass over the
+rendered HTML, because neither pandoc nor the browser will go and fetch it (see
+"The input is untrusted" above). Four rules, and why each one is there:
+
+- **Only a document named as a local path.** stdin and `HOST:FILE` are skipped:
+  a pulled document's neighbours never crossed the wire, and its source is a
+  temp file by then, so `./images/a.svg` would be looked up in `$TMPDIR`.
+- **Only inside the document's own directory tree**, resolved with `pwd -P`
+  first so `..` and a symlinked directory are both settled before the test. This
+  is not a filesystem limitation but a defence against the `unsafe-inline` gap
+  above: a smuggled script cannot fetch, but it can navigate the top level, so
+  embedding any path the document asks for would hand it `~/.ssh/id_rsa` as
+  base64 in the DOM to carry out in a URL. Confined, the secret has to be
+  sitting beside the document already. `../images/a.svg` is therefore refused —
+  **out loud on stderr**, so it reads as "move it", not as "this is broken".
+- **Only inside an `<img>` tag**, tracked across lines because the html5 writer
+  wraps at 72 columns and routinely splits one in two. A bare search for the
+  attribute would rewrite a `src="./a.svg"` that a document about HTML was
+  merely quoting.
+- **Only known image extensions** (svg, png, jpg, gif, webp, avif), under
+  `READ_DOC_IMAGE_MAX_BYTES` (4 MiB). A wrong MIME renders as nothing with no
+  message, so an unknown extension is left as a broken reference rather than
+  guessed at.
+
+The SVG stays inside an `<img>` rather than being spliced in as an `<svg>`
+element: markup pasted into the DOM would bring its own scripts and its own ids,
+and `<img>` renders SVG non-interactively, with scripting off.
 
 ## Forward mode: reading a document from inside an ssh session
 
@@ -171,7 +203,16 @@ silent:
 - external refs must be zero;
 - `class="title"` must be zero;
 - a source file must produce `class="sourceCode <lang>"`;
-- the CSP `<meta>` must be present exactly once.
+- the CSP `<meta>` must be present exactly once;
+- a document beside an image must produce `src="data:image/`, and no `src="./`;
+- one referring to an image a directory up must say so on stderr and leave the
+  reference as written.
+
+A `data:` URI that decodes is still not a picture. Confirm the last two by
+measurement, with the headless recipe below and
+`[].map.call(document.images, i => i.naturalWidth)` — a wrong MIME, a truncated
+payload and a stray newline in the base64 all pass a `grep` and all come back
+`0`.
 
 `--sandbox` failing silently looks exactly like success at the exit-status level,
 so **check the stylesheet, not the flag**: a rendered page containing

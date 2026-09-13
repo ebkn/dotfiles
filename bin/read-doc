@@ -13,8 +13,9 @@
 # arrive over ssh or forwarded from a remote pane), so pandoc runs under
 # --sandbox and the page carries a Content-Security-Policy <meta>. The
 # consequences of both -- why style.css is inlined through header-includes
-# rather than --css, why a document-relative image no longer renders, and the
-# gap 'unsafe-inline' leaves open -- are in bin/read-doc.md.
+# rather than --css, why a document-relative image is inlined here rather than
+# fetched by pandoc, and the gap 'unsafe-inline' leaves open -- are in
+# bin/read-doc.md.
 #
 # Three ways to run it, and why there are three:
 #   local      read-doc FILE            renders here, opens the browser here
@@ -41,6 +42,7 @@
 # Env:
 #   READ_DOC_BROWSER   open(1) -a target, e.g. "Safari" (default: system default)
 #   READ_DOC_MAX_BYTES forwarding size cap (default 262144); see the note below
+#   READ_DOC_IMAGE_MAX_BYTES  per-image inlining cap (default 4194304)
 set -uo pipefail
 
 SELF_DIR="$(dirname "$(readlink -f "$0")")"
@@ -368,9 +370,209 @@ feed() {
   fi
 }
 
+# --- images: inline the document's own, as data: URIs -------------------------
+#
+# `--sandbox` refuses to fetch a referenced image (it is a writer-side read) and
+# the CSP allows `img-src data:` only, so `![](./images/a.svg)` arrives as a
+# broken box. Both of those are wanted for a document that came from elsewhere,
+# so the embedding happens here instead, on the rendered HTML, and only for a
+# document this machine named on the command line itself: stdin and `HOST:FILE`
+# are skipped, since a pulled document's neighbours never crossed the wire and
+# its temp path would resolve them into $TMPDIR.
+#
+# Confined to the document's own directory tree. Not because reading wider would
+# fail, but because `script-src 'unsafe-inline'` already lets a document smuggle
+# a script through the raw-HTML passthrough and CSP has no directive here
+# against navigating the top level (see bin/read-doc.md). Embedding any path the
+# document asks for would hand such a script `../../.ssh/id_rsa` as base64 in
+# the DOM to carry out in a URL; confining it means the secret has to be sitting
+# beside the document already. A legitimate `../images/a.svg` is refused on
+# stderr rather than silently, so it reads as "move it", not as "this is broken".
+image_mime() {
+  case "$1" in
+    *.svg | *.SVG) printf 'image/svg+xml' ;;
+    *.png | *.PNG) printf 'image/png' ;;
+    *.jpg | *.jpeg | *.JPG | *.JPEG) printf 'image/jpeg' ;;
+    *.gif | *.GIF) printf 'image/gif' ;;
+    *.webp | *.WEBP) printf 'image/webp' ;;
+    *.avif | *.AVIF) printf 'image/avif' ;;
+    # No default: an unknown extension stays a broken reference rather than
+    # being guessed at, because a wrong MIME renders as nothing, with no message.
+    *) return 1 ;;
+  esac
+}
+
+# $1 rendered HTML (edited in place), $2 directory the document was read from
+embed_images() {
+  # Declared local: `max` is also the forwarding cap above, and that branch
+  # only happens to exit before reaching here.
+  local html root max map ref skip head path dir mime bytes b64 edited
+  html="$1"
+  root="$2"
+  max="${READ_DOC_IMAGE_MAX_BYTES:-4194304}"
+
+  map="$(mktemp -t read-doc-img)" || return 0
+  # Only <img> is rewritten, and the collection matches the same tags, because a
+  # prose document about HTML may well *contain* the text `src="./a.svg"` inside
+  # a code block: pandoc escapes `<` there but leaves the quotes alone, so a
+  # blind search for the attribute would replace the example with a data URI.
+  # Newlines are flattened first because the html5 writer wraps at 72 columns
+  # and routinely splits an <img> across two lines.
+  #
+  # The map is keyed by the src string exactly as it appears in the markup, so
+  # the substitution below can stay a literal one.
+  tr '\n' ' ' <"${html}" | grep -o '<img[^>]*>' | grep -o 'src="[^"]*"' |
+    sed 's/^src="//; s/"$//' | sort -u |
+    while IFS= read -r ref; do
+      [ -n "${ref}" ] || continue
+
+      # A URL is somebody else's business, and `data:` is already inlined. A
+      # colon only introduces a scheme before the first slash: `a:b/c.svg` is a
+      # scheme, `dir/a:b.svg` is a filename.
+      skip=0
+      case "${ref}" in //*) skip=1 ;; esac
+      if [ "${skip}" -eq 0 ]; then
+        case "${ref}" in
+          */*) head="${ref%%/*}" ;;
+          *) head="${ref}" ;;
+        esac
+        case "${head}" in
+          [A-Za-z]*:*)
+            case "${head%%:*}" in
+              *[!A-Za-z0-9+.-]*) ;;
+              *) skip=1 ;;
+            esac
+            ;;
+        esac
+      fi
+      [ "${skip}" -eq 0 ] || continue
+
+      case "${ref}" in
+        /*) path="${ref}" ;;
+        *) path="${root}/${ref}" ;;
+      esac
+
+      # Resolved with `pwd -P` so that `..` and a symlinked directory are both
+      # settled before the containment test; comparing the unresolved string
+      # would let `images/../../../..` straight through it.
+      dir="$(cd "$(dirname -- "${path}")" 2>/dev/null && pwd -P)" || dir=""
+      if [ -z "${dir}" ]; then
+        printf 'read-doc: image not found: %s\n' "${ref}" >&2
+        continue
+      fi
+      path="${dir}/$(basename -- "${path}")"
+
+      case "${path}" in
+        "${root}"/*) ;;
+        *)
+          printf 'read-doc: refusing to inline %s: outside %s\n' \
+            "${ref}" "${root}" >&2
+          continue
+          ;;
+      esac
+
+      if [ ! -f "${path}" ] || [ ! -r "${path}" ]; then
+        printf 'read-doc: image not found: %s\n' "${ref}" >&2
+        continue
+      fi
+
+      if ! mime="$(image_mime "${path}")"; then
+        printf 'read-doc: not an inlinable image type: %s\n' "${ref}" >&2
+        continue
+      fi
+
+      bytes="$(wc -c <"${path}")"
+      if [ "${bytes}" -gt "${max}" ]; then
+        printf 'read-doc: %s is %s bytes, over the %s-byte inlining cap\n' \
+          "${ref}" "${bytes}" "${max}" >&2
+        continue
+      fi
+
+      b64="$(base64 <"${path}" | tr -d '\n')"
+      printf '%s\t%s\n' "${ref}" "data:${mime};base64,${b64}" >>"${map}"
+    done
+
+  if [ -s "${map}" ]; then
+    edited="$(mktemp -t read-doc-html)" || {
+      rm -f "${map}"
+      return 0
+    }
+    # A literal index/substr replacement rather than sub(): a path is not a
+    # regex, and the `.` in `a.svg` would otherwise match anything at all.
+    #
+    # Confined to the inside of an <img> tag, tracked across lines because the
+    # writer wraps them. Everything outside one is copied through untouched, so
+    # a documented `src="..."` in a code block survives as written.
+    if awk -v mapfile="${map}" '
+      function subst(seg,   i, p, kept, rest) {
+        for (i = 1; i <= n; i++) {
+          rest = seg
+          kept = ""
+          while ((p = index(rest, old[i])) > 0) {
+            kept = kept substr(rest, 1, p - 1) new[i]
+            rest = substr(rest, p + length(old[i]))
+          }
+          seg = kept rest
+        }
+        return seg
+      }
+      BEGIN {
+        while ((getline line < mapfile) > 0) {
+          t = index(line, "\t")
+          if (t == 0) continue
+          n++
+          old[n] = "src=\"" substr(line, 1, t - 1) "\""
+          new[n] = "src=\"" substr(line, t + 1) "\""
+        }
+      }
+      {
+        line = $0
+        out = ""
+        while (length(line) > 0) {
+          if (!intag) {
+            p = index(line, "<img")
+            if (p == 0) { out = out line; line = ""; continue }
+            out = out substr(line, 1, p + 3)
+            line = substr(line, p + 4)
+            intag = 1
+          } else {
+            e = index(line, ">")
+            if (e == 0) { out = out subst(line); line = ""; continue }
+            out = out subst(substr(line, 1, e))
+            line = substr(line, e + 1)
+            intag = 0
+          }
+        }
+        print out
+      }
+    ' "${html}" >"${edited}"; then
+      mv -- "${edited}" "${html}"
+    else
+      rm -f "${edited}"
+    fi
+  fi
+  rm -f "${map}"
+}
+
+# Only a document read from a local path has neighbours worth resolving.
+img_root=""
+if [ -z "${fetched}" ] && [ -n "${src}" ] && [ -f "${src}" ]; then
+  img_root="$(cd "$(dirname -- "${src}")" && pwd -P)"
+fi
+
 if [ "${print_only}" -eq 1 ]; then
-  feed | render
-  exit $?
+  # Through a file rather than straight down the pipe, because inlining the
+  # images is a second pass over the finished markup. --print has to carry the
+  # same output the browser gets, since that is the form the tests assert on.
+  printed="$(mktemp -t read-doc-html)" || exit 2
+  if ! feed | render >"${printed}"; then
+    rm -f "${printed}"
+    exit 2
+  fi
+  [ -z "${img_root}" ] || embed_images "${printed}" "${img_root}"
+  cat -- "${printed}"
+  rm -f "${printed}"
+  exit 0
 fi
 
 out_dir="${TMPDIR:-/tmp}/read-doc"
@@ -394,6 +596,8 @@ if ! feed | render >"${out}"; then
   rm -f "${out}"
   exit 2
 fi
+
+[ -z "${img_root}" ] || embed_images "${out}" "${img_root}"
 
 if [ -n "${READ_DOC_BROWSER:-}" ]; then
   open -a "${READ_DOC_BROWSER}" "${out}"
