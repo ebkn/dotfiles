@@ -107,6 +107,61 @@ transcript_tool_uses() {
   ' "$SKILL_EVAL_TRANSCRIPT"
 }
 
+# transcript_first_tool_index <tool name>
+# 0-based index of the transcript record carrying the first call to that tool;
+# empty when it was never called. Ordering is the only way left to see the
+# skill's read-only boundary: the caller fixes and commits once the review is
+# reported, so "never wrote" is no longer true of a whole run, while "wrote
+# nothing before the report" still separates the skill from its caller.
+transcript_first_tool_index() {
+  jq -s --arg name "$1" '
+    [ to_entries[]
+      | select(.value.type == "assistant")
+      | select([ .value.message.content[]? | select(.type == "tool_use" and .name == $name) ] | length > 0)
+      | .key ]
+    | first // empty
+  ' "$SKILL_EVAL_TRANSCRIPT"
+}
+
+# transcript_first_text_index <extended regex>
+# 0-based index of the first assistant *text* block matching the regex; empty
+# when nothing matches. Text blocks only, so a heading quoted inside a tool
+# call's input does not count as having reported it.
+transcript_first_text_index() {
+  jq -s --arg re "$1" '
+    [ to_entries[]
+      | select(.value.type == "assistant")
+      | select([ .value.message.content[]? | select(.type == "text") | .text | test($re) ] | any)
+      | .key ]
+    | first // empty
+  ' "$SKILL_EVAL_TRANSCRIPT"
+}
+
+# transcript_first_command_index <extended regex>
+# 0-based index of the first Bash call whose command matches. Separate from
+# transcript_first_tool_index because a case that legitimately runs its test
+# command needs to ask about one kind of command, not about Bash as a whole.
+transcript_first_command_index() {
+  jq -s --arg re "$1" '
+    [ to_entries[]
+      | select(.value.type == "assistant")
+      | select([ .value.message.content[]?
+                 | select(.type == "tool_use" and .name == "Bash")
+                 | .input.command | test($re) ] | any)
+      | .key ]
+    | first // empty
+  ' "$SKILL_EVAL_TRANSCRIPT"
+}
+
+# transcript_tool_uses_precede <tool name> <index>
+# True when that tool was called at or before <index>. Written as a predicate
+# so a case can pass it to `check` with the sense it wants.
+transcript_tool_uses_precede() {
+  local first
+  first="$(transcript_first_tool_index "$1")"
+  [ -n "$first" ] && [ "$first" -le "$2" ]
+}
+
 # transcript_skill_uses <skill name>
 # How many times the Skill tool started that skill -- the measurement behind
 # "did it start without being asked". The input key of the Skill tool (skill,

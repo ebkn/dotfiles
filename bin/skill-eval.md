@@ -45,7 +45,16 @@ Three files in `root/.agents/skills/<skill>/evals/<case>/`:
 Functions available to `assert.sh`: `check`, `check_eq`, `check_match`,
 `check_not_match`, `transcript_denials`, `transcript_commands`,
 `transcript_result_text`, `transcript_tool_uses <tool>`,
-`transcript_skill_uses <skill>`, `check_llm <label> <rubric> [<text>]`.
+`transcript_skill_uses <skill>`, `transcript_first_tool_index <tool>`,
+`transcript_first_command_index <regex>`, `transcript_first_text_index <regex>`,
+`transcript_tool_uses_precede <tool> <index>`,
+`check_llm <label> <rubric> [<text>]`.
+
+The four index functions exist for **ordering** assertions, which is what is
+left once a skill's caller acts on its report in the same run: "never wrote" is
+no longer true of the run, while "wrote nothing before the report" still
+separates the skill from its caller. They return a 0-based record index, or
+empty when there is no match.
 
 **Assert on the observable contract, not on the exit status** — `claude -p`
 exits 0 for a run that did nothing. What a case can actually see is what the
@@ -111,9 +120,16 @@ is the point: a case that passes predicts the behaviour in a repository with no
   them. Nothing here needs one yet; add the helper when a case does.
 - **The cases do not assert `transcript_denials` is 0.** `review-test` here has
   no `Bash` in `allowed-tools` at all (see its SKILL.md for why), so a refused
-  `Bash` call is the expected behaviour, not a violation. What the cases assert
-  instead is that the skill wrote nothing — `Write` and `Edit` unused, working
-  tree untouched, no commit — which is the contract the body actually states.
+  `Bash` call is the expected behaviour, not a violation.
+- **The read-only boundary is asserted by order, not by absence.** The cases
+  used to assert that the run wrote nothing at all — `Write` and `Edit` unused,
+  working tree untouched, no commit. That stopped being the contract when the
+  skill's caller began fixing P1 and P2 findings and committing them, because
+  the caller is the same agent in a `claude -p` run, with no marker in the
+  transcript for where the skill ends. What the cases assert instead is that
+  nothing was written and no `git` ran **before the review was reported**, and
+  then that the fix and the commit did happen. The weaker half is real: a skill
+  that wrote a file and only afterwards produced its report would pass.
 - **Skills live in `root/.agents/skills/`,** so `evals/` sits inside the
   directory that gets symlinked into `~/.claude/skills/<name>`. It is inert
   there (nothing reads it but this runner), but it does mean the cases ship to
