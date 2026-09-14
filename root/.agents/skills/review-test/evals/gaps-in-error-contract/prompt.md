@@ -1,5 +1,5 @@
 ---
 name: gaps-in-error-contract
-allowed_tools: Bash(./run-tests.sh*)
+allowed_tools: Write, Edit, Bash(./run-tests.sh*), Bash(git*)
 ---
 lib/quantity.sh のテストをレビューしてください。

@@ -5,9 +5,9 @@
 # by itself afterwards ("## When to start") and how far the loop that follows
 # runs ("## After the review").
 #
-# Unlike the other two cases this one writes. Write / Edit / Skill are opened
-# in prompt.md's frontmatter, for the scenario around the skill; the skill's own
-# allowed-tools are untouched.
+# This one writes before the review as well as after it. Skill / Write / Edit /
+# git are opened in prompt.md's frontmatter, for the scenario around the skill;
+# the skill's own allowed-tools are untouched.
 set -eo pipefail
 
 # shellcheck source=../../../../../../bin/skill-eval-scaffold.sh
