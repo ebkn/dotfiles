@@ -31,10 +31,11 @@ Do not leave this condition to the caller's configuration alone (a `CLAUDE.md` o
 
 This skill changes no files while it runs, per the boundary above. Once it reports, the caller takes over.
 
-1. **Fix the P1 findings.** P1 means "deal with this before merging", so reporting and stopping does not discharge it.
+1. **Fix the P1 and P2 findings, without asking first.** P1 means "deal with this before merging" and P2 decides how far the tests can be trusted; reporting and stopping discharges neither. Asking for permission to act on a review the caller already asked for is the failure mode this step exists to prevent.
 2. **Review again** with this skill. A fix can break another part of the test or introduce a new P1, and this is where that surfaces.
 3. **Repeat 1–2 until no P1 is left, for at most three rounds.** If P1 survives three rounds, report what remains and why, then let the user decide. Stop on the same terms when one finding survives two rounds — an LLM's findings wobble, and grinding on it mechanically is not convergence.
-4. **Never auto-fix P2 or P3.** Report them; acting on them is the user's call.
+4. **The loop gate is P1 only.** Fix the P2 of the **first** report; P2 that a later round raises is reported, not chased. P2 is where the findings wobble most (a "missing boundary case" can always be claimed again), so gating the loop on it would never terminate.
+5. **Never auto-fix P3.** Report it; acting on it is the user's call.
 
 ## Procedure
 
