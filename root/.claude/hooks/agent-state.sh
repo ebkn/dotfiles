@@ -42,6 +42,7 @@
 #   clear          — drop all state                (SessionStart, SessionEnd)
 #   busy           — working                       (UserPromptSubmit, PostToolBatch)
 #   ask            — read stdin, question          (PreToolUse, matcher AskUserQuestion)
+#   permission     — read stdin, who is asking     (PermissionRequest)
 #   notify         — read stdin, may set           (Notification)
 #   done           — turn finished, unread         (Stop)
 #   subagent-start — a subagent began              (SubagentStart)
@@ -72,6 +73,12 @@
 # PreToolUse is the only surface where the two differ, because its matcher *is*
 # the tool name. That makes `asking` arrive when the dialog opens rather than
 # after the notification's delay, so it also lands sooner than `waiting` does.
+#
+# Why `permission` exists: that same payload has no agent_id either, so a prompt
+# raised inside a subagent is indistinguishable from one raised on the main
+# thread. See the pending-decision section below — that is the bug this mode was
+# added to fix, and it is the one that made a tab sit red for a whole subagent
+# run with nothing on screen to answer.
 #
 # Always exits 0: a status indicator must never block the session.
 
@@ -214,6 +221,54 @@ current_state() { # of *this* actor, for the within-actor precedence rules
 
 forget_actor() {
   rm -f "$(actor_file)" 2>/dev/null || true
+}
+
+# --- the pending permission decision -----------------------------------------
+#
+# A permission prompt's Notification is ANONYMOUS. Measured against 2.1.270 by
+# logging raw hook stdin: a prompt raised inside a subagent arrives as
+#
+#   {"session_id":…,"message":"Claude needs your permission",
+#    "notification_type":"permission_prompt"}
+#
+# byte for byte what the main thread's own prompt sends — no agent_id, no tool
+# name — while the PostToolBatch from that same subagent does carry agent_id.
+# Filing it against `main`, which is what this hook used to do, published 🛑
+# against a thread that was not blocked, and it then STUCK: a `waiting` record
+# is cleared only by that actor's own next PostToolBatch, and a main thread
+# parked on "Waiting for N background agents" fires none. The tab claimed an
+# unanswered dialog for the entire length of a subagent run — an indicator that
+# cries wolf is worse than no indicator.
+#
+# PermissionRequest is the surface that does carry agent_id/agent_type, plus the
+# tool name and its input, so attribution is taken from there. It is NOT proof
+# that a dialog opened, though: it fires before the permission rules are applied,
+# so an allow-rule (or auto mode) can settle the call with no prompt at all —
+# publishing `waiting` from it directly would paint 🛑 over every auto-approved
+# long-running command until it finished. So it only leaves a note for the
+# Notification to claim, and the Notification stays the thing that means "a
+# modal is open".
+#
+# One slot, last writer wins. Two prompts racing on one pane misattribute the
+# second, which is still strictly better than attributing every prompt to a
+# thread that is not blocked.
+pending_file="$state_dir/pending"
+
+# Consumed, not read: a note left behind by a call that was allowed *without* a
+# prompt must not attribute the next dialog to whoever made it.
+pending_note=""
+claim_pending() {
+  [ -f "$pending_file" ] || return 0
+  IFS="$SEP" read -r agent_id agent_type pending_note <"$pending_file" || true
+  rm -f "$pending_file" 2>/dev/null || true
+}
+
+# The window in which a stale note can exist is exactly the window between a
+# request and its tool result, so the batch that carries that result closes it.
+# A stat that usually fails, and a fork only when a decision was actually taken.
+drop_pending() {
+  [ -f "$pending_file" ] || return 0
+  rm -f "$pending_file" 2>/dev/null || true
 }
 
 # --- deriving the pane options ----------------------------------------------
@@ -402,6 +457,7 @@ case "$mode" in
     # thread, and this is the path that runs once per tool batch.
     has_agents && parse_agent
     record busy
+    drop_pending
     publish
     ;;
   done)
@@ -443,6 +499,28 @@ case "$mode" in
     record asking "${question:0:120}"
     publish
     ;;
+  permission)
+    # Publishes nothing on purpose (see the pending-decision section): this is
+    # only the record of *who* is about to be asked, for the anonymous
+    # Notification that may or may not follow.
+    #
+    # The note names the tool and what it wants to run, which is strictly more
+    # than the Notification can say — its message is the fixed, contentless
+    # "Claude needs your permission" — so the picker can show `Bash: rm -rf …`
+    # instead. tool_input is arbitrary tool arguments, hence `clean` and the
+    # tostring: a non-string field would otherwise make jq emit nothing at all.
+    read_stdin
+    [ -n "$json" ] || exit 0
+    [ -d "$state_dir" ] || mkdir -p "$state_dir" 2>/dev/null || exit 0
+    printf '%s' "$json" | jq -r "$JQ_CLEAN"'
+      [(.agent_id // "" | gsub("[^A-Za-z0-9_.-]"; "")),
+       (.agent_type // "" | gsub("[^A-Za-z0-9 ._:-]"; "")),
+       ([(.tool_name // ""),
+         ((.tool_input.command // .tool_input.description // .tool_input.file_path // "")
+          | tostring)]
+        | map(select(. != "")) | join(": ") | clean)]
+      | join("|")' >"$pending_file" 2>/dev/null || true
+    ;;
   notify)
     # Only the notification types that mean "this session is blocked on the
     # human" publish anything. auth_success / agent_completed and the
@@ -475,12 +553,19 @@ case "$mode" in
 
     case "$ntype" in
       permission_prompt | elicitation_dialog | elicitation_url_dialog)
+        # Whose dialog this is comes from the PermissionRequest that preceded
+        # it, because the payload itself does not say. When there was none — an
+        # MCP server's elicitation dialog raises no permission request — the
+        # actor stays unset and the record lands on `main`, which is where such
+        # a dialog almost always belongs.
+        claim_pending
         # permission_prompt also fires for the AskUserQuestion dialog, with an
         # identical payload (see the header). `ask` has already published the
         # richer state by then, so this must not demote it to a bare 🛑. The
         # check is per actor: another actor being blocked says nothing about
         # this one, and the aggregate above already decides between them.
         [ "$(current_state)" = "asking" ] && exit 0
+        [ -n "$pending_note" ] && message=$pending_note
         record waiting "${message:0:120}"
         publish
         ;;

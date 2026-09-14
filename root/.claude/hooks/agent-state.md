@@ -81,12 +81,56 @@ and dropping it there would hide exactly the agent most likely to be waiting on
 you. The residue is a subagent that dies without firing `SubagentStop`, whose
 `busy` record then sticks until `SessionStart`/`SessionEnd` clears the pane.
 
+## A permission prompt belongs to nobody
+
+**The `Notification` for a permission prompt carries no `agent_id`.** Measured
+against 2.1.270 by logging raw hook stdin: a prompt raised inside a subagent
+arrives as
+
+    {"session_id":…,"message":"Claude needs your permission",
+     "notification_type":"permission_prompt"}
+
+byte for byte what the main thread's own prompt sends — no `agent_id`, no tool
+name — while the `PostToolBatch` from that same subagent *does* carry one.
+
+Filed against `main`, which is what this hook did until then, that published 🛑
+at a thread which was not blocked, and it then **stuck**: a `waiting` record is
+cleared only by that actor's own next `PostToolBatch`, and a main thread parked
+on `Waiting for N background agents` fires none. The tab sat red for the whole
+length of a subagent run with nothing on screen to answer — the inverse of the
+masking bug the per-actor records were introduced to fix, and just as useless.
+
+`PermissionRequest` is the surface that does carry `agent_id`/`agent_type`, plus
+`tool_name` and `tool_input`, so attribution is taken from there and the prompt
+lands on the actor that is really blocked. Two consequences worth knowing:
+
+- **It publishes nothing.** It fires *before* the permission rules are applied,
+  so it is not proof that a dialog opened — an allow-rule or auto mode settles
+  most calls with no prompt at all. Publishing `waiting` from it would paint 🛑
+  over every auto-approved long-running command until it finished. It writes a
+  single `pending` record; the `Notification` remains the thing that means "a
+  modal is open", and claims that record when it arrives.
+- **The note gets better.** `Bash: rm -rf /tmp/x` instead of the contentless
+  "Claude needs your permission", because `tool_input` is in that payload and
+  nowhere else.
+
+One `pending` slot, last writer wins: two prompts racing on one pane
+misattribute the second, which is still strictly better than attributing every
+prompt to a thread that is not blocked. A record left by a call that was allowed
+*without* a prompt is dropped by the `PostToolBatch` that carries its result, so
+the window in which a stale note exists is exactly the window in which a prompt
+could be open.
+
+An MCP server's `elicitation_dialog` raises no permission request, so it still
+lands on `main` — where such a dialog almost always belongs.
+
 ## Registration
 
 Registered on `SessionStart`/`SessionEnd` (clear), `UserPromptSubmit` /
 `PostToolBatch` (busy), `PreToolUse` with matcher `AskUserQuestion` (asking),
-`Notification` (waiting / stalled), `Stop` (stalled), and
-`SubagentStart`/`SubagentStop` (register / forget an actor).
+`PermissionRequest` (attribution only, publishes nothing), `Notification`
+(waiting / stalled), `Stop` (stalled), and `SubagentStart`/`SubagentStop`
+(register / forget an actor).
 
 Modes name the transition and states name what is published, so they need not
 match: the `done` argv mode is the Stop transition and publishes `stalled`,
@@ -105,6 +149,12 @@ one actor there is nothing to attribute — and when it does, it attributes with
 *content* of every tool result in the batch, so a file the agent just read can
 contain the text `"agent_id"` and would silently file the main thread's state
 under a subagent that does not exist.
+
+`PermissionRequest` does spawn a `jq`, and that is affordable only because it is
+a cold path: measured in auto mode it fires for the calls that need a decision
+(an `rm` against an `ask` rule) and not for the allow-listed ones around them —
+a plain `hostname` raised none. If a future version fires it per tool call, this
+is the first thing to re-measure.
 
 Publishing is skipped outright when the derived options are byte-identical to
 what was last published, which is what pays for the file work: a subagent
@@ -165,6 +215,9 @@ push-notification path, not the hook path, so grepping for it misleads.)
 the tool name; as a bonus it lands when the dialog opens rather than after the
 notification's delay.
 
+The same emptiness is why `PermissionRequest` had to be added later: that
+payload says nothing about *who* is being asked either. See the section above.
+
 That makes state precedence real logic rather than incidental, and
 `agent-state.test.sh` pins it: the same dialog fires both hooks, so
 `permission_prompt` must not demote `asking` to `waiting`, and `agent_needs_input`
@@ -208,6 +261,15 @@ skips** without them.
   on top of either, so which state may overwrite which is real logic — and a
   mistake there shows up only as the wrong glyph on somebody's tab. It also pins
   each glyph's exact spacing, which `set-titles-string` concatenates blind.
+- **Attribution of a prompt** — every fixture that raises a permission prompt
+  goes through `prompt_for`, which sends a `PermissionRequest` and then an
+  *anonymous* `Notification`, because that is what Claude Code sends. Earlier
+  versions of these cases put an `agent_id` in the notification and asserted a
+  labelled note, pinning a payload shape that has never existed — which is how
+  the bug survived a suite this size. The regression case is the one that
+  matters: a subagent's prompt, a main thread parked on a background agent, and
+  the assertion that main reporting `busy` does **not** clear someone else's
+  dialog while the subagent's own batch does.
 - **Multi-actor** — the regression suite for the bug that produced the per-actor
   records: a subagent's `busy` must not mask another actor's `waiting`,
   `SubagentStop` must be the only thing that removes an actor, `Stop` must keep a

@@ -543,6 +543,17 @@
           }
         ]
       }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/agent-state.sh permission"
+          }
+        ]
+      }
     ]
   },
   "worktree": {

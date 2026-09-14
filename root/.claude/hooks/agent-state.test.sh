@@ -124,6 +124,37 @@ assert_exit_zero() {
 
 notify_json() { jq -cn --arg t "$1" --arg m "${2-}" '{notification_type:$t, message:$m}'; }
 
+# A payload from inside a subagent: $1 agent_id, $2 agent_type, and optionally
+# $3 notification_type / $4 message. Defined up here with the other builders,
+# not beside the multi-actor cases that use it most: a helper defined below its
+# first caller makes that caller silently do nothing — `command not found` goes
+# to stderr, the hook is never invoked, and the assertion passes on the pane's
+# leftover state.
+agent_json() {
+  jq -cn --arg id "$1" --arg t "$2" --arg n "${3-}" --arg m "${4-}" \
+    '{agent_id:$id, agent_type:$t}
+     + (if $n == "" then {} else {notification_type:$n} end)
+     + (if $m == "" then {} else {message:$m} end)'
+}
+
+# A PermissionRequest payload: $1 agent_id, $2 agent_type, $3 tool, $4 command.
+# Empty agent_id is the main thread, which is how the real payload says it.
+permission_json() {
+  jq -cn --arg id "${1-}" --arg t "${2-}" --arg tool "${3-}" --arg cmd "${4-}" \
+    '{hook_event_name:"PermissionRequest", tool_name:$tool, tool_input:{command:$cmd}}
+     + (if $id == "" then {} else {agent_id:$id} end)
+     + (if $t == "" then {} else {agent_type:$t} end)'
+}
+
+# One permission prompt, as Claude Code really delivers it: PermissionRequest
+# carries who and what, then an ANONYMOUS Notification says a modal is open.
+# Every fixture below goes through this rather than putting an agent_id in the
+# notification, because no version of Claude Code has ever sent one there.
+prompt_for() { # $1 agent_id, $2 agent_type, $3 tool, $4 command
+  run permission "$(permission_json "${1-}" "${2-}" "${3-}" "${4-}")"
+  run notify "$(notify_json permission_prompt 'Claude needs your permission')"
+}
+
 section "no tmux context: publishes nothing, never fails"
 out=$(TMUX='' TMUX_PANE='' "$HOOK" busy 2>&1)
 assert_exit_zero "TMUX unset" $?
@@ -163,6 +194,59 @@ run notify "$(notify_json agent_needs_input 'reviewer needs your input')"
 assert_opt @claude_state stalled
 assert_opt @claude_glyph '🔘'
 assert_opt @claude_note 'reviewer needs your input'
+
+section "permission: records who is asking, publishes nothing"
+# PermissionRequest fires BEFORE the permission rules are applied, so it is not
+# proof that a dialog opened: an allow-rule (or auto mode) settles most calls
+# with no prompt at all. Publishing from it would paint 🛑 over every
+# auto-approved long-running command until it finished, which is the failure
+# this whole change exists to remove — so it must stay silent and leave only a
+# note for the Notification to claim.
+run busy
+run permission "$(permission_json '' '' Bash 'rm -rf /tmp/x')"
+assert_exit_zero "permission" $?
+assert_opt @claude_state busy
+assert_opt @claude_note ''
+# ...and the note it left is what the Notification then publishes, in place of
+# the contentless "Claude needs your permission" the Notification itself carries.
+run notify "$(notify_json permission_prompt 'Claude needs your permission')"
+assert_opt @claude_state waiting
+assert_opt @claude_note 'Bash: rm -rf /tmp/x'
+
+# tool_input is whatever arguments the tool takes, so the note has to be built
+# from a shape this hook does not control — an Edit prompt carries file_path and
+# no command, an MCP tool can carry anything at all. If that jq pass emits
+# nothing the pending record is empty, attribution silently falls back to `main`,
+# and the bug this mode exists to fix is back with every test still green. So
+# what is pinned here is the ATTRIBUTION surviving, not the wording of the note.
+for shape in '{"tool_name":"Edit","tool_input":{"file_path":"/tmp/f"}}' \
+  '{"tool_name":"Bash","tool_input":{"command":{"nested":["not","a","string"]}}}' \
+  '{"tool_name":"mcp__srv__do","tool_input":{}}' \
+  '{"tool_name":"Bash"}'; do
+  run clear
+  run subagent-start "$(agent_json A Explore)"
+  run busy "$(agent_json A Explore)"
+  run permission "$(jq -c '. + {agent_id:"A", agent_type:"Explore"}' <<<"$shape")"
+  run notify "$(notify_json permission_prompt 'Claude needs your permission')"
+  run busy # the main thread, which is not the actor that was asked
+  got=$(get_opt @claude_state)
+  if [[ "$got" == waiting ]]; then
+    ok "attributed to the subagent despite tool_input ${shape:0:40}"
+  else
+    bad "tool_input ${shape:0:40}… lost the attribution: state=[$got]"
+  fi
+done
+
+run clear
+run busy
+run permission 'not json at all'
+assert_exit_zero "permission with malformed stdin" $?
+assert_opt @claude_state busy
+run notify "$(notify_json permission_prompt 'Claude needs your permission')"
+# Falls back to the notification's own message rather than publishing nothing:
+# a 🛑 with a poor note beats a dialog with no glyph.
+assert_opt @claude_state waiting
+assert_opt @claude_note 'Claude needs your permission'
 
 section "ask: the AskUserQuestion dialog"
 run clear
@@ -339,14 +423,6 @@ section "several actors in one pane"
 RS=$'\036'
 US=$'\037'
 
-# $1 agent_id, $2 agent_type, $3.. extra top-level JSON fields (already ",key:v")
-agent_json() {
-  jq -cn --arg id "$1" --arg t "$2" --arg n "${3-}" --arg m "${4-}" \
-    '{agent_id:$id, agent_type:$t}
-     + (if $n == "" then {} else {notification_type:$n} end)
-     + (if $m == "" then {} else {message:$m} end)'
-}
-
 # The reported bug, as a regression test. Two subagents run; one of them is
 # blocked on a permission prompt; the other keeps working. Before per-actor
 # records, the second one's PostToolBatch overwrote the first one's `waiting`
@@ -355,13 +431,16 @@ run clear
 run subagent-start "$(agent_json A Explore)"
 run subagent-start "$(agent_json B Plan)"
 run busy
-run notify "$(agent_json A Explore permission_prompt 'Bash wants to run rm -rf')"
+prompt_for A Explore Bash 'rm -rf /tmp/x'
 run busy "$(agent_json B Plan)"
 run busy "$(agent_json B Plan)"
 assert_opt @claude_state waiting
 assert_opt @claude_glyph '🛑'
-# Which actor is blocked is the first thing you need, so the label leads the note.
-assert_opt @claude_note 'Explore: Bash wants to run rm -rf'
+# Which actor is blocked is the first thing you need, so the label leads the
+# note — and the note comes from the PermissionRequest, the only payload that
+# names the tool. The Notification's own message is the fixed, contentless
+# "Claude needs your permission".
+assert_opt @claude_note 'Explore: Bash: rm -rf /tmp/x'
 
 # ...and the blocked subagent's own next batch is what clears it, not anyone
 # else's. Answering the prompt lets that agent proceed; nothing else may speak
@@ -369,6 +448,51 @@ assert_opt @claude_note 'Explore: Bash wants to run rm -rf'
 run busy "$(agent_json A Explore)"
 assert_opt @claude_state busy
 assert_opt @claude_glyph '▶ '
+
+# The bug that made this hook publish 🛑 at a thread that was not blocked, as a
+# regression test. A subagent hits a prompt while the main thread is parked on
+# "Waiting for N background agents" — main therefore fires no further
+# PostToolBatch, and anything filed against main stays there for the whole run.
+# The prompt must land on the subagent, and only the subagent may clear it.
+run clear
+run busy # main: launched a background agent, then parked
+run subagent-start "$(agent_json A Explore)"
+prompt_for A Explore Bash 'rm -rf /tmp/x'
+assert_opt @claude_state waiting
+# The main thread waking up for its own reasons does not answer someone else's
+# dialog. Before PermissionRequest existed, main's next batch was the *only*
+# thing that could clear this — and a parked main has no next batch, which is
+# exactly why the glyph never went away.
+run busy
+assert_opt @claude_state waiting
+run busy "$(agent_json A Explore)"
+assert_opt @claude_state busy
+
+# A prompt on the main thread still lands on the main thread: PermissionRequest
+# reports no agent_id there, which is the same thing the notification says.
+run clear
+run subagent-start "$(agent_json A Explore)"
+run busy "$(agent_json A Explore)"
+prompt_for '' '' Bash 'rm -rf /tmp/y'
+assert_opt @claude_state waiting
+assert_opt @claude_note 'Bash: rm -rf /tmp/y'
+run busy "$(agent_json A Explore)"
+assert_opt @claude_state waiting
+run busy
+assert_opt @claude_state busy
+
+# A request the rules allow without ever prompting must not attribute the *next*
+# dialog to whoever made it. PermissionRequest fires before the rules are
+# applied, so this is the ordinary case and not an edge one: the note it leaves
+# is dropped by the tool result that follows.
+run clear
+run subagent-start "$(agent_json A Explore)"
+run permission "$(permission_json A Explore Bash 'ls')"
+run busy "$(agent_json A Explore)" # allowed: the tool ran, no prompt appeared
+run notify "$(notify_json elicitation_dialog 'an MCP server wants something')"
+assert_opt @claude_note 'an MCP server wants something'
+run busy
+assert_opt @claude_state busy
 
 section "precedence across actors: blocked outranks running"
 for blocked in asking waiting; do
@@ -401,7 +525,7 @@ assert_opt @claude_note 'Explore: pick one'
 section "ties go to the actor blocked longest"
 run clear
 run subagent-start "$(agent_json A Explore)"
-run notify "$(agent_json A Explore permission_prompt 'older')"
+prompt_for A Explore Bash 'older'
 older=$(get_opt @claude_since)
 # A whole second of sleep, grudgingly: the records carry epoch seconds, so two
 # actors blocked inside the same second are a genuine tie and would exercise the
@@ -409,13 +533,13 @@ older=$(get_opt @claude_since)
 sleep 1
 run notify "$(notify_json permission_prompt 'newer')"
 assert_opt @claude_since "$older"
-assert_opt @claude_note 'Explore: older'
+assert_opt @claude_note 'Explore: Bash: older'
 
 section "SubagentStop is what removes an actor"
 run clear
 run busy # main busy
 run subagent-start "$(agent_json A Explore)"
-run notify "$(agent_json A Explore permission_prompt 'blocked')"
+prompt_for A Explore Bash 'blocked'
 assert_opt @claude_state waiting
 run subagent-stop "$(agent_json A Explore)"
 assert_opt @claude_state busy
@@ -426,11 +550,12 @@ assert_opt @claude_note ''
 # exactly the agent most likely to be waiting on you.
 run clear
 run subagent-start "$(agent_json A Explore)"
-run notify "$(agent_json A Explore agent_needs_input 'Explore needs your input')"
+prompt_for A Explore Bash 'blocked'
 run 'done'
 # The agent is still blocked on the human, and that outranks the finished turn.
-assert_opt @claude_state stalled
-assert_opt @claude_note 'Explore: Explore needs your input'
+assert_opt @claude_state waiting
+assert_opt @claude_note 'Explore: Bash: blocked'
+run busy "$(agent_json A Explore)" # answered: A is working again
 run subagent-start "$(agent_json B Plan)"
 run 'done'
 # A background agent that is still working means the pane is still working,
@@ -486,7 +611,7 @@ for _round in $(seq 1 "$concurrent_rounds"); do
     run subagent-start "$(agent_json "ag$i" Explore)" &
   done
   # ...while that one is blocked on a permission prompt at the same moment.
-  run notify "$(agent_json blocked Explore permission_prompt 'blocked')" &
+  prompt_for blocked Explore Bash 'rm -rf /tmp/x' &
   wait
 
   on_disk=0
@@ -525,7 +650,7 @@ fi
 # is assumed, only that a live blocked actor must reappear.
 run clear
 run subagent-start "$(agent_json A Explore)"
-run notify "$(agent_json A Explore permission_prompt 'still blocked')"
+prompt_for A Explore Bash 'still blocked'
 assert_opt @claude_state waiting
 for opt in @claude_state @claude_glyph @claude_since @claude_note @claude_agents; do
   tmux -L "$SOCK" set-option -p -t "$PANE" -u "$opt"
@@ -534,7 +659,7 @@ done
 # ordinary reason and prove nothing: re-firing the same notification keeps the
 # record byte-identical, because a re-record of an unchanged state preserves its
 # timestamp.
-run notify "$(agent_json A Explore permission_prompt 'still blocked')"
+prompt_for A Explore Bash 'still blocked'
 got=$(get_opt @claude_state)
 if [[ "$got" == waiting ]]; then
   ok "a diverged pane is republished while subagents are registered"
@@ -601,7 +726,7 @@ section "a long note is truncated with its label, not around it"
 # can hold, on exactly the rows that already have the least room.
 run subagent-start "$(agent_json A Explore)"
 long=$(printf 'y%.0s' {1..300})
-run notify "$(agent_json A Explore permission_prompt "$long")"
+prompt_for A Explore Bash "$long"
 note=$(get_opt @claude_note)
 if [[ ${#note} -eq 120 ]]; then
   ok "the labelled note is 120 characters, label included"
@@ -617,14 +742,14 @@ section "@claude_agents: one entry per actor, readable from a format"
 run clear
 run busy
 run subagent-start "$(agent_json A Explore)"
-run notify "$(agent_json A Explore permission_prompt 'why me')"
+prompt_for A Explore Bash 'why me'
 listing=$(get_opt @claude_agents)
 count=0
 while IFS= read -r entry; do
   [[ -n "$entry" ]] && count=$((count + 1))
 done <<<"${listing//$RS/$'\n'}"
 if [[ "$count" -eq 2 ]]; then ok "@claude_agents lists both actors"; else bad "@claude_agents has $count entries, want 2"; fi
-if [[ "$listing" == *"waiting${US}"*"${US}Explore${US}why me"* ]]; then
+if [[ "$listing" == *"waiting${US}"*"${US}Explore${US}Bash: why me"* ]]; then
   ok "@claude_agents carries state, label and note per actor"
 else
   bad "@claude_agents entry shape: [$listing]"
@@ -716,7 +841,7 @@ section "free text cannot forge a record separator"
 # picker rendered a phantom row whose state was the tail of the note.
 run clear
 run subagent-start "$(agent_json A Explore)"
-run notify "$(agent_json A Explore permission_prompt "before${US}after${RS}more")"
+prompt_for A Explore Bash "before${US}after${RS}more"
 note=$(get_opt @claude_note)
 if printf '%s' "$note" | LC_ALL=C grep -q '[[:cntrl:]]'; then
   bad "a control character survived into @claude_note: [$note]"
