@@ -38,6 +38,7 @@
 - Skip it when the user says review is unnecessary, when nothing under test changed, or when the change cannot alter what the tests assert (typos, formatting, import order).
 - Fix the P1 and P2 findings without asking first — a review that only reports leaves the work undone. Then re-run the review, at most three rounds, and report what is left instead of looping.
 - **The loop gate is P1 only.** Fix the P2 findings of the first report, but do not chase P2 raised by a later round: those wobble between runs, and grinding on them never converges. P3 is reported, never auto-fixed.
+- Once the loop ends, call the `commit` skill and let it split the result at its own granularity — a fix that changes what a test asserts and one that only reorganizes it are separate commits, per Tidy First. Do not fold the fixes into the commit that introduced the tests: the review is what justifies them, and burying it loses that.
 
 # Commits
 
