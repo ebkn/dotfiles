@@ -128,10 +128,28 @@ ims_file="$STATE_DIR/poll.last-modified"
 body='[]'
 last_modified=
 
+# The first-sight cutoff (see the seeding block in the main loop). It is the
+# PREVIOUS poll's Last-Modified -- the value this request is made conditional on
+# -- because the notification's own updated_at cannot serve: a notification
+# thread is one row per PR and ANY activity bumps it (a check suite finishing, a
+# push), so it routinely postdates the review that triggered it and would file
+# that review as history. Measured on eversteel/tetsunavi-monorepo#6989: review
+# submitted 02:13:51Z, notification 02:15:31Z, all 9 items seeded as seen and
+# nothing queued. Everything a conditional poll returns is by definition newer
+# than the value it was conditional on, and nothing can bump that value.
+seed_cutoff=
+
 if [ -z "$manual_pr" ]; then
   api_args=(-i "notifications?all=true&per_page=50")
   if [ "$force" -eq 0 ] && [ -s "$ims_file" ]; then
-    api_args+=(-H "If-Modified-Since: $(cat "$ims_file")")
+    ims=$(cat "$ims_file")
+    api_args+=(-H "If-Modified-Since: $ims")
+    # An HTTP date, while the items are ISO 8601, and the two are compared as
+    # strings. A file written by an older version -- or a truncated write -- need
+    # not parse at all, and jq exits non-zero on that, so the failure falls back
+    # to the notification timestamp rather than killing the poll for good.
+    seed_cutoff=$(jq -rn --arg d "$ims" \
+      '$d | strptime("%a, %d %b %Y %H:%M:%S GMT") | mktime | todate' 2>/dev/null) || seed_cutoff=
   fi
 
   raw=$(gh api "${api_args[@]}" 2>/dev/null)
@@ -309,12 +327,13 @@ while IFS=$'\t' read -r repo pr cutoff; do
     seen=$(jq -c '.seen // []' "$job")
     prev_pending=$(jq -c '.pending // []' "$job")
   else
-    # First sight of this PR. Everything already there when the notification was
-    # raised is history, not feedback to act on -- otherwise adopting a PR that
-    # has been under review for a week would dump a week of comments into one
-    # prompt. The notification's own timestamp is the cutoff, so the review that
-    # triggered this run still lands in `pending`.
-    seen=$(printf '%s' "$items" | jq -c --arg cutoff "$cutoff" '[ .[] | select(.at < $cutoff) | .id ]')
+    # First sight of this PR. Everything that was already there before the
+    # previous poll is history, not feedback to act on -- otherwise adopting a PR
+    # that has been under review for a week would dump a week of comments into
+    # one prompt. The cutoff is that previous poll and NOT the notification's own
+    # timestamp; see seed_cutoff above for why the obvious choice silently
+    # swallows the very review that triggered the run.
+    seen=$(printf '%s' "$items" | jq -c --arg cutoff "${seed_cutoff:-$cutoff}" '[ .[] | select(.at < $cutoff) | .id ]')
     prev_pending='[]'
   fi
 

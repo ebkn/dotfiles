@@ -99,6 +99,41 @@ calling a path that does not exist.
 **Linking is not loading**, and the gap is invisible — see
 [launchd-load.md](launchd-load.md).
 
+## The first-sight cutoff is the previous poll, not the notification
+
+The obvious cutoff for "what counts as history on a PR I have never seen" is the
+notification's own `updated_at`, and it is wrong.
+
+A notification thread is **one row per PR**, and *any* activity bumps its
+`updated_at` — a check suite finishing, a push, a label. So the notification
+routinely postdates the review that triggered it, and seeding against it files
+that review as history. Nothing reports it, and no later poll recovers it: the
+item only ever gets older than the next cutoff.
+
+Measured on eversteel/tetsunavi-monorepo#6989 — CodeRabbit review submitted
+`02:13:51Z`, notification `02:15:31Z`, 100 seconds later — running this script's
+own seeding expression against the live API returned
+`{total: 9, seeded_as_history: 9, would_be_pending: 0}`. A second case,
+#7063, showed the same shape at +22s.
+
+**This only bites on first sight**, which is exactly why it looked intermittent:
+once a job file exists, `seen` is the authority and the cutoff is never consulted
+again, so every *subsequent* review on the same PR was delivered normally.
+
+The cutoff is therefore the **previous poll's `Last-Modified`** — the value the
+conditional request was made against. Everything a conditional poll returns is by
+definition newer than it, and no thread bump can move it.
+
+`subject.latest_comment_url` looks like a cleaner anchor and is not usable: it was
+`none` for both broken PRs and pointed at the PR itself for several others.
+
+The cost accepted in exchange: a PR whose **first** notification arrives after a
+week of review activity queues all of it. That failure is loud and happens once;
+the one it replaces was silent and permanent. Two fallbacks keep the old
+behaviour where there is no previous poll to anchor on — the first run ever, and
+`--force`, which sends no conditional request — and a stored value that does not
+parse as an HTTP date falls back rather than killing the poll.
+
 ## `--pr owner/repo#N`
 
 **GitHub never notifies you about your own comments**, which is why this exists.
@@ -148,10 +183,13 @@ broken filter both print nothing and exit 0.
 
 The cases that earn their keep encode pipeline rules rather than parsing:
 
-- **History is seeded on first sight.** Adopting a week-old PR must not dump a
-  week of comments into one prompt, so anything older than the notification's own
-  timestamp lands in `seen`, while the review that triggered the run still lands
-  in `pending`.
+- **History is seeded on first sight, against the previous poll and not against
+  the notification.** Adopting a week-old PR must not dump a week of comments
+  into one prompt, so anything older than the cutoff lands in `seen` while the
+  review that triggered the run still lands in `pending`. The fixture's
+  timestamps are ordered the way GitHub really orders them — notification
+  *after* its own trigger — because the reverse ordering is what hid the bug
+  below for the tool's whole life.
 - **`pending` accumulates and never replaces.** That is the whole representation
   of "a review arrived while the session was busy", so a second poll must leave
   the first review still owed.

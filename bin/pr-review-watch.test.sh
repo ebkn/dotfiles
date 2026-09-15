@@ -314,5 +314,112 @@ out=$(run)
 eq 'reports the reason' 'yes' "$(printf '%s' "$out" | grep -q 'not checked out in any worktree' && echo yes || echo no)"
 eq 'writes no job' '0' "$(find "$STATE/jobs" -name '*.json' | wc -l | tr -d ' ')"
 
+echo "-- first sight: a notification that LAGS its own review still queues it --"
+# A notification thread is one row per PR, and its updated_at is bumped by ANY
+# activity on that PR -- a check suite finishing, a push -- not only by the review
+# being routed. So the notification is routinely NEWER than the review that
+# triggered it, and seeding history against it files that review as history:
+# nothing is queued, silently, and no later poll can recover it because the item
+# only gets older. Measured on eversteel/tetsunavi-monorepo#6989 -- review
+# submitted 02:13:51Z, notification 02:15:31Z, 100s later -- where all 9 items
+# including the triggering review were classified as history.
+#
+# The first-sight cutoff is therefore the PREVIOUS poll's Last-Modified, the
+# value the conditional request was made against: everything the poll returns is
+# by definition newer than it, and no amount of thread-bumping can move it.
+cat >"$FIX/pull.json" <<EOF
+{"head":{"ref":"feature/x"},"html_url":"https://github.com/acme/widget/pull/42","title":"a title"}
+EOF
+cat >"$FIX/agents.json" <<EOF
+[{"pid":1,"cwd":"$WT","kind":"interactive","sessionId":"sess-1","startedAt":1,"status":"idle"}]
+EOF
+# The previous case removed it; the branch itself survived the removal. A failure
+# here would surface as an unrelated assertion failure three lines down, so it is
+# fatal rather than silenced -- the same reason bin/lint-shell refuses to report
+# ok on a failed listing.
+git -C "$REPO" worktree add -q "$WT" feature/x ||
+  {
+    no 'setup: could not re-add the feature/x worktree'
+    exit 1
+  }
+# updated_at is 115s AFTER review 12, the shape the live API actually returns.
+#
+# The cutoff must be the Last-Modified this poll was made CONDITIONAL ON, never
+# the one it receives back. That is pinned here rather than stated: the response
+# carries 10:00:10, which is later than review 12 at 10:00:05, so an
+# implementation reading the fresh value files the review as history and the
+# first assertion below goes red.
+cat >"$FIX/notifications.json" <<'EOF'
+[
+ {"reason":"author","updated_at":"2026-09-07T10:02:00Z",
+  "repository":{"full_name":"acme/widget"},
+  "subject":{"type":"PullRequest","title":"a title","url":"https://api.github.com/repos/acme/widget/pulls/42"}}
+]
+EOF
+STATE="$TMP/state7"
+mkdir -p "$STATE"
+printf 'Mon, 07 Sep 2026 09:59:00 GMT' >"$STATE/poll.last-modified"
+run >/dev/null
+eq 'the lagged review is queued, not swallowed' 'true' "$(job '[.pending[].id]|index("review:12")!=null')"
+eq 'the lagged inline comment is queued too' 'true' "$(job '[.pending[].id]|index("inline:21")!=null')"
+# The cutoff must still seed real history: review 11 is from 2026-09-01, long
+# before the previous poll, so adopting this PR must not dump it into the prompt.
+eq 'history older than the previous poll is still seeded' 'false' "$(job '[.pending[].id]|index("review:11")!=null')"
+eq 'and that history is in seen' 'true' "$(job '[.seen[]]|index("review:11")!=null')"
+
+echo "-- an item exactly AT the cutoff is owed, not history --"
+# The comparison is `select(.at < $cutoff)`, strict by design: the previous poll
+# saw everything UP TO that instant, so an item stamped with the instant itself
+# has not been seen. One character (`<` for `<=`) inverts that, and the only
+# symptom is a review that never arrives.
+cat >"$FIX/issue_comments.json" <<'EOF'
+[
+ {"id":33,"user":{"login":"bob"},"body":"right on the boundary","created_at":"2026-09-07T09:59:00Z"}
+]
+EOF
+STATE="$TMP/state7b"
+mkdir -p "$STATE"
+printf 'Mon, 07 Sep 2026 09:59:00 GMT' >"$STATE/poll.last-modified"
+run >/dev/null
+eq 'an item stamped exactly at the cutoff is queued' 'true' "$(job '[.pending[].id]|index("issue:33")!=null')"
+
+echo "-- an unparseable stored Last-Modified falls back, it does not kill the poll --"
+# mkdir can succeed while a write fails, and a file written by an older version
+# need not be an HTTP date at all. jq's strptime exits non-zero on one, and a
+# poller that dies here stops delivering for good with nothing saying why -- the
+# same silent-forever shape as a lock that is never stolen.
+#
+# Note what a bare "no error was printed" assertion would be worth here: the
+# script sends jq's stderr to /dev/null, so no message ever reaches the caller
+# whatever happens. The run has to be judged by what it QUEUED.
+#
+# This fixture is local to the case: the only item newer than the notification is
+# issue 34, so a job file existing at all proves the poll ran to completion, and
+# an unparsed date leaking through as a literal would sort every ISO timestamp
+# below it and queue nothing.
+cat >"$FIX/issue_comments.json" <<'EOF'
+[
+ {"id":34,"user":{"login":"bob"},"body":"after the notification","created_at":"2026-09-07T10:05:00Z"}
+]
+EOF
+STATE="$TMP/state8"
+mkdir -p "$STATE"
+printf 'not a date' >"$STATE/poll.last-modified"
+run >/dev/null
+eq 'the poll runs to completion and queues' 'true' "$(job '[.pending[].id]|index("issue:34")!=null')"
+eq 'and falls back to the notification cutoff' 'false' "$(job '[.pending[].id]|index("review:11")!=null')"
+
+echo "-- --force sends no conditional request, so it falls back too --"
+# --force deliberately drops the If-Modified-Since header, which leaves no
+# previous poll to anchor on. Documented in pr-review-watch.md, so it is pinned:
+# the stored value must be ignored for the cutoff exactly as it is for the
+# request, or --force would seed history against a date it never sent.
+STATE="$TMP/state9"
+mkdir -p "$STATE"
+printf 'Mon, 07 Sep 2026 09:59:00 GMT' >"$STATE/poll.last-modified"
+run --force >/dev/null
+eq 'the stored value does not become the cutoff' 'false' "$(job '[.pending[].id]|index("review:12")!=null')"
+eq 'the post-notification item is still queued' 'true' "$(job '[.pending[].id]|index("issue:34")!=null')"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
