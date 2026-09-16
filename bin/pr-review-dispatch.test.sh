@@ -1020,5 +1020,70 @@ has "so it still renders as review feedback" "$first" "[pr-review-dispatch] New 
 has "and its prompt file is the review shape" \
   "$(cat "$STATE/jobs/acme__widget__42.prompt.md")" "# Review feedback on"
 
+# --- ci jobs ----------------------------------------------------------------
+# The third job kind, from the same detector as the conflict one. Like a
+# conflict and unlike a review it carries no prose from anybody, so this prompt
+# is written here too -- but it is the one that asks a session to CHANGE CODE on
+# evidence it has not read yet, which is why the two prohibitions below matter
+# more than anything else in the file.
+
+printf 'ci jobs\n'
+
+make_ci_job() {
+  jq -n --arg wt "$WT" '{
+    kind:"ci",
+    repo:"acme/widget", pr:42, url:"https://github.com/acme/widget/pull/42",
+    title:"a title", branch:"feature/x", worktree:$wt,
+    sessionId:"sess-1", status:"pending", ciHead:"deadbee",
+    pending:[{id:"ci:deadbee", kind:"ci", branch:"feature/x", head:"deadbee",
+              checks:["lint","unit (3/4)"], at:"2026-09-07T10:00:00Z"}],
+    updatedAt:"2026-09-07T10:00:00Z"}' >"$STATE/jobs/acme__widget__42__ci.json"
+}
+cijob() { jq -r "$1" "$STATE/jobs/acme__widget__42__ci.json"; }
+
+reset
+PID=$(spawn_holder)
+WIRE="$TMP/wire-ci"
+listen "$TMP/sci.sock" "$WIRE" || no "listener came up (ci)"
+session live "$PID" "$WT" "$TMP/sci.sock" 100
+make_ci_job
+out=$(run)
+settle "$WIRE" || no "nothing reached the socket (ci)"
+
+eq "a ci job is delivered like any other" "delivered" "$(cijob .status)"
+
+msg=$(jq -r .message.content <"$WIRE")
+first=$(printf '%s' "$msg" | head -1)
+has "the preview line names the detector" "$first" "[pr-state-watch]"
+has "and says what is wrong" "$first" "checks are failing"
+
+PROMPT="$STATE/jobs/acme__widget__42__ci.prompt.md"
+eq "a prompt file is written beside the job" "yes" "$([ -f "$PROMPT" ] && echo yes)"
+body=$(cat "$PROMPT")
+
+# Naming them is the difference between "CI is red" and a starting point. The
+# detector already knows, and the session would otherwise spend a tool call
+# asking GitHub what this file could have said.
+has "it names each failing check" "$body" "lint"
+has "including one with awkward characters" "$body" "unit (3/4)"
+
+# Same unannounced-arrival hazard as the conflict prompt: this lands mid-turn in
+# a worktree that may have uncommitted work in it.
+has "it stops on a dirty worktree" "$body" "git status --short"
+
+# THE prohibition. This repository treats tests as the specification of
+# behaviour, and the cheapest way to make a red check green is to weaken the
+# thing that went red. A session told only "make CI pass" has every incentive to
+# do exactly that, so the instruction has to rule it out in words.
+has "it forbids weakening the test to make it pass" "$body" "Never make a check pass by weakening"
+
+# Flake judgement stays with the session, because it is the only party that can
+# read the log. The detector deliberately does not re-run anything: that would
+# put a cron job in the business of writing to GitHub.
+has "it says to re-run a flake rather than invent a fix" "$body" "re-run"
+
+# A ci job has no reviewer and no thread, exactly like a conflict job.
+lacks "a ci prompt carries no reply instruction" "$body" "Reply on the PR"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

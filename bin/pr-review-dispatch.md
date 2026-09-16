@@ -80,6 +80,36 @@ session's own transcript records
 `userType:"external"`, so it is classified as a peer message whatever the
 envelope says — and that classification is what carries the protections above.
 
+## The two written prompts, and why the CI one is the dangerous file
+
+A review prompt relays what a human wrote. A conflict prompt and a CI prompt are
+**written here**, which makes them the only text in this pipeline that can be
+wrong with no upstream to blame.
+
+The CI one goes further than the conflict one: it asks a session to **change
+code** on evidence it has not read yet. Two lines in it exist for that reason
+rather than to describe work.
+
+**"Never make a check pass by weakening what it checks."** Deleting the
+assertion, loosening the matcher, marking it skipped, lowering a threshold — that
+is the cheapest way to turn a check green, and a session told only "make CI pass"
+has every incentive to reach for it. This repository treats tests as the
+specification of behaviour, so doing it removes the specification and keeps the
+bug. Nothing in the failure itself says so.
+
+**"Re-run it rather than invent a fix."** Whether a failure is a flake needs the
+log, and a model asked to fix something will generally produce a fix whether or
+not one was called for. The detector will not re-run anything itself — that
+would put a cron job in the business of writing to GitHub — so the judgement is
+handed to the only party that can see the output.
+
+The failing check names are listed rather than left to be looked up: the
+detector already knew them, and a prompt saying only "CI is red" spends a tool
+call asking GitHub what it could have said itself.
+
+Neither written prompt carries the reply-and-resolve instruction, since neither
+has a reviewer or a thread to answer; the test suite pins both.
+
 ## `from` cannot be filled in from here, and this was tested rather than assumed
 
 The socket's schema *does* carry an `origin` object whose peer variant is

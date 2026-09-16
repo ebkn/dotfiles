@@ -1,7 +1,15 @@
 # pr-state-watch — the second detector on the review pipeline
 
-A PR of yours stops merging. Nothing tells you. This notices, and hands the
-branch's Claude Code session an instruction to merge the base branch and resolve.
+Two things go wrong on a PR of yours that nothing tells you about: it stops
+merging, and its checks go red. This notices both and hands the branch's Claude
+Code session an instruction to deal with it.
+
+Both are **polled state**, not received events, which is what makes them one
+program rather than two. The decisive detail is that `statusCheckRollup` comes
+back in the `gh pr list` request that already fetches `mergeable`, so the second
+question costs **no extra request**; a separate detector would have duplicated
+the `gh search prs` call against the search API's own 30/min limit. The name
+changed from `pr-conflict-watch` when the second question arrived.
 
 It feeds the **same queue** and the **same deliverer**
 ([pr-review-dispatch](pr-review-dispatch.md)) as
@@ -88,11 +96,68 @@ the session should not be interrupted for it.
 opposite of the review path. Two conflicts on one PR are not two things to
 address; the older one describes a head that no longer exists.
 
+## Failing checks
+
+The same shape as the conflict half — polled state, keyed on the head oid — with
+four decisions of its own.
+
+**`statusCheckRollup` is a union, and both arms are live.** Measured on this
+account: 1117 `CheckRun` entries against 2 `StatusContext`. A `CheckRun` carries
+`status`/`conclusion`/`name`; a `StatusContext` carries `state`/`context` and
+**no `status` field at all**. So the obvious `.status != "COMPLETED"` reads every
+commit status as forever-running and the detector waits for a check that finished
+long ago. The jq branches on `__typename`, and the fixtures carry both arms.
+
+**Checks still running are a third answer**, exactly as `UNKNOWN` is for
+mergeability. Announcing on the first red while others are still running means
+announcing again for each one that lands after it, so a pass with anything
+in-flight counts itself as waiting and asks again in five minutes.
+
+**`CANCELLED` is not a failure.** Concurrency groups cancel the previous run on
+every push, so counting it would queue a job for the act of pushing twice.
+`FAILURE`, `TIMED_OUT` and `STARTUP_FAILURE` are the failures;
+`SKIPPED`/`NEUTRAL`/`SUCCESS` are not.
+
+**A `CONFLICTING` PR gets no CI job.** The merge is about to replace the tree the
+checks ran against, so fixing them first is work against a head that will not
+survive. The conflict is announced, and the next pass re-evaluates CI on the new
+head.
+
+### Drafts are included here, and excluded from conflicts
+
+The only asymmetry between the two halves, and it is deliberate. A conflict on a
+draft is not yet news — the branch is still being written. A red check on a draft
+is exactly what should be dealt with **before** marking it ready for review.
+
+### Flakes are the session's call, not this program's
+
+The review path excludes `ci_activity` from its notification reasons with the
+reason "a red check would otherwise wake a session per flake", and that objection
+does not disappear because the feature was asked for. What answers it is the
+idempotence key plus where the judgement sits.
+
+Keying on the head oid means a session is woken **at most once per push**: a
+flake that stays red does not re-announce, and a push that does not fix it
+announces again, which is when it needs saying twice.
+
+Whether a failure *is* a flake needs the log, which this program has not read.
+Re-running a check would also mean a cron job writing to GitHub, which is the
+line this pipeline does not cross anywhere else. So the prompt names the
+possibility and tells the session to re-run rather than invent a fix — the
+judgement goes to the only party that can see the output.
+
+**The prompt's other prohibition is the load-bearing one.** The cheapest way to
+make a red check green is to weaken what it checks, and a session told only "make
+CI pass" has every incentive to reach for it. See
+[pr-review-dispatch.md](pr-review-dispatch.md) for why that text is where it is.
+
 ## Job files are separate, and so is the lock
 
-`<repo>__<pr>__conflict.json`, beside the review path's `<repo>__<pr>.json`. Two
-detectors writing one file would interleave, and each would drop the other's
-`pending` on its next pass.
+`<repo>__<pr>__conflict.json` and `<repo>__<pr>__ci.json`, beside the review
+path's `<repo>__<pr>.json`. Two writers on one file would interleave, and each
+would drop the other's `pending` on its next pass — which applies to the two
+halves of this program as much as to the two programs, since one PR can be both
+conflicted and failing.
 
 For the same reason the lock is `.state-lock`, not the watcher's `.lock`.
 They have no reason to exclude each other, and sharing one would mean a review

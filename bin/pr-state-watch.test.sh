@@ -110,13 +110,26 @@ cat >"$FIX/agents.json" <<EOF
 [{"pid":1,"cwd":"$WT","kind":"interactive","sessionId":"sess-1","startedAt":1,"status":"idle"}]
 EOF
 
-# prs <mergeable> [isDraft] [headRefOid] [branch]
+# prs <mergeable> [isDraft] [headRefOid] [branch] [statusCheckRollup]
 prs() {
   jq -n --arg m "${1:-CONFLICTING}" --argjson d "${2:-false}" \
-    --arg oid "${3:-abc1234}" --arg br "${4:-feature/x}" '
+    --arg oid "${3:-abc1234}" --arg br "${4:-feature/x}" \
+    --argjson roll "${5:-[]}" '
     [{number:42, title:"a title", url:"https://github.com/acme/widget/pull/42",
       headRefName:$br, baseRefName:"trunk", headRefOid:$oid,
-      mergeable:$m, isDraft:$d}]' >"$FIX/prs.json"
+      mergeable:$m, isDraft:$d, statusCheckRollup:$roll}]' >"$FIX/prs.json"
+}
+
+# statusCheckRollup is a UNION and both arms are live on this account (measured:
+# 1117 CheckRun entries against 2 StatusContext). A CheckRun carries
+# status/conclusion/name; a StatusContext carries state/context and NO status
+# field at all, so a naive `.status != "COMPLETED"` reads every commit status as
+# forever-running. These builders keep that distinction in the fixtures.
+check() { # check <name> <status> <conclusion>
+  printf '{"__typename":"CheckRun","name":"%s","status":"%s","conclusion":"%s","workflowName":"wf"}' "$1" "$2" "$3"
+}
+ctx() { # ctx <context> <state>
+  printf '{"__typename":"StatusContext","context":"%s","state":"%s"}' "$1" "$2"
 }
 
 STATE="$TMP/state"
@@ -332,6 +345,146 @@ out=$(run --nonsense)
 rc=$?
 eq 'an unknown argument exits non-zero' '1' "$rc"
 has 'and names it' "$out" 'unknown argument: --nonsense'
+
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+cijob() { jq -r "$1" "$CIJOB" 2>/dev/null; }
+
+echo "-- a failing check queues a ci job, separate from the conflict one --"
+STATE="$TMP/state-ci"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs MERGEABLE false head1 feature/x "[$(check lint COMPLETED FAILURE),$(check build COMPLETED SUCCESS)]"
+out=$(run)
+eq 'a ci job is written' 'yes' "$([ -f "$CIJOB" ] && echo yes || echo no)"
+eq 'its kind says ci, not conflict' 'ci' "$(cijob .kind)"
+eq 'it records the head it was seen at' 'head1' "$(cijob .ciHead)"
+has 'it names the failing check' "$(cijob '[.pending[0].checks[]]|join(",")')" 'lint'
+eq 'and not the passing one' 'false' "$(cijob '[.pending[0].checks[]]|index("build")!=null')"
+# The conflict job is a different file on purpose: one PR can be both, and two
+# detectors writing one file would each drop the other's pending.
+eq 'no conflict job is written for a mergeable PR' 'no' \
+  "$([ -f "$STATE/jobs/acme__widget__42__conflict.json" ] && echo yes || echo no)"
+
+echo "-- checks still running are a THIRD answer, like UNKNOWN --"
+# Announcing on the first red while others still run means announcing again for
+# each one that lands after it. The pass says so on stdout rather than going
+# quiet, and asks again next time.
+STATE="$TMP/state-ci2"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs MERGEABLE false head1 feature/x "[$(check lint COMPLETED FAILURE),$(check build IN_PROGRESS '')]"
+out=$(run)
+eq 'nothing is queued while a check is still running' 'no' "$([ -f "$CIJOB" ] && echo yes || echo no)"
+has 'and the pass says it is waiting' "$out" 'waiting'
+
+echo "-- a StatusContext is not a forever-running check --"
+# The union-type trap: a StatusContext has no .status, so `.status != COMPLETED`
+# matches it and the detector waits forever on a PR whose checks all finished.
+STATE="$TMP/state-ci3"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs MERGEABLE false head1 feature/x "[$(check lint COMPLETED FAILURE),$(ctx ci/legacy SUCCESS)]"
+out=$(run)
+eq 'a finished commit status does not stall the pass' 'yes' "$([ -f "$CIJOB" ] && echo yes || echo no)"
+
+echo "-- a failing StatusContext counts as a failure --"
+STATE="$TMP/state-ci4"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs MERGEABLE false head1 feature/x "[$(ctx ci/legacy FAILURE)]"
+run >/dev/null
+has 'the commit status is named' "$(cijob '[.pending[0].checks[]]|join(",")')" 'ci/legacy'
+
+echo "-- CANCELLED is not a failure --"
+# Concurrency groups cancel the previous run on every push. Treating that as a
+# failure would queue a job for the act of pushing twice.
+STATE="$TMP/state-ci5"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs MERGEABLE false head1 feature/x "[$(check lint COMPLETED CANCELLED),$(check build COMPLETED SUCCESS)]"
+run >/dev/null
+eq 'a cancelled check queues nothing' 'no' "$([ -f "$CIJOB" ] && echo yes || echo no)"
+
+echo "-- the same failure at the same head is not re-queued, a new head is --"
+STATE="$TMP/state-ci6"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs MERGEABLE false head1 feature/x "[$(check lint COMPLETED FAILURE)]"
+run >/dev/null
+first=$(cijob .updatedAt)
+out=$(run)
+eq 'the second pass queues nothing' '' "$(printf '%s' "$out" | grep '^queue' || true)"
+eq 'and leaves the job alone' "$first" "$(cijob .updatedAt)"
+prs MERGEABLE false head2 feature/x "[$(check lint COMPLETED FAILURE)]"
+out=$(run)
+has 'a push that still fails is announced again' "$out" 'queue'
+eq 'and the head moves with it' 'head2' "$(cijob .ciHead)"
+
+echo "-- checks going green withdraws an undelivered job --"
+prs MERGEABLE false head2 feature/x "[$(check lint COMPLETED SUCCESS)]"
+run >/dev/null
+eq 'the job is marked resolved' 'resolved' "$(cijob .status)"
+eq 'and nothing is left owed' '0' "$(cijob '.pending|length')"
+eq 'and the head is cleared so a later failure notifies afresh' 'null' "$(cijob .ciHead)"
+
+echo "-- a draft IS queued for CI, unlike for a conflict --"
+# Deliberate asymmetry, and the only one in this program. A conflict on a draft
+# is not yet news -- the branch is still being written. A red check on a draft is
+# exactly what you want dealt with BEFORE marking it ready for review.
+STATE="$TMP/state-ci7"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs MERGEABLE true head1 feature/x "[$(check lint COMPLETED FAILURE)]"
+run >/dev/null
+eq 'a failing draft is queued' 'yes' "$([ -f "$CIJOB" ] && echo yes || echo no)"
+prs CONFLICTING true head1 feature/x "[]"
+run >/dev/null
+eq 'a conflicting draft is still not' 'no' \
+  "$([ -f "$STATE/jobs/acme__widget__42__conflict.json" ] && echo yes || echo no)"
+
+echo "-- a conflicting PR is not also given a CI job --"
+# The merge changes the tree the checks ran against, so fixing CI first is work
+# done against a head that is about to be replaced. Conflict is announced; the
+# new head re-evaluates CI on the next pass.
+STATE="$TMP/state-ci8"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs CONFLICTING false head1 feature/x "[$(check lint COMPLETED FAILURE)]"
+run >/dev/null
+eq 'the conflict is queued' 'yes' \
+  "$([ -f "$STATE/jobs/acme__widget__42__conflict.json" ] && echo yes || echo no)"
+eq 'and the CI failure waits for it' 'no' "$([ -f "$CIJOB" ] && echo yes || echo no)"
+
+echo "-- a PR with no checks at all is not a failure --"
+STATE="$TMP/state-ci9"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs MERGEABLE false head1 feature/x "[]"
+run >/dev/null
+eq 'no checks queues nothing' 'no' "$([ -f "$CIJOB" ] && echo yes || echo no)"
+
+echo "-- a failing PR with no worktree is not queued --"
+# There is no session to route to, so a job here would sit in the queue forever
+# -- and unlike the conflict half this path says nothing on stdout, so the queue
+# growing is the only symptom there would ever be.
+STATE="$TMP/state-ci10"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs MERGEABLE false head1 no/such/branch "[$(check lint COMPLETED FAILURE)]"
+run >/dev/null
+eq 'no worktree means no ci job' 'no' "$([ -f "$CIJOB" ] && echo yes || echo no)"
+
+echo "-- --dry-run reports the failure and writes nothing --"
+STATE="$TMP/state-ci11"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs MERGEABLE false head1 feature/x "[$(check lint COMPLETED FAILURE)]"
+out=$(run --dry-run)
+has 'the failure is still reported' "$out" 'checks failing'
+eq 'but no job file is written' 'no' "$([ -f "$CIJOB" ] && echo yes || echo no)"
+
+echo "-- the rollup rides the existing request, it is not a second one --"
+# The entire reason this lives in pr-state-watch rather than in a detector of
+# its own. A regression to a separate per-PR call would pass every behavioural
+# assertion above while multiplying the request count -- against the search
+# API's own 30/min limit -- so the shape is asserted, not just the outcome.
+STATE="$TMP/state-ci12"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs MERGEABLE false head1 feature/x "[$(check lint COMPLETED FAILURE)]"
+run >/dev/null
+eq 'exactly one pr list call for the repo' '1' "$(grep -c '^pr list' "$TMP/gh.log")"
+has 'and it asks for the rollup inline' "$(grep '^pr list' "$TMP/gh.log")" 'statusCheckRollup'
+eq 'no checks/run subcommand is called at all' '0' \
+  "$(grep -cE '^(run|checks|api) ' "$TMP/gh.log" || true)"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

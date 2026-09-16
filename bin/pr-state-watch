@@ -126,6 +126,7 @@ fi
 
 now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 queued_total=0
+queued_ci=0
 waiting=0
 
 while IFS= read -r repo; do
@@ -139,8 +140,11 @@ while IFS= read -r repo; do
   # mergeable and baseRefName come back for every open PR in one request. The
   # head oid is what makes re-notification correct rather than chatty: see the
   # conflictHead comparison below.
+  # statusCheckRollup rides the request that already fetches mergeable, so the
+  # second question this program answers costs no extra call -- which is the
+  # whole reason it lives here rather than in a detector of its own.
   prs=$(gh pr list --repo "$repo" --author @me --state open --limit 50 \
-    --json number,title,url,headRefName,baseRefName,headRefOid,mergeable,isDraft \
+    --json number,title,url,headRefName,baseRefName,headRefOid,mergeable,isDraft,statusCheckRollup \
     2>/dev/null)
   [ -n "$prs" ] || {
     printf 'skip %s: could not list pull requests\n' "$repo"
@@ -151,18 +155,140 @@ while IFS= read -r repo; do
   # what makes `IFS=$'\t' read` safe here: tab is an IFS *whitespace* character
   # however narrow IFS is set, so an empty field would silently arrive short with
   # everything after it shifted. ADDING A FIELD THAT CAN BE EMPTY BREAKS THIS.
+  # The rollup collapses to ONE token, never to a list, because of the tab rule
+  # below: NONE/RUNNING/FAIL/PASS is always non-empty, where "the failing check
+  # names" is empty for most PRs. The names are pulled back out of $prs only on
+  # the rare pass that actually queues something.
+  #
+  # statusCheckRollup is a UNION and both arms are live (measured on this
+  # account: 1117 CheckRun against 2 StatusContext). A CheckRun has
+  # status/conclusion; a StatusContext has state and NO status field, so the
+  # obvious `.status != "COMPLETED"` reads every commit status as forever
+  # running and the detector waits for a check that already finished. Hence the
+  # __typename branch.
+  #
+  # Each membership test binds the value FIRST (`.conclusion as $c`) instead of
+  # piping into the array. `["A"] | index(.conclusion)` rebinds `.` to the array,
+  # reads .conclusion off it as null, matches nothing, and reports every PR
+  # green -- the same jq trap that made the review poll queue silently nothing.
   rows=$(printf '%s' "$prs" | jq -r --arg only "$only_pr" '
+    def checkstate:
+      if .__typename == "StatusContext" then
+        (.state // "") as $s
+        | if (["PENDING","EXPECTED"] | index($s)) then "RUNNING"
+          elif (["FAILURE","ERROR"] | index($s)) then "FAIL"
+          else "OK" end
+      else
+        (.conclusion // "") as $c
+        | if .status != "COMPLETED" then "RUNNING"
+          elif (["FAILURE","TIMED_OUT","STARTUP_FAILURE"] | index($c)) then "FAIL"
+          else "OK" end
+      end;
     [ .[]
       | select($only == "" or (.number | tostring) == $only) ]
     | .[]
-    | [ (.number|tostring), .mergeable, .headRefName, .baseRefName,
+    | ((.statusCheckRollup // []) | map(checkstate)) as $st
+    | (if ($st | length) == 0 then "NONE"
+       elif ($st | index("RUNNING")) then "RUNNING"
+       elif ($st | index("FAIL")) then "FAIL"
+       else "PASS" end) as $ci
+    | [ (.number|tostring), .mergeable, $ci, .headRefName, .baseRefName,
         .headRefOid, (.isDraft|tostring), .url, .title ]
     | @tsv' 2>/dev/null)
 
-  while IFS=$'\t' read -r pr mergeable branch base head draft url title; do
+  while IFS=$'\t' read -r pr mergeable ci branch base head draft url title; do
     [ -n "${pr:-}" ] || continue
 
     job="$STATE_DIR/jobs/${repo//\//__}__${pr}__conflict.json"
+    ci_job="$STATE_DIR/jobs/${repo//\//__}__${pr}__ci.json"
+
+    # Both halves need it, so it is looked up once and SILENTLY: on this account
+    # most open PRs have no worktree, and a line per PR per pass is how a log
+    # stops being read. The conflict half still reports it below, because a
+    # conflict it cannot route is worth one line.
+    worktree=$(worktree_for_branch "$path" "$branch") || worktree=
+
+    # --- failing checks -----------------------------------------------------
+    # Skipped entirely while the PR is CONFLICTING. The merge is about to
+    # replace the tree the checks ran against, so fixing them first is work
+    # against a head that will not survive; the conflict is announced instead
+    # and the next pass re-evaluates CI on the new head.
+    #
+    # Unlike the conflict half, a DRAFT is included. A conflict on a draft is
+    # not yet news -- the branch is still being written -- but a red check on
+    # one is exactly what should be dealt with before marking it ready. That is
+    # the only asymmetry between the two halves and it is deliberate.
+    if [ "$mergeable" != CONFLICTING ]; then
+      case "$ci" in
+        RUNNING)
+          # The third answer, exactly as UNKNOWN is for mergeability. Announcing
+          # on the first red while others are still running means announcing
+          # again for every one that lands after it.
+          waiting=$((waiting + 1))
+          ;;
+        FAIL)
+          # Same idempotence key as the conflict half: the head oid. Told once
+          # per push, and told AGAIN when a push does not fix it -- which is
+          # when it needs saying twice. Whether a failure is a flake is a
+          # judgement that needs the log, so it is the session's to make, not
+          # this program's.
+          if [ -n "$worktree" ] &&
+            { [ ! -f "$ci_job" ] || [ "$(jq -r '.ciHead // ""' "$ci_job")" != "$head" ]; }; then
+            failed=$(printf '%s' "$prs" | jq -c --argjson n "$pr" '
+              def checkstate:
+                if .__typename == "StatusContext" then
+                  (.state // "") as $s
+                  | if (["FAILURE","ERROR"] | index($s)) then "FAIL" else "OK" end
+                else
+                  (.conclusion // "") as $c
+                  | if .status != "COMPLETED" then "OK"
+                    elif (["FAILURE","TIMED_OUT","STARTUP_FAILURE"] | index($c)) then "FAIL"
+                    else "OK" end
+                end;
+              [ .[] | select(.number == $n) | (.statusCheckRollup // [])[]
+                | select(checkstate == "FAIL")
+                | (.name // .context) ] | unique' 2>/dev/null)
+            [ -n "$failed" ] || failed='[]'
+
+            session=$(session_for_worktree "$path" "$worktree")
+            printf 'queue %s#%s: checks failing on %s -> %s\n' \
+              "$repo" "$pr" "$branch" "${session:-no live session}"
+            queued_ci=$((queued_ci + 1))
+            if [ "$dry_run" -eq 0 ]; then
+              jq -n \
+                --arg repo "$repo" --argjson pr "$pr" --arg url "$url" --arg title "$title" \
+                --arg branch "$branch" --arg head "$head" --arg worktree "$worktree" \
+                --arg session "$session" --arg now "$now" --argjson failed "$failed" '
+                { kind: "ci",
+                  repo: $repo, pr: $pr, url: $url, title: $title,
+                  branch: $branch, worktree: $worktree,
+                  sessionId: (if $session == "" then null else $session end),
+                  status: "pending",
+                  ciHead: $head,
+                  pending: [ { id: ("ci:" + $head), kind: "ci",
+                               branch: $branch, head: $head,
+                               checks: $failed, at: $now } ],
+                  updatedAt: $now }' >"$ci_job.tmp" && mv "$ci_job.tmp" "$ci_job"
+              /bin/rm -f "$ci_job.tmp" 2>/dev/null
+            fi
+          fi
+          ;;
+        *)
+          # Green, or nothing to run. Clear the head so a LATER failure is
+          # announced rather than mistaken for the one already handled, and drop
+          # anything undelivered: a red that went green before delivery is not
+          # worth a session's attention.
+          if [ -f "$ci_job" ] && [ "$dry_run" -eq 0 ]; then
+            jq --arg now "$now" '
+              .status = "resolved" | .ciHead = null | .pending = []
+              | .updatedAt = $now' "$ci_job" >"$ci_job.tmp" && mv "$ci_job.tmp" "$ci_job"
+            /bin/rm -f "$ci_job.tmp" 2>/dev/null
+          fi
+          ;;
+      esac
+    fi
+
+    # --- mergeability -------------------------------------------------------
 
     case "$mergeable" in
       UNKNOWN)
@@ -198,7 +324,7 @@ while IFS= read -r repo; do
     # No worktree means no session to route to, so there is nothing this
     # pipeline can do -- the same rule the review path applies. The PR is still
     # visibly conflicted on GitHub, which is the human's own channel for it.
-    worktree=$(worktree_for_branch "$path" "$branch") || {
+    [ -n "$worktree" ] || {
       printf 'skip %s#%s: branch %s is not checked out in any worktree\n' "$repo" "$pr" "$branch"
       continue
     }
@@ -244,7 +370,8 @@ while IFS= read -r repo; do
 done <<<"$repos"
 
 [ "$queued_total" -gt 0 ] && printf 'queued %d conflict(s)\n' "$queued_total"
+[ "$queued_ci" -gt 0 ] && printf 'queued %d failing check set(s)\n' "$queued_ci"
 # Reported rather than silent: a pass that only ever waits means mergeability is
 # never settling, and the queue staying empty would otherwise look like health.
-[ "$waiting" -gt 0 ] && printf 'waiting on %d PR(s) whose mergeability GitHub is still computing\n' "$waiting"
+[ "$waiting" -gt 0 ] && printf 'waiting on %d PR(s): mergeability still computing, or checks still running\n' "$waiting"
 exit 0

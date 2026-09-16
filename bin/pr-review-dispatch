@@ -234,10 +234,16 @@ session_for_worktree() {
 # needed.
 write_prompt_file() {
   local job=$1 out=$2
-  if [ "$(jq -r '.kind // "review"' "$job")" = conflict ]; then
-    write_conflict_prompt "$job" >"$out"
-    return
-  fi
+  case "$(jq -r '.kind // "review"' "$job")" in
+    conflict)
+      write_conflict_prompt "$job" >"$out"
+      return
+      ;;
+    ci)
+      write_ci_prompt "$job" >"$out"
+      return
+      ;;
+  esac
   {
     printf '# Review feedback on %s\n\n' "$(jq -r .url "$job")"
     printf -- '- PR: %s#%s — %s\n' "$(jq -r .repo "$job")" "$(jq -r .pr "$job")" "$(jq -r .title "$job")"
@@ -332,6 +338,59 @@ If a conflict turns on a decision that is not yours to make — two implementati
 EOF
 }
 
+# Like a conflict job this carries no prose from anybody, so the text is written
+# here. Unlike a conflict job it asks a session to CHANGE CODE on evidence it has
+# not read yet, which is what the two prohibitions are for.
+#
+# **Weakening the test is the cheapest way to make a red check green**, and a
+# session told only "make CI pass" has every incentive to reach for it: delete
+# the assertion, loosen the matcher, mark it skipped. This repository treats
+# tests as the specification of behaviour, so that is not a fix, it is deleting
+# the specification and keeping the bug. Nothing in the failure itself says so,
+# which is why it is said here.
+#
+# **Whether a failure is a flake needs the log**, which this program has not
+# read and will not read: re-running a check means writing to GitHub from a cron
+# job, and the judgement belongs to the party that can see the output. So the
+# prompt names the possibility and hands the call to the session.
+#
+# The failing check names are listed rather than left to be looked up. The
+# detector already knew them, and a prompt that says only "CI is red" spends a
+# tool call asking GitHub what it could have said itself.
+write_ci_prompt() {
+  local job=$1 branch checks
+  branch=$(jq -r .branch "$job")
+  checks=$(jq -r '[.pending[].checks // []] | add // [] | unique | .[] | "- `" + . + "`"' "$job")
+  [ -n "$checks" ] || checks="- _(the rollup named none — read the PR's checks)_"
+  # An UNQUOTED heredoc with every markdown backtick escaped, for the reason
+  # write_conflict_prompt spells out: the text needs $branch interpolated and is
+  # full of `gh ...` spans, and dropping a backslash EXECUTES what follows
+  # rather than printing a backtick.
+  cat <<EOF
+# Checks are failing on $branch
+
+- PR: $(jq -r .repo "$job")#$(jq -r .pr "$job") — $(jq -r .title "$job")
+- $(jq -r .url "$job")
+- Worktree: $(jq -r .worktree "$job")
+- Head: $(jq -r '.ciHead // "?"' "$job")
+
+Failing:
+
+$checks
+
+## Do this
+
+1. **Check the worktree is clean first** (\`git status --short\`). If it is not, STOP and say so — do not commit on top of uncommitted work, and do not stash it on your own.
+2. Read the actual failure before changing anything (\`gh pr checks $(jq -r .pr "$job") --repo $(jq -r .repo "$job")\`, then \`gh run view --log-failed\`). The check name is not the diagnosis.
+3. **Never make a check pass by weakening what it checks.** Deleting the assertion, loosening the matcher, marking it skipped, or lowering a threshold is not a fix — it removes the specification and keeps the bug. If the test is genuinely wrong, say why in the commit message rather than quietly changing it.
+4. If the failure looks transient — a timeout, a flaky network call, something unrelated to this branch — **re-run it rather than invent a fix**, and say that is what you did. A green re-run means there was nothing here to fix.
+5. Reproduce locally where the repository makes that possible, and run the same check you are trying to fix before pushing.
+6. Commit and \`git push\`. No force-push is needed or wanted.
+
+If the fix turns on a decision that is not yours — the check encodes a policy you would have to change, or the failure is in somebody else's code — stop and say so instead of working around it.
+EOF
+}
+
 # Claude Code frames anything arriving on the socket as a message from another
 # Claude session, which is wrong here -- this is a human reviewer's comment
 # relayed by a cron job -- and it CANNOT be fixed through the envelope: an
@@ -348,6 +407,12 @@ prompt_text() {
     printf '[pr-state-watch] PR %s no longer merges into %s — read %s and resolve it.\n' \
       "$(jq -r .url "$job")" "$(jq -r '.base // "main"' "$job")" "$file"
     printf 'Relayed by the pr-review pipeline, not sent by another agent: GitHub reported the conflict, so there is nobody to reply to.\n'
+    return
+  fi
+  if [ "$(jq -r '.kind // "review"' "$job")" = ci ]; then
+    printf '[pr-state-watch] checks are failing on PR %s — read %s and fix them.\n' \
+      "$(jq -r .url "$job")" "$file"
+    printf 'Relayed by the pr-review pipeline, not sent by another agent: GitHub reported the failure, so there is nobody to reply to.\n'
     return
   fi
   n=$(jq -r '.pending | length' "$job")
