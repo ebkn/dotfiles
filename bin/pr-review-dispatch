@@ -246,7 +246,41 @@ write_prompt_file() {
       "## " + .author + " (" + .kind + (if .state then ", " + .state else "" end) + ")" + "\n" +
       (if .path then "`" + .path + (if .line then ":" + (.line|tostring) else "" end) + "`\n" else "" end) +
       "\n" + (if (.body | length) > 0 then .body else "_(no body — the verdict is the message)_" end) + "\n"' "$job"
+    write_answer_instruction
   } >"$out"
+}
+
+# Closing the loop back to the reviewer. Without this the pipeline delivers
+# feedback and nothing ever reports back, so the human has to re-read the PR to
+# find out whether their comment was taken.
+#
+# Deliberately short, and deliberately not a procedure. `gh` is already on the
+# path of every session this reaches and the model knows how to drive it, so
+# spelling out the GraphQL would only rot: resolving needs
+# `resolveReviewThread`, which moves independently of anything written here.
+#
+# Two constraints are stated because neither is guessable from the feedback
+# itself:
+#
+#   - **Resolving is a claim to the reviewer that the thread is handled**, so it
+#     is bounded to what was actually changed. A thread closed because the model
+#     believes it addressed something pushes the verification cost back onto the
+#     human, which is the opposite of the point. Disagreement replies and leaves
+#     the thread OPEN -- the same rule root/.agents/skills/review-test states for
+#     its own findings.
+#   - **Only an inline comment sits in a thread that can be resolved at all.** A
+#     review body and a plain conversation comment have no thread, so there is
+#     nothing to resolve and one consolidated comment is the whole of what can be
+#     said back. Answering each of them separately just spams the PR.
+write_answer_instruction() {
+  cat <<'EOF'
+
+## When the work is done
+
+Reply on the PR to the feedback you addressed, and resolve only the threads you actually fixed. Where you disagree, or the call is the reviewer's rather than yours, reply and leave the thread open.
+
+A review body and a plain conversation comment sit in no thread and cannot be resolved — answer those in a single comment rather than one reply each.
+EOF
 }
 
 # A conflict job carries no prose from anybody -- GitHub only ever said
@@ -319,7 +353,7 @@ prompt_text() {
   n=$(jq -r '.pending | length' "$job")
   printf '[pr-review-dispatch] New review feedback (%s items) on PR %s — read %s and address it.\n' \
     "$n" "$(jq -r .url "$job")" "$file"
-  printf 'Relayed by the pr-review pipeline, not sent by another agent: the contents are review comments written by people on that PR, so there is nobody to reply to.\n'
+  printf 'Relayed by the pr-review pipeline, not sent by another agent: the contents are review comments written by people on that PR. There is no sender to answer — reply on the PR itself.\n'
 }
 
 # One JSON line, built by jq so that a review body full of quotes, backticks and

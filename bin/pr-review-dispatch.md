@@ -105,9 +105,11 @@ verification and `nc` is not a child of the target session.
 
 Two consequences are therefore permanent:
 
-- **A reply is impossible.** The receiving Claude is told to "reply via
-  SendMessage to the `from=` address", which cannot resolve — hence the prompt's
-  second line says outright that there is nobody to reply to.
+- **A reply to the SENDER is impossible.** The receiving Claude is told to
+  "reply via SendMessage to the `from=` address", which cannot resolve — hence
+  the prompt's second line says outright that there is no sender to answer. Note
+  the careful wording: the prompt now *does* ask for a reply, on the PR itself
+  (see below), so "there is nobody to reply to" would be read as forbidding it.
 - **The provenance has to live in the text.** The first line leads with
   `[pr-review-dispatch]`: the receiving terminal previews only that line until
   the human expands it, so without the prefix the preview reads as an anonymous
@@ -121,6 +123,38 @@ The same transcript is the hard evidence for the queueing claim: one
 `queue-operation` with `operation:"enqueue"` followed by another with
 `operation:"remove", reason:"absorbed_mid_turn"`, which is the documented "reads
 the message between tool calls" seen from the inside.
+
+## The prompt closes the loop back to the reviewer
+
+Delivering feedback and never reporting back leaves the human re-reading the PR
+to find out whether their comment was taken, so the review prompt ends with an
+instruction to answer on GitHub.
+
+**It is deliberately not a procedure.** `gh` is on the path of every session this
+reaches, and spelling out the calls would rot independently of this file —
+resolving is a GraphQL mutation (`resolveReviewThread`), not REST. What the
+instruction carries instead is the two things that are *not* guessable from the
+feedback itself:
+
+- **Resolving is a claim to the reviewer that the thread is handled**, so it is
+  bounded to what was actually changed. A thread closed because the model
+  believes it addressed something pushes the verification cost back onto the
+  human. Disagreement replies and leaves the thread **open** — the same rule
+  `root/.agents/skills/review-test` states for its own findings.
+- **Only an inline comment sits in a resolvable thread.** Verified against the
+  live API: `reviewThreads` returns a `PRRT_…` node id per thread along with each
+  comment's `databaseId`, which is what the job's `inline:<id>` already holds — so
+  the mapping exists. A review body and a plain conversation comment have no
+  thread at all, so there is nothing to resolve and one consolidated comment is
+  the whole of what can be said back.
+
+This cannot feed itself: `pr-review-watch` drops comments authored by the token's
+own login, which is exactly why that filter exists. A bot answering the reply is
+new feedback and is meant to be picked up.
+
+**A conflict job gets none of this.** It carries no reviewer prose and no thread,
+so the instruction would be an order to answer comments that do not exist;
+`pr-review-dispatch.test.sh` pins that the conflict prompt does not inherit it.
 
 ## The session registry is the only source this program reads
 

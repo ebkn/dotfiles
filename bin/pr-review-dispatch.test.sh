@@ -49,6 +49,7 @@ no() {
 }
 eq() { if [ "$2" = "$3" ]; then ok "$1"; else no "$1" "want=[$2] got=[$3]"; fi; }
 has() { case "$2" in *"$3"*) ok "$1" ;; *) no "$1" "[$2] does not contain [$3]" ;; esac }
+lacks() { case "$2" in *"$3"*) no "$1" "[$2] unexpectedly contains [$3]" ;; *) ok "$1" ;; esac }
 
 TMP=$(mktemp -d)
 TMP=$(cd "$TMP" && pwd -P)
@@ -281,6 +282,14 @@ has "content names the PR" "$(printf '%s' "$line" | jq -r .message.content)" \
   "https://github.com/acme/widget/pull/42"
 has "content disclaims the peer framing" "$(printf '%s' "$line" | jq -r .message.content)" \
   "not sent by another agent"
+# The disclaimer has to deny the SENDER without denying the PR. It used to read
+# "there is nobody to reply to", which the prompt file now contradicts outright:
+# that file asks for a reply on the PR, and a session reading both would have to
+# pick one. So the line points the reply somewhere rather than forbidding it.
+has "it denies the sender, not the reply" "$(printf '%s' "$line" | jq -r .message.content)" \
+  "reply on the PR itself"
+lacks "and does not forbid replying outright" "$(printf '%s' "$line" | jq -r .message.content)" \
+  "nobody to reply to"
 # The receiving terminal previews only the FIRST line until the human expands
 # it, and the socket gives a relayed message no usable sender -- `origin` on the
 # payload is ignored and `from` arrives as "unknown". So the first line has to
@@ -340,6 +349,22 @@ has "carries the inline path and line" "$body" 'a/b.ts:9'
 has "names both authors" "$body" "bob"
 has "names the review state" "$body" "CHANGES_REQUESTED"
 has "an empty body is called out, not left blank" "$body" "the verdict is the message"
+
+# The pipeline is only half a loop if the reviewer never learns what came of the
+# comment, so the prompt has to close it. Three things are asserted rather than
+# the prose as a whole, because each is a decision that was made deliberately and
+# would otherwise be reworded away by the next person to touch the wording.
+#
+# Resolving a thread is a CLAIM to the reviewer that it is handled, which is why
+# it is bounded to what was actually changed and why disagreement is told to
+# reply WITHOUT resolving -- the same rule the review-test skill states for its
+# own findings. And the two shapes are not symmetric: only an inline comment
+# sits in a thread that can be resolved at all, so the threadless kinds are
+# collapsed into one comment rather than answered one reply each.
+has "asks for a reply on the PR itself" "$body" "Reply on the PR"
+has "bounds resolving to what was actually fixed" "$body" "resolve only the threads you actually fixed"
+has "disagreement replies but leaves the thread open" "$body" "leave the thread open"
+has "the threadless kinds get one consolidated comment" "$body" "in a single comment"
 
 # --- busy is not a gate -----------------------------------------------------
 # The inversion. The old program refused anything that was not positively
@@ -945,6 +970,9 @@ has "the peer framing is still corrected" "$msg" "not sent by another agent"
 
 PROMPT="$STATE/jobs/acme__widget__42__conflict.prompt.md"
 eq "a prompt file is written beside the job" "yes" "$([ -f "$PROMPT" ] && echo yes)"
+# A conflict job carries no reviewer prose and no thread, so the reply-and-resolve
+# instruction would be an order to answer comments that do not exist.
+lacks "a conflict prompt carries no reply instruction" "$(cat "$PROMPT")" "Reply on the PR"
 body=$(cat "$PROMPT")
 
 # The base branch is taken from the JOB, not hardcoded to main. A repo whose
