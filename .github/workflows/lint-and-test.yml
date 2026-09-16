@@ -146,6 +146,14 @@ jobs:
       - name: pr-review-dispatch
         run: bash bin/pr-review-dispatch.test.sh
 
+      # pr-conflict-watch is the second detector on the same queue, for the
+      # thing GitHub sends no notification about at all. Its two failure modes
+      # are opposite and both silent: reading GitHub's lazily-computed UNKNOWN
+      # as "mergeable" makes it go quiet, and re-announcing a conflict that has
+      # not changed trains its reader to ignore it.
+      - name: pr-conflict-watch
+        run: bash bin/pr-conflict-watch.test.sh
+
       # _ssh_parse_argv decides which argv element is the host. Its option list
       # is a hand-copied subset of ssh(1), so it rots silently whenever openssh
       # adds an option that takes an argument -- the parse then reads that

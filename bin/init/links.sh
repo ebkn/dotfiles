@@ -128,6 +128,9 @@ link_dotfiles() {
   # that does not exist, and it reports that only in its own log.
   link_with_backup "${DOTFILES_DIR}/bin/pr-review-watch" "${HOME}/.local/bin/pr-review-watch"
   link_with_backup "${DOTFILES_DIR}/bin/pr-review-dispatch" "${HOME}/.local/bin/pr-review-dispatch"
+  # The second detector on the same queue: conflicts raise no notification, so
+  # they cannot ride the watcher's poll. Same pairing rule as above.
+  link_with_backup "${DOTFILES_DIR}/bin/pr-conflict-watch" "${HOME}/.local/bin/pr-conflict-watch"
   # Loads the agents whose plists are linked below. Linked here, but never CALLED
   # from here: relink runs link_dotfiles on every update-all, and loading an
   # agent is a decision about the machine rather than a fact about the file
@@ -145,6 +148,11 @@ link_dotfiles() {
   # your sessions can be booted out on its own while notifications keep coming.
   link_with_backup "${DOTFILES_DIR}/launchd/com.ebkn.pr-review-dispatch.plist" \
     "${HOME}/Library/LaunchAgents/com.ebkn.pr-review-dispatch.plist"
+  # A third agent rather than a second job inside the watcher: this one polls
+  # unconditionally and on a 5-minute interval, where the watcher's whole design
+  # is that a quiet 60-second tick costs nothing. See bin/pr-conflict-watch.md.
+  link_with_backup "${DOTFILES_DIR}/launchd/com.ebkn.pr-conflict-watch.plist" \
+    "${HOME}/Library/LaunchAgents/com.ebkn.pr-conflict-watch.plist"
   # The retrospective skill owns these two, so they live beside its SKILL.md
   # rather than under bin/. They are still put on PATH, because the skill runs
   # from whatever project the session is in: naming them by absolute path would

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Runs bin/pr-conflict-watch every 5 minutes.
+
+  300s, not the review watcher's 60s, and the difference is the whole reason
+  these are two agents. A conflict raises NO notification, so this poll cannot
+  be conditional the way the notifications one is: every pass spends a real
+  request whether or not anything changed. It also opens with `gh search prs`,
+  whose rate limit is 30 requests/MINUTE -- a separate, much tighter budget than
+  the 5000/hr core one. Five minutes is slow enough to be free in practice and
+  fast enough that a conflict is noticed within one working pause.
+
+  The two traps below are the same ones com.ebkn.pr-review-watch.plist carries,
+  and both are silent when wrong.
+
+  PATH must be spelled out. A launchd agent inherits NONE of the login shell's
+  environment, so it starts with the bare /usr/bin:/bin:/usr/sbin:/sbin and
+  every tool this needs -- gh, jq, ghq, claude -- fails `command -v`. The script
+  then exits with "gh is required", into a log nobody reads, while polling
+  silently never happens.
+
+  It is `sh -c`, never `sh -lc`. A login shell runs /etc/profile, whose
+  path_helper rebuilds PATH from /etc/paths and drops /opt/homebrew/bin, quietly
+  undoing the EnvironmentVariables entry above. ~/.local/bin is prepended in the
+  command rather than in the dict because a plist value gets no $HOME expansion,
+  and hardcoding a username into a public dotfiles repo is worse than one extra
+  exec.
+
+  ProgramArguments points at ~/.local/bin, not at the checkout, so `relink` can
+  re-point it when the script moves. A plist naming the repo path directly keeps
+  working right up until the file is renamed, then fails as a dangling exec with
+  no other symptom.
+
+  Load with:  launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.ebkn.pr-conflict-watch.plist
+  Status:     launchctl print gui/$UID/com.ebkn.pr-conflict-watch
+  Unload:     launchctl bootout gui/$UID/com.ebkn.pr-conflict-watch
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ebkn.pr-conflict-watch</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>exec env PATH="$HOME/.local/bin:$PATH" "$HOME/.local/bin/pr-conflict-watch"</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <!-- Not RunAtLoad: the first run after a login would race the network
+         coming up, and one missed pass costs nothing. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/pr-conflict-watch.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/pr-conflict-watch.log</string>
+</dict>
+</plist>
