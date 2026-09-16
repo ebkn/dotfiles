@@ -228,8 +228,16 @@ session_for_worktree() {
 # message is capped near a million characters and a review thread is unbounded,
 # identical messages are de-duplicated by the receiver within a short window,
 # and a file is the only copy anybody can read after the fact.
+#
+# Two job kinds reach here. `.kind` is absent on every job pr-review-watch has
+# ever written, so the default is "review" and no migration of the queue is
+# needed.
 write_prompt_file() {
   local job=$1 out=$2
+  if [ "$(jq -r '.kind // "review"' "$job")" = conflict ]; then
+    write_conflict_prompt "$job" >"$out"
+    return
+  fi
   {
     printf '# Review feedback on %s\n\n' "$(jq -r .url "$job")"
     printf -- '- PR: %s#%s — %s\n' "$(jq -r .repo "$job")" "$(jq -r .pr "$job")" "$(jq -r .title "$job")"
@@ -239,6 +247,55 @@ write_prompt_file() {
       (if .path then "`" + .path + (if .line then ":" + (.line|tostring) else "" end) + "`\n" else "" end) +
       "\n" + (if (.body | length) > 0 then .body else "_(no body — the verdict is the message)_" end) + "\n"' "$job"
   } >"$out"
+}
+
+# A conflict job carries no prose from anybody -- GitHub only ever said
+# "CONFLICTING" -- so unlike a review, this file is entirely written here, and it
+# is an INSTRUCTION rather than a relay.
+#
+# It names the commands rather than describing the goal, because the choice
+# between merge and rebase is not the session's to make: an inline review comment
+# is anchored to a commit, and a rebase plus force-push detaches every one of
+# them. Merge is non-destructive and pushes as a fast-forward.
+#
+# The dirty-worktree stop is the first rule and not a footnote. This arrives
+# unannounced in the middle of whatever the session was doing, and `git merge`
+# with unstaged changes present either refuses or entangles them with conflict
+# markers -- so the instruction to stop and say so is the only thing standing
+# between an automated convenience and a lost afternoon of uncommitted work.
+write_conflict_prompt() {
+  local job=$1 base branch
+  base=$(jq -r '.base // "main"' "$job")
+  branch=$(jq -r .branch "$job")
+  # An UNQUOTED heredoc, with every markdown backtick escaped. The text is full
+  # of `git ...` spans and also needs $base interpolated, and the two pull in
+  # opposite directions: a quoted heredoc would print $base literally, while an
+  # unquoted one runs an unescaped backtick span as a command substitution. So
+  # the backslashes are load-bearing -- dropping one does not print a backtick,
+  # it EXECUTES what follows. printf was the first attempt and is worse: it made
+  # every markdown span get flagged as SC2016 by shellcheck, which is four
+  # suppressions standing where a real expansion bug could then hide.
+  cat <<EOF
+# $branch can no longer merge into $base
+
+- PR: $(jq -r .repo "$job")#$(jq -r .pr "$job") — $(jq -r .title "$job")
+- $(jq -r .url "$job")
+- Worktree: $(jq -r .worktree "$job")
+- Conflicting head: $(jq -r '.conflictHead // "?"' "$job")
+
+GitHub reports this pull request as CONFLICTING: $base has moved on and the branch no longer merges cleanly.
+
+## Do this
+
+1. **Check the worktree is clean first** (\`git status --short\`). If it is not, STOP and say so — do not merge on top of uncommitted work, and do not stash it on your own.
+2. \`git fetch origin $base\`
+3. \`git merge origin/$base\` — merge, never rebase. Inline review comments are anchored to commits, and a rebase plus force-push detaches every one of them.
+4. Resolve each conflict on its meaning, not on which side is longer. Where both sides changed the same behaviour, say which you kept and why.
+5. Run the checks this repository actually has (its test suite, its linter) before committing. A merge that compiles is not a merge that is correct.
+6. Commit the merge and \`git push\`. No force-push is needed or wanted.
+
+If a conflict turns on a decision that is not yours to make — two implementations of the same behaviour, a deliberate revert on either side — leave it unresolved and ask.
+EOF
 }
 
 # Claude Code frames anything arriving on the socket as a message from another
@@ -253,6 +310,12 @@ write_prompt_file() {
 # teammate framing for the model, which sees the whole thing.
 prompt_text() {
   local job=$1 file=$2 n
+  if [ "$(jq -r '.kind // "review"' "$job")" = conflict ]; then
+    printf '[pr-conflict-watch] PR %s no longer merges into %s — read %s and resolve it.\n' \
+      "$(jq -r .url "$job")" "$(jq -r '.base // "main"' "$job")" "$file"
+    printf 'Relayed by the pr-review pipeline, not sent by another agent: GitHub reported the conflict, so there is nobody to reply to.\n'
+    return
+  fi
   n=$(jq -r '.pending | length' "$job")
   printf '[pr-review-dispatch] New review feedback (%s items) on PR %s — read %s and address it.\n' \
     "$n" "$(jq -r .url "$job")" "$file"

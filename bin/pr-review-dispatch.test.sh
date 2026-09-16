@@ -896,5 +896,101 @@ eq "the second delivery adds to the count" "3" "$(job .deliveredCount)"
 eq "and empties pending again" "0" "$(job '.pending | length')"
 eq "seen still survives" "review:11 issue:31" "$(job '.seen | join(" ")')"
 
+# --- conflict jobs ----------------------------------------------------------
+# pr-conflict-watch feeds the SAME queue with a second job kind, and delivery is
+# deliberately shared: a conflict and a review are both "something happened on
+# your PR that this session has to act on", and the socket, the liveness rules
+# and the queue semantics are identical.
+#
+# What is NOT identical is the payload, and that is what these pin. A conflict
+# carries no prose from anybody -- GitHub only ever said CONFLICTING -- so the
+# prompt file is written here rather than relayed, which makes it the one piece
+# of text in this pipeline that can be wrong without any upstream to blame.
+
+printf 'conflict jobs\n'
+
+make_conflict_job() {
+  jq -n --arg wt "$WT" '{
+    kind:"conflict",
+    repo:"acme/widget", pr:42, url:"https://github.com/acme/widget/pull/42",
+    title:"a title", branch:"feature/x", base:"trunk", worktree:$wt,
+    sessionId:"sess-1", status:"pending", conflictHead:"deadbee",
+    pending:[{id:"conflict:deadbee", kind:"conflict", branch:"feature/x",
+              base:"trunk", head:"deadbee", at:"2026-09-07T10:00:00Z"}],
+    updatedAt:"2026-09-07T10:00:00Z"}' >"$STATE/jobs/acme__widget__42__conflict.json"
+}
+cjob() { jq -r "$1" "$STATE/jobs/acme__widget__42__conflict.json"; }
+
+reset
+PID=$(spawn_holder)
+WIRE="$TMP/wire-conflict"
+listen "$TMP/sconflict.sock" "$WIRE" || no "listener came up (conflict)"
+session live "$PID" "$WT" "$TMP/sconflict.sock" 100
+make_conflict_job
+out=$(run)
+settle "$WIRE" || no "nothing reached the socket (conflict)"
+
+eq "a conflict job is delivered like any other" "delivered" "$(cjob .status)"
+has "and reported" "$out" "send  acme/widget#42"
+
+# The FIRST line is the whole preview the receiving terminal shows until a human
+# expands it, so it has to say which of the two detectors spoke. Sharing
+# pr-review-dispatch's prefix would make a conflict read as a review comment in
+# the only text most deliveries are ever judged by.
+msg=$(jq -r .message.content <"$WIRE")
+first=$(printf '%s' "$msg" | head -1)
+has "the preview line names the conflict detector" "$first" "[pr-conflict-watch]"
+has "and says the PR no longer merges" "$first" "no longer merges into trunk"
+has "the peer framing is still corrected" "$msg" "not sent by another agent"
+
+PROMPT="$STATE/jobs/acme__widget__42__conflict.prompt.md"
+eq "a prompt file is written beside the job" "yes" "$([ -f "$PROMPT" ] && echo yes)"
+body=$(cat "$PROMPT")
+
+# The base branch is taken from the JOB, not hardcoded to main. A repo whose
+# default branch is anything else would otherwise be told to merge a ref that
+# does not exist -- and `git fetch origin main` failing is the kind of error a
+# session works around instead of reporting.
+has "the merge targets the job's own base branch" "$body" "git merge origin/trunk"
+has "and fetches that same branch" "$body" "git fetch origin trunk"
+case "$body" in
+  *"origin/main"*) no "no main is hardcoded anywhere" "[$body]" ;;
+  *) ok "no main is hardcoded anywhere" ;;
+esac
+
+# The two instructions that exist to prevent damage rather than to describe work.
+#
+# The clean-worktree stop is first because this arrives UNANNOUNCED in the middle
+# of whatever the session was doing: `git merge` over uncommitted changes either
+# refuses or entangles them with conflict markers, and this line is the only
+# thing between an automated convenience and a lost afternoon.
+has "it stops on a dirty worktree" "$body" "git status --short"
+has "and forbids stashing on its own" "$body" "do not stash it on your own"
+# Merge, not rebase, and not left to taste: inline review comments are anchored
+# to commits, so a rebase plus force-push detaches every one of them -- on
+# exactly the PRs this pipeline exists to serve.
+has "it rules out rebase explicitly" "$body" "merge, never rebase"
+case "$body" in
+  *"force-with-lease"* | *"push --force"* | *"push -f"*) no "no force-push is suggested" "[$body]" ;;
+  *) ok "no force-push is suggested" ;;
+esac
+
+# A review job delivered through the same code path must be unaffected. The kind
+# is read as `.kind // "review"`, so every job pr-review-watch has ever written
+# -- none of which carries the field -- still renders as a review.
+reset
+PID=$(spawn_holder)
+WIRE="$TMP/wire-kindless"
+listen "$TMP/skindless.sock" "$WIRE" || no "listener came up (kindless)"
+session live "$PID" "$WT" "$TMP/skindless.sock" 100
+make_job
+eq "a queued review job carries no kind at all" "null" "$(job '.kind')"
+out=$(run)
+settle "$WIRE" || no "nothing reached the socket (kindless)"
+first=$(jq -r .message.content <"$WIRE" | head -1)
+has "so it still renders as review feedback" "$first" "[pr-review-dispatch] New review feedback"
+has "and its prompt file is the review shape" \
+  "$(cat "$STATE/jobs/acme__widget__42.prompt.md")" "# Review feedback on"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
