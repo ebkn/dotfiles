@@ -1,0 +1,250 @@
+#!/usr/bin/env bash
+# pr-conflict-watch — detect PRs of yours that can no longer merge, and queue the
+# conflict for the Claude Code session working on that branch.
+#
+# A sibling detector to bin/pr-review-watch, feeding the SAME queue and the same
+# deliverer (bin/pr-review-dispatch). It DETECTS and QUEUES only: it never
+# fetches, never merges, never writes to a worktree. The session does the merge,
+# with a human watching the turn -- see bin/pr-conflict-watch.md for why a cron
+# job merging under an open editor was rejected.
+#
+# WHY THIS IS A SEPARATE PROGRAM, not a branch inside pr-review-watch:
+#
+#   A conflict raises NO notification. GitHub notifies about reviews, comments
+#   and checks; it says nothing when somebody else's merge to the base branch
+#   makes your PR unmergeable. So this cannot ride the notifications endpoint,
+#   and the conditional request that makes a quiet review poll cost NOTHING is
+#   unavailable here: conflict is a STATE to be polled, not an event to receive.
+#   Folding it in would have put a real, unconditional request on every 60s tick
+#   of a path whose whole design is that a quiet tick is free.
+#
+# The cost is instead kept low by shape: one `gh search prs` finds every open PR
+# of yours across all of GitHub in a SINGLE request, and one `gh pr list` per
+# repo that has one returns mergeability for all of them at once. Typically two
+# or three requests per pass, whatever the PR count.
+#
+# Usage:
+#   pr-conflict-watch            poll once and queue whatever newly conflicts
+#   pr-conflict-watch --dry-run  report what would be queued, write nothing
+#   pr-conflict-watch --pr owner/repo#42
+#                                check that PR alone, skipping the search
+#
+# The queue is shared, so `pr-review-watch --print` dumps conflict jobs too.
+#
+# Environment:
+#   PR_REVIEW_WATCH_STATE_DIR   queue location (shared with pr-review-watch)
+#   PR_REVIEW_WATCH_EXTRA_REPOS colon-separated checkouts outside ghq (default ~/dotfiles)
+#
+# Requires: gh (authenticated), jq, git.
+set -uo pipefail
+
+STATE_DIR=${PR_REVIEW_WATCH_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/pr-review-watch}
+EXTRA_REPOS=${PR_REVIEW_WATCH_EXTRA_REPOS:-$HOME/dotfiles}
+
+dry_run=0
+manual_pr=
+
+die() {
+  printf 'pr-conflict-watch: %s\n' "$*" >&2
+  exit 1
+}
+
+usage() { sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//; $d'; }
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    --pr)
+      manual_pr=${2:-}
+      shift 2 || die "--pr needs <owner/repo#number>"
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+
+for cmd in gh jq git; do
+  command -v "$cmd" >/dev/null 2>&1 || die "$cmd is required but not installed"
+done
+
+mkdir -p "$STATE_DIR/jobs"
+
+# Resolved through the ~/.local/bin symlink so the fragment is found next to the
+# real script, not next to the link.
+# shellcheck source=pr-review-common.sh
+. "$(dirname "$(readlink -f "$0")")/pr-review-common.sh"
+
+# Its OWN lock, not the watcher's. The two detectors write disjoint job files
+# (this one appends __conflict to the name), so they do not need to exclude each
+# other -- but two of THESE overlapping would interleave writes to one conflict
+# job, which is what the lock is for. Sharing the watcher's lock instead would
+# mean a slow review poll silently skipped every conflict pass.
+lock="$STATE_DIR/.conflict-lock"
+if ! take_lock "$lock"; then exit 0; fi
+trap 'release_lock "$lock"' EXIT
+
+# `claude agents --json` is Claude Code's own session registry ("for scripting;
+# does not require a TTY"). Queried once per run: it is the most expensive
+# lookup here, and the id is only advisory anyway -- the dispatcher resolves the
+# session from the worktree at delivery time, since a session restarted since
+# queueing has a new id but is still the right target.
+agents_json=$(claude agents --json 2>/dev/null || printf '[]')
+
+session_for_worktree() {
+  session_in_worktree "$agents_json" "$2" "$(worktree_paths_json "$1")" |
+    jq -r '.sessionId // empty' 2>/dev/null
+}
+
+# --- candidate repositories --------------------------------------------------
+# One request for every open PR you have anywhere. The alternative -- walking
+# `ghq list` (77 repos here) and asking each one -- is 77 requests for the same
+# answer, and still misses a checkout outside ghq.
+#
+# The search API has its own, much tighter rate limit (30 requests/minute), which
+# is the other reason this runs on a 5-minute interval rather than the review
+# path's 60 seconds.
+if [ -n "$manual_pr" ]; then
+  case "$manual_pr" in
+    */*'#'[0-9]*) : ;;
+    *) die "--pr wants <owner/repo#number>, got: $manual_pr" ;;
+  esac
+  repos=${manual_pr%%#*}
+  only_pr=${manual_pr##*#}
+else
+  only_pr=
+  repos=$(gh search prs --author=@me --state=open --limit 100 \
+    --json repository --jq '[.[].repository.nameWithOwner] | unique | .[]' 2>/dev/null)
+fi
+
+[ -n "$repos" ] || exit 0
+
+now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+queued_total=0
+waiting=0
+
+while IFS= read -r repo; do
+  [ -n "${repo:-}" ] || continue
+
+  path=$(repo_path "$repo" "$EXTRA_REPOS") || {
+    printf 'skip %s: no local checkout\n' "$repo"
+    continue
+  }
+
+  # mergeable and baseRefName come back for every open PR in one request. The
+  # head oid is what makes re-notification correct rather than chatty: see the
+  # conflictHead comparison below.
+  prs=$(gh pr list --repo "$repo" --author @me --state open --limit 50 \
+    --json number,title,url,headRefName,baseRefName,headRefOid,mergeable,isDraft \
+    2>/dev/null)
+  [ -n "$prs" ] || {
+    printf 'skip %s: could not list pull requests\n' "$repo"
+    continue
+  }
+
+  # Tab-separated, and every field is guaranteed non-empty by the API, which is
+  # what makes `IFS=$'\t' read` safe here: tab is an IFS *whitespace* character
+  # however narrow IFS is set, so an empty field would silently arrive short with
+  # everything after it shifted. ADDING A FIELD THAT CAN BE EMPTY BREAKS THIS.
+  rows=$(printf '%s' "$prs" | jq -r --arg only "$only_pr" '
+    [ .[]
+      | select($only == "" or (.number | tostring) == $only) ]
+    | .[]
+    | [ (.number|tostring), .mergeable, .headRefName, .baseRefName,
+        .headRefOid, (.isDraft|tostring), .url, .title ]
+    | @tsv' 2>/dev/null)
+
+  while IFS=$'\t' read -r pr mergeable branch base head draft url title; do
+    [ -n "${pr:-}" ] || continue
+
+    job="$STATE_DIR/jobs/${repo//\//__}__${pr}__conflict.json"
+
+    case "$mergeable" in
+      UNKNOWN)
+        # NOT a state, and NOT a synonym for either answer. GitHub computes
+        # mergeability lazily: the first query returns UNKNOWN and starts a
+        # background job, and a query moments later returns the real value
+        # (verified on a live PR -- UNKNOWN, then CONFLICTING, from two calls
+        # seconds apart). Reading it as "fine" makes this detector go silent;
+        # reading it as "conflicting" makes it cry wolf. Both are silent
+        # failures, so it is neither: the next pass asks again, and by then
+        # GitHub has the answer this pass just asked it to compute.
+        waiting=$((waiting + 1))
+        continue
+        ;;
+      CONFLICTING) : ;;
+      *)
+        # Mergeable again. Forget the conflict so that a LATER one notifies
+        # afresh, and drop any pending item: a conflict that resolved itself
+        # before delivery is not worth a session's attention.
+        [ -f "$job" ] || continue
+        [ "$dry_run" -eq 0 ] || continue
+        jq --arg now "$now" '
+          .status = "resolved" | .conflictHead = null | .pending = []
+          | .updatedAt = $now' "$job" >"$job.tmp" && mv "$job.tmp" "$job"
+        /bin/rm -f "$job.tmp" 2>/dev/null
+        continue
+        ;;
+    esac
+
+    # A draft PR is still work in progress; a conflict on it is not yet news.
+    [ "$draft" = "true" ] && continue
+
+    # No worktree means no session to route to, so there is nothing this
+    # pipeline can do -- the same rule the review path applies. The PR is still
+    # visibly conflicted on GitHub, which is the human's own channel for it.
+    worktree=$(worktree_for_branch "$path" "$branch") || {
+      printf 'skip %s#%s: branch %s is not checked out in any worktree\n' "$repo" "$pr" "$branch"
+      continue
+    }
+
+    # THE IDEMPOTENCE KEY, and the reason this is not a per-item `seen` set like
+    # the review path's. A conflict is a state, not an event: it has no id, and
+    # it persists across polls. Keying on the head oid means the session is told
+    # once per attempt -- and told AGAIN when it pushes and the branch still
+    # does not merge, which is exactly when it needs to hear it a second time.
+    #
+    # A conflict that persists unchanged while the BASE branch moves does not
+    # re-notify. That is deliberate: the conflict was already reported, and
+    # re-raising it on every merge to a busy main is how a notifier gets muted.
+    if [ -f "$job" ] && [ "$(jq -r '.conflictHead // ""' "$job")" = "$head" ]; then
+      continue
+    fi
+
+    session=$(session_for_worktree "$path" "$worktree")
+
+    printf 'queue %s#%s: %s cannot merge into %s -> %s\n' \
+      "$repo" "$pr" "$branch" "$base" "${session:-no live session}"
+    queued_total=$((queued_total + 1))
+    [ "$dry_run" -eq 0 ] || continue
+
+    # `pending` holds exactly one item and REPLACES rather than accumulates,
+    # the opposite of the review path. Two conflicts on one PR are not two
+    # things to address: the older one describes a head that no longer exists.
+    jq -n \
+      --arg repo "$repo" --argjson pr "$pr" --arg url "$url" --arg title "$title" \
+      --arg branch "$branch" --arg base "$base" --arg head "$head" \
+      --arg worktree "$worktree" --arg session "$session" --arg now "$now" '
+      { kind: "conflict",
+        repo: $repo, pr: $pr, url: $url, title: $title,
+        branch: $branch, base: $base, worktree: $worktree,
+        sessionId: (if $session == "" then null else $session end),
+        status: "pending",
+        conflictHead: $head,
+        pending: [ { id: ("conflict:" + $head), kind: "conflict",
+                     branch: $branch, base: $base, head: $head, at: $now } ],
+        updatedAt: $now }' >"$job.tmp" && mv "$job.tmp" "$job"
+    /bin/rm -f "$job.tmp" 2>/dev/null
+  done <<<"$rows"
+done <<<"$repos"
+
+[ "$queued_total" -gt 0 ] && printf 'queued %d conflict(s)\n' "$queued_total"
+# Reported rather than silent: a pass that only ever waits means mergeability is
+# never settling, and the queue staying empty would otherwise look like health.
+[ "$waiting" -gt 0 ] && printf 'waiting on %d PR(s) whose mergeability GitHub is still computing\n' "$waiting"
+exit 0

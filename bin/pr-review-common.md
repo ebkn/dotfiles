@@ -1,8 +1,15 @@
 # pr-review-common.sh
 
-The pid-based lock and the worktree/session lookup shared by
-[pr-review-watch](pr-review-watch.md) and
+The pid-based lock and the repository/worktree/session lookups shared by the
+three programs on this pipeline: [pr-review-watch](pr-review-watch.md),
+[pr-conflict-watch](pr-conflict-watch.md) and
 [pr-review-dispatch](pr-review-dispatch.md).
+
+`repo_path` and `worktree_for_branch` live here rather than in either detector
+because both have to answer the same two questions -- is there a local checkout,
+and is the branch checked out anywhere -- before they can route anything at all.
+`repo_path` takes its extra-repos list as an argument rather than reading a
+caller global, so the fragment carries no assumption about who sourced it.
 
 Sourced through `$(dirname "$(readlink -f "$0")")` so it resolves next to the
 real script rather than next to the `~/.local/bin` symlink (the idiom `read-doc`
