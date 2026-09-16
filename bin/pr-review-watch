@@ -153,48 +153,9 @@ if [ -z "$manual_pr" ]; then
 fi
 
 # --- resolution helpers -----------------------------------------------------
-
-# owner/name -> local checkout. ghq owns almost everything; EXTRA_REPOS covers
-# the checkouts that predate it (dotfiles itself, notably) and is matched on the
-# remote URL rather than on the directory name, since the two need not agree.
-repo_path() {
-  local full=$1 p
-  p=$(ghq list --full-path --exact "github.com/$full" 2>/dev/null | head -1)
-  if [ -n "$p" ] && [ -d "$p" ]; then
-    printf '%s' "$p"
-    return 0
-  fi
-  local IFS=:
-  for p in $EXTRA_REPOS; do
-    [ -d "$p" ] || continue
-    # The insteadOf rewrite in .gitconfig means the stored URL may be either
-    # transport, so match on the owner/name tail rather than the whole URL.
-    case "$(git -C "$p" remote get-url origin 2>/dev/null)" in
-      *"$full" | *"$full.git")
-        printf '%s' "$p"
-        return 0
-        ;;
-    esac
-  done
-  return 1
-}
-
-# A branch is checked out in at most one worktree, so this is unambiguous. The
-# main checkout is a worktree too, which is why no special case is needed for a
-# PR built without `gw`.
-worktree_for_branch() {
-  local repo=$1 branch=$2 path=""
-  while IFS= read -r line; do
-    case "$line" in
-      "worktree "*) path=${line#worktree } ;;
-      "branch refs/heads/$branch")
-        printf '%s' "$path"
-        return 0
-        ;;
-    esac
-  done < <(git -C "$repo" worktree list --porcelain 2>/dev/null)
-  return 1
-}
+# repo_path and worktree_for_branch live in pr-review-common.sh: pr-conflict-watch
+# has to answer the same two questions ("is there a local checkout" and "is the
+# branch checked out anywhere") before it can route anything either.
 
 # `claude agents --json` is Claude Code's own view of which sessions exist and
 # what each is doing ("for scripting; does not require a TTY"). It is the same
@@ -277,7 +238,7 @@ queued_total=0
 while IFS=$'\t' read -r repo pr cutoff; do
   [ -n "${repo:-}" ] || continue
 
-  path=$(repo_path "$repo") || {
+  path=$(repo_path "$repo" "$EXTRA_REPOS") || {
     printf 'skip %s#%s: no local checkout\n' "$repo" "$pr"
     continue
   }

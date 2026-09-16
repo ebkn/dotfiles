@@ -110,3 +110,61 @@ release_lock() {
   rmdir "$lock" 2>/dev/null
   return 0
 }
+
+# --- repository and branch lookup -------------------------------------------
+#
+# Shared by the two detectors (pr-review-watch, pr-conflict-watch), which both
+# have to answer "is this PR something I can act on locally at all" before
+# spending anything on it.
+
+# repo_path <owner/name> <extra-repos> -- the local checkout, or non-zero.
+#
+# ghq owns almost everything; <extra-repos> is a colon-separated list covering
+# the checkouts that predate it (dotfiles itself, notably) and is matched on the
+# remote URL rather than on the directory name, since the two need not agree.
+repo_path() {
+  local full=$1 extra=${2:-} p
+  p=$(ghq list --full-path --exact "github.com/$full" 2>/dev/null | head -1)
+  if [ -n "$p" ] && [ -d "$p" ]; then
+    printf '%s' "$p"
+    return 0
+  fi
+  local IFS=:
+  for p in $extra; do
+    [ -d "$p" ] || continue
+    # The insteadOf rewrite in .gitconfig means the stored URL may be either
+    # transport, so match on the owner/name tail rather than the whole URL.
+    case "$(git -C "$p" remote get-url origin 2>/dev/null)" in
+      *"$full" | *"$full.git")
+        printf '%s' "$p"
+        return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+# worktree_for_branch <repo> <branch> -- the worktree holding it, or non-zero.
+#
+# A branch is checked out in at most one worktree, so this is unambiguous. The
+# main checkout is a worktree too, which is why no special case is needed for a
+# PR built without `gw`.
+worktree_for_branch() {
+  local repo=$1 branch=$2 path="" list line
+  # Taken with a command substitution rather than read from a process
+  # substitution: a `while read ... < <(cmd)` runs zero iterations when cmd
+  # fails and carries on, and neither `set -e` nor pipefail sees it -- the trap
+  # that had bin/lint-shell checking 3 files instead of 52 and printing ok.
+  list=$(git -C "$repo" worktree list --porcelain 2>/dev/null) || return 1
+  [ -n "$list" ] || return 1
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) path=${line#worktree } ;;
+      "branch refs/heads/$branch")
+        printf '%s' "$path"
+        return 0
+        ;;
+    esac
+  done <<<"$list"
+  return 1
+}
