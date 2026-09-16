@@ -113,7 +113,7 @@ release_lock() {
 
 # --- repository and branch lookup -------------------------------------------
 #
-# Shared by the two detectors (pr-review-watch, pr-conflict-watch), which both
+# Shared by the two detectors (pr-review-watch, pr-state-watch), which both
 # have to answer "is this PR something I can act on locally at all" before
 # spending anything on it.
 

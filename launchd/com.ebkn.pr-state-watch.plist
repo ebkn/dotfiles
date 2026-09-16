@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Runs bin/pr-conflict-watch every 5 minutes.
+  Runs bin/pr-state-watch every 5 minutes.
 
   300s, not the review watcher's 60s, and the difference is the whole reason
   these are two agents. A conflict raises NO notification, so this poll cannot
@@ -31,20 +31,20 @@
   working right up until the file is renamed, then fails as a dangling exec with
   no other symptom.
 
-  Load with:  launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.ebkn.pr-conflict-watch.plist
-  Status:     launchctl print gui/$UID/com.ebkn.pr-conflict-watch
-  Unload:     launchctl bootout gui/$UID/com.ebkn.pr-conflict-watch
+  Load with:  launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.ebkn.pr-state-watch.plist
+  Status:     launchctl print gui/$UID/com.ebkn.pr-state-watch
+  Unload:     launchctl bootout gui/$UID/com.ebkn.pr-state-watch
 -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.ebkn.pr-conflict-watch</string>
+    <string>com.ebkn.pr-state-watch</string>
 
     <key>ProgramArguments</key>
     <array>
         <string>/bin/sh</string>
         <string>-c</string>
-        <string>exec env PATH="$HOME/.local/bin:$PATH" "$HOME/.local/bin/pr-conflict-watch"</string>
+        <string>exec env PATH="$HOME/.local/bin:$PATH" "$HOME/.local/bin/pr-state-watch"</string>
     </array>
 
     <key>EnvironmentVariables</key>
@@ -62,8 +62,8 @@
     <false/>
 
     <key>StandardOutPath</key>
-    <string>/tmp/pr-conflict-watch.log</string>
+    <string>/tmp/pr-state-watch.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/pr-conflict-watch.log</string>
+    <string>/tmp/pr-state-watch.log</string>
 </dict>
 </plist>

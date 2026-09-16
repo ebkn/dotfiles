@@ -345,7 +345,7 @@ EOF
 prompt_text() {
   local job=$1 file=$2 n
   if [ "$(jq -r '.kind // "review"' "$job")" = conflict ]; then
-    printf '[pr-conflict-watch] PR %s no longer merges into %s — read %s and resolve it.\n' \
+    printf '[pr-state-watch] PR %s no longer merges into %s — read %s and resolve it.\n' \
       "$(jq -r .url "$job")" "$(jq -r '.base // "main"' "$job")" "$file"
     printf 'Relayed by the pr-review pipeline, not sent by another agent: GitHub reported the conflict, so there is nobody to reply to.\n'
     return

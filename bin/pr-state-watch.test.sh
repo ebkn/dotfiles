@@ -1,5 +1,5 @@
 #!/bin/bash
-# Exercises bin/pr-conflict-watch, the detector that notices a PR of yours can no
+# Exercises bin/pr-state-watch, the detector that notices a PR of yours can no
 # longer merge and queues it for the session on that branch.
 #
 # Every failure here is silent, in both directions. A detector that never fires
@@ -20,7 +20,7 @@
 # Written for bash 3.2 (/bin/bash on macOS): no mapfile, no associative arrays.
 set -uo pipefail
 
-WATCH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pr-conflict-watch"
+WATCH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pr-state-watch"
 
 pass=0
 fail=0
@@ -302,7 +302,7 @@ eq 'and writes nothing' '0' "$(find "$STATE/jobs" -name '*.json' | wc -l | tr -d
 printf '%s' "$REPO" >"$FIX/ghq-github.com_acme_widget"
 
 echo "-- the two detectors do not lock each other out --"
-# This program takes $STATE_DIR/.conflict-lock, NOT the watcher's $STATE_DIR/.lock.
+# This program takes $STATE_DIR/.state-lock, NOT the watcher's $STATE_DIR/.lock.
 # They write disjoint job files, so they have no reason to exclude each other --
 # and sharing one lock would mean a review poll that is slow, or wedged behind a
 # dead holder, silently cancels every conflict pass for as long as it holds. The
@@ -316,14 +316,14 @@ prs CONFLICTING false sha-l
 out=$(run)
 has "the watcher's lock does not block a conflict pass" "$out" 'queue acme/widget#42'
 eq 'and its own lock is released afterwards' 'absent' \
-  "$([ -d "$STATE/.conflict-lock" ] || echo absent)"
+  "$([ -d "$STATE/.state-lock" ] || echo absent)"
 eq "the watcher's lock is left alone" "$$" "$(cat "$STATE/.lock/pid")"
 
 echo "-- arguments --"
 out=$(run --help)
 rc=$?
 eq '--help exits 0' '0' "$rc"
-has 'it prints the usage section' "$out" 'pr-conflict-watch --dry-run'
+has 'it prints the usage section' "$out" 'pr-state-watch --dry-run'
 case "$out" in
   *'set -uo'*) no '--help stops before the code' "[$out]" ;;
   *) ok '--help stops before the code' ;;

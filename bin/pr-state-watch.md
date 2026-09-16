@@ -1,4 +1,4 @@
-# pr-conflict-watch — the second detector on the review pipeline
+# pr-state-watch — the second detector on the review pipeline
 
 A PR of yours stops merging. Nothing tells you. This notices, and hands the
 branch's Claude Code session an instruction to merge the base branch and resolve.
@@ -41,7 +41,7 @@ requests for the same answer, and still misses a checkout outside ghq.
 
 The search API has its own much tighter limit (**30 requests/minute**, separate
 from the 5000/hr core budget), which is the other reason for the 5-minute
-interval. `bin/pr-conflict-watch.test.sh` pins the request shape for exactly this
+interval. `bin/pr-state-watch.test.sh` pins the request shape for exactly this
 reason: a regression to per-PR requests would pass every behavioural assertion
 while quietly multiplying the cost.
 
@@ -94,7 +94,7 @@ address; the older one describes a head that no longer exists.
 detectors writing one file would interleave, and each would drop the other's
 `pending` on its next pass.
 
-For the same reason the lock is `.conflict-lock`, not the watcher's `.lock`.
+For the same reason the lock is `.state-lock`, not the watcher's `.lock`.
 They have no reason to exclude each other, and sharing one would mean a review
 poll that is slow — or wedged behind a dead holder — silently cancels every
 conflict pass for as long as it holds.
@@ -135,7 +135,7 @@ not the session's to make:
   that does not exist, and a failing `git fetch` is the kind of error a session
   works around instead of reporting.
 
-The first line of the socket message leads with `[pr-conflict-watch]`, because
+The first line of the socket message leads with `[pr-state-watch]`, because
 the receiving terminal previews only that line until a human expands it: sharing
 the review prefix would make a conflict read as a review comment in the only text
 most deliveries are ever judged by.
@@ -143,8 +143,8 @@ most deliveries are ever judged by.
 ## Running it by hand
 
 ```sh
-pr-conflict-watch --dry-run             # report, write nothing
-pr-conflict-watch --pr owner/repo#42    # one PR, skipping the search entirely
+pr-state-watch --dry-run             # report, write nothing
+pr-state-watch --pr owner/repo#42    # one PR, skipping the search entirely
 pr-review-watch --print                 # the whole queue, conflict jobs included
 ```
 
@@ -153,7 +153,7 @@ duplicated here.
 
 ## launchd
 
-`launchd/com.ebkn.pr-conflict-watch.plist`, at 300s. The plist carries the same
+`launchd/com.ebkn.pr-state-watch.plist`, at 300s. The plist carries the same
 two traps the review one does — `PATH` spelled out because a launchd agent
 inherits none of the login shell's environment, and `sh -c` never `sh -lc`
 because a login shell's path_helper rebuilds `PATH` and drops
@@ -162,7 +162,7 @@ because a login shell's path_helper rebuilds `PATH` and drops
 **Linking is not loading**, and the gap is invisible — see
 [launchd-load.md](launchd-load.md).
 
-## Testing (`pr-conflict-watch.test.sh`)
+## Testing (`pr-state-watch.test.sh`)
 
 Stubs only the network-facing commands (`gh`, `ghq`, `claude`); git and the
 worktrees are real, because `worktree_for_branch`'s contract is what git actually

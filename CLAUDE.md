@@ -59,7 +59,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   │                      #   (session-extract / session-review, which back the retrospective skill, live beside its SKILL.md and are linked the same way)
 │   ├── pr-review-common.sh  #   Pid-based lock + repo/worktree/session lookup shared by the three below
 │   ├── pr-review-watch    #   Poll GitHub for new PR review feedback and queue it per PR
-│   ├── pr-conflict-watch  #   Poll GitHub for PRs of yours that stopped merging, onto the same queue
+│   ├── pr-state-watch     #   Poll GitHub for PRs of yours that stopped merging, onto the same queue
 │   ├── pr-review-dispatch #   Post a queued job to that branch's session inbox socket
 │   └── install_minimum_vim.sh
 ├── brewfiles/          #   Homebrew dependency lists by category
@@ -79,7 +79,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   └── after-body.html #     Inline script: code-block copy buttons, link targets
 ├── launchd/            #   macOS LaunchAgents (symlinked to ~/Library/LaunchAgents)
 │   ├── com.ebkn.pr-review-watch.plist     # 60s poll driving bin/pr-review-watch
-│   ├── com.ebkn.pr-conflict-watch.plist   # 300s poll driving bin/pr-conflict-watch
+│   ├── com.ebkn.pr-state-watch.plist      # 300s poll driving bin/pr-state-watch
 │   └── com.ebkn.pr-review-dispatch.plist  # 30s pass driving bin/pr-review-dispatch
 ├── textlint/           #   Japanese prose rules for bin/textlint-docs (not a project config)
 │   ├── textlintrc.yml  #     Rule set, each relaxation justified inline
@@ -102,7 +102,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 
 **Detailed notes live next to the thing they describe**, not here. Every
 non-trivial script has a sibling `.md` (`bin/tmux-agents.md`,
-`bin/pr-conflict-watch.md`, …), and each area has one too (`zsh/README.md`,
+`bin/pr-state-watch.md`, …), and each area has one too (`zsh/README.md`,
 `root/README.md`, `vim/coc-trust.md`). This file keeps the conventions and one
 line per feature pointing at its doc. **Read the doc before editing the thing** —
 most of these have failure modes that are completely silent, and the doc is where
@@ -146,7 +146,7 @@ Each entry names the doc to read first.
 - **`.tmux.conf` itself** — `prefix + d` asks before detaching; every non-`-n` binding must carry `-N`. → [bin/tmux-conf.md](bin/tmux-conf.md)
 - **The reconnect screen** — `AUTOSSH_PATH` shim owning the screen between attempts; the mouse-report flood is the half that looks like a separate bug. → [bin/autossh-ssh.md](bin/autossh-ssh.md)
 - **Document reading** (`bin/read-doc` + `read-doc/style.css`) — the point is the stylesheet, not the converter; **do not turn it into a terminal pager.** Untrusted input, so pandoc runs `--sandbox` behind a CSP. Includes the ssh forward mode. → [bin/read-doc.md](bin/read-doc.md)
-- **PR automation** — two stages on purpose: the detectors queue, [dispatch](bin/pr-review-dispatch.md) delivers to a session's inbox socket. The queue is what makes interruption avoidable, so **it must never be bypassed.** Two detectors feed it: [pr-review-watch](bin/pr-review-watch.md) for review feedback, and [pr-conflict-watch](bin/pr-conflict-watch.md) for a PR that stopped merging — **separate because a conflict raises no notification**, so it cannot use the conditional request that makes the review poll free, and its `mergeable` has a third value (`UNKNOWN`) that is neither answer. **Neither detector nor dispatch ever writes to a worktree**; the session does the merge. Shared lock and worktree lookup: [pr-review-common.md](bin/pr-review-common.md). Loading the launchd agents is a separate decision: [launchd-load.md](bin/launchd-load.md).
+- **PR automation** — two stages on purpose: the detectors queue, [dispatch](bin/pr-review-dispatch.md) delivers to a session's inbox socket. The queue is what makes interruption avoidable, so **it must never be bypassed.** Two detectors feed it: [pr-review-watch](bin/pr-review-watch.md) for review feedback, and [pr-state-watch](bin/pr-state-watch.md) for a PR that stopped merging — **separate because a conflict raises no notification**, so it cannot use the conditional request that makes the review poll free, and its `mergeable` has a third value (`UNKNOWN`) that is neither answer. **Neither detector nor dispatch ever writes to a worktree**; the session does the merge. Shared lock and worktree lookup: [pr-review-common.md](bin/pr-review-common.md). Loading the launchd agents is a separate decision: [launchd-load.md](bin/launchd-load.md).
 - **Japanese prose linting** (`textlint/` + `bin/textlint-docs`, backing the `lint-docs` skill) — the rules are materialized into a cache dir, so the target project gets no config. Narrowing to Japanese files is the caller's job. → [bin/textlint-docs.md](bin/textlint-docs.md)
 - **Skill evals** (`bin/skill-eval`) — a skill's behaviour is invisible in its diff, so editing a `SKILL.md` is otherwise unmeasurable. Cases live beside the skill in `evals/`; running them calls the API and costs money, so CI runs only the runner's own test. → [bin/skill-eval.md](bin/skill-eval.md)
 - **Session retrospective** (`/retrospective`) — aggregates transcripts into distributions, never a mean. → [root/.agents/skills/retrospective/NOTES.md](root/.agents/skills/retrospective/NOTES.md)
@@ -195,7 +195,7 @@ silent.
 | `bin/autossh-ssh.test.sh` | [autossh-ssh.md](bin/autossh-ssh.md) |
 | `bin/pr-review-common.test.sh` | [pr-review-common.md](bin/pr-review-common.md) |
 | `bin/pr-review-watch.test.sh` | [pr-review-watch.md](bin/pr-review-watch.md) |
-| `bin/pr-conflict-watch.test.sh` | [pr-conflict-watch.md](bin/pr-conflict-watch.md) |
+| `bin/pr-state-watch.test.sh` | [pr-state-watch.md](bin/pr-state-watch.md) |
 | `bin/pr-review-dispatch.test.sh` | [pr-review-dispatch.md](bin/pr-review-dispatch.md) |
 | `root/.claude/hooks/agent-state.test.sh` | [agent-state.md](root/.claude/hooks/agent-state.md) |
 | `root/.claude/hooks/approve-multiline-commands.test.sh` | [approve-multiline-commands.md](root/.claude/hooks/approve-multiline-commands.md) |

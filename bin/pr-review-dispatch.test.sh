@@ -922,7 +922,7 @@ eq "and empties pending again" "0" "$(job '.pending | length')"
 eq "seen still survives" "review:11 issue:31" "$(job '.seen | join(" ")')"
 
 # --- conflict jobs ----------------------------------------------------------
-# pr-conflict-watch feeds the SAME queue with a second job kind, and delivery is
+# pr-state-watch feeds the SAME queue with a second job kind, and delivery is
 # deliberately shared: a conflict and a review are both "something happened on
 # your PR that this session has to act on", and the socket, the liveness rules
 # and the queue semantics are identical.
@@ -964,7 +964,7 @@ has "and reported" "$out" "send  acme/widget#42"
 # the only text most deliveries are ever judged by.
 msg=$(jq -r .message.content <"$WIRE")
 first=$(printf '%s' "$msg" | head -1)
-has "the preview line names the conflict detector" "$first" "[pr-conflict-watch]"
+has "the preview line names the conflict detector" "$first" "[pr-state-watch]"
 has "and says the PR no longer merges" "$first" "no longer merges into trunk"
 has "the peer framing is still corrected" "$msg" "not sent by another agent"
 

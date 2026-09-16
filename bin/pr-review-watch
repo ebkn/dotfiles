@@ -171,7 +171,7 @@ if [ -z "$manual_pr" ]; then
 fi
 
 # --- resolution helpers -----------------------------------------------------
-# repo_path and worktree_for_branch live in pr-review-common.sh: pr-conflict-watch
+# repo_path and worktree_for_branch live in pr-review-common.sh: pr-state-watch
 # has to answer the same two questions ("is there a local checkout" and "is the
 # branch checked out anywhere") before it can route anything either.
 

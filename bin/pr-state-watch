@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# pr-conflict-watch — detect PRs of yours that can no longer merge, and queue the
+# pr-state-watch — detect PRs of yours that can no longer merge, and queue the
 # conflict for the Claude Code session working on that branch.
 #
 # A sibling detector to bin/pr-review-watch, feeding the SAME queue and the same
 # deliverer (bin/pr-review-dispatch). It DETECTS and QUEUES only: it never
 # fetches, never merges, never writes to a worktree. The session does the merge,
-# with a human watching the turn -- see bin/pr-conflict-watch.md for why a cron
+# with a human watching the turn -- see bin/pr-state-watch.md for why a cron
 # job merging under an open editor was rejected.
 #
 # WHY THIS IS A SEPARATE PROGRAM, not a branch inside pr-review-watch:
@@ -24,9 +24,9 @@
 # or three requests per pass, whatever the PR count.
 #
 # Usage:
-#   pr-conflict-watch            poll once and queue whatever newly conflicts
-#   pr-conflict-watch --dry-run  report what would be queued, write nothing
-#   pr-conflict-watch --pr owner/repo#42
+#   pr-state-watch            poll once and queue whatever newly conflicts
+#   pr-state-watch --dry-run  report what would be queued, write nothing
+#   pr-state-watch --pr owner/repo#42
 #                                check that PR alone, skipping the search
 #
 # The queue is shared, so `pr-review-watch --print` dumps conflict jobs too.
@@ -45,7 +45,7 @@ dry_run=0
 manual_pr=
 
 die() {
-  printf 'pr-conflict-watch: %s\n' "$*" >&2
+  printf 'pr-state-watch: %s\n' "$*" >&2
   exit 1
 }
 
@@ -85,7 +85,7 @@ mkdir -p "$STATE_DIR/jobs"
 # other -- but two of THESE overlapping would interleave writes to one conflict
 # job, which is what the lock is for. Sharing the watcher's lock instead would
 # mean a slow review poll silently skipped every conflict pass.
-lock="$STATE_DIR/.conflict-lock"
+lock="$STATE_DIR/.state-lock"
 if ! take_lock "$lock"; then exit 0; fi
 trap 'release_lock "$lock"' EXIT
 

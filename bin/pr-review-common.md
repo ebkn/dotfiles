@@ -2,7 +2,7 @@
 
 The pid-based lock and the repository/worktree/session lookups shared by the
 three programs on this pipeline: [pr-review-watch](pr-review-watch.md),
-[pr-conflict-watch](pr-conflict-watch.md) and
+[pr-state-watch](pr-state-watch.md) and
 [pr-review-dispatch](pr-review-dispatch.md).
 
 `repo_path` and `worktree_for_branch` live here rather than in either detector
