@@ -329,17 +329,19 @@ Two tools run here with disjoint jobs, and each can be silently inert — `swift
 
 These two run as the **raw commands, not `make lint`**: make stops at the first failing recipe line, so `make lint` cannot distinguish "swiftlint rejected this" from "swiftlint never ran". Attribution needs them invoked one at a time.
 
+The violation file is always `{AppName}/Gate.swift` — `Bash(rm -f */Gate.swift)` in this skill's own `allowed-tools` is what lets it be deleted again, and it matches that one path. A violation written under any other name cannot be cleaned up without a prompt, and a violation left behind ships in the initial commit.
+
 ```bash
 # swift format lint --strict — bad formatting must be caught
 printf 'struct Gate {\n        let x    =   1\n}\n' > {AppName}/Gate.swift
 swift format lint --strict --recursive {AppName} {AppName}Tests   # must FAIL
-rm {AppName}/Gate.swift
+rm -f {AppName}/Gate.swift
 
 # swiftlint --strict — a lint violation must be caught
 # use a rule swift format does NOT also flag, so the failure is attributable
 printf 'struct Gate {\n  let x = 1\n  func f() { let a = 1; _ = a }\n}\n' > {AppName}/Gate.swift
 swiftlint --strict            # must FAIL
-rm {AppName}/Gate.swift
+rm -f {AppName}/Gate.swift
 
 # make test — a failing test must be caught
 # add a temporary failing case to {AppName}Tests, then:
