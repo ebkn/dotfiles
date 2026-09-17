@@ -440,6 +440,12 @@
           },
           {
             "type": "command",
+            "command": "~/.claude/hooks/rm-guard.sh",
+            "if": "Bash(rm *)",
+            "timeout": 5
+          },
+          {
+            "type": "command",
             "command": "~/.claude/hooks/git-guard.sh",
             "timeout": 5
           }

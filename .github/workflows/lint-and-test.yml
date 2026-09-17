@@ -60,6 +60,12 @@ jobs:
       # approve-multiline-commands.sh is the only hook here that emits "allow",
       # so a regression widens a permission boundary silently -- the command
       # just runs. Gated on every push for the same reason as curl-guard.
+      # rm-guard.sh is the other allow-emitting hook: it decides whether an rm
+      # stays inside a scratch dir. Same reasoning as curl-guard — a regression
+      # widens a permission boundary rather than breaking a feature.
+      - name: rm-guard hook
+        run: bash root/.claude/hooks/rm-guard.test.sh
+
       - name: approve-multiline-commands hook
         run: bash root/.claude/hooks/approve-multiline-commands.test.sh
 

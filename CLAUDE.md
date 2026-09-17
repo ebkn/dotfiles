@@ -201,6 +201,7 @@ silent.
 | `root/.claude/hooks/agent-state.test.sh` | [agent-state.md](root/.claude/hooks/agent-state.md) |
 | `root/.claude/hooks/approve-multiline-commands.test.sh` | [approve-multiline-commands.md](root/.claude/hooks/approve-multiline-commands.md) |
 | `root/.claude/hooks/curl-guard.test.sh` | [root/README.md](root/README.md) |
+| `root/.claude/hooks/rm-guard.test.sh` | [root/README.md](root/README.md) |
 | `root/.codex/rules/default.rules.test.sh` | [root/README.md](root/README.md) — local only, not in CI |
 | `root/.agents/skills/retrospective/*.test.sh` | [NOTES.md](root/.agents/skills/retrospective/NOTES.md) |
 | `zsh/*.test.zsh` | [zsh/README.md](zsh/README.md) |

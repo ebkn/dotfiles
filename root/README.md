@@ -95,8 +95,31 @@ only gate on `rm` in those modes.
 
 **Do not carve out exceptions with allow globs like `Bash(rm ./tmp/*)`:**
 patterns match the raw string, so that also matches `rm ./tmp/../../important` —
-the same fragility documented for curl above. Use an argv-parsing hook modelled
-on `curl-guard.sh` instead.
+the same fragility documented for curl above. Scratch-dir cleanup is instead
+auto-approved by `root/.claude/hooks/rm-guard.sh`, which parses the argv and
+resolves each operand's *parent* physically (`cd -P`), so a symlinked ancestor
+cannot smuggle the target elsewhere. The final component stays unresolved on
+purpose: `rm` unlinks the name, and `rm -r` on a symlink removes the link rather
+than descending into it.
+
+Two scratch roots qualify: `<cwd>/tmp` (the dir `CLAUDE.md` mandates for temp
+files, removable whole) and anything strictly under `/tmp/claude-<uid>/` (Claude
+Code's per-session scratchpad tree — never the tree root, which holds every
+session's).
+
+Like `curl-guard.sh` the hook only ever emits `allow`, so **removing the `ask`
+rule silently downgrades every deferral to the auto-mode classifier.** A glob, a
+redirection, a shell expansion, an unknown flag or a non-`rm` segment all defer.
+
+**It deliberately does not cover compound commands.** A hook `allow` approves the
+whole tool call, so `rm -rf tmp; git status --short` would approve the second
+segment too; every segment must therefore be a verifiable `rm` on its own.
+Measured over 30 days of transcripts (39,282 Bash calls, 253 leading `rm`), that
+covers **72 calls — 28%** of them, the rest being compound. Recovering more would
+mean reimplementing the allow-list matcher inside the hook, where being looser
+than Claude Code's own matcher means over-approving; not worth it.
+
+Run `root/.claude/hooks/rm-guard.test.sh` after touching it.
 
 ## Codex prefix rules
 
