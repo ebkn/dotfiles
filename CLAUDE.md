@@ -148,7 +148,7 @@ Each entry names the doc to read first.
 - **Document reading** (`bin/read-doc` + `read-doc/style.css`) — the point is the stylesheet, not the converter; **do not turn it into a terminal pager.** Untrusted input, so pandoc runs `--sandbox` behind a CSP. Includes the ssh forward mode. → [bin/read-doc.md](bin/read-doc.md)
 - **PR automation** — two stages on purpose: the detectors queue, [dispatch](bin/pr-review-dispatch.md) delivers to a session's inbox socket. The queue is what makes interruption avoidable, so **it must never be bypassed.** Two detectors feed it: [pr-review-watch](bin/pr-review-watch.md) for review feedback, and [pr-state-watch](bin/pr-state-watch.md) for a PR that stopped merging or whose checks went red — **separate because neither raises a notification**, so it cannot use the conditional request that makes the review poll free. Both are polled state with a *third* answer that is neither yes nor no (`mergeable: UNKNOWN`, checks still running), and collapsing either one is silent in both directions. **Flakes are answered by the head-oid key** — woken at most once per push — not by filtering. **Neither detector nor dispatch ever writes to a worktree**; the session does the merge. Shared lock and worktree lookup: [pr-review-common.md](bin/pr-review-common.md). Loading the launchd agents is a separate decision: [launchd-load.md](bin/launchd-load.md).
 - **Japanese prose linting** (`textlint/` + `bin/textlint-docs`, backing the `lint-docs` skill) — the rules are materialized into a cache dir, so the target project gets no config. Narrowing to Japanese files is the caller's job. → [bin/textlint-docs.md](bin/textlint-docs.md)
-- **Skill evals** (`bin/skill-eval`) — a skill's behaviour is invisible in its diff, so editing a `SKILL.md` is otherwise unmeasurable. Cases live beside the skill in `evals/`; running them calls the API and costs money, so CI runs only the runner's own test. → [bin/skill-eval.md](bin/skill-eval.md)
+- **Skill evals** (`bin/skill-eval`) — a skill's behaviour is invisible in its diff, so editing a `SKILL.md` is otherwise unmeasurable. Cases live beside the skill in `evals/`; running them calls the API and costs money, so CI runs only the runner's own test and the cases' graders. → [bin/skill-eval.md](bin/skill-eval.md)
 - **Session retrospective** (`/retrospective`) — aggregates transcripts into distributions, never a mean. → [root/.agents/skills/retrospective/NOTES.md](root/.agents/skills/retrospective/NOTES.md)
 
 ## Shell Script Conventions
@@ -184,6 +184,7 @@ silent.
 | --- | --- |
 | `bin/lint-shell.test.sh` | [lint-shell.md](bin/lint-shell.md) |
 | `bin/skill-eval.test.sh` | [skill-eval.md](bin/skill-eval.md) |
+| `root/.agents/skills/init-project/evals/*/assert.test.sh` | [skill-eval.md](bin/skill-eval.md) |
 | `bin/tmux-agents.test.sh` | [tmux-agents.md](bin/tmux-agents.md) |
 | `bin/tmux-agent-view.test.sh` | [tmux-agent-view.md](bin/tmux-agent-view.md) |
 | `bin/tmux-popup.test.sh`, `bin/tmux-tig` | [tmux-popup.md](bin/tmux-popup.md) |

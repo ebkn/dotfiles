@@ -141,8 +141,12 @@ is the point: a case that passes predicts the behaviour in a repository with no
   is that there is no coverage tool for shell, so **Phase 4 of `review-test` has
   nothing to collect in these cases** and no case asserts on coverage. A gap in
   the coverage, not a claim that Phase 4 is unnecessary.
-- **No `stubs.sh`.** The monorepo stubs `gh` and `yarn` because its skills call
-  them. Nothing here needs one yet; add the helper when a case does.
+- **Stubs live per skill, not in a shared `stubs.sh`.** The monorepo stubs `gh`
+  and `yarn` centrally because its skills call the same two. Here the only case
+  that needs stubs is `init-project`'s Swift path, and what it needs is an Xcode
+  toolchain nothing else will ever ask for, so the stubs sit in that skill's own
+  `evals/lib.sh` (see above). Move them up only when a second skill wants the
+  same binary.
 - **The cases do not assert `transcript_denials` is 0.** `review-test` here has
   no `Bash` in `allowed-tools` at all (see its SKILL.md for why), so a refused
   `Bash` call is the expected behaviour, not a violation.
@@ -159,6 +163,39 @@ is the point: a case that passes predicts the behaviour in a repository with no
   directory that gets symlinked into `~/.claude/skills/<name>`. It is inert
   there (nothing reads it but this runner), but it does mean the cases ship to
   every machine that runs `relink`.
+
+## Stubbing a toolchain the grading machine may not have
+
+`init-project`'s Swift case drives Xcode. Running `xcodebuild` for real would
+need a full Xcode wherever the case is graded, a genuine compile per run, and it
+would answer differently on a machine with a different Xcode — so
+`root/.agents/skills/init-project/evals/lib.sh` puts stubs for `xcodebuild`,
+`xcodegen`, `swiftlint` and `swift` in the fixture's `bin/`, which the runner
+prepends to `PATH` and keeps out of the fixture's git.
+
+Two rules that keep a stub honest:
+
+- **A stub decides nothing.** It records its argv to `bin/calls.log` and exits
+  0. Grading then reads what the scaffold *really* passed — the flags are the
+  contract, and a Makefile that passes the wrong ones still exits 0. The one
+  exception is `xcodegen`, which fails when `project.yml` is missing or unnamed,
+  because "generate succeeded against no spec" is a scaffold error worth seeing.
+- **Stub the toolchain, never the thing under test.** `make`, the Makefile and
+  the shell stay real, so a space-indented recipe or an empty variable fails the
+  way it would on a developer's machine.
+
+What that buys is stated in `lib.sh` rather than discovered from a green run:
+the case cannot see whether the app compiles or whether any gate would reject
+anything. It measures the scaffold, not the toolchain.
+
+**`assert.sh` is graded by a test of its own.** The grader is an instrument, and
+an inert one — a `check-ignore` that silently never matches, a regex that no
+longer matches the real output — reports a paid, non-deterministic run that
+measured nothing. `swift-makefile-entry-point/assert.test.sh` builds the
+reference scaffold, asserts it passes, then provokes every assertion in turn and
+asserts each FAIL appears. It costs nothing and CI runs it. It also takes the
+Makefile out of the fenced `make` block in `references/swift.md` instead of copying
+it, so the documented snippet is executed rather than trusted.
 
 ## The runner's own test
 

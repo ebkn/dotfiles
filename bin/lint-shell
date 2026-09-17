@@ -70,6 +70,7 @@ done <<<"$tracked"
 sh_targets+=(bin/init/common.sh bin/init/links.sh bin/pr-review-common.sh)
 sh_targets+=(bin/skill-eval-assert.sh bin/skill-eval-scaffold.sh)
 sh_targets+=(root/.agents/skills/review-test/evals/lib.sh)
+sh_targets+=(root/.agents/skills/init-project/evals/lib.sh)
 
 # -x follows `. "${SCRIPT_DIR}/common.sh"` into the sourced fragment instead of
 # reporting SC1091, so the init scripts are checked against the definitions they

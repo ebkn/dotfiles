@@ -81,6 +81,14 @@ jobs:
       - name: skill-eval runner
         run: bash bin/skill-eval.test.sh
 
+      # The grader of one eval case, plus the Makefile that case grades: the
+      # test extracts it from references/swift.md and runs it, so a TAB lost in
+      # the documentation fails here. Same reasoning as the runner above -- an
+      # inert grader reports a green eval run that measured nothing, and the
+      # eval run is a paid, non-deterministic place to find that out.
+      - name: init-project swift case grader
+        run: bash root/.agents/skills/init-project/evals/swift-makefile-entry-point/assert.test.sh
+
       # agent-state.sh drives the tab glyph and the prefix+a picker off tmux
       # pane options. The test runs a throwaway tmux server, so tmux has to be
       # on the runner -- the test fails rather than skips without it, on
