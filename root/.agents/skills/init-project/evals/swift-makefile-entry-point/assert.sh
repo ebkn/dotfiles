@@ -102,12 +102,24 @@ check_not_match "no raw xcodebuild is left in the documented commands" \
   'xcodebuild' "$readme_blocks"
 
 # --- the allow-list is enumerated, not wildcarded ---
-allow="$(jq -r '.permissions.allow[]?' .claude/settings.json 2>/dev/null || true)"
-check_match "allow-lists make build" 'Bash\(make build\)' "$allow"
-check_match "allow-lists make test" 'Bash\(make test\)' "$allow"
-# `Bash(make *)` would pre-approve every target the Makefile ever grows,
-# including the signing and notarization ones this path keeps prompted.
-check_not_match "does not allow make wholesale" 'Bash\(make \*\)' "$allow"
+# Conditional, and the condition is not laziness: `.claude/settings.json` is
+# special-cased by Claude Code and cannot be written without an interactive
+# approval, which a `claude -p` run does not have. So in an eval run the file is
+# normally absent, and what is left to assert is the fallback contract -- that
+# the run said so rather than reporting a finished scaffold. Where the file does
+# exist (a host that allowed the write, or this case's own grader test), the
+# real assertions run.
+if [ -f .claude/settings.json ]; then
+  allow="$(jq -r '.permissions.allow[]?' .claude/settings.json 2>/dev/null || true)"
+  check_match "allow-lists make build" 'Bash\(make build\)' "$allow"
+  check_match "allow-lists make test" 'Bash\(make test\)' "$allow"
+  # `Bash(make *)` would pre-approve every target the Makefile ever grows,
+  # including the signing and notarization ones this path keeps prompted.
+  check_not_match "does not allow make wholesale" 'Bash\(make \*\)' "$allow"
+else
+  check_match "reports that .claude/settings.json could not be written" \
+    'settings\.json' "$(transcript_result_text)"
+fi
 
 # --- CI calls the same targets ---
 ci="$(cat .github/workflows/*.yml 2>/dev/null || true)"
@@ -124,9 +136,16 @@ check "the generated project is gitignored" git check-ignore -q "$app.xcodeproj/
 check_eq "left a clean working tree" "" "$(git status --porcelain)"
 check_eq "no violation file was committed" "" "$(git ls-files '*Gate.swift')"
 
-# Every command the body asks for should be in the skill's own allowed-tools. A
-# denial here is the skill asking for something it cannot do -- silent in the
-# diff, and visible only from a run.
-check_eq "asked for nothing outside its own allowed-tools" 0 "$(transcript_denials)"
+# Narrowed to `make`, deliberately. A blanket "no denials" cannot hold and would
+# make the case permanently red: Claude Code always prompts for a compound
+# command or one containing `$(…)` / `<(…)`, whatever the allow-list says, and a
+# model phrases commands however it likes. What *is* the skill's business is
+# whether the targets it documents are the targets it allowed -- the failure
+# this narrow check caught on the first run was `make -n test`, refused because
+# only `make -n build` had been enumerated.
+denied_make="$(jq '[.permission_denials[]? | .tool_input.command? // ""
+                    | select(test("(^|[^[:alnum:]_-])make[[:space:]]"))]
+                   | length' "$SKILL_EVAL_RESULT_FILE")"
+check_eq "no make command was refused" 0 "$denied_make"
 
 skill_eval_finish

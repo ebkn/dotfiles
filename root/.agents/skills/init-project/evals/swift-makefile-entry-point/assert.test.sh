@@ -299,24 +299,96 @@ expect_fail "a missing Makefile is caught" \
   "wrote a Makefile" \
   "rm -f Makefile"
 
-# A denial means the skill asked for something its own allowed-tools forbid.
-work="$root_dir/denied"
-if build_fixture "$work"; then
-  denied_art="$root_dir/denied-artifacts"
-  mkdir -p "$denied_art"
-  printf '{"permission_denials":[{"tool_name":"Bash"}]}\n' >"$denied_art/result.json"
-  : >"$denied_art/transcript.jsonl"
-  denied_status=0
-  dout="$(run_grader "$work" "$denied_art")" || denied_status=$?
-  if printf '%s' "$dout" | grep -q "FAIL  asked for nothing outside its own allowed-tools"; then
-    ok "a permission denial is caught"
-  else
-    bad "a permission denial is not caught"
+# --- the two checks that read the result record rather than the tree ---
+# expect_fail_with_result <label> <FAIL substring> <result.json> [mutation]
+expect_fail_with_result() {
+  local label="$1" needle="$2" result="$3" mutation="${4:-}"
+  local w="$root_dir/res" art="$root_dir/res-artifacts"
+  if ! build_fixture "$w"; then
+    bad "$label (fixture)"
+    return
   fi
-  if [ "$denied_status" -ne 0 ]; then
-    ok "a permission denial reaches the exit status"
+  if [ -n "$mutation" ]; then
+    (cd "$w" && eval "$mutation" && git add -A && git commit -q -m "mutate" --allow-empty) >/dev/null 2>&1
+  fi
+  rm -rf "$art"
+  mkdir -p "$art"
+  printf '%s\n' "$result" >"$art/result.json"
+  : >"$art/transcript.jsonl"
+  local rout rstatus=0
+  rout="$(run_grader "$w" "$art")" || rstatus=$?
+  if printf '%s' "$rout" | grep -q "FAIL  $needle"; then
+    ok "$label"
   else
-    bad "a permission denial did not reach the exit status"
+    bad "$label (expected a FAIL matching: $needle)"
+    printf '%s\n' "$rout" | grep '^FAIL' | sed 's/^/       got: /'
+  fi
+  if [ "$rstatus" -ne 0 ]; then
+    ok "$label — and the grader exits non-zero"
+  else
+    bad "$label — the grader printed FAIL but exited 0"
+  fi
+  rm -rf "$w" "$art"
+}
+
+# A refused `make` means the documented targets and the enumerated ones have
+# come apart — the failure the first real eval run hit, with `make -n test`.
+expect_fail_with_result "a refused make command is caught" \
+  "no make command was refused" \
+  '{"permission_denials":[{"tool_name":"Bash","tool_input":{"command":"make -n test"}}]}'
+
+# The narrowing has to be real, or this is the blanket denial check under a
+# better name — and that one can never pass, since a compound command or a
+# `<(…)` is always prompted however the allow-list reads.
+work="$root_dir/other-denial"
+other_art="$root_dir/other-artifacts"
+if build_fixture "$work"; then
+  rm -rf "$other_art"
+  mkdir -p "$other_art"
+  printf '{"permission_denials":[{"tool_name":"Bash","tool_input":{"command":"diff <(sed -n p a) <(sed -n p b)"}}]}\n' \
+    >"$other_art/result.json"
+  : >"$other_art/transcript.jsonl"
+  oout="$(run_grader "$work" "$other_art")"
+  if printf '%s' "$oout" | grep -q "PASS  no make command was refused"; then
+    ok "a denial that is not a make command is ignored"
+  else
+    bad "a non-make denial was counted as a make denial"
+  fi
+fi
+
+# With settings.json absent — the normal state of an eval run, since Claude Code
+# will not write that file without an interactive approval — what is left to
+# assert is that the run said so. Silence has to fail, or a missing step is
+# indistinguishable from a finished one.
+expect_fail_with_result "silence about an unwritten settings.json is caught" \
+  "reports that .claude/settings.json could not be written" \
+  '{"permission_denials":[],"result":"Scaffolded the project."}' \
+  "rm -f .claude/settings.json"
+
+# The positive half of that same branch. Without it, a regex that can never
+# match would leave the control above passing for the wrong reason — it expects
+# a FAIL, and an always-false check produces one.
+work="$root_dir/reported"
+reported_art="$root_dir/reported-artifacts"
+if build_fixture "$work"; then
+  (cd "$work" && rm -f .claude/settings.json && git add -A && git commit -q -m "mutate") >/dev/null 2>&1
+  rm -rf "$reported_art"
+  mkdir -p "$reported_art"
+  printf '%s\n' '{"permission_denials":[],"result":"Step 5 could not write .claude/settings.json: it needs an interactive approval. Create it yourself with the allow list below."}' \
+    >"$reported_art/result.json"
+  : >"$reported_art/transcript.jsonl"
+  rout2="$(run_grader "$work" "$reported_art")"
+  rstatus2=$?
+  if printf '%s' "$rout2" | grep -q "PASS  reports that .claude/settings.json could not be written"; then
+    ok "a run that does report the unwritten settings.json passes"
+  else
+    bad "a run that reports the unwritten settings.json was still failed"
+  fi
+  if [ "$rstatus2" -eq 0 ]; then
+    ok "and the grader exits 0 for it"
+  else
+    bad "the grader failed a run that met the fallback contract"
+    printf '%s\n' "$rout2" | grep '^FAIL' | sed 's/^/       /'
   fi
 fi
 
