@@ -38,7 +38,7 @@ Three files in `root/.agents/skills/<skill>/evals/<case>/`:
 
 | File | Role |
 | --- | --- |
-| `prompt.md` | the prompt for `claude -p`. Leading YAML frontmatter is stripped before it is passed |
+| `prompt.md` | the prompt for `claude -p`. Leading YAML frontmatter is stripped before it is passed, and carries the case's own `allowed_tools` / `max_turns` / `budget_usd` |
 | `scaffold.sh` | builds the fixture; cwd is an empty temp dir. Source `$SKILL_EVAL_LIB_DIR/skill-eval-scaffold.sh` and call `skill_eval_init_repo`, which tags the starting state `eval-base` |
 | `assert.sh` | grades; cwd is the working directory after the run. Source `$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh`, emit one `check` per assertion, end with `skill_eval_finish` |
 
@@ -94,6 +94,31 @@ allowed_tools: Skill, Write, Edit, Bash(./run-tests.sh*)
 They are added to the skill's `allowed-tools`, never substituted for them. **Do
 not widen the skill's own frontmatter to make a case pass** — that changes the
 thing being measured.
+
+### A case that needs more room than the defaults
+
+`max_turns` and `budget_usd` in the same frontmatter override the runner's
+defaults (40 turns, 1 USD) for that case alone:
+
+```yaml
+---
+name: swift-makefile-entry-point
+max_turns: 220
+budget_usd: 6
+---
+```
+
+This is not tuning — it is what makes a long case runnable at all. `claude -p`
+stops at `--max-turns` and exits non-zero, and the runner grades a non-zero
+`claude -p` as FAIL by design, so a scenario that does not fit reports a broken
+*skill* when what ran out was the harness. The failure is legible in
+`claude.stderr`, but only if you go and look; the summary just says FAIL.
+
+Raising `SKILL_EVAL_MAX_TURNS` instead would hand that ceiling to every case,
+including the ones whose whole point is that the skill stops early. Declare it
+where the scenario is, and set the value from what the skill actually has to do
+— a full `init-project` scaffold is twelve steps with a verification block each,
+which is an order of magnitude more than a `review-test` review.
 
 ## What the eval can and cannot see
 

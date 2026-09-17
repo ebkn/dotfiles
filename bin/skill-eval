@@ -34,8 +34,12 @@
 #   SKILL_EVAL_JUDGE_MODEL  model for the check_llm judge (default haiku)
 #   SKILL_EVAL_SKILLS_DIR   directory to read skills from
 #   SKILL_EVAL_OUT_DIR      directory to write artifacts to
-#   SKILL_EVAL_MAX_TURNS    --max-turns for `claude -p` (default 40)
-#   SKILL_EVAL_BUDGET_USD   --max-budget-usd for `claude -p` (default 1)
+#   SKILL_EVAL_MAX_TURNS    default --max-turns for `claude -p` (default 40)
+#   SKILL_EVAL_BUDGET_USD   default --max-budget-usd for `claude -p` (default 1)
+#
+# A case overrides both in prompt.md's frontmatter (max_turns / budget_usd),
+# because a long scenario is a property of the case, not of the machine running
+# it.
 
 set -eo pipefail
 
@@ -190,6 +194,24 @@ for case_name in "${cases[@]}"; do
     done <<<"${extra_allowed_line//, /$'\n'}"
   fi
 
+  # A case whose scenario is longer than the defaults declares its own ceiling.
+  # Without this the case is simply unrunnable: `claude -p` stops at --max-turns
+  # and exits non-zero, which the runner grades as FAIL, so the case reports a
+  # broken skill when what ran out was the harness. Raising the global default
+  # instead would spend that ceiling on every other case too.
+  case_max_turns="$(prompt_meta "$case_dir/prompt.md" max_turns)"
+  [ -n "$case_max_turns" ] || case_max_turns="$max_turns"
+  case_budget_usd="$(prompt_meta "$case_dir/prompt.md" budget_usd)"
+  [ -n "$case_budget_usd" ] || case_budget_usd="$budget_usd"
+  if ! [[ "$case_max_turns" =~ ^[1-9][0-9]*$ ]]; then
+    printf 'case %s: max_turns takes an integer of 1 or more (got: %s)\n' "$case_name" "$case_max_turns" >&2
+    exit 1
+  fi
+  if ! [[ "$case_budget_usd" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    printf 'case %s: budget_usd takes a number (got: %s)\n' "$case_name" "$case_budget_usd" >&2
+    exit 1
+  fi
+
   case_passed=0
   case_cost_file="$(mktemp)"
   case_duration_ms=0
@@ -225,8 +247,8 @@ for case_name in "${cases[@]}"; do
       --setting-sources project
       --strict-mcp-config
       --no-session-persistence
-      --max-turns "$max_turns"
-      --max-budget-usd "$budget_usd"
+      --max-turns "$case_max_turns"
+      --max-budget-usd "$case_budget_usd"
     )
     if [ ${#case_allowed_tools[@]} -gt 0 ]; then
       claude_args+=(--allowedTools "${case_allowed_tools[@]}")

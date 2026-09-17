@@ -159,6 +159,8 @@ cat >"$skills_dir/$skill/evals/case-c/prompt.md" <<'EOF'
 ---
 name: case-c
 allowed_tools: Skill, Write
+max_turns: 123
+budget_usd: 4.5
 ---
 write something
 EOF
@@ -198,6 +200,25 @@ contains "the skill's own allowed-tools survive" "Bash(git status *)" "$args_c"
 t "three from the skill plus two from the case, as five arguments" "5" \
   "$(grep -c -e '^Bash(git' -e '^Read$' -e '^Skill$' -e '^Write$' "$STUB_CLAUDE_OUT/args")"
 absent "the allowed_tools line stays out of the prompt" "allowed_tools: Skill, Write" "$args_c"
+
+# --- a case's own ceilings reach `claude -p` ---
+# A case too long for the defaults is unrunnable without these: claude stops at
+# --max-turns and exits non-zero, which the runner grades as FAIL. Asserted on
+# the arguments, because a value that never leaves the runner changes nothing.
+t "the case's max_turns is passed" "123" \
+  "$(grep -A1 -e '^--max-turns$' "$STUB_CLAUDE_OUT/args" | tail -n 1)"
+t "the case's budget_usd is passed" "4.5" \
+  "$(grep -A1 -e '^--max-budget-usd$' "$STUB_CLAUDE_OUT/args" | tail -n 1)"
+absent "the max_turns line stays out of the prompt" "max_turns: 123" "$args_c"
+
+# A case that declares neither still gets the defaults, so adding the keys did
+# not quietly make every other case unbounded.
+rm -rf "$STUB_CLAUDE_OUT"
+$RUN "$skill" case-a >/dev/null
+t "a case with no max_turns falls back to the default" "40" \
+  "$(grep -A1 -e '^--max-turns$' "$STUB_CLAUDE_OUT/args" | tail -n 1)"
+t "a case with no budget_usd falls back to the default" "1" \
+  "$(grep -A1 -e '^--max-budget-usd$' "$STUB_CLAUDE_OUT/args" | tail -n 1)"
 
 # --- fixture isolation ---
 t "the .claude/ and bin/ we brought in stay out of git status" " M tracked.txt" \
@@ -315,11 +336,29 @@ check_fails() {
   fi
   contains "$label" "$needle" "$out"
 }
+# case-d is created here, not with the others, because a case present from the
+# start would join the "with no case named" run above and fail it.
+mkdir -p "$skills_dir/$skill/evals/case-d"
+cat >"$skills_dir/$skill/evals/case-d/prompt.md" <<'EOF'
+---
+name: case-d
+max_turns: soon
+---
+do it
+EOF
+cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-d/scaffold.sh"
+cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-d/assert.sh"
+
 check_fails "no skill prints the usage" "usage:" $RUN
 check_fails "--runs 0 says why" "--runs takes an integer" $RUN "$skill" case-a --runs 0
 check_fails "an unknown skill says why" "no such skill" $RUN no-such-skill
 check_fails "an incomplete case names the missing file" "case no-such-case has no prompt.md" \
   $RUN "$skill" no-such-case
+# Passing a non-numeric ceiling straight through would make `claude -p` fail
+# with its own message, and the runner would grade that failed run as a FAIL of
+# the skill. Refusing before the API call is what keeps the two apart.
+check_fails "an unparsable max_turns says why, before spending anything" \
+  "case case-d: max_turns takes an integer" $RUN "$skill" case-d
 
 if [ "$fails" -eq 0 ]; then
   printf '\nall skill-eval tests passed\n'
