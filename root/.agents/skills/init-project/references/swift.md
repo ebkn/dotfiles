@@ -76,7 +76,7 @@ targets:
       - target: {AppName}
 ```
 
-Generate with `xcodegen generate` — rerun after every `project.yml` edit; note that in the CLAUDE.md Development section, because "my new file isn't building" is the predictable failure when someone forgets.
+Generate with `xcodegen generate` — it must be rerun after every `project.yml` edit and after adding a source file, because "my new file isn't building" is the predictable failure when someone forgets. Rather than documenting that as a thing to remember, the Makefile below makes `build` and `test` depend on it; note in the CLAUDE.md Development section that `make generate` exists for the cases those two don't cover (opening the project in Xcode, `periphery scan`).
 
 ## Sources — minimal app plus one testable unit
 
@@ -141,7 +141,7 @@ import Testing
 
 ## Lint & format — two tools, disjoint jobs
 
-- **`swift format`** (toolchain) owns formatting. Config is `.swift-format` at the root — scaffold the minimal anchor `{"version": 1}` (defaults apply; grow it only on a real disagreement). Check: `swift format lint --strict --recursive {AppName} {AppName}Tests`; write: `swift format --in-place --recursive {AppName} {AppName}Tests`. Record the write form in CLAUDE.md as the format command.
+- **`swift format`** (toolchain) owns formatting. Config is `.swift-format` at the root — scaffold the minimal anchor `{"version": 1}` (defaults apply; grow it only on a real disagreement). Check: `swift format lint --strict --recursive {AppName} {AppName}Tests`; write: `swift format --in-place --recursive {AppName} {AppName}Tests`. Both forms are wrapped by the Makefile below; `make format` is what CLAUDE.md records as the format command.
 - **SwiftLint** owns the larger lint-rule catalog `swift format` doesn't attempt. `.swiftlint.yml`:
 
   ```yaml
@@ -155,6 +155,69 @@ import Testing
 
 Neither tool supersedes the other as of 2026 — `swift format` covers formatting plus a small lint set; SwiftLint's catalog (opt-in, analyzer, custom rules) has no toolchain equivalent.
 
+## Makefile — the one entry point
+
+Every other language here already has a task runner (`package.json` scripts, `go`, `uv run`); Swift has none, and the raw commands are the longest in this skill — `xcodebuild -project … -scheme … -destination …` repeated four ways, each of which must stay identical in README.md, CLAUDE.md, and the CI workflow. Make is the thinnest thing that fixes that: it ships with the Command Line Tools (nothing to install, nothing to pin), and one `Makefile` at the repo root becomes the single place those flags are written.
+
+It also removes the recall requirement this path otherwise warns about twice: `build` and `test` **depend on** `generate`, so a new source file cannot be compiled-but-not-in-the-target because someone forgot `xcodegen generate`.
+
+```make
+APP := {AppName}
+PROJECT := $(APP).xcodeproj
+SOURCES := $(APP) $(APP)Tests
+
+# Project-local DerivedData, so `clean` is one `rm` of paths this repo owns.
+# The shared location is ~/Library/Developer/Xcode/DerivedData/$(APP)-<hash>,
+# and deleting that by glob would take out a same-named project elsewhere.
+# Cost: Xcode.app's GUI builds keep using the shared location, so the CLI and
+# the GUI do not share a build cache (recorded in CLAUDE.md Constraints).
+DERIVED_DATA := DerivedData
+
+XCODEBUILD := xcodebuild -project $(PROJECT) -scheme $(APP) \
+	-destination 'platform=macOS' -derivedDataPath $(DERIVED_DATA)
+
+.PHONY: all generate build test lint format clean
+
+all: lint test
+
+# Phony rather than a file rule: the target is a directory whose mtime XcodeGen
+# rewrites on every run, so make cannot compare it against project.yml.
+# Regenerating unconditionally is cheap; the failure it prevents is not.
+generate:
+	xcodegen generate
+
+build: generate
+	$(XCODEBUILD) build
+
+# CODE_SIGNING_ALLOWED=NO matches CI exactly: no signing identity exists there,
+# and disabling signing also avoids a significant xcodebuild slowdown. Unit
+# tests run fine unsigned; only *launching* the .app needs the ad-hoc signature,
+# which is what `build` (signing on) covers.
+test: generate
+	$(XCODEBUILD) test CODE_SIGNING_ALLOWED=NO
+
+# No `generate` prerequisite: both tools read the source dirs, not the project.
+lint:
+	swift format lint --strict --recursive $(SOURCES)
+	swiftlint --strict
+
+format:
+	swift format --in-place --recursive $(SOURCES)
+
+clean:
+	rm -rf $(DERIVED_DATA) $(PROJECT)
+```
+
+Three things to get right when writing it, each of which fails quietly:
+
+- **Recipe lines are indented with a literal TAB.** Spaces produce `missing separator`, which at least is loud — but an editor that silently expands tabs makes it recur. Check with `make -n build`: it parses the whole file and runs nothing, so it fails on a space-indented recipe without building. (`cat -t Makefile` shows the tabs as `^I` if you want to see them; don't reach for `grep -P`, which BSD grep on a stock macOS does not have.)
+- **Each recipe line is its own shell, and make stops at the first non-zero status.** So `lint` runs `swiftlint` only when `swift format lint` passed — fail-fast is intended, but it means one green `make lint` does not prove both tools ran. The negative tests below provoke each separately for that reason.
+- **`clean` deletes generated output only.** `$(PROJECT)` and `$(DERIVED_DATA)` are both gitignored (below). If a target here ever needs to delete something tracked, that is a design error, not a bigger `rm`.
+
+Record `make clean` in the Build block of both README.md and CLAUDE.md — SKILL.md Step 2 requires those blocks to stay byte-identical, so it goes in both or neither.
+
+Record in CLAUDE.md Constraints that `-derivedDataPath DerivedData` is deliberate and what it costs: **Xcode.app does not read the Makefile**, so a GUI build populates the shared `~/Library/Developer/Xcode/DerivedData` instead and the two caches are built independently. Someone who works in both will see full rebuilds when switching, and the obvious "fix" — dropping the flag — silently turns `make clean` into a no-op against a path it no longer owns.
+
 ## Unused-code detection — periphery (documented pass, not a CI gate)
 
 [Periphery](https://github.com/peripheryapp/periphery) scans the generated Xcode project for unreachable declarations. It requires a full build for its index store, which on this path would roughly double CI time on 10×-priced macOS runners — so unlike knip/vulture, it is wired as a **documented local pass**, the same treatment the Go path gives `deadcode`. Scaffold `.periphery.yml`:
@@ -164,7 +227,7 @@ project: {AppName}.xcodeproj
 schemes: [{AppName}]
 ```
 
-and record `periphery scan` in the CLAUDE.md Development section as the occasional deep pass. Run `xcodegen generate` first — periphery consumes the generated project.
+and record `periphery scan` in the CLAUDE.md Development section as the occasional deep pass. Run `make generate` first — periphery consumes the generated project, and it is deliberately not a Makefile target: the six targets there are the gates README.md advertises, and an occasional deep pass that needs a full index build does not belong among them.
 
 ## .gitignore additions
 
@@ -178,13 +241,18 @@ DerivedData/
 .build/
 ```
 
-The first three are **XcodeGen output** — regenerated from `project.yml`, the same generated-file rule as `next-env.d.ts`/`worker-configuration.d.ts`. Tracking the `.xcodeproj` would immediately fork two sources of truth.
+The first three are **XcodeGen output** — regenerated from `project.yml`, the same generated-file rule as `next-env.d.ts`/`worker-configuration.d.ts`. Tracking the `.xcodeproj` would immediately fork two sources of truth. `DerivedData/` is not defensive here: the Makefile puts build output there on purpose, so this line is what keeps it out of the repo.
 
 ## .claude/settings.json entries
 
 Add to the `allow` list from SKILL.md Step 5:
 
+- `Bash(make generate)`, `Bash(make build)`, `Bash(make test)`, `Bash(make lint)`, `Bash(make format)`, `Bash(make clean)`
 - `Bash(xcodegen generate)`, `Bash(swift format *)`, `Bash(swiftlint *)`, `Bash(xcodebuild build*)`, `Bash(xcodebuild test*)`, `Bash(xcodebuild -version)`, `Bash(periphery scan*)`
+
+The second line stays even though the Makefile wraps all of it — the targets are the everyday entry point, not a boundary, and an agent debugging a build needs the underlying command without a prompt per invocation.
+
+The `make` targets are **enumerated, not `Bash(make *)`.** A wildcard pre-approves every target the Makefile will ever grow, including the signing/notarization ones the section below defers — and those are exactly the distribution actions this list keeps prompted. Extend the enumeration when a target is added; that one-line cost is the point.
 
 Deliberately not allow-listed: `open {AppName}.app` / launching the GUI (a visible side effect on the user's machine), and any `xcodebuild archive`/signing/notarization command — distribution actions stay prompted.
 
@@ -212,13 +280,12 @@ jobs:
       # neither tool has a supported pinned-install path and both only gate style,
       # not runtime behavior. The compiler itself is pinned via .xcode-version.
       - run: brew install xcodegen swiftlint
-      - run: xcodegen generate
-      - run: swift format lint --strict --recursive {AppName} {AppName}Tests
-      - run: swiftlint --strict
-      # CODE_SIGNING_ALLOWED=NO: no signing identity exists in CI, and disabling
-      # signing also avoids a significant xcodebuild slowdown. Unit tests run
-      # fine unsigned; only *launching* the .app needs the ad-hoc signature.
-      - run: xcodebuild test -project {AppName}.xcodeproj -scheme {AppName} -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
+      # Both targets carry their own flags (and `test` regenerates the project
+      # first), so CI runs the same commands as a developer. Spelling the
+      # xcodebuild invocation out here instead would fork it from the Makefile,
+      # and the fork is invisible until the two disagree.
+      - run: make lint
+      - run: make test
 ```
 
 No Swift/SPM caching is scaffolded: with zero package dependencies there is nothing meaningful to cache, and DerivedData caching is not a supported pattern. Add `actions/cache` on `~/Library/Caches/org.swift.swiftpm` only once real SPM dependencies exist.
@@ -231,21 +298,36 @@ Local dev runs on the ad-hoc identity from `project.yml` (`CODE_SIGN_IDENTITY: "
 
 ## Verification
 
-Run against the fresh scaffold — all five must pass before moving on. The build and test steps are the same commands CI runs (modulo signing mode), so a failure here is a failure that would land red on the first push:
+Run against the fresh scaffold — all five must pass before moving on. `lint` and `test` are the exact commands CI runs, so a failure here is a failure that would land red on the first push:
 
 ```bash
-xcodegen generate
-swift format lint --strict --recursive {AppName} {AppName}Tests
-swiftlint --strict
-xcodebuild build -project {AppName}.xcodeproj -scheme {AppName} -destination 'platform=macOS'
-xcodebuild test -project {AppName}.xcodeproj -scheme {AppName} -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
+make generate
+make lint
+make build
+make test
+make clean
 ```
 
-The plain `build` (ad-hoc identity, signing on) verifies the locally-runnable `.app` path; the `test` invocation with `CODE_SIGNING_ALLOWED=NO` verifies exactly what CI will run. Formatting failures on the hand-written snippets above are expected on first run — apply `swift format --in-place --recursive {AppName} {AppName}Tests` once, then the gate judges substance. If `xcodegen generate` succeeds but the build cannot find sources, the `sources` dirs in `project.yml` don't match the created directories — fix the spec, never hand-edit the generated `.xcodeproj`.
+`build` keeps signing on (ad-hoc identity), which verifies the locally-runnable `.app` path; `test` passes `CODE_SIGNING_ALLOWED=NO`, which is what CI runs. Formatting failures on the hand-written snippets above are expected on first run — `make format` once, then the gate judges substance. If `make generate` succeeds but the build cannot find sources, the `sources` dirs in `project.yml` don't match the created directories — fix the spec, never hand-edit the generated `.xcodeproj`.
+
+**`make clean` needs its own assertion, and it goes last.** Every other target here fails loudly; a `clean` that deletes nothing exits 0 and looks identical to one that works — a typo'd variable expands to the empty string and `rm -rf` succeeds on no arguments. Assert the observable effect, then that the tree still builds:
+
+```bash
+make build                       # populate both paths
+ls -d DerivedData {AppName}.xcodeproj   # both must exist
+make clean
+ls -d DerivedData {AppName}.xcodeproj   # both must now be gone (ls exits non-zero)
+make build                       # positive control: a cleaned tree rebuilds
+make clean
+```
+
+The final rebuild is the half that catches over-deletion: a `clean` that also removed `project.yml` or a source dir would pass the `ls` check and fail here.
 
 ### Then prove each gate rejects something
 
 Two tools run here with disjoint jobs, and each can be silently inert — `swift format` with no config still lints, but `swiftlint` reads `.swiftlint.yml` and a config it cannot parse leaves you with a command that exits 0 on everything. Provoke each, confirm a **non-zero** exit, and delete the violation before the next.
+
+These two run as the **raw commands, not `make lint`**: make stops at the first failing recipe line, so `make lint` cannot distinguish "swiftlint rejected this" from "swiftlint never ran". Attribution needs them invoked one at a time.
 
 ```bash
 # swift format lint --strict — bad formatting must be caught
@@ -259,15 +341,17 @@ printf 'struct Gate {\n  let x = 1\n  func f() { let a = 1; _ = a }\n}\n' > {App
 swiftlint --strict            # must FAIL
 rm {AppName}/Gate.swift
 
-# xcodebuild test — a failing test must be caught
+# make test — a failing test must be caught
 # add a temporary failing case to {AppName}Tests, then:
-xcodebuild test -project {AppName}.xcodeproj -scheme {AppName} -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO   # must FAIL
+make test                     # must FAIL
 ```
+
+Also prove `make lint` itself still rejects: after the two raw runs, leave one violation in place, run `make lint`, confirm non-zero, and remove it. A Makefile whose `lint` recipe names the wrong paths passes both raw checks and gates nothing.
 
 Two things this path gets wrong more often than the others.
 
-**Regenerate before each run.** `xcodegen generate` is what puts a new file into the target; a violation file added without regenerating is not compiled, not linted by the build, and the gate passes while proving nothing. Run `xcodegen generate` after creating the violation and again after removing it.
+**Regenerate before each run — or let make do it.** `xcodegen generate` is what puts a new file into the target; a violation file added without regenerating is not compiled and the gate passes while proving nothing. `make build` / `make test` depend on `generate`, so going through the targets closes this. It reopens the moment a raw `xcodebuild` is run by hand for debugging — that invocation compiles whatever the last `generate` captured.
 
-**Read `xcodebuild`'s exit status, not its output.** It prints a great deal on success and failure alike, and `** TEST FAILED **` scrolls past easily. Check `$?`; a test-failure negative test that is judged by eye is the one most likely to be recorded as passed without having been run.
+**Read the exit status, not the output.** `xcodebuild` prints a great deal on success and failure alike, and `** TEST FAILED **` scrolls past easily; `make` adds its own output above and below it. Check `$?` — make propagates the recipe's status, so `make test` is as trustworthy a gate as the bare command. A test-failure negative test judged by eye is the one most likely to be recorded as passed without having been run.
 
 Confirm `git status --porcelain` is clean before moving on — including the regenerated `.xcodeproj` if it is tracked, and any `Gate.swift` left behind.

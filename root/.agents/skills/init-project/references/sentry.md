@@ -693,7 +693,7 @@ Credentials (`SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`) must **not** g
 
 ### Lint
 
-The docs' snippet will not survive this project's gates as-is: it is 4-space indented while `swift format` defaults to 2, and its doc-link comments exceed the 100-column default (SwiftLint's 120 warning threshold will *not* catch those, so a green `swiftlint --strict` proves nothing here). Run `swift format --in-place --recursive {AppName} {AppName}Tests` once after writing the file, then let the gates judge substance.
+The docs' snippet will not survive this project's gates as-is: it is 4-space indented while `swift format` defaults to 2, and its doc-link comments exceed the 100-column default (SwiftLint's 120 warning threshold will *not* catch those, so a green `swiftlint --strict` proves nothing here). Run `make format` once after writing the file, then let the gates judge substance.
 
 ---
 
@@ -715,7 +715,7 @@ This is safe to add **before** any of the three exists: an unset `secrets.*`/`va
 
 No other stack needs a CI change. The Node, Workers, Go, and Python paths upload nothing at build time, and every gate on every path runs with the SDK disabled, because no DSN is present in CI and none should be added — a green pipeline must not depend on reaching Sentry.
 
-Swift is the one worth being explicit about rather than lumping in: it *does* have an upload step, but the `postBuildScripts` phase only produces dSYMs under the Release configuration, and the CI job in `references/swift.md` runs `xcodebuild test` (Debug). So CI uploads nothing, the script's `sentry-cli not installed` warning is the expected output there, and symbol upload happens on whatever machine builds the release artifact. If release builds later move into CI, that job needs `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN` and a `brew install getsentry/tools/sentry-cli` step.
+Swift is the one worth being explicit about rather than lumping in: it *does* have an upload step, but the `postBuildScripts` phase only produces dSYMs under the Release configuration, and the CI job in `references/swift.md` runs `make test`, i.e. `xcodebuild test` (Debug). So CI uploads nothing, the script's `sentry-cli not installed` warning is the expected output there, and symbol upload happens on whatever machine builds the release artifact. If release builds later move into CI, that job needs `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN` and a `brew install getsentry/tools/sentry-cli` step.
 
 ## `.claude/settings.json`
 
@@ -759,7 +759,7 @@ Run, per stack:
 | Plain TypeScript | the block in `references/typescript.md` |
 | Go | the block in `references/go.md` — `govulncheck` especially, since this is the module's first real dependency and the first genuine exercise of that gate |
 | Python | the block in `references/python.md` |
-| Swift | `swift format --in-place --recursive {AppName} {AppName}Tests`, then the block in `references/swift.md` |
+| Swift | `make format`, then the block in `references/swift.md` |
 
 All of these must pass **with no DSN set anywhere** — that is the state of a fresh checkout and of CI, and it is the state the DSN-optional rule exists to make safe. A gate that only passes once a DSN is present means `Sentry.init` is being called somewhere it can throw; fix that rather than exporting a DSN to make the check go green.
 
