@@ -167,6 +167,12 @@ EOF
 cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-c/scaffold.sh"
 cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-c/assert.sh"
 
+# The fallback assertions below name the built-in defaults, so the caller's own
+# environment must not be in play: exported here, these would silently become
+# the expected values and the test would pass while asserting nothing about the
+# defaults it claims to pin.
+unset SKILL_EVAL_MAX_TURNS SKILL_EVAL_BUDGET_USD
+
 export SKILL_EVAL_CLAUDE_BIN="$DIR/claude"
 export SKILL_EVAL_SKILLS_DIR="$skills_dir"
 export SKILL_EVAL_OUT_DIR="$DIR/out"
@@ -349,6 +355,19 @@ EOF
 cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-d/scaffold.sh"
 cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-d/assert.sh"
 
+# case-e is the same check on the other key. Two validations exist, so two are
+# tested: one of them could be deleted and the other would keep the suite green.
+mkdir -p "$skills_dir/$skill/evals/case-e"
+cat >"$skills_dir/$skill/evals/case-e/prompt.md" <<'EOF'
+---
+name: case-e
+budget_usd: plenty
+---
+do it
+EOF
+cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-e/scaffold.sh"
+cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-e/assert.sh"
+
 check_fails "no skill prints the usage" "usage:" $RUN
 check_fails "--runs 0 says why" "--runs takes an integer" $RUN "$skill" case-a --runs 0
 check_fails "an unknown skill says why" "no such skill" $RUN no-such-skill
@@ -359,6 +378,8 @@ check_fails "an incomplete case names the missing file" "case no-such-case has n
 # the skill. Refusing before the API call is what keeps the two apart.
 check_fails "an unparsable max_turns says why, before spending anything" \
   "case case-d: max_turns takes an integer" $RUN "$skill" case-d
+check_fails "an unparsable budget_usd says why, before spending anything" \
+  "case case-e: budget_usd takes a number" $RUN "$skill" case-e
 
 if [ "$fails" -eq 0 ]; then
   printf '\nall skill-eval tests passed\n'
