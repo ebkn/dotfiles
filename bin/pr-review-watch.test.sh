@@ -166,9 +166,16 @@ cat >"$FIX/review_comments.json" <<'EOF'
 ]
 EOF
 
+# 33 is CodeRabbit's placeholder: posted the moment a push lands, long before
+# there is anything to say. It is the SAME comment that is later edited into the
+# walkthrough, so only the marker in the body tells the two apart.
 cat >"$FIX/issue_comments.json" <<'EOF'
 [
- {"id":31,"user":{"login":"coderabbitai[bot]"},"body":"nit: typo","created_at":"2026-09-07T10:00:08Z"}
+ {"id":31,"user":{"login":"coderabbitai[bot]"},"body":"nit: typo","created_at":"2026-09-07T10:00:08Z"},
+ {"id":33,"user":{"login":"coderabbitai[bot]"},"body":"<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n<!-- This is an auto-generated comment: review in progress by coderabbit.ai -->\n\n> [!NOTE]\n> Currently processing new changes in this PR. This may take a few minutes, please wait...\n\n<!-- end of auto-generated comment: review in progress by coderabbit.ai -->","created_at":"2026-09-07T10:00:09Z"},
+ {"id":35,"user":{"login":"coderabbitai[bot]"},"body":"<!-- This is an auto-generated comment: review paused by coderabbit.ai -->\n\n> [!NOTE]\n> ## Reviews paused","created_at":"2026-09-07T10:00:09Z"},
+ {"id":36,"user":{"login":"coderabbitai[bot]"},"body":"<!-- This is an auto-generated comment: rate limited by coderabbit.ai -->\n\n> [!WARNING]\n> ## Rate limit exceeded","created_at":"2026-09-07T10:00:09Z"},
+ {"id":37,"user":{"login":"coderabbitai[bot]"},"body":"<!-- This is an auto-generated comment: skip review by coderabbit.ai -->\n\n> [!NOTE]\n> ## Review skipped","created_at":"2026-09-07T10:00:09Z"}
 ]
 EOF
 
@@ -205,6 +212,16 @@ eq 'inline comment is queued' 'true' "$(job '[.pending[].id]|index("inline:21")!
 eq 'own comment is never queued' 'false' "$(job '[.pending[].id]|index("inline:22")!=null')"
 eq 'bot conversation comment is queued' 'true' "$(job '[.pending[].id]|index("issue:31")!=null')"
 eq 'pending is ordered oldest first' 'true' "$(job '[.pending[].at] == ([.pending[].at]|sort)')"
+
+# "a review is running" is not review feedback. It must not reach `seen` either:
+# CodeRabbit edits this very comment into the walkthrough, and recording the id
+# now would swallow the walkthrough forever.
+eq '"review in progress" is not queued' 'false' "$(job '[.pending[].id]|index("issue:33")!=null')"
+eq '"review in progress" is not marked seen' 'false' "$(job '[.seen[]]|index("issue:33")!=null')"
+# One case per branch of the alternation: a typo in any one of them is otherwise
+# invisible, since the others keep the filter looking like it works.
+eq 'paused / rate limited / skipped are dropped too' 'false' \
+  "$(job '[.pending[].id]|any(. == "issue:35" or . == "issue:36" or . == "issue:37")')"
 
 # The ci_activity PullRequest (#99) must not have produced a second job: a red
 # build is not review feedback, and routing it would wake a session per flake.
@@ -420,6 +437,23 @@ printf 'Mon, 07 Sep 2026 09:59:00 GMT' >"$STATE/poll.last-modified"
 run --force >/dev/null
 eq 'the stored value does not become the cutoff' 'false' "$(job '[.pending[].id]|index("review:12")!=null')"
 eq 'the post-notification item is still queued' 'true' "$(job '[.pending[].id]|index("issue:34")!=null')"
+
+echo "-- the placeholder edited into a walkthrough is queued then, not swallowed --"
+# The whole point of matching the body rather than the id. This re-polls the
+# FIRST state dir, the one that dropped issue:33 above without recording it, so
+# what is under test is the loop: dropped, absent from `seen`, then queued on the
+# next poll under the same id. A fresh state dir would only re-prove that a
+# `summarize` body is not noise. Nothing re-notifies about a comment edit, so an
+# id-based drop would lose this permanently.
+STATE="$TMP/state"
+eq 'precondition: the placeholder was never recorded' 'false' "$(job '[.seen[]]|index("issue:33")!=null')"
+cat >"$FIX/issue_comments.json" <<'EOF'
+[
+ {"id":33,"user":{"login":"coderabbitai[bot]"},"body":"<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n\n## Walkthrough\n\nThe trust policy drops a deleted user.","created_at":"2026-09-07T10:00:09Z"}
+]
+EOF
+run >/dev/null
+eq 'walkthrough queued once the placeholder is gone' 'true' "$(job '[.pending[].id]|index("issue:33")!=null')"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

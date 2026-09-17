@@ -65,6 +65,29 @@ PR whose session has exited, not the default path.
 - `subscribed` is excluded alongside `ci_activity` because it fires for activity
   on any PR you merely watch, which is far wider than the PRs this can act on.
 
+## A bot's progress report is not review feedback
+
+CodeRabbit posts a placeholder comment the moment a push lands — *"Currently
+processing new changes in this PR. This may take a few minutes, please wait…"* —
+and that comment satisfies every filter above: a bot is not you, and the body is
+not empty. So the session was woken to read a progress bar.
+
+`NOISE` drops that class, matched on the machine-readable marker CodeRabbit
+wraps the body in (`<!-- This is an auto-generated comment: review in progress
+by coderabbit.ai -->`, plus *review paused*, *rate limited* and *skip review*)
+rather than on the prose, which is reworded and localised. It rots the same way
+`REASONS` does, in the same harmless direction: a marker renamed upstream stops
+matching and the noise comes back visibly.
+
+**`summarize by coderabbit.ai` is deliberately not in the class.** That is the
+walkthrough — the review's own summary — and it is the *same comment*:
+CodeRabbit edits the placeholder in place when the review finishes. Which is why
+the filter reads the **body and never the id**: an id-based drop would record it
+in `seen` and swallow the walkthrough permanently, since a comment edit raises
+no notification of its own. Left out of `seen`, the next poll that fetches the
+PR — the review that follows seconds later does notify — sees the edited body,
+no longer matches, and queues it as new.
+
 **`REASONS` is hand-copied from GitHub's documented `reason` vocabulary and
 therefore rots silently, in the one direction that hurts** — a value renamed
 upstream stops matching, the PR is never queued, and nothing reports an error.
@@ -197,6 +220,9 @@ The cases that earn their keep encode pipeline rules rather than parsing:
   re-triggers it — an infinite loop whose only symptom is a session that keeps
   waking.
 - **`ci_activity` writes no job.** A red check is not review feedback.
+- **A "review in progress" placeholder is neither queued nor seen**, and the
+  same comment id, once edited into a walkthrough, *is* queued. The pair is what
+  pins the filter to the body rather than the id.
 - A `PENDING` review — `submitted_at: null`, a draft only its author can see —
   must not be queued as though it had been posted.
 

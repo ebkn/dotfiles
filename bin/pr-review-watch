@@ -56,6 +56,25 @@ EXTRA_REPOS=${PR_REVIEW_WATCH_EXTRA_REPOS:-$HOME/dotfiles}
 # bin/pr-review-watch.md.
 REASONS='["assign","author","comment","mention","review_requested","team_mention"]'
 
+# Bot comments that REPORT ON a review rather than being one. CodeRabbit posts a
+# placeholder the moment a push lands ("Currently processing new changes in this
+# PR...") and then EDITS THAT SAME COMMENT into the walkthrough when the review
+# finishes, so the comment id is not a discriminator -- only the body is.
+#
+# Matched on the machine-readable marker CodeRabbit wraps the body in, never on
+# the prose, which is reworded and localised. Same rot hazard as REASONS above:
+# a marker renamed upstream simply stops matching and the noise comes back,
+# which is the harmless direction.
+#
+# The class is deliberately narrow -- only the states that carry no feedback at
+# all. `summarize by coderabbit.ai`, the walkthrough this placeholder turns
+# into, is NOT here: it is the review's own summary.
+#
+# Filtering on the body and not on the id is what makes this self-healing: the
+# placeholder never enters `seen`, so the next poll that fetches the PR sees the
+# edited body, no longer matches, and queues the walkthrough as new.
+NOISE='<!-- This is an auto-generated comment: (review in progress|review paused|rate limited|skip review) by coderabbit\.ai -->'
+
 force=0
 dry_run=0
 manual_pr=
@@ -211,12 +230,14 @@ fetch_items() {
     gh api --paginate "repos/$repo/issues/$pr/comments" --jq '.[] | {
       id: ("issue:" + (.id|tostring)), kind: "issue", author: .user.login,
       state: null, path: null, line: null, body: (.body // ""), at: .created_at }'
-  } 2>/dev/null | jq -s --arg me "$me" '
+  } 2>/dev/null | jq -s --arg me "$me" --arg noise "$NOISE" '
     [ .[]
       # A PENDING review has no submitted_at: it is a draft only its author can
       # see, and it must not be queued as though it had been posted.
       | select(.at != null)
       | select(.author != $me)
+      # "a review is running" is not review feedback; see NOISE above.
+      | select(.body | test($noise) | not)
       # An empty body is an "Approve" with no words, which carries nothing to
       # act on. CHANGES_REQUESTED is kept even when wordless: the verdict itself
       # is the signal.
