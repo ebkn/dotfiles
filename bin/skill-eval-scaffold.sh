@@ -20,6 +20,10 @@ skill_eval_init_repo() {
   git config commit.gpgsign false
   git config core.hooksPath /dev/null
   git add -A
-  git commit -q -m "chore: initial"
+  # --allow-empty because a fixture is allowed to be an empty directory: a
+  # scaffolding skill's starting state is the absence of everything it creates.
+  # Without it the commit fails, `set -e` kills the scaffold, and the case dies
+  # before the skill is ever asked anything.
+  git commit -q --allow-empty -m "chore: initial"
   git tag eval-base
 }
