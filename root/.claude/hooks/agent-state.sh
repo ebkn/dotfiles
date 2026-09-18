@@ -292,7 +292,7 @@ glyph_of() {
   # @claude_glyph is stored ready to concatenate — separator included — so a
   # format can prepend it unconditionally and an unset option then contributes
   # nothing at all. The separator is per-glyph rather than appended by the
-  # caller: 🔺 🛑 🔴 🟢 carry emoji presentation and already occupy two terminal
+  # caller: 🛑 🟢 carry emoji presentation and already occupy two terminal
   # cells, so a space after them reads as a gap, while the narrow ▶ (U+25B6,
   # East Asian Ambiguous, one cell) needs one.
   #
@@ -310,17 +310,26 @@ glyph_of() {
   #   red    — blocked on you, go there
   #   green  — the turn is over, nothing is blocked
   #   none   — running; the one state you are not meant to look at (▶)
-  # and the three red states keep distinct SHAPES. That is not decoration: the
-  # picker prints no state text, so the glyph is the only place a row says what
-  # it is, and it is what tells you whether ctrl-o can answer that row.
+  # Shape carries nothing further: all three blocked states print the SAME 🛑.
+  # Which kind of block it is — a question, a permission prompt, an agent
+  # elsewhere wanting input — does not change the answer to the only question
+  # this indicator is asked, so spending a second visual axis on it only made
+  # the first one harder to read.
+  #
+  # Consequence to know before adding a state: the glyph is no longer a key.
+  # The picker prints no state text, so a row's glyph no longer says whether
+  # ctrl-o can answer it (it can for `asking` and `waiting`, not for
+  # `needs_input`) — that now shows only when the key is refused. The state
+  # itself still travels in the row's hidden key field, so anything that needs
+  # to distinguish them reads that, never the rendering.
   #
   # Giving different meanings one colour is the mistake this replaced — 🔘 was
   # worn by both `stalled` and what is now `needs_input`, and being grey it read
   # as ▶ besides. Giving one meaning one colour is the opposite move.
   case "$1" in
-    asking) printf '🔺' ;;
+    asking) printf '🛑' ;;
     waiting) printf '🛑' ;;
-    needs_input) printf '🔴' ;;
+    needs_input) printf '🛑' ;;
     busy) printf '▶ ' ;;
     stalled) printf '🟢' ;;
   esac
@@ -549,7 +558,7 @@ case "$mode" in
     #
     # The split is by how loudly the pane should shout:
     #   waiting (🛑)     — a modal is open; nothing moves until it is answered.
-    #   needs_input (🔴) — a background agent is blocked on you somewhere else.
+    #   needs_input (🛑) — a background agent is blocked on you somewhere else.
     #   stalled (🟢)     — the turn is over and the next move is the human's.
     #
     # `idle_prompt` is deliberately absent from both lists. It fires 60s after a

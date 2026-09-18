@@ -11,7 +11,7 @@ Consumers are `set-titles-string` in `.tmux.conf` and
 
 | Option | Meaning |
 | --- | --- |
-| `@claude_state` | `busy` ▶ / `asking` 🔺 / `waiting` 🛑 / `needs_input` 🔴 / `stalled` 🟢. Unset means idle. |
+| `@claude_state` | `busy` ▶ / `asking` 🛑 / `waiting` 🛑 / `needs_input` 🛑 / `stalled` 🟢. Unset means idle. |
 | `@claude_glyph` | The rendered glyph, stored ready to concatenate. |
 | `@claude_since` | Epoch seconds. |
 | `@claude_note` | The pending question or permission message. |
@@ -38,16 +38,24 @@ want. `agent-state.test.sh` asserts that no published glyph contains `U+FE0F`.
 hue is all that resolves, and the only thing worth resolving there is whether it
 is worth going to that tab. So hue groups:
 
-| hue | states | reading |
+| glyph | states | reading |
 | --- | --- | --- |
-| red | 🔺 `asking`, 🛑 `waiting`, 🔴 `needs_input` | blocked on you — go there |
-| green | 🟢 `stalled` | the turn is over, nothing is blocked |
-| none | ▶ `busy` | running; the one state you are *not* meant to look at |
+| 🛑 red | `asking`, `waiting`, `needs_input` | blocked on you — go there |
+| 🟢 green | `stalled` | the turn is over, nothing is blocked |
+| ▶ none | `busy` | running; the one state you are *not* meant to look at |
 
-The three reds keep **distinct shapes**, and that is not decoration: the picker
-prints no state text, so the glyph is the only place a row says what it is, and
-it is what tells you whether `ctrl-o` can answer that row. Hue for the tab bar,
-shape for the picker.
+Shape carries nothing further: **all three blocked states print the same 🛑**.
+Which kind of block it is — a question, a permission prompt, an agent elsewhere
+wanting input — does not change the answer to the only question this indicator
+is asked, and a second visual axis for it only made the first one harder to
+read.
+
+Know the consequence before adding a state: **the glyph is no longer a key.**
+The picker prints no state text, so a row's glyph no longer says whether
+`ctrl-o` can answer it (it can for `asking` and `waiting`, not for
+`needs_input`); that now shows only when the key is refused. The state itself
+still travels in the row's hidden key field, so anything that needs to tell them
+apart reads that, never the rendering.
 
 Both halves of this cost a revision to learn. 🔘 was worn by both `stalled` and
 what is now `needs_input`, so "a worker is blocked on you" and "your turn

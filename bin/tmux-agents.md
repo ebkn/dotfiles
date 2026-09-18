@@ -140,7 +140,7 @@ The shell-side checks are kept behind it as the ones a headless test can reach.
 Remote hosts need no transport of their own for the tab glyph — the same
 dotfiles run there, so the remote tmux's `set-titles` already embeds its glyph
 and it arrives inside the local `#{pane_title}` via OSC 2 (rendering as
-`host:🔺 name`, glyph after the host, since the remote sends one opaque string).
+`host:🛑 name`, glyph after the host, since the remote sends one opaque string).
 
 The cost is that a remote contributes only its client's *active* window. This
 picker sees all remote windows because it queries over ssh, restricted to
