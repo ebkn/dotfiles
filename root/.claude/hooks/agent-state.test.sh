@@ -167,7 +167,7 @@ section "busy"
 run busy
 assert_exit_zero "busy" $?
 assert_opt @claude_state busy
-# The separator is per-glyph, not uniform: 🔶 🛑 🔔 🟢 are emoji-presentation and
+# The separator is per-glyph, not uniform: 🔺 🛑 🔴 🟢 are emoji-presentation and
 # already two cells wide, so only the narrow ▶ carries a trailing space.
 # Pinned exactly, because the title format concatenates it blind.
 assert_opt @claude_glyph '▶ '
@@ -196,7 +196,7 @@ section "notify: a background agent blocked on the human"
 run clear
 run notify "$(notify_json agent_needs_input 'reviewer needs your input')"
 assert_opt @claude_state needs_input
-assert_opt @claude_glyph '🔔'
+assert_opt @claude_glyph '🔴'
 assert_opt @claude_note 'reviewer needs your input'
 
 # ...and it outranks a busy actor, for the same reason `waiting` does: a worker
@@ -208,7 +208,7 @@ run subagent-start "$(agent_json A Explore)"
 run busy "$(agent_json A Explore)"
 run notify "$(notify_json agent_needs_input 'a worker wants you')"
 assert_opt @claude_state needs_input
-assert_opt @claude_glyph '🔔'
+assert_opt @claude_glyph '🔴'
 
 # ...and loses to an actor with a dialog open. Both halves are needed because
 # the new rank was inserted BETWEEN them, and each half alone permits the
@@ -283,7 +283,7 @@ run clear
 run ask '{"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"Which  glyph\nwins?"},{"question":"ignored"}]}}'
 assert_exit_zero "ask" $?
 assert_opt @claude_state asking
-assert_opt @claude_glyph '🔶'
+assert_opt @claude_glyph '🔺'
 # The first question only, whitespace collapsed: @claude_note is read back on a
 # single line by bin/tmux-agents.
 assert_opt @claude_note 'Which glyph wins?'
@@ -305,7 +305,7 @@ run clear
 run ask '{"tool_input":{"questions":[{"question":"keep me"}]}}'
 run notify "$(notify_json permission_prompt 'Claude needs your permission')"
 assert_opt @claude_state asking
-assert_opt @claude_glyph '🔶'
+assert_opt @claude_glyph '🔺'
 assert_opt @claude_note 'keep me'
 
 for from in asking waiting; do
