@@ -115,6 +115,54 @@ wezterm.on('user-var-changed', function(window, _pane, name, value)
   })
 end)
 
+-- Tab colour as the ssh indicator.
+--
+-- tmux's set-titles-string prefixes a remote pane's title with "≫" (see
+-- .tmux.conf). That is correct but nearly invisible: one narrow glyph in a row
+-- of text, marking the one fact worth noticing at a glance -- that everything
+-- typed in this tab lands on another machine. Colour carries it; the marker
+-- does not have to, so it is dropped from the rendered label and replaced by a
+-- word, on the same purple the tmux status bar and pane border use.
+--
+-- Non-ssh tabs return a plain string, which is what the default renderer
+-- produces, so their appearance is unchanged. Returning the string rather than
+-- nil keeps that a decision made here instead of a fallback being relied on.
+local SSH_TAB_MARK = '≫'
+-- Everforest dark hard: purple (#d699b6) on bg_purple (#463f48) for the tab in
+-- front; a dimmed pair for the ones behind, so "which tab am I in" still reads
+-- after "which of these are remote".
+local SSH_TAB_ACTIVE = { bg = '#463f48', fg = '#d699b6' }
+local SSH_TAB_INACTIVE = { bg = '#332c36', fg = '#a88fa3' }
+
+-- What WezTerm itself would show: an explicitly set tab title, else the active
+-- pane's title (which under tmux is set-titles-string).
+local function tab_label(tab)
+  local explicit = tab.tab_title
+  if explicit and #explicit > 0 then
+    return explicit
+  end
+  return tab.active_pane.title or ''
+end
+
+wezterm.on('format-tab-title', function(tab, _tabs, _panes, _config, _hover, max_width)
+  local title = tab_label(tab)
+  if not title:find(SSH_TAB_MARK, 1, true) then
+    return wezterm.truncate_right(title, max_width)
+  end
+  -- Replace with a space, then collapse: the marker can sit behind an agent
+  -- state glyph ("❓≫ main"), and deleting it outright would glue the two
+  -- together.
+  title = title:gsub(SSH_TAB_MARK, ' '):gsub('%s+', ' '):gsub('^ ', ''):gsub(' $', '')
+  local colors = tab.is_active and SSH_TAB_ACTIVE or SSH_TAB_INACTIVE
+  return {
+    { Background = { Color = colors.bg } },
+    { Foreground = { Color = colors.fg } },
+    { Attribute = { Intensity = tab.is_active and 'Bold' or 'Normal' } },
+    { Text = wezterm.truncate_right(' SSH · ' .. title .. ' ', max_width) },
+  }
+end)
+
+
 local keys = {
   { mods = "CTRL", key = "q", action=wezterm.action{ SendString="\x11" } },
   -- Ctrl+T で現在のディレクトリを保持して新しいタブを開く
