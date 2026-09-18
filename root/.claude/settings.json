@@ -533,7 +533,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/agent-state.sh clear",
+            "command": "~/.claude/hooks/agent-state.sh start",
             "timeout": 5
           }
         ]

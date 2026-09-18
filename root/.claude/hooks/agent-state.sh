@@ -39,7 +39,8 @@
 # writes — a single shared file would need locking on the hottest path here.
 #
 # Usage: agent-state.sh <mode>
-#   clear          — drop all state                (SessionStart, SessionEnd)
+#   start          — new session in this pane      (SessionStart)
+#   clear          — drop all state                (SessionEnd)
 #   busy           — working                       (UserPromptSubmit, PostToolBatch)
 #   ask            — read stdin, question          (PreToolUse, matcher AskUserQuestion)
 #   permission     — read stdin, who is asking     (PermissionRequest)
@@ -447,9 +448,46 @@ clear_opts() {
 }
 
 case "$mode" in
+  start)
+    # SessionStart does two things. It drops whatever the previous session in
+    # this pane left behind — a pane outlives the sessions run in it, and this
+    # is the `clear` that used to be registered here.
+    #
+    # And it publishes the join key for `claude agents --json`, which is the
+    # supported way to read a session's live state ("read session state from a
+    # script", agent-view docs) and the only source for the two transitions no
+    # hook reports at all: a permission dialog that was answered, and a turn the
+    # user interrupted. Neither fires anything — measured against 2.1.275, and
+    # the documented event list has no event for either — so a state published
+    # from hooks alone stays 🛑 for the whole of an approved long command, and
+    # stays whatever it was until the next prompt after an interrupt.
+    #
+    # That CLI's rows carry `sessionId` and nothing about tmux, while $TMUX_PANE
+    # is known only in here. The binding is therefore this hook's half of the
+    # answer, and it is why it is a pane option rather than anything cleverer.
+    #
+    # A jq fork is free here: SessionStart runs once per session, unlike the
+    # PostToolBatch path this file is otherwise shaped around.
+    rm -rf "$state_dir" 2>/dev/null || true
+    clear_opts
+    unset_opt @claude_session_id
+    read_stdin
+    [ -n "$json" ] || exit 0
+    # Sanitised rather than trusted: the value is expanded in tmux formats and
+    # compared against CLI output, so anything but the id's own alphabet is
+    # dropped. A payload with no id must leave no binding at all — an empty or
+    # "null" one would match a row that does not exist.
+    session_id=$(printf '%s' "$json" |
+      jq -r '.session_id // "" | gsub("[^A-Za-z0-9_.-]"; "")' 2>/dev/null)
+    [ -n "$session_id" ] && set_opt @claude_session_id "$session_id"
+    ;;
   clear)
     rm -rf "$state_dir" 2>/dev/null || true
     clear_opts
+    # Not part of clear_opts: publish() calls that whenever the last actor goes,
+    # and the binding must outlive any state the session passes through. Only
+    # the session ending unbinds it.
+    unset_opt @claude_session_id
     ;;
   busy)
     # Attribution costs a jq fork, so it is paid only when there is something to

@@ -16,6 +16,7 @@ Consumers are `set-titles-string` in `.tmux.conf` and
 | `@claude_since` | Epoch seconds. |
 | `@claude_note` | The pending question or permission message. |
 | `@claude_agents` | The per-actor listing (see below). |
+| `@claude_session_id` | Which Claude session is in this pane (see below). Unset when no session is. |
 
 Pane options rather than state files, because tmux formats read them directly —
 that is what lets the tab glyph exist with no `#()` subprocess and lets
@@ -124,10 +125,53 @@ could be open.
 An MCP server's `elicitation_dialog` raises no permission request, so it still
 lands on `main` — where such a dialog almost always belongs.
 
+## What hooks cannot see, and the binding that answers it
+
+**No hook fires when a permission prompt is answered, when a dialog is
+dismissed, or when a turn is interrupted.** That is not an oversight here: the
+[documented event list](https://code.claude.com/docs/en/hooks) has no event for
+any of the three, and reading 2.1.275 confirms it — the allow path of the
+permission decision runs telemetry and no hook at all, an interrupt during a
+dialog returns a plain `deny`, and `Stop` is "right before Claude concludes its
+response" while `StopFailure` is an API error.
+
+Three consequences, all measured:
+
+- **🛑 arrives 6 s late, or not at all.** `waiting` rides the `Notification`,
+  which Claude Code arms as `setTimeout(…, 6000)` and *cancels* when the prompt
+  resolves. Measured at +6.018 s and +6.023 s; a prompt answered in 5.68 s
+  published nothing.
+- **🛑 then stays for the whole of the approved command**, because the only
+  thing that clears it is that actor's next `PostToolBatch`, which lands when
+  the tool *finishes*. Measured against a 25 s command: the pane's own state
+  flipped back at the moment of approval, the glyph did not.
+- **An interrupted turn keeps whatever glyph it had** until the next prompt.
+
+The state itself is not missing, only the event: Claude Code tracks
+`status` (`busy` / `waiting` / `idle`) with a `waitingFor` reason, and
+`claude agents --json` is the documented way to read it — the agent-view docs
+name a status bar as the use case, and say in the same breath that the files
+underneath are *not* a stable interface. Measured: 140 ms, no TTY needed, and
+`waiting` / `permission prompt` appears the moment the dialog opens.
+
+**Those rows carry `sessionId` and nothing about tmux; `$TMUX_PANE` is known
+only inside a hook.** `@claude_session_id` is that join, published once per
+session, and it is the whole reason this hook touches `SessionStart` payloads at
+all. It is deliberately not cleared by `clear_opts` — that runs whenever the
+last actor goes — so the binding outlives every state the session passes
+through, and only `SessionEnd` unbinds it.
+
+A session that was already running when this landed has no binding, because
+`SessionStart` has come and gone for it — its settings were read at launch and
+still say `clear`. **A consumer must therefore treat a pane with no
+`@claude_session_id` as "unknown", never as "not a Claude pane"**, and fall back
+to the published state for it. The bindings appear as sessions restart.
+
 ## Registration
 
-Registered on `SessionStart`/`SessionEnd` (clear), `UserPromptSubmit` /
-`PostToolBatch` (busy), `PreToolUse` with matcher `AskUserQuestion` (asking),
+Registered on `SessionStart` (`start`: clear, then bind), `SessionEnd`
+(`clear`), `UserPromptSubmit` / `PostToolBatch` (busy),
+`PreToolUse` with matcher `AskUserQuestion` (asking),
 `PermissionRequest` (attribution only, publishes nothing), `Notification`
 (waiting / stalled), `Stop` (stalled), and `SubagentStart`/`SubagentStop`
 (register / forget an actor).
@@ -285,6 +329,11 @@ skips** without them.
   load — a probabilistic red is not a guard. The deterministic sibling clears the
   pane options behind the hook's back, which reaches the same end state as the
   interleaving, and asserts a registered blocked actor reappears.
+- **The session binding** — the case that matters is not that `start` publishes
+  the id, it is that a `subagent-stop` which empties the pane does **not** take
+  the id with it. `clear_opts` unsets four options and must keep ignoring the
+  fifth; getting that wrong leaves the join key missing exactly while a session
+  is running, and nothing else in this suite would notice.
 - **Cost** — three cases assert cost rather than output: no JSON parsing on the
   busy path while the pane has one actor, one jq pass once a subagent is
   registered, no tmux round trip when nothing a consumer can see has changed.

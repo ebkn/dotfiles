@@ -379,6 +379,69 @@ for opt in @claude_state @claude_glyph @claude_since @claude_note; do
   assert_opt "$opt" ''
 done
 
+section "start: binds the pane to the session id"
+# `claude agents --json` is the supported way to read a session's live state
+# ("read session state from a script", agent-view docs), and it is the only
+# source for the two transitions no hook reports at all: a permission dialog
+# that was answered, and an interrupted turn. Its rows carry `sessionId` and say
+# nothing about tmux, while only a hook knows $TMUX_PANE -- so SessionStart
+# publishes the join key that connects the two.
+run start "$(jq -cn '{hook_event_name:"SessionStart", session_id:"abc-123"}')"
+assert_exit_zero "start" $?
+assert_opt @claude_session_id abc-123
+
+# The pane outlives the session in it, so start must still drop what the
+# previous session left there -- that is what SessionStart did before.
+run notify "$(notify_json permission_prompt 'left over')"
+run start "$(jq -cn '{session_id:"def-456"}')"
+assert_opt @claude_state ''
+assert_opt @claude_note ''
+assert_opt @claude_session_id def-456
+
+# start clears the records too, not just the options. A subagent the previous
+# session left registered here would otherwise come back on the next publish and
+# outrank the new session's own state -- busy masking a blocked pane, which is
+# the bug the per-actor records were introduced to fix in the first place.
+# Matched on the agent *type*, not the id: the id names the record file and
+# never appears in @claude_agents, so a check for it would pass whether or not
+# the record survived -- which is what the first version of this case did.
+run subagent-start "$(agent_json GHOST GhostActor)"
+run start "$(jq -cn '{session_id:"def-456"}')"
+run busy
+if [[ "$(get_opt @claude_agents)" == *GhostActor* ]]; then
+  bad "a previous session's actor survived start"
+else
+  ok "start drops the previous session's actor records"
+fi
+
+# The id reaches a tmux format and is compared against `claude agents --json`
+# output, so it is sanitised rather than trusted. Dropping the gsub is invisible
+# to every other assertion here.
+run start "$(jq -cn '{session_id:"a b;$(id)-9"}')"
+assert_opt @claude_session_id 'abid-9'
+
+run start "$(jq -cn '{session_id:"def-456"}')"
+
+# The regression that would break the join silently: publish() clears the state
+# options whenever the last actor goes, and the binding must survive that. It
+# belongs to the session, not to any state the session happens to be in.
+run subagent-start "$(agent_json A Explore)"
+run subagent-stop "$(agent_json A Explore)"
+assert_opt @claude_state ''
+assert_opt @claude_session_id def-456
+
+# SessionEnd is the only thing that unbinds it.
+run clear
+assert_opt @claude_session_id ''
+
+# No id in the payload must leave no binding, rather than an empty or literal
+# "null" one that a consumer would match against a row that does not exist.
+run start "$(jq -cn '{hook_event_name:"SessionStart"}')"
+assert_opt @claude_session_id ''
+run start 'not json at all'
+assert_exit_zero "start with malformed stdin" $?
+assert_opt @claude_session_id ''
+
 section "unknown mode / no mode"
 run busy
 run bogus_mode
