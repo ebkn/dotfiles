@@ -39,7 +39,8 @@
 # writes — a single shared file would need locking on the hottest path here.
 #
 # Usage: agent-state.sh <mode>
-#   clear          — drop all state                (SessionStart, SessionEnd)
+#   clear          — drop all state; a resumed start then publishes `stalled`
+#                                                   (SessionStart, SessionEnd)
 #   busy           — working                       (UserPromptSubmit, PostToolBatch)
 #   ask            — read stdin, question          (PreToolUse, matcher AskUserQuestion)
 #   permission     — read stdin, who is asking     (PermissionRequest)
@@ -480,6 +481,40 @@ case "$mode" in
   clear)
     rm -rf "$state_dir" 2>/dev/null || true
     clear_opts
+    # A RESUMED session starts out stalled, not blank. `claude --continue` opens
+    # a conversation that already has a finished turn in it and whose next move
+    # is yours -- which is exactly what `stalled` means -- so the pane should
+    # say so from the moment it opens. Before this, a resumed session was
+    # indistinguishable from an empty pane until you typed something, which is
+    # the wrong way round: the sessions worth finding again are precisely the
+    # ones you left in the middle of something.
+    #
+    # Only `resume`. The other sources are not this:
+    #   startup — a new conversation; there is nothing to have left unread.
+    #   clear   — /clear, same thing.
+    #   compact — fires MID-TURN after auto-compaction, while the agent is
+    #             still working. Publishing here would paint 🟢 over a busy
+    #             session, and the next PostToolBatch would take it back, so
+    #             the only trace would be a flicker.
+    #   fork    — arguably the same case as resume; left out until it is
+    #             actually wanted, since it is one word to add here.
+    #
+    # The field is read with jq rather than matched in the string, and the
+    # reason is not style: SessionEnd ALSO carries the literal "resume", as its
+    # `reason` when the session ends because one was resumed elsewhere. A
+    # `case "$json" in *resume*)` would therefore publish `stalled` onto a pane
+    # whose session just ended. `.source` is a different key, and only
+    # SessionStart has one. The fork is affordable because this runs once per
+    # session, unlike the `busy` path this file otherwise bends around.
+    read_stdin
+    [ -n "$json" ] || exit 0
+    # Not named `source`: that is a shell builtin, and a variable shadowing one
+    # reads as a call at a glance even where it is legal.
+    start_source=$(printf '%s' "$json" | jq -r '.source // ""' 2>/dev/null)
+    if [ "$start_source" = resume ]; then
+      record stalled
+      publish
+    fi
     ;;
   busy)
     # Attribution costs a jq fork, so it is paid only when there is something to

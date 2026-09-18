@@ -152,7 +152,7 @@ lands on `main` — where such a dialog almost always belongs.
 
 ## Registration
 
-Registered on `SessionStart`/`SessionEnd` (clear), `UserPromptSubmit` /
+Registered on `SessionStart`/`SessionEnd` (clear — see below), `UserPromptSubmit` /
 `PostToolBatch` (busy), `PreToolUse` with matcher `AskUserQuestion` (asking),
 `PermissionRequest` (attribution only, publishes nothing), `Notification`
 (waiting / needs_input), `Stop` (stalled), and `SubagentStart`/`SubagentStop`
@@ -162,6 +162,29 @@ Modes name the transition and states name what is published, so they need not
 match: the `done` argv mode is the Stop transition and publishes `stalled`,
 which also spares `settings.json` a lockstep edit.
 
+### A resumed session opens `stalled`
+
+`claude --continue` reopens a conversation that already holds a finished turn
+whose next move is yours, so the pane says so from the moment it opens.
+Previously a resumed session was indistinguishable from an empty shell until you
+typed — the wrong way round, since the sessions worth finding again are exactly
+the ones you left in the middle of something.
+
+It keys on `SessionStart`'s `.source`, and **only `resume`**. `startup` and
+`clear` are new conversations with nothing to have left unread. `compact` fires
+**mid-turn** after auto-compaction while the agent is still working, so
+publishing there would paint 🟢 over a busy session and the next `PostToolBatch`
+would take it straight back — a flicker and nothing more. `fork` is arguably the
+same case as `resume` and is left out only until it is wanted; it is one word.
+
+**The field is read with `jq`, not matched in the string, and that is not
+style.** `SessionEnd` also carries the literal `resume` — as its `reason`, when
+the session ends because one was resumed elsewhere — so `case "$json" in
+*resume*)` would light up a pane whose session had just *ended*. `.source` is a
+different key and only `SessionStart` has one. This is the one `clear`
+invocation per session, so the fork it costs is affordable where the `busy` path
+would never allow it.
+
 ## Cost
 
 It takes the transition as an **argv mode**, not from the stdin JSON's
@@ -169,8 +192,9 @@ It takes the transition as an **argv mode**, not from the stdin JSON's
 fires once per tool batch and exists solely to clear `waiting`/`asking` back to
 `busy` once a prompt is answered, so it must stay cheap.
 
-It reads stdin only while a subagent is actually registered on the pane — with
-one actor there is nothing to attribute — and when it does, it attributes with
+It reads stdin on the hot paths only while a subagent is actually registered on
+the pane — with one actor there is nothing to attribute — and when it does, it
+attributes with
 **jq, never a shell regex over the raw payload**: `PostToolBatch` carries the
 *content* of every tool result in the batch, so a file the agent just read can
 contain the text `"agent_id"` and would silently file the main thread's state
