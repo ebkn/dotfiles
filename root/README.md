@@ -76,26 +76,47 @@ Run `root/.claude/hooks/curl-guard.test.sh` after touching it.
 
 ## Destructive filesystem permissions
 
-`Bash(rm *)` stays in `permissions.ask`; `cp` and `mv` are deliberately not
-there.
+`rm`, `cp` and `mv` are **not** in `permissions.ask`. `deny` holds the
+catastrophic literals (`rm -rf /`, `~`, `/*`, `--no-preserve-root`,
+`sudo rm *`, `rm -rf .git`) plus an `rm` mirror of every path the `Edit` rules
+deny — the system trees (`/etc`, `/usr`, `/var`, `/opt`, `/bin`, `/sbin`,
+`/lib`, `/lib64`, `/boot`, `/proc`, `/sys`, `/dev`) and the ssh private keys.
+Anything else is left to the auto-mode classifier.
 
-An `ask` rule is [evaluated before the auto-mode classifier and can never be
+**The `rm` mirror is a tripwire, not a boundary.** `Edit(/etc/**)` is matched
+against a resolved file path; `Bash(rm …)` is matched against the **raw command
+string**, so `rm /etc/../etc/passwd`, a variable, or a `cd /etc` beforehand all
+walk past it. Each path therefore needs two patterns — `Bash(rm /etc*)` for the
+bare form and `Bash(rm * /etc*)` for anything with a flag or an earlier operand —
+and even then it only catches the spelling a model would actually write by
+accident. Path-level denial requires a permissions profile
+(`[permissions.<name>.filesystem]`), the same limitation recorded for `cat .env`
+below. Do not read the mirror as making these paths unreachable.
+
+`Bash(rm *)` was in `ask` until it was removed deliberately. The reasoning that
+put it there: an `ask` rule is [evaluated before the auto-mode classifier and can
+never be
 auto-approved](https://code.claude.com/docs/en/auto-mode-config#add-a-human-checkpoint),
-so listing a command there disables the classifier's far better-informed
-judgement for it — worth it only where a false negative is unrecoverable. That is
-`rm` (git-untracked files: `.env`, local DBs, `./tmp/` working data), not
-`cp`/`mv`, whose worst case is a recoverable clobber.
+which is worth disabling the classifier's far better-informed judgement for only
+where a false negative is unrecoverable — and `rm` of a git-untracked file
+(`.env`, a local DB, `./tmp/` working data) is exactly that. The reasoning that
+took it out: it fired on **every** `rm`, and the hook below could only ever
+recover 28% of them, so the checkpoint was mostly friction rather than review.
 
-The rule is also load-bearing outside auto mode: `default` mode prompts for these
-anyway, but [`acceptEdits` auto-approves `rm`/`cp`/`mv` inside the working
-directory with no classifier at
+**Know what that trades away.** `default` mode still prompts for an `rm` the
+classifier does not approve, but [`acceptEdits` auto-approves `rm`/`cp`/`mv`
+inside the working directory with no classifier at
 all](https://code.claude.com/docs/en/permission-modes#auto-approve-file-edits-with-acceptedits-mode),
-and `bypassPermissions` skips everything except `ask` rules — so this line is the
-only gate on `rm` in those modes.
+and `bypassPermissions` skips everything except `ask` rules. That line was the
+only gate on `rm` in those two modes, so in them there is now **nothing** between
+a model mistake and an unrecoverable delete beyond the `deny` literals. Restoring
+the rule is a one-line revert if that turns out to bite.
 
 **Do not carve out exceptions with allow globs like `Bash(rm ./tmp/*)`:**
 patterns match the raw string, so that also matches `rm ./tmp/../../important` —
-the same fragility documented for curl above. Scratch-dir cleanup is instead
+the same fragility documented for curl above. That holds whether or not an `ask`
+rule is present, because an `allow` glob would over-approve in `default` mode
+too. Scratch-dir cleanup is instead
 auto-approved by `root/.claude/hooks/rm-guard.sh`, which parses the argv and
 resolves each operand's *parent* physically (`cd -P`), so a symlinked ancestor
 cannot smuggle the target elsewhere. The final component stays unresolved on
@@ -107,9 +128,12 @@ files, removable whole) and anything strictly under `/tmp/claude-<uid>/` (Claude
 Code's per-session scratchpad tree — never the tree root, which holds every
 session's).
 
-Like `curl-guard.sh` the hook only ever emits `allow`, so **removing the `ask`
-rule silently downgrades every deferral to the auto-mode classifier.** A glob, a
-redirection, a shell expansion, an unknown flag or a non-`rm` segment all defer.
+Like `curl-guard.sh` the hook only ever emits `allow`. A glob, a redirection, a
+shell expansion, an unknown flag or a non-`rm` segment all defer — and with the
+`ask` rule gone, **a deferral now lands on the auto-mode classifier rather than
+on a prompt.** The hook is kept anyway: it is the only thing that keeps scratch
+cleanup prompt-free in `default` mode, and in auto mode it decides those calls
+outright instead of paying for a classifier round-trip whose answer could vary.
 
 **It deliberately does not cover compound commands.** A hook `allow` approves the
 whole tool call, so `rm -rf tmp; git status --short` would approve the second

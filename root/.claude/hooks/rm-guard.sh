@@ -1,13 +1,13 @@
 #!/bin/bash
 # Auto-approve `rm` invocations that provably stay inside a disposable scratch
-# directory, letting them skip the blanket `Bash(rm *)` ask rule.
+# directory, so they are decided here rather than by a prompt or a classifier.
 #
-# Why the ask rule exists at all: an `ask` rule is evaluated before the auto-mode
-# classifier and can never be auto-approved, and it is the only gate on `rm`
-# under acceptEdits and bypassPermissions. `rm`'s false negative -- a deleted
-# git-untracked file (.env, a local DB, working data) -- is unrecoverable, which
-# is why it is worth disabling the classifier's better-informed judgement for.
-# See root/README.md "Destructive filesystem permissions".
+# There is no longer a blanket `Bash(rm *)` ask rule -- it was removed because it
+# fired on every `rm` while this hook could only ever cover ~28% of them. So this
+# hook is what keeps scratch cleanup prompt-free in `default` mode, and in auto
+# mode it settles those calls outright instead of paying for a classifier
+# round-trip. See root/README.md "Destructive filesystem permissions" for what
+# removing the ask rule traded away.
 #
 # Why a hook instead of an allow glob like `Bash(rm ./tmp/*)`: permission
 # patterns match the raw command string and do no path resolution, so that
@@ -19,8 +19,9 @@
 # Fail-closed by design, exactly like curl-guard.sh: this hook only ever emits
 # "allow". Anything it cannot fully verify -- a glob, a redirection, a shell
 # expansion, an unknown flag, a path outside the roots, a non-rm segment --
-# emits no decision and leaves `Bash(rm *)` to prompt as it does today. A bug
-# here therefore degrades to "you get asked", never to "it runs".
+# emits no decision and leaves the call to the normal permission path (the `deny`
+# literals, then the classifier). A bug here therefore degrades to "the usual
+# gates decide", never to "it runs".
 #
 # Measured scope (see root/README.md): roughly a quarter of `rm` calls are a
 # lone scratch-dir cleanup and are covered here. The rest are compound commands
@@ -135,7 +136,7 @@ segment_is_safe() {
     if ((i == 0)); then
       # The bare word only. A path-qualified `/bin/rm` never reaches here (the
       # engage regex above excludes a leading `/`), and it does not need to:
-      # `Bash(rm *)` does not match it either, so it was never deferred to us.
+      # such a call goes to the classifier and never depended on this hook.
       [[ "$tok" == "rm" ]] || return 1
       saw_rm=1
       ((i++))
