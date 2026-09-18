@@ -292,7 +292,7 @@ glyph_of() {
   # @claude_glyph is stored ready to concatenate — separator included — so a
   # format can prepend it unconditionally and an unset option then contributes
   # nothing at all. The separator is per-glyph rather than appended by the
-  # caller: 🔶 🛑 🔔 🟢 carry emoji presentation and already occupy two terminal
+  # caller: 🔺 🛑 🔴 🟢 carry emoji presentation and already occupy two terminal
   # cells, so a space after them reads as a gap, while the narrow ▶ (U+25B6,
   # East Asian Ambiguous, one cell) needs one.
   #
@@ -300,19 +300,27 @@ glyph_of() {
   # character promoted with VS16 (U+FE0F). Terminals and tmux disagree on
   # whether such a sequence is one cell or two, and being wrong shifts the tab
   # title and knocks bin/tmux-agents' columns out of line with no error at all.
-  # ⚠️ (U+26A0 U+FE0F) was tried here and did visibly misalign, which is why
-  # asking is the orange diamond and not the warning sign it wants to be.
+  # ⚠️ (U+26A0 U+FE0F) was tried for asking and did visibly misalign, which is
+  # why the set is built from single-codepoint shapes rather than from the signs
+  # these states would otherwise want.
   #
-  # Hue is what the tab bar actually resolves at that size, so no two states
-  # that mean different things may share one. ▶ is the exception and stays
-  # deliberately hueless: a running session is the one state you are not meant
-  # to look at. 🔘 was previously worn by both `stalled` and what is now
-  # `needs_input`, and being grey it also read as the same thing as ▶ —
-  # two collisions in one glyph.
+  # Hue is what the tab bar resolves at that size, and it carries exactly one
+  # question: is it worth going there. So hue groups the states by that answer
+  # rather than naming them —
+  #   red    — blocked on you, go there
+  #   green  — the turn is over, nothing is blocked
+  #   none   — running; the one state you are not meant to look at (▶)
+  # and the three red states keep distinct SHAPES. That is not decoration: the
+  # picker prints no state text, so the glyph is the only place a row says what
+  # it is, and it is what tells you whether ctrl-o can answer that row.
+  #
+  # Giving different meanings one colour is the mistake this replaced — 🔘 was
+  # worn by both `stalled` and what is now `needs_input`, and being grey it read
+  # as ▶ besides. Giving one meaning one colour is the opposite move.
   case "$1" in
-    asking) printf '🔶' ;;
+    asking) printf '🔺' ;;
     waiting) printf '🛑' ;;
-    needs_input) printf '🔔' ;;
+    needs_input) printf '🔴' ;;
     busy) printf '▶ ' ;;
     stalled) printf '🟢' ;;
   esac
@@ -541,7 +549,7 @@ case "$mode" in
     #
     # The split is by how loudly the pane should shout:
     #   waiting (🛑)     — a modal is open; nothing moves until it is answered.
-    #   needs_input (🔔) — a background agent is blocked on you somewhere else.
+    #   needs_input (🔴) — a background agent is blocked on you somewhere else.
     #   stalled (🟢)     — the turn is over and the next move is the human's.
     #
     # `idle_prompt` is deliberately absent from both lists. It fires 60s after a

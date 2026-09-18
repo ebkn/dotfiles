@@ -284,9 +284,9 @@ list=$(
       # Same per-glyph spacing rule as agent-state.sh: the emoji ones are
       # already two cells wide, the narrow ▶ is padded to two, so the
       # columns after the glyph line up across rows.
-      glyph = (st == "asking")      ? "🔶" \
+      glyph = (st == "asking")      ? "🔺" \
             : (st == "waiting")     ? "🛑" \
-            : (st == "needs_input") ? "🔔" \
+            : (st == "needs_input") ? "🔴" \
             : (st == "busy")        ? "▶ " : "🟢"
       where = ($1 == "") ? "local" : $1
       # The label is bracketed with ASCII, not set off with a nicer glyph:

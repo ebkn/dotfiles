@@ -11,7 +11,7 @@ Consumers are `set-titles-string` in `.tmux.conf` and
 
 | Option | Meaning |
 | --- | --- |
-| `@claude_state` | `busy` ▶ / `asking` 🔶 / `waiting` 🛑 / `needs_input` 🔔 / `stalled` 🟢. Unset means idle. |
+| `@claude_state` | `busy` ▶ / `asking` 🔺 / `waiting` 🛑 / `needs_input` 🔴 / `stalled` 🟢. Unset means idle. |
 | `@claude_glyph` | The rendered glyph, stored ready to concatenate. |
 | `@claude_since` | Epoch seconds. |
 | `@claude_note` | The pending question or permission message. |
@@ -30,22 +30,30 @@ aligned.
 **Every glyph must carry `Emoji_Presentation=Yes` on its own**, never a base
 character promoted with VS16 `U+FE0F`, because terminals and tmux disagree on
 whether such a sequence is one cell or two. `⚠️` was tried for `asking` and
-visibly misaligned the tab title, which is the only reason `asking` is an orange
-diamond rather than the warning sign it wants to be. `agent-state.test.sh`
-asserts that no published glyph contains `U+FE0F`.
+visibly misaligned the tab title, which is why the set is built from
+single-codepoint shapes rather than from the signs these states would otherwise
+want. `agent-state.test.sh` asserts that no published glyph contains `U+FE0F`.
 
-The split is by how loudly the pane should shout: 🛑 a modal is open and nothing
-moves, 🔔 a background agent is blocked on you somewhere else, 🟢 the turn is over
-and the next move is yours.
+**Hue answers one question, and it is not "which state is this".** At tab size
+hue is all that resolves, and the only thing worth resolving there is whether it
+is worth going to that tab. So hue groups:
 
-**No two states that mean different things may share a hue**, because hue is all
-that resolves at tab size. ▶ is the deliberate exception and stays hueless: a
-running session is the one state you are *not* meant to look at. This cost a
-revision to learn — 🔘 was worn by both `stalled` and what is now `needs_input`,
-so "a worker is blocked on you" and "your turn finished" rendered identically,
-and being grey it also read as the same thing as ▶. One glyph, two collisions.
-Splitting `needs_input` out of `stalled` is what made the recolour possible;
-recolouring alone would only have given the two meanings a new shared colour.
+| hue | states | reading |
+| --- | --- | --- |
+| red | 🔺 `asking`, 🛑 `waiting`, 🔴 `needs_input` | blocked on you — go there |
+| green | 🟢 `stalled` | the turn is over, nothing is blocked |
+| none | ▶ `busy` | running; the one state you are *not* meant to look at |
+
+The three reds keep **distinct shapes**, and that is not decoration: the picker
+prints no state text, so the glyph is the only place a row says what it is, and
+it is what tells you whether `ctrl-o` can answer that row. Hue for the tab bar,
+shape for the picker.
+
+Both halves of this cost a revision to learn. 🔘 was worn by both `stalled` and
+what is now `needs_input`, so "a worker is blocked on you" and "your turn
+finished" rendered identically — and being grey it read as ▶ besides. Giving
+different meanings one colour is the mistake; giving one meaning one colour is
+the opposite move.
 
 ## One pane holds several actors
 

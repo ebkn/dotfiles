@@ -89,7 +89,8 @@ size and looks like a bug.
 The border says "popup" but not how to leave, and no key for that is guessable.
 `status on`, `status-position bottom` (the global is `top`, so this must be
 explicit or the hint lands above the pane and reads as a title), Everforest
-orange to match the picker's 🔶, and a **literal** `status-format[0]` — literal
+orange — deliberately not the red the blocked states share, since the footer is
+a hint and not an alarm — and a **literal** `status-format[0]` — literal
 so the bar costs no `#()` fork and never redraws on `status-interval`.
 
 ## A popup cannot grow, and a second cannot be stacked

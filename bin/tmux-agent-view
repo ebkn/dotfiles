@@ -43,8 +43,10 @@ LIST_HEIGHT=60%
 VIEW_WIDTH=90%
 VIEW_HEIGHT=85%
 
-# Everforest orange, the colour the picker gives 🔶 asking. Used for both the
-# border and the footer so the view is recognisable at a glance.
+# Everforest orange. Deliberately NOT the red the blocked states now share: the
+# footer is a "how to leave" hint, and in red it reads as an alarm about the
+# session rather than as chrome. Used for both the border and the footer so the
+# view is recognisable at a glance.
 ACCENT='#e69875'
 
 mode=${1:-}
