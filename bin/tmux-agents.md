@@ -51,6 +51,71 @@ variable.
 rule** to keep its columns aligned: emoji-presentation glyphs already occupy two
 cells, while the narrow `▶` needs a trailing space.
 
+## The list corrects itself, because the hooks cannot
+
+**Three transitions have no hook at all**: a permission prompt being answered, a
+dialog being dismissed, and a turn being interrupted. The
+[documented event list](https://code.claude.com/docs/en/hooks) contains none of
+them, and reading 2.1.275 confirms it. So the pane options this picker reads go
+stale in exactly the situations it exists to show — measured, 🛑 arrives 6s after
+the dialog (a `setTimeout` the app cancels if you answer sooner), then stays for
+the entire run of the command you approved. See
+[agent-state.md](../root/.claude/hooks/agent-state.md).
+
+`claude agents --json` is the documented way to read the live answer: the
+[agent-view docs](https://code.claude.com/docs/en/agent-view) name a status bar
+as the use case, and say in the same breath that the files underneath are not a
+stable interface. It costs ~140ms and returns `status` (`busy` / `waiting` /
+`idle`) with a `waitingFor` reason.
+
+**It says nothing about tmux**, which is why `agent-state.sh` publishes
+`@claude_session_id` on the pane: the hook is the only thing that knows
+`$TMUX_PANE`, and the CLI is the only thing that knows the state. The join is
+the whole mechanism.
+
+The split follows from the latency budget: the first list is drawn from the pane
+options alone, as before, and the correction arrives with the first refresh a
+moment later. `--rows` is that corrected render, re-entered by fzf.
+
+What the merge does, and does not, do:
+
+- **Only the blocked/not-blocked disagreement is acted on.** When the two agree,
+  the hook data is kept whole — its note names the tool (`Bash: rm -rf …`) and
+  its per-actor listing names *which subagent* is blocked, and the CLI knows
+  neither.
+- **A contradicted per-actor listing is dropped**, not re-rendered: it is
+  derived from the same records that were just contradicted, so keeping it would
+  put the stale rows straight back and the correction would be invisible.
+- **An unrecognised status is left alone.** The vocabulary belongs to the CLI; a
+  `shell` status turned up while this was written, and mapping an unknown one
+  onto a glyph invents a state.
+- **Only local rows are corrected.** A remote pane's session is known to the
+  remote machine, and asking it would be an ssh round trip per refresh.
+- **Every failure degrades to the uncorrected rows** — a missing CLI, a rename,
+  malformed JSON. An indicator that disappears when a CLI changes is worse than
+  one that is late.
+- **The age of a corrected row means "since this was last confirmed"**, not
+  "since the state was entered": the CLI publishes no timestamp for its status,
+  and keeping the hook's would date a state it disagrees with.
+
+## Refreshing while it is open
+
+`start` corrects the first list as soon as the picker is up; `load` fires again
+after every reload, which is what makes it a loop, with the wait supplied by a
+`sleep` at the head of the reload command. `REFRESH` is a comfort/cost dial — the
+list is correct the moment it is drawn either way.
+
+**The sleep must be inside the reload command, never in a `transform`.** A
+transform runs synchronously, so a version that slept there froze the picker for
+`REFRESH` seconds at a time and swallowed keystrokes; it looked like an `enter`
+that did nothing. The pty cases in the test caught it.
+
+`reload-sync`, so the list is replaced only when the new one is complete and
+never blinks empty. **The cursor needs no help**: measured against fzf 0.74 it
+stays on the same row index across a `reload-sync`, so there is no `pos()` dance
+here — and if that ever changes, a list that jumps to the top every `REFRESH`
+seconds cannot be navigated, which is the symptom to look for.
+
 ## Jumping to a tab
 
 `enter` raises the agent's WezTerm tab. Two things make that harder than it
@@ -195,6 +260,16 @@ running older dotfiles — must still render from the aggregate, so both paths a
 exercised in one run. One remote pane carries a listing too, which is the only
 place those control-character separators cross an ssh transport and a remote
 tmux's own format expansion.
+
+**Correction cases** drive `--rows` directly, with a stub `claude` — the real one
+would answer about the sessions the developer has open, which are not the
+fixtures. They pin both directions of the disagreement (a stale 🛑 becoming ▶, a
+dialog the hooks have not reported yet becoming 🛑), that a contradicted listing
+is dropped rather than re-rendered, and the three cases where nothing may
+change: an unrecognised status, a pane with no `@claude_session_id`, and a CLI
+that fails. Each was confirmed against a mutated script — with the join
+disabled, the first three fail and the last three still pass, which is what
+tells them apart from a case that would pass either way.
 
 Assertions that look subtler than they are:
 

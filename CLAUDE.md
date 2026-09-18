@@ -137,7 +137,7 @@ the measurement and the reason live.
 Each entry names the doc to read first.
 
 - **Agent state indicator** — which Claude session is blocked, published as tmux pane user options (`@claude_state` and friends), kept per actor because hooks fire inside subagents too. Producer: `root/.claude/hooks/agent-state.sh`; consumers: `set-titles-string` in `.tmux.conf` and `bin/tmux-agents`. → [root/.claude/hooks/agent-state.md](root/.claude/hooks/agent-state.md)
-- **Agent picker** (`prefix + a`) — list every session by state and jump to its WezTerm tab. **Latency-critical: the cost is process count, not work.** → [bin/tmux-agents.md](bin/tmux-agents.md)
+- **Agent picker** (`prefix + a`) — list every session by state and jump to its WezTerm tab. **Latency-critical: the cost is process count, not work**, so the first list comes from the pane options alone; it then refreshes itself, correcting against `claude agents --json` — the three transitions no hook reports. → [bin/tmux-agents.md](bin/tmux-agents.md)
 - **Answering a blocked agent** (`ctrl-o` in the picker, `C-]` to leave) — mirrors the agent's window in a popup so a dialog can be answered in place. → [bin/tmux-agent-view.md](bin/tmux-agent-view.md)
 - **tmux popups** (`prefix + p` shell, `t` tig, `o` fzf→nvim) — each opens a real session named `_<name>_<id>`; the leading `_` is the guard that stops a popup opening inside a popup. → [bin/tmux-popup.md](bin/tmux-popup.md)
 - **Key-binding cheatsheet** (`prefix + ?`) — derived from `tmux list-keys -N`, so adding `-N "<category>: <description>"` to a `bind` line is what documents it. A binding without a note is invisible here, deliberately. → [bin/tmux-cheatsheet.md](bin/tmux-cheatsheet.md)

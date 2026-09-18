@@ -344,6 +344,136 @@ fi
 # Back to the aggregate-only fixture: the remote and empty cases below assume it.
 tmux -L "$socket" kill-window -t work:multi-win 2>/dev/null
 
+# --- corrected against the session's own view ---------------------------------
+
+# The pane options are transitions reported by hooks, and three transitions have
+# no hook at all: a permission prompt being answered, a dialog being dismissed,
+# and a turn being interrupted. So the options go stale in exactly the cases
+# this list exists to show, and `tmux-agents --rows` -- what the picker reloads
+# itself from -- merges in what `claude agents --json` says.
+#
+# These drive that mode directly. It runs the same render as the picker, so what
+# it prints is what a refreshed picker shows, and the fzf stub is not involved.
+
+# A stub `claude`, because the real one would answer about the sessions this
+# developer has open, which are not the fixtures.
+stub_claude() { # $1 json array, or "fail" for a CLI that cannot answer
+  if [ "$1" = fail ]; then
+    printf '#!/bin/sh\nexit 1\n' >"$work/stub/claude"
+  else
+    {
+      printf '#!/bin/sh\n'
+      printf "cat <<'JSON'\n%s\nJSON\n" "$1"
+    } >"$work/stub/claude"
+  fi
+  chmod +x "$work/stub/claude"
+}
+
+add_bound_pane() { # $1 window name, $2 state, $3 note, $4 session id
+  local pane
+  tmux -L "$socket" new-window -t work -n "$1" "$IDLE"
+  pane=$(tmux -L "$socket" list-panes -t "work:$1" -F '#{pane_id}' | head -1)
+  tmux -L "$socket" set-option -p -t "$pane" @claude_state "$2"
+  tmux -L "$socket" set-option -p -t "$pane" @claude_since "$now"
+  [ -n "$3" ] && tmux -L "$socket" set-option -p -t "$pane" @claude_note "$3"
+  [ -n "$4" ] && tmux -L "$socket" set-option -p -t "$pane" @claude_session_id "$4"
+}
+
+# corr-stale also carries a per-actor listing, because that is the path that
+# would otherwise put the stale rows straight back: the listing is derived from
+# the same records the CLI has just contradicted.
+add_bound_pane corr-stale waiting "needs permission" sid-stale
+stale_pane=$(tmux -L "$socket" list-panes -t work:corr-stale -F '#{pane_id}' | head -1)
+tmux -L "$socket" set-option -p -t "$stale_pane" @claude_agents \
+  "waiting${US}${now}${US}Explore${US}needs permission${RS}busy${US}${now}${US}${US}${RS}"
+add_bound_pane corr-late busy "" sid-late
+add_bound_pane corr-unknown waiting "needs permission" sid-unknown
+add_bound_pane corr-nobind waiting "needs permission" ""
+# A binding whose session the CLI does not list: the session ended while the
+# pane stayed open. Absence is not evidence that it is unblocked.
+add_bound_pane corr-gone waiting "needs permission" sid-gone
+
+run_rows() {
+  rm -f "$work/rows"
+  tmux -L "$socket" run-shell \
+    "cd $PWD && PATH=$work/stub:$PWD/bin:\$PATH tmux-agents --rows >$work/rows 2>$work/rows.err"
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    [ -s "$work/rows" ] && return 0
+    sleep 0.2
+  done
+  return 1
+}
+
+row_of() { grep -F "$1" "$work/rows" | head -1 | cut -f2-; }
+rows_for() { grep -cF "$1" "$work/rows"; }
+
+stub_claude '[{"sessionId":"sid-stale","status":"busy"},
+              {"sessionId":"sid-late","status":"waiting","waitingFor":"permission prompt"},
+              {"sessionId":"sid-unknown","status":"shell"}]'
+
+if ! run_rows; then
+  fail "--rows produces a list" "stderr: $(cat "$work/rows.err" 2>/dev/null)"
+else
+  # The reported symptom: approving a long command leaves 🛑 up for as long as
+  # the command runs, because the only hook that would clear it fires when the
+  # tool finishes.
+  case "$(row_of corr-stale)" in
+    '▶ '*) pass "a session the CLI calls busy loses its stale 🛑" ;;
+    *) fail "a session the CLI calls busy loses its stale 🛑" "row: $(row_of corr-stale)" ;;
+  esac
+  if [ "$(rows_for corr-stale)" = 1 ]; then
+    pass "the contradicted per-actor listing is dropped, not re-rendered"
+  else
+    fail "the contradicted per-actor listing is dropped, not re-rendered" \
+      "$(rows_for corr-stale) rows for one pane"
+  fi
+
+  # The other direction: the Notification that publishes 🛑 is 6s behind the
+  # dialog, and the CLI is not.
+  case "$(row_of corr-late)" in
+    '🛑'*'permission prompt'*) pass "a dialog the hooks have not reported yet shows as blocked" ;;
+    *) fail "a dialog the hooks have not reported yet shows as blocked" "row: $(row_of corr-late)" ;;
+  esac
+
+  # A status this script has never heard of is left alone rather than guessed
+  # at. The vocabulary belongs to the CLI: a "shell" status turned up while this
+  # was written, and mapping an unknown one onto a glyph would invent a state.
+  case "$(row_of corr-unknown)" in
+    '🛑'*) pass "an unrecognised status leaves the row alone" ;;
+    *) fail "an unrecognised status leaves the row alone" "row: $(row_of corr-unknown)" ;;
+  esac
+
+  # A session that started before the binding existed has no id, and must stay
+  # visible on what the hooks know rather than being treated as unknown.
+  case "$(row_of corr-nobind)" in
+    '🛑'*) pass "a pane with no session id keeps its hook state" ;;
+    *) fail "a pane with no session id keeps its hook state" "row: $(row_of corr-nobind)" ;;
+  esac
+
+  case "$(row_of corr-gone)" in
+    '🛑'*) pass "a session the CLI does not list keeps its hook state" ;;
+    *) fail "a session the CLI does not list keeps its hook state" "row: $(row_of corr-gone)" ;;
+  esac
+fi
+
+# A CLI that cannot answer degrades to the hook state. An indicator that
+# vanishes when a CLI changes is worse than one that is late, and this is the
+# path a future rename of `claude agents --json` would take.
+stub_claude fail
+if ! run_rows; then
+  fail "--rows survives a CLI that fails" "stderr: $(cat "$work/rows.err" 2>/dev/null)"
+else
+  case "$(row_of corr-late)" in
+    '▶ '*) pass "a failing CLI leaves every row as the hooks published it" ;;
+    *) fail "a failing CLI leaves every row as the hooks published it" "row: $(row_of corr-late)" ;;
+  esac
+fi
+
+rm -f "$work/stub/claude"
+for w in corr-stale corr-late corr-unknown corr-nobind corr-gone; do
+  tmux -L "$socket" kill-window -t "work:$w" 2>/dev/null
+done
+
 # --- remote hosts -------------------------------------------------------------
 
 # The remote path had no coverage while it was an awk pass over a second pane
@@ -828,6 +958,25 @@ else
     pass "the refused ctrl-o leaves the picker open"
   else
     fail "the refused ctrl-o leaves the picker open" "pane_dead=$(dead)" "$after"
+  fi
+
+  # The list refreshes itself. Nothing below presses a key: a session that
+  # appears after the picker was drawn has to show up on its own, because the
+  # states this list reports change while you are looking at it -- 🛑 arrives 6s
+  # after the dialog does, so a picker opened to find out who is blocked can be
+  # drawn just before the answer it exists to give.
+  #
+  # This is the only case that fails if the refresh bindings are deleted.
+  # `busy` with a fresh timestamp, so the new row lands at the bottom and the
+  # cursor assertions below keep their footing.
+  tmux -L "$socket" new-window -t bindB -n b-appeared "$IDLE"
+  appeared=$(tmux -L "$socket" list-panes -t bindB:b-appeared -F '#{pane_id}' | head -1)
+  tmux -L "$socket" set-option -p -t "$appeared" @claude_state busy
+  tmux -L "$socket" set-option -p -t "$appeared" @claude_since "$(date +%s)"
+  if wait_screen 'b-appeared'; then
+    pass "the list refreshes itself while the picker is open"
+  else
+    fail "the list refreshes itself while the picker is open" "$(screen)"
   fi
 
   # Moving the cursor must put the hint back, or the warning strands you with no
