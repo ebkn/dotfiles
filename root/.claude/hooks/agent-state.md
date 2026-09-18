@@ -50,12 +50,12 @@ wanting input — does not change the answer to the only question this indicator
 is asked, and a second visual axis for it only made the first one harder to
 read.
 
-Know the consequence before adding a state: **the glyph is no longer a key.**
-The picker prints no state text, so a row's glyph no longer says whether
-`ctrl-o` can answer it (it can for `asking` and `waiting`, not for
-`needs_input`); that now shows only when the key is refused. The state itself
-still travels in the row's hidden key field, so anything that needs to tell them
-apart reads that, never the rendering.
+Know the consequence before adding a state: **the glyph is no longer a key.** The
+picker prints no state text, so a row's glyph no longer says *which* block it is
+reporting. It does say that `ctrl-o` applies — the key is offered for all three
+red states, which is what keeps "red" a single actionable category — but the
+state itself still travels in the row's hidden key field, so anything that needs
+to tell them apart reads that, never the rendering.
 
 Both halves of this cost a revision to learn. 🔘 was worn by both `stalled` and
 what is now `needs_input`, so "a worker is blocked on you" and "your turn

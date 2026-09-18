@@ -1,7 +1,7 @@
 # tmux-agents
 
 Pick a Claude Code agent by state and jump to its WezTerm tab. Bound to
-`prefix + a`.
+`prefix + a`, with `prefix + A` as the picker-less shortcut described below.
 
 Rows come from the pane user options that `root/.claude/hooks/agent-state.sh`
 publishes (`@claude_state`, `@claude_glyph`, `@claude_since`, `@claude_note`,
@@ -111,14 +111,24 @@ the same reason — refusing must leave the agent's window untouched.
 
 ## Offering ctrl-o
 
-`ctrl-o` is offered only for a session with a dialog open (`asking` /
-`waiting`): for a `busy` or finished one the view would be no more than a second
-way of looking at a tab that is one keypress away. `needs_input` is **not**
-included even though it too is blocked on the human — the notification says an
-agent wants input, not that a dialog this view could answer is on screen — so it
-is left out until that turns out to be wrong in practice. The state therefore rides in
-the row's hidden key field alongside the ids — deriving it from the glyph
-afterwards would mean reading the rendering back.
+`ctrl-o` is offered for every state that is blocked on the human — `asking`,
+`waiting` and `needs_input`, i.e. exactly the rows the 🛑 glyph covers. For a
+`busy` or finished one the view would be no more than a second way of looking at
+a tab that is one keypress away.
+
+`needs_input` was excluded at first, on the grounds that the notification says an
+agent wants input rather than that a dialog this view could answer is on screen.
+That reasoning does not survive what the view actually is: it is not a rendered
+summary but a grouped session attached to the **real** window (see
+[tmux-agent-view.md](tmux-agent-view.md)), so keys reach the agent's own pane
+whatever is on it. There is nothing for `needs_input` to fail at, and excluding
+it only made the key dead on a row the tab bar had just painted red. The gate is
+therefore the same set the glyph is, which is also what `prefix + A` needs in
+order to mean "answer the first red one".
+
+The state rides in the row's hidden key field alongside the ids — deriving it
+from the glyph afterwards would mean reading the rendering back, and since all
+three blocked states share one glyph it could no longer be derived at all.
 
 **Refusing does nothing at all, and never falls back to the jump**: the two keys
 mean different things, and a `ctrl-o` that quietly moved you to another tab is
@@ -134,6 +144,76 @@ own first line, empty for `enter`), which is the documented idiom.
 **`--expect` cannot be combined with a `--bind` on the same key** — the binding
 replaces it and every `ctrl-o` then reads as a plain `enter`, i.e. as a jump.
 The shell-side checks are kept behind it as the ones a headless test can reach.
+
+## `--answer-first` (`prefix + A`)
+
+The one move you make when the tab bar has gone red: collect, rank, open the
+answer view on the top blocked row. No list is drawn and nothing is picked.
+
+It is a **separate key**, not an option on `prefix + a`, because the two answer
+different questions. `a` is "show me what is running"; `A` is "there is one
+thing to do, do it". Drawing a popup only to accept its own first row would be a
+flash of a list nobody reads — the ranking already puts the agent blocked
+longest on top, which is the row you would have picked. When more than one is
+blocked nothing is lost by not starting at the list, because the answer view
+reopens the real picker on the way out ([tmux-agent-view.md](tmux-agent-view.md)).
+
+The row is chosen by the **same rule `ctrl-o` is offered by**, read off the
+hidden key field rather than re-derived: a local row whose state is one of the
+three the 🛑 glyph covers. That is the invariant worth keeping — if the two ever
+disagree, `A` becomes a key that does something `ctrl-o` on the same row refuses,
+with no list on screen to show what it picked.
+
+**The client is passed in**, unlike `prefix + a`. This does not run in a popup;
+it runs under `run-shell`, whose child's `$TMUX` names the **server**, not which
+of its clients pressed the key. `run-shell` *does* expand `#{...}` in its command
+(`display-popup` does not — that asymmetry is what forces the popup path to
+derive the client from `$TMUX`), so the binding hands over `#{client_name}`. The
+binding also spells the script's **absolute path**, because `run-shell` uses the
+tmux server's environment and its `$PATH` need not hold `~/.local/bin`.
+
+**Every way of choosing the wrong row is silent**, which is what the tests assert
+against: a busy row opens the view on an agent that is not blocked, no row makes
+the key dead, a remote row hands `display-popup` a window id from another
+server. So `tmux-agents.test.sh` asserts on *which window the mirror is showing*,
+never merely that a mirror exists.
+
+Not finding a row is three different silences, and they are told apart on the
+status line — nothing running, something red this key cannot reach (a remote
+agent), and everything running fine. A key that does nothing and says nothing is
+indistinguishable from tmux having dropped it.
+
+It runs before the empty-list branch below it, deliberately: that branch holds
+the popup open until a key is pressed, and there is no popup here — it would
+hang a backgrounded `run-shell` job forever with nothing on screen to explain it.
+
+**Latency is not free here the way it is in the picker.** `prefix + a` pays the
+remote fan-out with a popup already on screen; `A` pays it with nothing on
+screen, so a `myssh` pane to a host that is asleep costs up to `ConnectTimeout=3`
+of a key that looks dead. Shared with `prefix + a` deliberately — a shortcut that
+could not reach a remote agent would be a second, quieter definition of "red".
+
+## The count in the WezTerm tab bar
+
+`prefix + A` is named by an indicator in WezTerm's tab bar (the `update-status`
+handler in `wezterm.lua`), which shows `🛑 N  C-q A` whenever any agent is
+blocked and nothing at all otherwise.
+
+It is derived from the **tab titles**, not from tmux, and that is the only reason
+it can exist at all: tmux formats have no loop over panes outside the current
+window (`#{P:...}` is per-window), so a global count cannot be a format, and the
+fallback is a `#()` subprocess on `status-interval` — exactly what the pane-option
+design in [agent-state.md](../root/.claude/hooks/agent-state.md) exists to avoid.
+Reading titles WezTerm already holds costs no process and no tmux round trip.
+
+The consequence is that it agrees with the tab bar **by construction**, including
+when the tab bar is wrong. That is the right direction to be wrong in for an
+indicator whose only job is to explain what the tabs are already showing.
+
+What it adds over the glyphs on the tabs themselves: one fixed place to look
+rather than a row of titles that shrink and reorder, a count, the key, and
+**every WezTerm window** — a red tab in a window behind this one has no other way
+of reaching you.
 
 ## Remote hosts
 
@@ -209,6 +289,32 @@ Assertions that look subtler than they are:
   the key. The fixture puts the agent in a window's *second* pane and asserts on
   `select-pane`.
 - A refused `ctrl-o` must not jump and must leave no mirror session behind.
+
+**`--answer-first` cases** run through `run-shell` with the client passed in,
+because that is how the binding runs it, and they assert on **which window the
+mirror is showing** rather than on a mirror existing: choosing a busy row opens
+the view on an agent that is not blocked, and choosing a remote one hands
+`display-popup` a window id from another server — which does not fail, since
+`@9` exists locally too, so the key would quietly mirror an unrelated window.
+The refusals are read out of `show-messages`, server-wide rather than
+`-t <client>`: the command log records `display-message` with its argument,
+which answers the question the test is really asking — *which branch ran* — where
+"no view opened" would pass just as well for a script that died on line one. The
+needle is the whole sentence, since that log keeps growing across sections.
+
+Two harness traps, both of which made these pass or fail for the wrong reason:
+
+1. **Detaching a mirror is asynchronous.** The `ctrl-o` cases above leave one
+   attached to `ask-win`, and the first `--answer-first` case expects exactly
+   that window — so without waiting for the count to reach zero it passed in full
+   with `--answer-first` never having run. Hence `drop_mirrors` waits, and the
+   wait is itself a case.
+2. **The remote section deletes its `ssh` stub** when it is done, deliberately,
+   so the local cases cannot pick it up. The remote `--answer-first` case
+   therefore brings its own in `$work/sshstub` — the same reason `$work/wstub`
+   exists for the `wezterm` stub. Sharing `$work/stub` looked like it worked and
+   silently used the **real** `ssh`, which fails a connection to `bakery` three
+   seconds after the assertion has already given up.
 
 `--jump-check` is pinned on its own, headlessly: it is the half that decides, it
 needs no pty, and each answer is a different silent failure — accepting a row

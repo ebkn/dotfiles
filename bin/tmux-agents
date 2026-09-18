@@ -171,6 +171,30 @@ if [ "${1:-}" = "--jump-check" ]; then
   exit 0
 fi
 
+# --answer-first <client> — prefix + A. The picker's ctrl-o with the picking
+# taken out: collect, rank, and open the answer view on the top blocked row
+# without ever drawing a list.
+#
+# It is a separate key rather than an option on prefix + a because the two
+# answer different questions. `a` is "show me what is running"; `A` is the one
+# move you make when the tab bar has gone red and there is nothing to choose
+# between — the ranking already puts the agent blocked longest on top, which is
+# the row you would have picked. Drawing a popup only to accept its first row
+# would be a flash of a list nobody reads.
+#
+# The client is passed in, unlike prefix + a, because this does not run in a
+# popup: `run-shell` DOES expand #{...} in its command, so the binding can hand
+# over #{client_name} — and it must, since a run-shell child's $TMUX names the
+# server, not which of its clients pressed the key.
+answer_client=""
+if [ "${1:-}" = "--answer-first" ]; then
+  answer_client=${2:-}
+  if [ -z "$answer_client" ]; then
+    echo "usage: ${0##*/} --answer-first <client>" >&2
+    exit 2
+  fi
+fi
+
 # --- collect -----------------------------------------------------------------
 
 # One tmux call for everything. Field 1 is the host — empty means this machine,
@@ -331,6 +355,45 @@ list=$(
   ' | sort -t"$TAB" -k1,1n -k2,2n | cut -f3-
 )
 
+# --- answer the first red one (prefix + A) ------------------------------------
+
+# Placed before the empty-list branch below, which holds a popup open until a
+# key is pressed: there is no popup here, so that would hang a backgrounded
+# run-shell job forever with nothing on screen to explain it.
+#
+# The row is chosen by the same rule ctrl-o is offered by — a local row whose
+# state is one of the three the 🛑 glyph covers — read off the hidden key field
+# rather than re-derived, so the two keys cannot drift apart. `sort` has already
+# put the longest-blocked one first, so "the first match" is the pick.
+if [ -n "$answer_client" ]; then
+  outer_client=$answer_client
+
+  target=$(printf '%s\n' "$list" |
+    awk -F"$TAB" '$1 ~ /^\|/ && $1 ~ /\|(asking|waiting|needs_input)$/ { print $1; exit }')
+
+  if [ -z "$target" ]; then
+    # Three different silences, told apart: nothing running, something red that
+    # this key cannot reach, and everything running fine. A key that does
+    # nothing and says nothing is indistinguishable from tmux having dropped it.
+    if [ -z "$list" ]; then
+      msg "no Claude agents running"
+    elif printf '%s\n' "$list" |
+      awk -F"$TAB" '$1 ~ /\|(asking|waiting|needs_input)$/ { found = 1 } END { exit !found }'; then
+      msg "the blocked agent is remote — C-q a to see it"
+    else
+      msg "nothing is waiting on you"
+    fi
+    exit 0
+  fi
+
+  IFS='|' read -r _ window_id pane_id _ <<<"$target"
+
+  # Same hop the picker's ctrl-o makes: run-shell -b so this process returns
+  # rather than holding the popup open from inside a tmux job.
+  tmux run-shell -b "$view open $outer_client $window_id $pane_id"
+  exit 0
+fi
+
 if [ -z "$list" ]; then
   # Exiting straight away closes the popup the instant it opens, which reads as
   # a crash rather than as "nothing to show". Hold it until a key is pressed.
@@ -386,8 +449,8 @@ picked=$(
       --bind="focus:change-header($HINT)" \
       --bind="enter:transform:$self --jump-check {1}" \
       --bind='ctrl-o:transform:case {1} in
-                "|"*asking | "|"*waiting) echo "print(ctrl-o)+accept" ;;
-                *asking | *waiting) echo "change-header(ctrl-o: a remote agent cannot be answered here yet)" ;;
+                "|"*asking | "|"*waiting | "|"*needs_input) echo "print(ctrl-o)+accept" ;;
+                *asking | *waiting | *needs_input) echo "change-header(ctrl-o: a remote agent cannot be answered here yet)" ;;
                 *) echo "change-header(ctrl-o: that session is not waiting on you)" ;;
               esac'
 ) || exit 0
@@ -415,10 +478,10 @@ IFS='|' read -r host window_id pane_id state <<<"${selection%%$'\t'*}"
 # Each refusal says why on the status line and stops there.
 if [ "$key" = "ctrl-o" ]; then
   case "$state" in
-    asking | waiting) ;;
+    asking | waiting | needs_input) ;;
     *)
-      # Only a session with a dialog open has anything to answer. For a busy or
-      # a finished one there is nothing here to act on.
+      # Only a session blocked on the human has anything to answer. For a busy
+      # or a finished one there is nothing here to act on.
       msg "that session is not waiting on you"
       exit 0
       ;;
