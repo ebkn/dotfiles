@@ -92,6 +92,7 @@ add_pane busy-new busy 10
 add_pane stalled-old stalled 7200
 add_pane asking-new asking 30 "which one?"
 add_pane waiting-old waiting 600 "needs permission"
+add_pane needs-input needs_input 120 "reviewer needs your input"
 # 400000s renders as "111h", four characters. That width is deliberate: the age
 # is printed with %4s, so for the usual three-character age ("10s", "2h") the
 # right-alignment contributes a leading space that exactly replaces the ▶
@@ -150,18 +151,21 @@ check_absent "a pane with no agent is not listed" 'plain-pane'
 check_absent "a _popup_ session is not listed" '_popup_'
 
 listed=$(wc -l <"$work/list" | tr -d ' ')
-if [ "$listed" -eq 5 ]; then
-  pass "lists exactly the five panes that have state"
+if [ "$listed" -eq 6 ]; then
+  pass "lists exactly the six panes that have state"
 else
-  fail "lists exactly the five panes that have state" "got $listed" "$(cat "$work/list")"
+  fail "lists exactly the six panes that have state" "got $listed" "$(cat "$work/list")"
 fi
 
 # --- ranking -----------------------------------------------------------------
 
 # asking and waiting share the top rank; within it the older one comes first.
-# Then busy, oldest first; then everything else.
+# Then needs_input -- also blocked on the human, but somewhere you have to go
+# rather than in a dialog this picker can answer. Then busy, oldest first; then
+# everything else.
 expected_order='waiting-old
 asking-new
+needs-input
 busy-old
 busy-new
 stalled-old'
@@ -190,7 +194,11 @@ check_glyph() {
 }
 check_glyph "asking renders as the orange diamond plus one space" asking-new '🔶 '
 check_glyph "waiting renders as the stop sign plus one space" waiting-old '🛑 '
-check_glyph "stalled renders as the grey circle plus one space" stalled-old '🔘 '
+check_glyph "stalled renders as the green circle plus one space" stalled-old '🟢 '
+# needs_input is the state that used to share stalled's glyph. Pinned by glyph
+# rather than by state name because the whole point of splitting it out was
+# that the two must not look alike in the picker either.
+check_glyph "needs_input renders as the bell plus one space" needs-input '🔔 '
 # Checked on the row with the four-character age, for the reason given where
 # busy-old is created: a shorter age hides a missing pad behind %4s.
 check_glyph "busy renders as ▶ padded out to the same two cells" busy-old '▶  '

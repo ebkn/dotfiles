@@ -167,7 +167,7 @@ section "busy"
 run busy
 assert_exit_zero "busy" $?
 assert_opt @claude_state busy
-# The separator is per-glyph, not uniform: 🔶 🛑 🔘 are emoji-presentation and
+# The separator is per-glyph, not uniform: 🔶 🛑 🔔 🟢 are emoji-presentation and
 # already two cells wide, so only the narrow ▶ carries a trailing space.
 # Pinned exactly, because the title format concatenates it blind.
 assert_opt @claude_glyph '▶ '
@@ -189,11 +189,41 @@ done
 assert_opt @claude_glyph '🛑'
 
 section "notify: a background agent blocked on the human"
+# Its own state, not `stalled`, which it shared until the glyphs were split.
+# The two answer the one question the tab bar is asked — is it worth going
+# there — in opposite directions, so a shared glyph made the answer unreadable:
+# some 🔘 wanted you and some did not.
 run clear
 run notify "$(notify_json agent_needs_input 'reviewer needs your input')"
-assert_opt @claude_state stalled
-assert_opt @claude_glyph '🔘'
+assert_opt @claude_state needs_input
+assert_opt @claude_glyph '🔔'
 assert_opt @claude_note 'reviewer needs your input'
+
+# ...and it outranks a busy actor, for the same reason `waiting` does: a worker
+# blocked on you is not progress, whatever else the pane is doing. Pinned
+# because the rank table is the only thing that says so, and getting it wrong
+# is silent — the pane would simply keep showing ▶.
+run clear
+run subagent-start "$(agent_json A Explore)"
+run busy "$(agent_json A Explore)"
+run notify "$(notify_json agent_needs_input 'a worker wants you')"
+assert_opt @claude_state needs_input
+assert_opt @claude_glyph '🔔'
+
+# ...and loses to an actor with a dialog open. Both halves are needed because
+# the new rank was inserted BETWEEN them, and each half alone permits the
+# inversion: swap the two ranks and the case above still passes.
+#
+# This is the only place the waiting/needs_input order is observable. The
+# same-actor guard a few lines down never reaches the ranking — it returns
+# early on `current_state`, before a record is written — so it would stay green
+# through an inverted table. Two actors are what make the comparison happen.
+run clear
+run subagent-start "$(agent_json A Explore)"
+prompt_for A Explore Bash 'rm -rf /tmp/x'
+run notify "$(notify_json agent_needs_input 'a worker wants you')"
+assert_opt @claude_state waiting
+assert_opt @claude_glyph '🛑'
 
 section "permission: records who is asking, publishes nothing"
 # PermissionRequest fires BEFORE the permission rules are applied, so it is not
@@ -369,7 +399,7 @@ section "done: the Stop transition publishes stalled"
 run 'done'
 assert_exit_zero 'done' $?
 assert_opt @claude_state stalled
-assert_opt @claude_glyph '🔘'
+assert_opt @claude_glyph '🟢'
 
 section "clear"
 run notify "$(notify_json permission_prompt 'something')"
@@ -411,6 +441,10 @@ check_no_vs16 asking
 run clear
 run notify "$(notify_json permission_prompt 'p')"
 check_no_vs16 waiting
+run clear
+run notify "$(notify_json agent_needs_input 'w')"
+check_no_vs16 needs_input
+run clear
 run 'done'
 check_no_vs16 stalled
 
