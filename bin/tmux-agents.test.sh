@@ -192,13 +192,15 @@ check_glyph() {
     *) fail "$desc" "row does not start with [$want]" "row: $row" ;;
   esac
 }
-check_glyph "asking renders as the red triangle plus one space" asking-new '🔺 '
+# asking, waiting and needs_input deliberately print the SAME glyph: which kind
+# of block it is does not change the answer to the question the indicator is
+# asked. All three are asserted anyway — "they happen to agree" and "they are
+# meant to agree" are different claims, and only the second survives someone
+# changing one of them.
+check_glyph "asking renders as the stop sign plus one space" asking-new '🛑 '
 check_glyph "waiting renders as the stop sign plus one space" waiting-old '🛑 '
 check_glyph "stalled renders as the green circle plus one space" stalled-old '🟢 '
-# needs_input is the state that used to share stalled's glyph. Pinned by glyph
-# rather than by state name because the whole point of splitting it out was
-# that the two must not look alike in the picker either.
-check_glyph "needs_input renders as the red circle plus one space" needs-input '🔴 '
+check_glyph "needs_input renders as the same stop sign" needs-input '🛑 '
 # Checked on the row with the four-character age, for the reason given where
 # busy-old is created: a shorter age hides a missing pad behind %4s.
 check_glyph "busy renders as ▶ padded out to the same two cells" busy-old '▶  '
