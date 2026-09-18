@@ -26,7 +26,7 @@
 # So state is kept per actor, one small file each, under
 #   ${XDG_STATE_HOME:-~/.local/state}/claude-agent-state/<socket>-<pane>/
 # and the pane options are a *derived* view: the highest-priority state wins,
-#   asking > waiting > busy > stalled
+#   asking > waiting > needs_input > busy > stalled
 # i.e. anything blocked on the human outranks anything still running. Ties go to
 # the oldest, so the age in the picker is how long that state has actually held.
 # asking outranks waiting because it is the only state carrying a note you
@@ -273,12 +273,17 @@ drop_pending() {
 
 # --- deriving the pane options ----------------------------------------------
 
+# `needs_input` sits above `busy` for the same reason `waiting` does: a
+# background agent blocked on you is not progress, whatever else the pane is
+# doing. It sits below `waiting` because a modal in front of you is answerable
+# where you already are, while this one is somewhere you have to go.
 rank_of() { # lower wins
   case "$1" in
     asking) printf 0 ;;
     waiting) printf 1 ;;
-    busy) printf 2 ;;
-    stalled) printf 3 ;;
+    needs_input) printf 2 ;;
+    busy) printf 3 ;;
+    stalled) printf 4 ;;
     *) printf 9 ;;
   esac
 }
@@ -287,7 +292,7 @@ glyph_of() {
   # @claude_glyph is stored ready to concatenate — separator included — so a
   # format can prepend it unconditionally and an unset option then contributes
   # nothing at all. The separator is per-glyph rather than appended by the
-  # caller: 🔶 🛑 🔘 carry emoji presentation and already occupy two terminal
+  # caller: 🔶 🛑 🔔 🟢 carry emoji presentation and already occupy two terminal
   # cells, so a space after them reads as a gap, while the narrow ▶ (U+25B6,
   # East Asian Ambiguous, one cell) needs one.
   #
@@ -297,11 +302,19 @@ glyph_of() {
   # title and knocks bin/tmux-agents' columns out of line with no error at all.
   # ⚠️ (U+26A0 U+FE0F) was tried here and did visibly misalign, which is why
   # asking is the orange diamond and not the warning sign it wants to be.
+  #
+  # Hue is what the tab bar actually resolves at that size, so no two states
+  # that mean different things may share one. ▶ is the exception and stays
+  # deliberately hueless: a running session is the one state you are not meant
+  # to look at. 🔘 was previously worn by both `stalled` and what is now
+  # `needs_input`, and being grey it also read as the same thing as ▶ —
+  # two collisions in one glyph.
   case "$1" in
     asking) printf '🔶' ;;
     waiting) printf '🛑' ;;
+    needs_input) printf '🔔' ;;
     busy) printf '▶ ' ;;
-    stalled) printf '🔘' ;;
+    stalled) printf '🟢' ;;
   esac
 }
 
@@ -527,8 +540,9 @@ case "$mode" in
     # elicitation_* result types are informational and must not stick.
     #
     # The split is by how loudly the pane should shout:
-    #   waiting (🛑) — a modal is open; nothing moves until it is answered.
-    #   stalled (🔘) — nothing is happening and the next move is the human's.
+    #   waiting (🛑)     — a modal is open; nothing moves until it is answered.
+    #   needs_input (🔔) — a background agent is blocked on you somewhere else.
+    #   stalled (🟢)     — the turn is over and the next move is the human's.
     #
     # `idle_prompt` is deliberately absent from both lists. It fires 60s after a
     # turn ends, which is a state the Stop hook has already published — so all
@@ -575,10 +589,15 @@ case "$mode" in
         # rather than being folded into the Stop path. It must still not relabel
         # an actor whose own dialog is open as merely idle — that is the one
         # direction that loses information.
+        #
+        # Its own state rather than `stalled`, which is what it published until
+        # the glyphs were split: "a worker is blocked on you" and "your turn
+        # finished" are opposite answers to the only question the tab bar is
+        # asked — is it worth going there — and one glyph cannot give both.
         case "$(current_state)" in
           asking | waiting) exit 0 ;;
         esac
-        record stalled "${message:0:120}"
+        record needs_input "${message:0:120}"
         publish
         ;;
       *)

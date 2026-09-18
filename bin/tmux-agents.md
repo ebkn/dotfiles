@@ -111,9 +111,12 @@ the same reason — refusing must leave the agent's window untouched.
 
 ## Offering ctrl-o
 
-`ctrl-o` is offered only for a session that is actually blocked (`asking` /
+`ctrl-o` is offered only for a session with a dialog open (`asking` /
 `waiting`): for a `busy` or finished one the view would be no more than a second
-way of looking at a tab that is one keypress away. The state therefore rides in
+way of looking at a tab that is one keypress away. `needs_input` is **not**
+included even though it too is blocked on the human — the notification says an
+agent wants input, not that a dialog this view could answer is on screen — so it
+is left out until that turns out to be wrong in practice. The state therefore rides in
 the row's hidden key field alongside the ids — deriving it from the glyph
 afterwards would mean reading the rendering back.
 

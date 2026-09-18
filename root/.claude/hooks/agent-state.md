@@ -11,7 +11,7 @@ Consumers are `set-titles-string` in `.tmux.conf` and
 
 | Option | Meaning |
 | --- | --- |
-| `@claude_state` | `busy` ▶ / `asking` 🔶 / `waiting` 🛑 / `stalled` 🔘. Unset means idle. |
+| `@claude_state` | `busy` ▶ / `asking` 🔶 / `waiting` 🛑 / `needs_input` 🔔 / `stalled` 🟢. Unset means idle. |
 | `@claude_glyph` | The rendered glyph, stored ready to concatenate. |
 | `@claude_since` | Epoch seconds. |
 | `@claude_note` | The pending question or permission message. |
@@ -34,8 +34,18 @@ visibly misaligned the tab title, which is the only reason `asking` is an orange
 diamond rather than the warning sign it wants to be. `agent-state.test.sh`
 asserts that no published glyph contains `U+FE0F`.
 
-The split between 🛑 and 🔘 is by how loudly the pane should shout: a modal is
-open and nothing moves, versus nothing is happening and the next move is yours.
+The split is by how loudly the pane should shout: 🛑 a modal is open and nothing
+moves, 🔔 a background agent is blocked on you somewhere else, 🟢 the turn is over
+and the next move is yours.
+
+**No two states that mean different things may share a hue**, because hue is all
+that resolves at tab size. ▶ is the deliberate exception and stays hueless: a
+running session is the one state you are *not* meant to look at. This cost a
+revision to learn — 🔘 was worn by both `stalled` and what is now `needs_input`,
+so "a worker is blocked on you" and "your turn finished" rendered identically,
+and being grey it also read as the same thing as ▶. One glyph, two collisions.
+Splitting `needs_input` out of `stalled` is what made the recolour possible;
+recolouring alone would only have given the two meanings a new shared colour.
 
 ## One pane holds several actors
 
@@ -53,7 +63,7 @@ State is therefore kept **per actor**, one small file each under
 `${XDG_STATE_HOME:-~/.local/state}/claude-agent-state/<socket>-<pane>/`, and the
 options are derived from them by priority:
 
-    asking > waiting > busy > stalled
+    asking > waiting > needs_input > busy > stalled
 
 so anything blocked on the human outranks anything still running. Ties go to the
 oldest, then to whichever record carries a note. Several actors routinely enter a
@@ -129,7 +139,7 @@ lands on `main` — where such a dialog almost always belongs.
 Registered on `SessionStart`/`SessionEnd` (clear), `UserPromptSubmit` /
 `PostToolBatch` (busy), `PreToolUse` with matcher `AskUserQuestion` (asking),
 `PermissionRequest` (attribution only, publishes nothing), `Notification`
-(waiting / stalled), `Stop` (stalled), and `SubagentStart`/`SubagentStop`
+(waiting / needs_input), `Stop` (stalled), and `SubagentStart`/`SubagentStop`
 (register / forget an actor).
 
 Modes name the transition and states name what is published, so they need not
@@ -222,7 +232,7 @@ That makes state precedence real logic rather than incidental, and
 `agent-state.test.sh` pins it: the same dialog fires both hooks, so
 `permission_prompt` must not demote `asking` to `waiting`, and `agent_needs_input`
 (a background agent blocking on the human) must not demote either of them to
-`stalled` — that is the one direction that loses information.
+`needs_input` — that is the one direction that loses information.
 
 `idle_prompt` is deliberately **not** in the allow-list: it fires 60s after a
 turn ends, a state `Stop` has already published, so republishing would only
