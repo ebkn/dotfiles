@@ -173,71 +173,83 @@ fi
 
 # --- collect -----------------------------------------------------------------
 
-# One tmux call for everything. Field 1 is the host — empty means this machine,
-# which keeps local and remote rows in one shape for the awk pass below — and
-# the leading tab in the format supplies it, so no sed pass is needed to prefix
-# it. The last two fields carry the ssh decoration, so the listing that finds remote
-# hosts is the same listing that is about to be rendered rather than a second
-# round-trip; the awk pass never looks at them.
-rows=$(tmux list-panes -a -F "${TAB}${FMT}${TAB}#{@ssh_my_machine}${TAB}#{@ssh_host}" 2>/dev/null) || true
-
-# Only `myssh` panes are queried: @ssh_my_machine marks a host the user declared
-# to be theirs, i.e. one running tmux and these dotfiles. Plain `ssh` panes may
-# be jump boxes or CI runners where this query is meaningless or unwelcome.
+# collect_rows — every pane on this machine and on each reachable myssh host,
+# one row each, in the shape the render pass below expects.
 #
-# Done with shell builtins over the rows already in hand: `awk | sort -u` reads
-# better, but it is two processes and a second pane listing spent on what is
-# usually the empty answer.
-#
-# The two columns are peeled off the END with parameter expansion, because
-# `IFS=$'\t' read -r a b c ...` DOES NOT WORK HERE. Tab is an IFS *whitespace*
-# character however narrow IFS is, so the shell collapses runs of tabs and
-# strips leading ones — and an ordinary pane has @claude_state, @claude_since
-# and @claude_note all unset, so a ten-field row arrives as six with everything
-# after the first gap shifted. awk -F'\t' does not do this, which is why the
-# awk version never had to know.
-hosts=""
-while IFS= read -r row; do
-  ssh_host=${row##*"$TAB"}
-  rest=${row%"$TAB"*}
-  mine=${rest##*"$TAB"}
-  [ -n "$mine" ] && [ -n "$ssh_host" ] || continue
-  case " $hosts " in
-    *" $ssh_host "*) ;;
-    *) hosts="$hosts $ssh_host" ;;
-  esac
-done <<<"$rows"
+# A function because the picker needs this answer more than once: once to fill
+# the list, and again on every refresh while it is open. Called through $(...),
+# so the temp dir it may create is cleaned up by the subshell's own EXIT trap.
+collect_rows() {
+  local rows hosts row ssh_host rest mine tmpdir i host
 
-if [ -n "$hosts" ]; then
-  # Temp files exist only on this path. They are needed to collect the hosts in
-  # parallel, but with no remote host there is nothing to collect, and mktemp
-  # plus the cat that follows are ~4ms the common case should not pay for.
-  tmpdir=$(mktemp -d)
-  trap 'rm -rf "$tmpdir"' EXIT
+  # One tmux call for everything. Field 1 is the host — empty means this machine,
+  # which keeps local and remote rows in one shape for the awk pass below — and
+  # the leading tab in the format supplies it, so no sed pass is needed to prefix
+  # it. The last two fields carry the ssh decoration, so the listing that finds remote
+  # hosts is the same listing that is about to be rendered rather than a second
+  # round-trip; the awk pass never looks at them.
+  rows=$(tmux list-panes -a -F "${TAB}${FMT}${TAB}#{@ssh_my_machine}${TAB}#{@ssh_host}" 2>/dev/null) || true
 
-  i=0
-  for host in $hosts; do
-    i=$((i + 1))
-    # A dedicated ControlMaster socket, never the one myssh uses: myssh runs with
-    # ControlPath=none precisely so autossh owns its own reconnection, and sharing
-    # a socket with it would interfere. ConnectTimeout keeps a host that is asleep
-    # or off-network from stalling the popup.
-    #
-    # The host column is written by the remote tmux, through the format, rather
-    # than by a local sed per host.
-    ssh -o BatchMode=yes \
-      -o ConnectTimeout=3 \
-      -o ControlMaster=auto \
-      -o ControlPath="$HOME/.ssh/cm-agents-%r@%h:%p" \
-      -o ControlPersist=60s \
-      "$host" "tmux list-panes -a -F '${host}${TAB}${FMT}'" \
-      >"$tmpdir/remote.$i" 2>/dev/null &
-  done
-  # Bare `wait` always reports success, so an unreachable host cannot trip set -e.
-  wait
+  # Only `myssh` panes are queried: @ssh_my_machine marks a host the user declared
+  # to be theirs, i.e. one running tmux and these dotfiles. Plain `ssh` panes may
+  # be jump boxes or CI runners where this query is meaningless or unwelcome.
+  #
+  # Done with shell builtins over the rows already in hand: `awk | sort -u` reads
+  # better, but it is two processes and a second pane listing spent on what is
+  # usually the empty answer.
+  #
+  # The two columns are peeled off the END with parameter expansion, because
+  # `IFS=$'\t' read -r a b c ...` DOES NOT WORK HERE. Tab is an IFS *whitespace*
+  # character however narrow IFS is, so the shell collapses runs of tabs and
+  # strips leading ones — and an ordinary pane has @claude_state, @claude_since
+  # and @claude_note all unset, so a ten-field row arrives as six with everything
+  # after the first gap shifted. awk -F'\t' does not do this, which is why the
+  # awk version never had to know.
+  hosts=""
+  while IFS= read -r row; do
+    ssh_host=${row##*"$TAB"}
+    rest=${row%"$TAB"*}
+    mine=${rest##*"$TAB"}
+    [ -n "$mine" ] && [ -n "$ssh_host" ] || continue
+    case " $hosts " in
+      *" $ssh_host "*) ;;
+      *) hosts="$hosts $ssh_host" ;;
+    esac
+  done <<<"$rows"
 
-  rows="$rows"$'\n'"$(cat "$tmpdir"/remote.* 2>/dev/null || true)"
-fi
+  if [ -n "$hosts" ]; then
+    # Temp files exist only on this path. They are needed to collect the hosts in
+    # parallel, but with no remote host there is nothing to collect, and mktemp
+    # plus the cat that follows are ~4ms the common case should not pay for.
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' EXIT
+
+    i=0
+    for host in $hosts; do
+      i=$((i + 1))
+      # A dedicated ControlMaster socket, never the one myssh uses: myssh runs with
+      # ControlPath=none precisely so autossh owns its own reconnection, and sharing
+      # a socket with it would interfere. ConnectTimeout keeps a host that is asleep
+      # or off-network from stalling the popup.
+      #
+      # The host column is written by the remote tmux, through the format, rather
+      # than by a local sed per host.
+      ssh -o BatchMode=yes \
+        -o ConnectTimeout=3 \
+        -o ControlMaster=auto \
+        -o ControlPath="$HOME/.ssh/cm-agents-%r@%h:%p" \
+        -o ControlPersist=60s \
+        "$host" "tmux list-panes -a -F '${host}${TAB}${FMT}'" \
+        >"$tmpdir/remote.$i" 2>/dev/null &
+    done
+    # Bare `wait` always reports success, so an unreachable host cannot trip set -e.
+    wait
+
+    rows="$rows"$'\n'"$(cat "$tmpdir"/remote.* 2>/dev/null || true)"
+  fi
+
+  printf '%s\n' "$rows"
+}
 
 # --- filter, rank, render ----------------------------------------------------
 
@@ -256,8 +268,10 @@ fi
 # KEY (the first field of what survives the cut, hidden from fzf via --with-nth)
 # carries what the jump needs. "|" is safe as its separator: tmux ids are @N / %N
 # and hosts are ssh aliases.
-list=$(
-  printf '%s\n' "$rows" | awk -F"$TAB" -v now="$now" -v rsep="$RS" -v usep="$US" '
+# render_list <rows> — the finished, sorted list fzf reads. A function for the
+# same reason collect_rows is one: the picker renders again on every refresh.
+render_list() {
+  printf '%s\n' "$1" | awk -F"$TAB" -v now="$now" -v rsep="$RS" -v usep="$US" '
     function age(s,   d) {
       if (s == "") return "-"
       d = now - s
@@ -325,7 +339,9 @@ list=$(
       }
     }
   ' | sort -t"$TAB" -k1,1n -k2,2n | cut -f3-
-)
+}
+
+list=$(render_list "$(collect_rows)")
 
 if [ -z "$list" ]; then
   # Exiting straight away closes the popup the instant it opens, which reads as
