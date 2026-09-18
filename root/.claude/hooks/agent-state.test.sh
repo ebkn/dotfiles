@@ -409,6 +409,59 @@ for opt in @claude_state @claude_glyph @claude_since @claude_note; do
   assert_opt "$opt" ''
 done
 
+section "clear: a resumed session opens stalled, the others open blank"
+# `claude --continue` reopens a conversation that already has a finished turn
+# in it, so the pane should say so from the start rather than look like an
+# empty shell until you type. SessionStart carries which it was in `.source`.
+start_json() { jq -cn --arg s "$1" '{hook_event_name:"SessionStart", source:$s}'; }
+
+run notify "$(notify_json permission_prompt 'something')"
+run clear "$(start_json resume)"
+assert_exit_zero "clear resume" $?
+assert_opt @claude_state stalled
+assert_opt @claude_glyph '🟢'
+# The records from the previous session are still wiped first: what is
+# published is one fresh `stalled` on main, not whatever the pane was left
+# holding. Pinned through @claude_agents, where a surviving actor would show.
+agents=$(get_opt @claude_agents)
+if [[ "$(grep -c . <<<"${agents//$'\036'/$'\n'}")" -eq 1 ]]; then
+  ok "resume publishes exactly one record"
+else
+  bad "resume left extra records: [${agents//$'\036'/ | }]"
+fi
+
+# compact is the one that would hurt: it fires MID-TURN after auto-compaction,
+# so publishing there would paint the finished-turn glyph over a working
+# session. startup and clear are simply new conversations with nothing to read.
+for src in startup clear compact fork; do
+  run busy
+  run clear "$(start_json "$src")"
+  got=$(get_opt @claude_state)
+  if [[ -z "$got" ]]; then ok "source=$src opens blank"; else bad "source=$src -> [$got], want blank"; fi
+done
+
+# SessionEnd carries the literal string "resume" too -- as `reason`, when the
+# session ends because one was resumed elsewhere. It must not be mistaken for
+# a start: a pane whose session just ended would light up as though it were
+# waiting to be read. This is the case a substring match on the payload fails.
+run busy
+run clear '{"hook_event_name":"SessionEnd","reason":"resume"}'
+assert_opt @claude_state ''
+
+# ...and a payload-less invocation still just clears.
+run busy
+run clear
+assert_opt @claude_state ''
+
+# A payload jq cannot parse must clear and say nothing, not fail. This hook's
+# first promise is that it never blocks the session, and `clear` is the one
+# mode whose failure would be invisible twice over -- it runs at SessionStart,
+# before there is any glyph to notice missing.
+run busy
+run clear 'not json at all'
+assert_exit_zero "clear with an unparsable payload" $?
+assert_opt @claude_state ''
+
 section "unknown mode / no mode"
 run busy
 run bogus_mode
