@@ -120,9 +120,11 @@ end)
 -- tmux's set-titles-string prefixes a remote pane's title with "≫" (see
 -- .tmux.conf). That is correct but nearly invisible: one narrow glyph in a row
 -- of text, marking the one fact worth noticing at a glance -- that everything
--- typed in this tab lands on another machine. Colour carries it; the marker
--- does not have to, so it is dropped from the rendered label and replaced by a
--- word, on the same purple the tmux status bar and pane border use.
+-- typed in this tab lands on another machine. Colour carries it on its own, on
+-- the same purple the tmux status bar and pane border use -- so the marker is
+-- dropped from the label and nothing is put in its place. A word ("SSH") would
+-- say the same thing the colour already says while costing width in the one
+-- place there is least of it: tab titles are what gets truncated first.
 --
 -- Non-ssh tabs return a plain string, which is what the default renderer
 -- produces, so their appearance is unchanged. Returning the string rather than
@@ -158,7 +160,7 @@ wezterm.on('format-tab-title', function(tab, _tabs, _panes, _config, _hover, max
     { Background = { Color = colors.bg } },
     { Foreground = { Color = colors.fg } },
     { Attribute = { Intensity = tab.is_active and 'Bold' or 'Normal' } },
-    { Text = wezterm.truncate_right(' SSH · ' .. title .. ' ', max_width) },
+    { Text = wezterm.truncate_right(' ' .. title .. ' ', max_width) },
   }
 end)
 
