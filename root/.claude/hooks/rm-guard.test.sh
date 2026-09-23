@@ -1,7 +1,8 @@
 #!/bin/bash
 # Exercises rm-guard.sh against the cases that decide whether it is safe.
-# ALLOW = hook emits an allow decision. DEFER = hook stays silent, so the
-# existing `Bash(rm *)` ask rule prompts.
+# ALLOW = hook emits an allow decision. DEFER = hook stays silent, so the call
+# falls through to the normal permission path (the `deny` literals, then the
+# auto-mode classifier, then a prompt).
 #
 # Written for bash 3.2 (see CLAUDE.md): no mapfile, no associative arrays.
 set -uo pipefail
@@ -121,8 +122,8 @@ check DEFER 'rm -rf tmp' "$FIXTURE/does-not-exist"
 check DEFER 'rm tmp/pr-body.md' ''
 
 echo "-- must DEFER (rm reached by an absolute path) --"
-# Out of scope on purpose: `Bash(rm *)` does not match these either, so they
-# go to the auto-mode classifier and never depended on this hook.
+# Out of scope on purpose: the hook's engage regex excludes a path-qualified rm,
+# so these go to the auto-mode classifier and never depended on this hook.
 check DEFER '/bin/rm -rf tmp/sub'
 check DEFER '/bin/rm -rf src'
 check DEFER '/bin/rmdir tmp'

@@ -92,6 +92,7 @@ add_pane busy-new busy 10
 add_pane stalled-old stalled 7200
 add_pane asking-new asking 30 "which one?"
 add_pane waiting-old waiting 600 "needs permission"
+add_pane needs-input needs_input 120 "reviewer needs your input"
 # 400000s renders as "111h", four characters. That width is deliberate: the age
 # is printed with %4s, so for the usual three-character age ("10s", "2h") the
 # right-alignment contributes a leading space that exactly replaces the ▶
@@ -150,18 +151,21 @@ check_absent "a pane with no agent is not listed" 'plain-pane'
 check_absent "a _popup_ session is not listed" '_popup_'
 
 listed=$(wc -l <"$work/list" | tr -d ' ')
-if [ "$listed" -eq 5 ]; then
-  pass "lists exactly the five panes that have state"
+if [ "$listed" -eq 6 ]; then
+  pass "lists exactly the six panes that have state"
 else
-  fail "lists exactly the five panes that have state" "got $listed" "$(cat "$work/list")"
+  fail "lists exactly the six panes that have state" "got $listed" "$(cat "$work/list")"
 fi
 
 # --- ranking -----------------------------------------------------------------
 
 # asking and waiting share the top rank; within it the older one comes first.
-# Then busy, oldest first; then everything else.
+# Then needs_input -- also blocked on the human, but somewhere you have to go
+# rather than in a dialog this picker can answer. Then busy, oldest first; then
+# everything else.
 expected_order='waiting-old
 asking-new
+needs-input
 busy-old
 busy-new
 stalled-old'
@@ -188,9 +192,15 @@ check_glyph() {
     *) fail "$desc" "row does not start with [$want]" "row: $row" ;;
   esac
 }
-check_glyph "asking renders as the orange diamond plus one space" asking-new '🔶 '
+# asking, waiting and needs_input deliberately print the SAME glyph: which kind
+# of block it is does not change the answer to the question the indicator is
+# asked. All three are asserted anyway — "they happen to agree" and "they are
+# meant to agree" are different claims, and only the second survives someone
+# changing one of them.
+check_glyph "asking renders as the stop sign plus one space" asking-new '🛑 '
 check_glyph "waiting renders as the stop sign plus one space" waiting-old '🛑 '
-check_glyph "stalled renders as the grey circle plus one space" stalled-old '🔘 '
+check_glyph "stalled renders as the green circle plus one space" stalled-old '🟢 '
+check_glyph "needs_input renders as the same stop sign" needs-input '🛑 '
 # Checked on the row with the four-character age, for the reason given where
 # busy-old is created: a shorter age hides a missing pad behind %4s.
 check_glyph "busy renders as ▶ padded out to the same two cells" busy-old '▶  '
@@ -387,6 +397,10 @@ stale_pane=$(tmux -L "$socket" list-panes -t work:corr-stale -F '#{pane_id}' | h
 tmux -L "$socket" set-option -p -t "$stale_pane" @claude_agents \
   "waiting${US}${now}${US}Explore${US}needs permission${RS}busy${US}${now}${US}${US}${RS}"
 add_bound_pane corr-late busy "" sid-late
+# needs_input is the third blocked state, and it reaches red by a different
+# route (a worker agent, not a dialog here). A correction that only knew about
+# asking and waiting would leave exactly this one stuck.
+add_bound_pane corr-needs needs_input "a worker needs you" sid-needs
 add_bound_pane corr-unknown waiting "needs permission" sid-unknown
 add_bound_pane corr-nobind waiting "needs permission" ""
 # A binding whose session the CLI does not list: the session ended while the
@@ -408,6 +422,7 @@ row_of() { grep -F "$1" "$work/rows" | head -1 | cut -f2-; }
 rows_for() { grep -cF "$1" "$work/rows"; }
 
 stub_claude '[{"sessionId":"sid-stale","status":"busy"},
+              {"sessionId":"sid-needs","status":"busy"},
               {"sessionId":"sid-late","status":"waiting","waitingFor":"permission prompt"},
               {"sessionId":"sid-unknown","status":"shell"}]'
 
@@ -427,6 +442,11 @@ else
     fail "the contradicted per-actor listing is dropped, not re-rendered" \
       "$(rows_for corr-stale) rows for one pane"
   fi
+
+  case "$(row_of corr-needs)" in
+    '▶ '*) pass "needs_input counts as blocked when deciding to correct" ;;
+    *) fail "needs_input counts as blocked when deciding to correct" "row: $(row_of corr-needs)" ;;
+  esac
 
   # The other direction: the Notification that publishes 🛑 is 6s behind the
   # dialog, and the CLI is not.
@@ -470,7 +490,7 @@ else
 fi
 
 rm -f "$work/stub/claude"
-for w in corr-stale corr-late corr-unknown corr-nobind corr-gone; do
+for w in corr-stale corr-late corr-needs corr-unknown corr-nobind corr-gone; do
   tmux -L "$socket" kill-window -t "work:$w" 2>/dev/null
 done
 
@@ -825,10 +845,182 @@ STUB
       "$(cat "$work/out" 2>/dev/null)"
   fi
 
-  for m in $(tmux -L "$socket" list-clients -F '#{client_name} #{client_session}' |
-    awk '$2 ~ /^_agent_/ { print $1 }'); do
-    tmux -L "$socket" detach-client -t "$m" 2>/dev/null
-  done
+  # --- prefix + A, the picker-less path ----------------------------------------
+  #
+  # Same end state as ctrl-o, reached with no list drawn and nothing picked, so
+  # the only thing standing between the key and the wrong agent is the awk that
+  # chooses the row. Every way that can be wrong is silent: choose a busy row
+  # and the view opens on an agent that is not blocked, choose none and the key
+  # is dead, choose a remote one and display-popup is handed a window id from
+  # another server. So the assertions are on WHICH window the mirror is showing,
+  # never merely that one exists.
+  #
+  # It runs through `run-shell` rather than a popup because that is how the
+  # binding runs it -- and that is the half that needs a client passed in, since
+  # a run-shell child's $TMUX names the server and not the client that pressed
+  # the key.
+  wait_mirror() {
+    for _ in $(seq 1 20); do
+      [ "$(mirrors)" != 0 ] && return 0
+      sleep 0.25
+    done
+    return 1
+  }
+  # Detaching a mirror is asynchronous -- the popup, its client and its session
+  # all go away after the detach returns -- so this WAITS for the count to reach
+  # zero. Without the wait, the first case below inherits the mirror the ctrl-o
+  # cases left on ask-win: wait_mirror returns instantly and the window name is
+  # already the one the assertion expects, so the case passes in full without
+  # --answer-first having run at all.
+  drop_mirrors() {
+    for m in $(tmux -L "$socket" list-clients -F '#{client_name} #{client_session}' |
+      awk '$2 ~ /^_agent_/ { print $1 }'); do
+      tmux -L "$socket" detach-client -t "$m" 2>/dev/null
+    done
+    for _ in $(seq 1 20); do
+      [ "$(mirrors)" = 0 ] && return 0
+      sleep 0.25
+    done
+    return 1
+  }
+  # answer_first [extra PATH entry] — what the binding runs, with the client
+  # passed in the way `run-shell` lets the binding pass it.
+  answer_first() {
+    tmux -L "$socket" run-shell -b \
+      "cd $PWD && PATH=${1:+$1:}$PWD/bin:\$PATH tmux-agents --answer-first $client >$work/first 2>&1"
+  }
+  # What the key said, read out of the server's command log -- which records
+  # every command with its arguments, `display-message "..."` included. This is
+  # the only observable the refusals have: msg() writes to a status line that
+  # nothing headless can capture, and a case asserting merely "no view opened"
+  # would pass just as well for a script that died on line one.
+  #
+  # Server-wide and not `-t "$client"`: the per-client log holds only what was
+  # actually rendered on that client's status line, which depends on it being
+  # attached and on the message not having been superseded. The command log
+  # answers the question the test is really asking -- which branch ran.
+  msg_log() { tmux -L "$socket" show-messages 2>/dev/null | grep -F 'display-message'; }
+  said() { msg_log | grep -qF "$1"; }
+
+  if ! drop_mirrors; then
+    fail "the ctrl-o mirror is gone before prefix + A is tested" \
+      "$(tmux -L "$socket" list-sessions -F '#{session_name}')"
+  fi
+
+  # tabB holds one busy window and one asking window. Only the second may be
+  # opened, and the mirror's current window is what says which one it picked.
+  answer_first
+  if wait_mirror; then
+    shown=$(tmux -L "$socket" list-clients -F '#{client_session} #{window_name}' |
+      awk '$1 ~ /^_agent_/ { print $2; exit }')
+    if [ "$shown" = ask-win ]; then
+      pass "prefix + A opens the view on the blocked agent, not the busy one"
+    else
+      fail "prefix + A opens the view on the blocked agent, not the busy one" \
+        "the view is showing [$shown]"
+    fi
+  else
+    fail "prefix + A opens the view on the blocked agent, not the busy one" \
+      "no mirror session appeared" "$(cat "$work/first" 2>/dev/null)"
+  fi
+  drop_mirrors
+
+  # With nothing blocked it must open nothing at all. A key that falls back to
+  # "the most interesting row" would take you to a busy agent you were not
+  # asking about, which is the same mistake the picker's ctrl-o refuses to make.
+  ask_pane=$(tmux -L "$socket" list-panes -t tabB:ask-win -F '#{pane_id}' | head -1)
+  tmux -L "$socket" set-option -pu -t "$ask_pane" @claude_state
+  answer_first
+  sleep 2
+  if [ "$(mirrors)" = 0 ] && said "nothing is waiting on you"; then
+    pass "prefix + A opens nothing when no agent is blocked, and says so"
+  else
+    fail "prefix + A opens nothing when no agent is blocked, and says so" \
+      "sessions: $(tmux -L "$socket" list-sessions -F '#{session_name}' | tr '\n' ' ')" \
+      "messages: $(msg_log | head -3 | tr "\n" "|")" \
+      "$(cat "$work/first" 2>/dev/null)"
+  fi
+  drop_mirrors
+
+  # prefix + A picks from the CORRECTED list. Picking from the raw pane options
+  # would send it to a session that has already been answered -- and, in the
+  # other direction, make it report "nothing is waiting on you" while a dialog
+  # whose 🛑 is still 6s away sits open. The picker was taught this; the key
+  # that skips the picker has to agree with it, or the two drift.
+  stub_claude '[{"sessionId":"sid-answered","status":"busy"}]'
+  tmux -L "$socket" set-option -p -t "$ask_pane" @claude_state asking
+  tmux -L "$socket" set-option -p -t "$ask_pane" @claude_since "$now"
+  tmux -L "$socket" set-option -p -t "$ask_pane" @claude_session_id sid-answered
+  answer_first "$work/stub"
+  sleep 2
+  if [ "$(mirrors)" = 0 ] && said "nothing is waiting on you"; then
+    pass "prefix + A ignores a red the session itself says is gone"
+  else
+    fail "prefix + A ignores a red the session itself says is gone" \
+      "sessions: $(tmux -L "$socket" list-sessions -F '#{session_name}' | tr '\n' ' ')" \
+      "messages: $(msg_log | head -3 | tr "\n" "|")" \
+      "$(cat "$work/first" 2>/dev/null)"
+  fi
+  drop_mirrors
+  rm -f "$work/stub/claude"
+  tmux -L "$socket" set-option -pu -t "$ask_pane" @claude_session_id
+  tmux -L "$socket" set-option -pu -t "$ask_pane" @claude_state
+
+  # A REMOTE blocked agent must be refused, not opened. This is the half of the
+  # selection rule that has no local equivalent and the worst failure mode: the
+  # view is opened with `display-popup` against a window id from ANOTHER tmux
+  # server, which does not fail -- @9 exists on this one too -- so the key would
+  # quietly mirror whatever local window happens to carry that id. The rule is
+  # one anchor in one awk regex, and nothing else would notice it going.
+  tmux -L "$socket" new-window -t tabB -n ssh-pane "$IDLE"
+  ssh_pane=$(tmux -L "$socket" list-panes -t tabB:ssh-pane -F '#{pane_id}' | head -1)
+  tmux -L "$socket" set-option -p -t "$ssh_pane" @ssh_my_machine 1
+  tmux -L "$socket" set-option -p -t "$ssh_pane" @ssh_host bakery
+  # Its own stub directory, NOT $work/stub: that one is where the fzf stub
+  # lives, and the remote section above deliberately deletes its `ssh` when it
+  # is done so the local cases cannot pick it up. Same reason $work/wstub exists
+  # further down. It reports one asking agent, which -- ask-win having been
+  # cleared just above -- is now the only blocked row anywhere.
+  mkdir -p "$work/sshstub"
+  cat >"$work/sshstub/ssh" <<STUB
+#!/bin/sh
+for a in "\$@"; do cmd=\$a; done
+fmt=\${cmd#*-F \'}
+prefix=\${fmt%%#\{*}
+printf '%s%s\t@9\t%%9\tremote-win\tasking\t%s\tremote note\n' "\$prefix" remote-sess $((now - 900))
+STUB
+  chmod +x "$work/sshstub/ssh"
+  answer_first "$work/sshstub"
+  sleep 2
+  # The whole sentence, not just "remote": the log is server-wide and keeps
+  # growing, so a one-word needle can be satisfied by an unrelated message from
+  # an earlier section.
+  if [ "$(mirrors)" = 0 ] && said "the blocked agent is remote"; then
+    pass "prefix + A refuses a remote agent instead of opening a local window id"
+  else
+    fail "prefix + A refuses a remote agent instead of opening a local window id" \
+      "sessions: $(tmux -L "$socket" list-sessions -F '#{session_name}' | tr '\n' ' ')" \
+      "messages: $(msg_log | head -3 | tr "\n" "|")" \
+      "$(cat "$work/first" 2>/dev/null)"
+  fi
+  drop_mirrors
+  tmux -L "$socket" kill-window -t tabB:ssh-pane 2>/dev/null
+  tmux -L "$socket" set-option -p -t "$ask_pane" @claude_state asking
+fi
+
+# --answer-first refuses to run without a client rather than guessing one: with
+# no client there is nowhere to put the popup, and a usage error is the one
+# answer that shows up in a `tmux run-shell` log instead of vanishing.
+# tmux reports the non-zero exit on its own stderr ("... returned 2"), which is
+# the expected result here and would otherwise read as a failure in the log.
+if tmux -L "$socket" run-shell "cd $PWD && PATH=$PWD/bin:\$PATH tmux-agents --answer-first >$work/usage 2>&1" >/dev/null 2>&1; then
+  fail "--answer-first without a client is a usage error" "it exited 0"
+else
+  if grep -q 'usage:' "$work/usage" 2>/dev/null; then
+    pass "--answer-first without a client is a usage error"
+  else
+    fail "--answer-first without a client is a usage error" "$(cat "$work/usage" 2>/dev/null)"
+  fi
 fi
 
 # --- the enter decision, on its own ---------------------------------------------
@@ -1000,6 +1192,41 @@ else
     pass "ctrl-o on a blocked row is accepted"
   else
     fail "ctrl-o on a blocked row is accepted" "picker still running" "$(screen)"
+  fi
+
+  # needs_input is accepted too, and it gets its own run rather than riding on
+  # the row above: it ranks BELOW asking/waiting, so with an asking row present
+  # it is never the row under the cursor, and a gate that still excluded it
+  # would go unnoticed. The `case` in the ctrl-o transform is the only thing
+  # that distinguishes the two, and a missing branch there is silent -- the key
+  # simply does nothing on a row the tab bar has painted red. It matters because
+  # prefix + A answers "the first red one", and red is all three states.
+  tmux -L "$socket" kill-window -t bindB:b-ask 2>/dev/null
+  tmux -L "$socket" new-window -t bindB -n b-needs "$IDLE"
+  p=$(tmux -L "$socket" list-panes -t bindB:b-needs -F '#{pane_id}' | head -1)
+  tmux -L "$socket" set-option -p -t "$p" @claude_state needs_input
+  tmux -L "$socket" set-option -p -t "$p" @claude_since "$(date +%s)"
+  tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
+    "sh -c 'PATH=$PWD/bin:\$PATH tmux-agents >$work/real 2>&1'"
+  if ! wait_screen 'b-needs'; then
+    fail "the picker lists a needs_input row" "$(screen)" "$(cat "$work/real" 2>/dev/null)"
+  else
+    tmux -L "$socket" send-keys -t "$fzf_pane" C-o
+    for _ in $(seq 1 40); do
+      [ "$(dead)" = 1 ] && break
+      sleep 0.25
+    done
+    # Dead AND silent. The pane also dies when the script errors out, and the
+    # fixture right above it was just rebuilt -- so "it exited" on its own would
+    # report a broken fixture as a working gate. With no client attached here
+    # the accepted path ends at the script's own no-client guard, which says
+    # nothing; anything in the log means it got there another way.
+    if [ "$(dead)" = 1 ] && [ ! -s "$work/real" ]; then
+      pass "ctrl-o on a needs_input row is accepted"
+    else
+      fail "ctrl-o on a needs_input row is accepted" "pane_dead=$(dead)" \
+        "log: $(cat "$work/real" 2>/dev/null)" "$(screen)"
+    fi
   fi
 
   # --- enter, through the real fzf ---------------------------------------------

@@ -26,7 +26,7 @@
 # So state is kept per actor, one small file each, under
 #   ${XDG_STATE_HOME:-~/.local/state}/claude-agent-state/<socket>-<pane>/
 # and the pane options are a *derived* view: the highest-priority state wins,
-#   asking > waiting > busy > stalled
+#   asking > waiting > needs_input > busy > stalled
 # i.e. anything blocked on the human outranks anything still running. Ties go to
 # the oldest, so the age in the picker is how long that state has actually held.
 # asking outranks waiting because it is the only state carrying a note you
@@ -39,7 +39,8 @@
 # writes — a single shared file would need locking on the hottest path here.
 #
 # Usage: agent-state.sh <mode>
-#   start          — new session in this pane      (SessionStart)
+#   start          — new session in this pane: clear, bind, and a resumed one
+#                    opens `stalled`                (SessionStart)
 #   clear          — drop all state                (SessionEnd)
 #   busy           — working                       (UserPromptSubmit, PostToolBatch)
 #   ask            — read stdin, question          (PreToolUse, matcher AskUserQuestion)
@@ -274,12 +275,17 @@ drop_pending() {
 
 # --- deriving the pane options ----------------------------------------------
 
+# `needs_input` sits above `busy` for the same reason `waiting` does: a
+# background agent blocked on you is not progress, whatever else the pane is
+# doing. It sits below `waiting` because a modal in front of you is answerable
+# where you already are, while this one is somewhere you have to go.
 rank_of() { # lower wins
   case "$1" in
     asking) printf 0 ;;
     waiting) printf 1 ;;
-    busy) printf 2 ;;
-    stalled) printf 3 ;;
+    needs_input) printf 2 ;;
+    busy) printf 3 ;;
+    stalled) printf 4 ;;
     *) printf 9 ;;
   esac
 }
@@ -288,7 +294,7 @@ glyph_of() {
   # @claude_glyph is stored ready to concatenate — separator included — so a
   # format can prepend it unconditionally and an unset option then contributes
   # nothing at all. The separator is per-glyph rather than appended by the
-  # caller: 🔶 🛑 🔘 carry emoji presentation and already occupy two terminal
+  # caller: 🛑 🟢 carry emoji presentation and already occupy two terminal
   # cells, so a space after them reads as a gap, while the narrow ▶ (U+25B6,
   # East Asian Ambiguous, one cell) needs one.
   #
@@ -296,13 +302,38 @@ glyph_of() {
   # character promoted with VS16 (U+FE0F). Terminals and tmux disagree on
   # whether such a sequence is one cell or two, and being wrong shifts the tab
   # title and knocks bin/tmux-agents' columns out of line with no error at all.
-  # ⚠️ (U+26A0 U+FE0F) was tried here and did visibly misalign, which is why
-  # asking is the orange diamond and not the warning sign it wants to be.
+  # ⚠️ (U+26A0 U+FE0F) was tried for asking and did visibly misalign, which is
+  # why the set is built from single-codepoint shapes rather than from the signs
+  # these states would otherwise want.
+  #
+  # Hue is what the tab bar resolves at that size, and it carries exactly one
+  # question: is it worth going there. So hue groups the states by that answer
+  # rather than naming them —
+  #   red    — blocked on you, go there
+  #   green  — the turn is over, nothing is blocked
+  #   none   — running; the one state you are not meant to look at (▶)
+  # Shape carries nothing further: all three blocked states print the SAME 🛑.
+  # Which kind of block it is — a question, a permission prompt, an agent
+  # elsewhere wanting input — does not change the answer to the only question
+  # this indicator is asked, so spending a second visual axis on it only made
+  # the first one harder to read.
+  #
+  # Consequence to know before adding a state: the glyph is no longer a key.
+  # The picker prints no state text, so a row's glyph no longer says whether
+  # ctrl-o can answer it (it can for `asking` and `waiting`, not for
+  # `needs_input`) — that now shows only when the key is refused. The state
+  # itself still travels in the row's hidden key field, so anything that needs
+  # to distinguish them reads that, never the rendering.
+  #
+  # Giving different meanings one colour is the mistake this replaced — 🔘 was
+  # worn by both `stalled` and what is now `needs_input`, and being grey it read
+  # as ▶ besides. Giving one meaning one colour is the opposite move.
   case "$1" in
-    asking) printf '🔶' ;;
+    asking) printf '🛑' ;;
     waiting) printf '🛑' ;;
+    needs_input) printf '🛑' ;;
     busy) printf '▶ ' ;;
-    stalled) printf '🔘' ;;
+    stalled) printf '🟢' ;;
   esac
 }
 
@@ -466,20 +497,54 @@ case "$mode" in
     # is known only in here. The binding is therefore this hook's half of the
     # answer, and it is why it is a pane option rather than anything cleverer.
     #
-    # A jq fork is free here: SessionStart runs once per session, unlike the
-    # PostToolBatch path this file is otherwise shaped around.
+    # And a RESUMED session opens `stalled` rather than blank. `claude
+    # --continue` opens a conversation that already has a finished turn in it
+    # and whose next move is yours — which is what `stalled` means — so the pane
+    # should say so from the moment it opens. Otherwise a resumed session is
+    # indistinguishable from an empty pane until you type something, which is
+    # the wrong way round: the sessions worth finding again are precisely the
+    # ones you left in the middle of something.
+    #
+    # Only `resume`. The other sources are not this:
+    #   startup — a new conversation; there is nothing to have left unread.
+    #   clear   — /clear, same thing.
+    #   compact — fires MID-TURN after auto-compaction, while the agent is
+    #             still working. Publishing here would paint 🟢 over a busy
+    #             session, and the next PostToolBatch would take it back, so
+    #             the only trace would be a flicker.
+    #   fork    — arguably the same case as resume; left out until it is
+    #             actually wanted, since it is one word to add here.
+    #
+    # Read with jq rather than matched in the string, and the reason outlives
+    # the mode split: SessionEnd ALSO carries the literal "resume", as its
+    # `reason` when the session ends because one was resumed elsewhere. A
+    # `case "$json" in *resume*)` would publish `stalled` onto a pane whose
+    # session just ended. `.source` is a different key, and only SessionStart
+    # has one.
+    #
+    # One jq pass for both fields. A fork is free here: SessionStart runs once
+    # per session, unlike the PostToolBatch path this file is shaped around.
     rm -rf "$state_dir" 2>/dev/null || true
     clear_opts
     unset_opt @claude_session_id
     read_stdin
     [ -n "$json" ] || exit 0
-    # Sanitised rather than trusted: the value is expanded in tmux formats and
-    # compared against CLI output, so anything but the id's own alphabet is
+    # The id is sanitised rather than trusted: it is expanded in tmux formats
+    # and compared against CLI output, so anything but its own alphabet is
     # dropped. A payload with no id must leave no binding at all — an empty or
     # "null" one would match a row that does not exist.
-    session_id=$(printf '%s' "$json" |
-      jq -r '.session_id // "" | gsub("[^A-Za-z0-9_.-]"; "")' 2>/dev/null)
+    {
+      IFS= read -r session_id
+      IFS= read -r start_source
+    } < <(printf '%s' "$json" | jq -r '
+      (.session_id // "" | gsub("[^A-Za-z0-9_.-]"; "")),
+      (.source // "")
+    ' 2>/dev/null)
     [ -n "$session_id" ] && set_opt @claude_session_id "$session_id"
+    if [ "$start_source" = resume ]; then
+      record stalled
+      publish
+    fi
     ;;
   clear)
     rm -rf "$state_dir" 2>/dev/null || true
@@ -487,6 +552,11 @@ case "$mode" in
     # Not part of clear_opts: publish() calls that whenever the last actor goes,
     # and the binding must outlive any state the session passes through. Only
     # the session ending unbinds it.
+    #
+    # SessionEnd only. The resume handling that used to sit here moved to
+    # `start` when SessionStart got its own mode -- which also removes the trap
+    # it documented, since SessionEnd carries the literal "resume" in its
+    # `reason` and can no longer reach that branch at all.
     unset_opt @claude_session_id
     ;;
   busy)
@@ -565,8 +635,9 @@ case "$mode" in
     # elicitation_* result types are informational and must not stick.
     #
     # The split is by how loudly the pane should shout:
-    #   waiting (🛑) — a modal is open; nothing moves until it is answered.
-    #   stalled (🔘) — nothing is happening and the next move is the human's.
+    #   waiting (🛑)     — a modal is open; nothing moves until it is answered.
+    #   needs_input (🛑) — a background agent is blocked on you somewhere else.
+    #   stalled (🟢)     — the turn is over and the next move is the human's.
     #
     # `idle_prompt` is deliberately absent from both lists. It fires 60s after a
     # turn ends, which is a state the Stop hook has already published — so all
@@ -613,10 +684,15 @@ case "$mode" in
         # rather than being folded into the Stop path. It must still not relabel
         # an actor whose own dialog is open as merely idle — that is the one
         # direction that loses information.
+        #
+        # Its own state rather than `stalled`, which is what it published until
+        # the glyphs were split: "a worker is blocked on you" and "your turn
+        # finished" are opposite answers to the only question the tab bar is
+        # asked — is it worth going there — and one glyph cannot give both.
         case "$(current_state)" in
           asking | waiting) exit 0 ;;
         esac
-        record stalled "${message:0:120}"
+        record needs_input "${message:0:120}"
         publish
         ;;
       *)

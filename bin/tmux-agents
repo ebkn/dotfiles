@@ -181,6 +181,30 @@ if [ "${1:-}" = "--jump-check" ]; then
   exit 0
 fi
 
+# --answer-first <client> — prefix + A. The picker's ctrl-o with the picking
+# taken out: collect, rank, and open the answer view on the top blocked row
+# without ever drawing a list.
+#
+# It is a separate key rather than an option on prefix + a because the two
+# answer different questions. `a` is "show me what is running"; `A` is the one
+# move you make when the tab bar has gone red and there is nothing to choose
+# between — the ranking already puts the agent blocked longest on top, which is
+# the row you would have picked. Drawing a popup only to accept its first row
+# would be a flash of a list nobody reads.
+#
+# The client is passed in, unlike prefix + a, because this does not run in a
+# popup: `run-shell` DOES expand #{...} in its command, so the binding can hand
+# over #{client_name} — and it must, since a run-shell child's $TMUX names the
+# server, not which of its clients pressed the key.
+answer_client=""
+if [ "${1:-}" = "--answer-first" ]; then
+  answer_client=${2:-}
+  if [ -z "$answer_client" ]; then
+    echo "usage: ${0##*/} --answer-first <client>" >&2
+    exit 2
+  fi
+fi
+
 # --- collect -----------------------------------------------------------------
 
 # collect_rows — every pane on this machine and on each reachable myssh host,
@@ -342,7 +366,11 @@ correct_rows() { # $1 rows
         # agree, the hook data is kept whole: its note names the tool and its
         # per-actor listing names which subagent is blocked, and the CLI knows
         # neither.
-        hook_blocked = ($6 == "asking" || $6 == "waiting")
+        # Every state that prints 🛑 counts as blocked here, which is the same
+        # rule ctrl-o is offered by. Leaving one out leaves exactly that state
+        # stuck red, and it is the kind of gap a merge opens quietly: this one
+        # arrived with needs_input, after the correction was written.
+        hook_blocked = ($6 == "asking" || $6 == "waiting" || $6 == "needs_input")
         cli_blocked = (s == "waiting")
         if (hook_blocked == cli_blocked) { print; next }
         if (cli_blocked) {
@@ -382,16 +410,20 @@ render_list() {
     function emit(st, since, note, label,   rank, glyph, where, name) {
       # asking/waiting share rank 0: both mean a dialog is open and nothing moves
       # until it is answered, and which one is more urgent is not for this script
-      # to guess. Everything else lands in the last rank, where the age sort
-      # below floats the longest-untouched one up on its own.
-      rank = (st == "asking" || st == "waiting") ? 0 : (st == "busy") ? 1 : 2
+      # to guess. needs_input follows them rather than joining them: it is also
+      # blocked on the human, but somewhere you have to go rather than in a
+      # dialog this picker can answer. Everything else lands in the last rank,
+      # where the age sort below floats the longest-untouched one up on its own.
+      rank = (st == "asking" || st == "waiting") ? 0 \
+           : (st == "needs_input") ? 1 \
+           : (st == "busy") ? 2 : 3
 
       # Same per-glyph spacing rule as agent-state.sh: the emoji ones are
       # already two cells wide, the narrow ▶ is padded to two, so the
       # columns after the glyph line up across rows.
-      glyph = (st == "asking")  ? "🔶" \
-            : (st == "waiting") ? "🛑" \
-            : (st == "busy")    ? "▶ " : "🔘"
+      glyph = (st == "asking" || st == "waiting" || st == "needs_input") \
+              ? "🛑" \
+            : (st == "busy") ? "▶ " : "🟢"
       where = ($1 == "") ? "local" : $1
       # The label is bracketed with ASCII, not set off with a nicer glyph:
       # printf pads by bytes, so a multibyte separator in a %-28s column shifts
@@ -446,7 +478,58 @@ if [ "${1:-}" = "--rows" ]; then
   exit 0
 fi
 
-list=$(render_list "$(collect_rows)")
+rows=$(collect_rows)
+
+# prefix + A acts on one row without showing you any of them, so it is the one
+# path that cannot afford a stale state: it would open a session that has
+# already been answered, or say "nothing is waiting on you" while a dialog whose
+# 🛑 is still 6s away sits open. It pays the CLI up front for that reason, where
+# the picker defers it to the first refresh — 140ms before a popup opens is not
+# noticeable, and 140ms before the picker paints is the whole latency budget.
+if [ -n "$answer_client" ]; then
+  rows=$(correct_rows "$rows")
+fi
+
+list=$(render_list "$rows")
+
+# --- answer the first red one (prefix + A) ------------------------------------
+
+# Placed before the empty-list branch below, which holds a popup open until a
+# key is pressed: there is no popup here, so that would hang a backgrounded
+# run-shell job forever with nothing on screen to explain it.
+#
+# The row is chosen by the same rule ctrl-o is offered by — a local row whose
+# state is one of the three the 🛑 glyph covers — read off the hidden key field
+# rather than re-derived, so the two keys cannot drift apart. `sort` has already
+# put the longest-blocked one first, so "the first match" is the pick.
+if [ -n "$answer_client" ]; then
+  outer_client=$answer_client
+
+  target=$(printf '%s\n' "$list" |
+    awk -F"$TAB" '$1 ~ /^\|/ && $1 ~ /\|(asking|waiting|needs_input)$/ { print $1; exit }')
+
+  if [ -z "$target" ]; then
+    # Three different silences, told apart: nothing running, something red that
+    # this key cannot reach, and everything running fine. A key that does
+    # nothing and says nothing is indistinguishable from tmux having dropped it.
+    if [ -z "$list" ]; then
+      msg "no Claude agents running"
+    elif printf '%s\n' "$list" |
+      awk -F"$TAB" '$1 ~ /\|(asking|waiting|needs_input)$/ { found = 1 } END { exit !found }'; then
+      msg "the blocked agent is remote — C-q a to see it"
+    else
+      msg "nothing is waiting on you"
+    fi
+    exit 0
+  fi
+
+  IFS='|' read -r _ window_id pane_id _ <<<"$target"
+
+  # Same hop the picker's ctrl-o makes: run-shell -b so this process returns
+  # rather than holding the popup open from inside a tmux job.
+  tmux run-shell -b "$view open $outer_client $window_id $pane_id"
+  exit 0
+fi
 
 if [ -z "$list" ]; then
   # Exiting straight away closes the popup the instant it opens, which reads as
@@ -524,8 +607,8 @@ picked=$(
       --bind="load:reload-sync(sleep $REFRESH; $self --rows)" \
       --bind="enter:transform:$self --jump-check {1}" \
       --bind='ctrl-o:transform:case {1} in
-                "|"*asking | "|"*waiting) echo "print(ctrl-o)+accept" ;;
-                *asking | *waiting) echo "change-header(ctrl-o: a remote agent cannot be answered here yet)" ;;
+                "|"*asking | "|"*waiting | "|"*needs_input) echo "print(ctrl-o)+accept" ;;
+                *asking | *waiting | *needs_input) echo "change-header(ctrl-o: a remote agent cannot be answered here yet)" ;;
                 *) echo "change-header(ctrl-o: that session is not waiting on you)" ;;
               esac'
 ) || exit 0
@@ -553,10 +636,10 @@ IFS='|' read -r host window_id pane_id state <<<"${selection%%$'\t'*}"
 # Each refusal says why on the status line and stops there.
 if [ "$key" = "ctrl-o" ]; then
   case "$state" in
-    asking | waiting) ;;
+    asking | waiting | needs_input) ;;
     *)
-      # Only a session with a dialog open has anything to answer. For a busy or
-      # a finished one there is nothing here to act on.
+      # Only a session blocked on the human has anything to answer. For a busy
+      # or a finished one there is nothing here to act on.
       msg "that session is not waiting on you"
       exit 0
       ;;

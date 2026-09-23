@@ -115,6 +115,118 @@ wezterm.on('user-var-changed', function(window, _pane, name, value)
   })
 end)
 
+-- Tab colour as the ssh indicator.
+--
+-- tmux's set-titles-string prefixes a remote pane's title with "≫" (see
+-- .tmux.conf). That is correct but nearly invisible: one narrow glyph in a row
+-- of text, marking the one fact worth noticing at a glance -- that everything
+-- typed in this tab lands on another machine. Colour carries it on its own, on
+-- the same purple the tmux status bar and pane border use -- so the marker is
+-- dropped from the label and nothing is put in its place. A word ("SSH") would
+-- say the same thing the colour already says while costing width in the one
+-- place there is least of it: tab titles are what gets truncated first.
+--
+-- Non-ssh tabs return a plain string, which is what the default renderer
+-- produces, so their appearance is unchanged. Returning the string rather than
+-- nil keeps that a decision made here instead of a fallback being relied on.
+local SSH_TAB_MARK = '≫'
+-- Everforest dark hard: purple (#d699b6) on bg_purple (#463f48) for the tab in
+-- front; a dimmed pair for the ones behind, so "which tab am I in" still reads
+-- after "which of these are remote".
+local SSH_TAB_ACTIVE = { bg = '#463f48', fg = '#d699b6' }
+local SSH_TAB_INACTIVE = { bg = '#332c36', fg = '#a88fa3' }
+
+-- What WezTerm itself would show: an explicitly set tab title, else the active
+-- pane's title (which under tmux is set-titles-string).
+local function tab_label(tab)
+  local explicit = tab.tab_title
+  if explicit and #explicit > 0 then
+    return explicit
+  end
+  return tab.active_pane.title or ''
+end
+
+wezterm.on('format-tab-title', function(tab, _tabs, _panes, _config, _hover, max_width)
+  local title = tab_label(tab)
+  if not title:find(SSH_TAB_MARK, 1, true) then
+    return wezterm.truncate_right(title, max_width)
+  end
+  -- Replace with a space, then collapse: the marker can sit behind an agent
+  -- state glyph ("❓≫ main"), and deleting it outright would glue the two
+  -- together.
+  title = title:gsub(SSH_TAB_MARK, ' '):gsub('%s+', ' '):gsub('^ ', ''):gsub(' $', '')
+  local colors = tab.is_active and SSH_TAB_ACTIVE or SSH_TAB_INACTIVE
+  return {
+    { Background = { Color = colors.bg } },
+    { Foreground = { Color = colors.fg } },
+    { Attribute = { Intensity = tab.is_active and 'Bold' or 'Normal' } },
+    { Text = wezterm.truncate_right(' ' .. title .. ' ', max_width) },
+  }
+end)
+
+
+-- How many Claude Code agents are blocked on you, in the tab bar's right edge.
+--
+-- The glyph is already on every tab that has one (tmux's set-titles-string
+-- concatenates @claude_glyph per pane -- see root/.claude/hooks/agent-state.md),
+-- so this adds three things the tab bar cannot: one FIXED place to look instead
+-- of a row of titles that move and shrink as tabs come and go, a COUNT, and the
+-- key. It also spans every WezTerm window, where the tab bar only ever shows
+-- its own -- a red tab in a window behind this one is otherwise invisible.
+--
+-- It is derived from the tab titles rather than from tmux, and that is the
+-- whole reason it can exist: the alternative is status-interval polling a #()
+-- subprocess, which is exactly what agent-state.sh's pane-option design was
+-- built to avoid (tmux formats have no loop over panes outside the current
+-- window, so a global count cannot be a format at all). Reading titles WezTerm
+-- already holds costs no process and no tmux round-trip, so it is affordable on
+-- a once-a-second callback. The cost of deriving it from the rendering is that
+-- this agrees with the tab bar by construction, including when the tab bar is
+-- wrong -- which is the direction worth being wrong in for an indicator whose
+-- only job is to explain what the tabs are showing.
+--
+-- Counted per occurrence, not per tab: a tmux window with two blocked panes
+-- reads "🛑🛑 name", and "2" is the honest answer to how many agents want you.
+--
+-- Nothing is shown at zero. An indicator that is always there is one the eye
+-- stops seeing, which is the opposite of the point.
+local BLOCKED_GLYPH = '🛑'
+-- Everforest red, matching what the glyph itself renders as.
+local BLOCKED_FG = '#e67e80'
+-- tmux's prefix (.tmux.conf) plus the key bound there. Spelled out rather than
+-- shortened to "A": this line is read by someone who does not yet know the key.
+local BLOCKED_HINT = 'C-q A'
+
+local function blocked_agents()
+  local n = 0
+  for _, mux_window in ipairs(wezterm.mux.all_windows()) do
+    for _, tab in ipairs(mux_window:tabs()) do
+      for _, pane in ipairs(tab:panes()) do
+        -- Byte-wise gmatch is safe here: every byte of this glyph is >= 0x80,
+        -- so none of them is a Lua pattern metacharacter.
+        for _ in (pane:get_title() or ''):gmatch(BLOCKED_GLYPH) do
+          n = n + 1
+        end
+      end
+    end
+  end
+  return n
+end
+
+wezterm.on('update-status', function(window, _pane)
+  local n = blocked_agents()
+  if n == 0 then
+    window:set_right_status('')
+    return
+  end
+  window:set_right_status(wezterm.format({
+    { Foreground = { Color = BLOCKED_FG } },
+    { Attribute = { Intensity = 'Bold' } },
+    { Text = string.format(' %s %d  %s ', BLOCKED_GLYPH, n, BLOCKED_HINT) },
+  }))
+end)
+
+
 local keys = {
   { mods = "CTRL", key = "q", action=wezterm.action{ SendString="\x11" } },
   -- Ctrl+T で現在のディレクトリを保持して新しいタブを開く

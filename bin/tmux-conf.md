@@ -18,6 +18,39 @@ Popups are exempt (`#{m:_*,#{session_name}}`): there `d` closes a popup, which i
 what it looks like it does, and asking on the way out of a view is friction with
 nothing to protect.
 
+## Purple means "another machine" (`@ssh_view`)
+
+The status bar and the active pane border go purple when the screen in front of
+you is a remote's, green otherwise. `@ssh_view` is the single condition behind
+both; the styles only ask it.
+
+It is true two ways, because the two ends of an ssh connection know different
+things:
+
+- `@ssh_host`, set on the local pane by the `ssh()` / `myssh()` wrappers in
+  [zsh/ssh.zsh](../zsh/ssh.zsh). This is the only signal this side has.
+- a session name matching `local-*`. **The remote tmux has no idea it is being
+  looked at down a wire** — and with `myssh` most of what is on screen is drawn
+  by *it*: its own status line, its pane borders. So the local `@ssh_host`
+  reaches almost none of it. What the remote does have is the session name
+  `myssh` asks for, `local-<pane id>`, which exists only because another
+  machine's pane created it.
+
+Two consequences worth knowing before changing this:
+
+- **Switch to a differently-named session on the remote and its chrome goes back
+  to green.** Nothing about that session records where its viewer is. The name
+  is the whole signal; there is no state to be stale, and nothing to clean up.
+- Styles are format-expanded, so a conditional works in `status-style` just as it
+  does in `pane-active-border-style` — verified against tmux 3.7c by attaching a
+  client inside another tmux and capturing the rendered status line with
+  `capture-pane -e`. The whole bar changes background, not just the text.
+
+The same distinction is carried into the WezTerm tab bar by `format-tab-title` in
+[wezterm.lua](../wezterm.lua), which keys off the `≫` marker that
+`set-titles-string` puts in a remote pane's title and paints the tab on the same
+palette. Change the marker and the tab colour goes with it, silently.
+
 ## Testing (`tmux-conf.test.sh`)
 
 **The load-bearing discovery: `tmux -f <conf> new-session` swallows config errors

@@ -167,7 +167,7 @@ section "busy"
 run busy
 assert_exit_zero "busy" $?
 assert_opt @claude_state busy
-# The separator is per-glyph, not uniform: 🔶 🛑 🔘 are emoji-presentation and
+# The separator is per-glyph, not uniform: 🛑 🟢 are emoji-presentation and
 # already two cells wide, so only the narrow ▶ carries a trailing space.
 # Pinned exactly, because the title format concatenates it blind.
 assert_opt @claude_glyph '▶ '
@@ -189,11 +189,41 @@ done
 assert_opt @claude_glyph '🛑'
 
 section "notify: a background agent blocked on the human"
+# Its own state, not `stalled`, which it shared until the glyphs were split.
+# The two answer the one question the tab bar is asked — is it worth going
+# there — in opposite directions, so a shared glyph made the answer unreadable:
+# some 🔘 wanted you and some did not.
 run clear
 run notify "$(notify_json agent_needs_input 'reviewer needs your input')"
-assert_opt @claude_state stalled
-assert_opt @claude_glyph '🔘'
+assert_opt @claude_state needs_input
+assert_opt @claude_glyph '🛑'
 assert_opt @claude_note 'reviewer needs your input'
+
+# ...and it outranks a busy actor, for the same reason `waiting` does: a worker
+# blocked on you is not progress, whatever else the pane is doing. Pinned
+# because the rank table is the only thing that says so, and getting it wrong
+# is silent — the pane would simply keep showing ▶.
+run clear
+run subagent-start "$(agent_json A Explore)"
+run busy "$(agent_json A Explore)"
+run notify "$(notify_json agent_needs_input 'a worker wants you')"
+assert_opt @claude_state needs_input
+assert_opt @claude_glyph '🛑'
+
+# ...and loses to an actor with a dialog open. Both halves are needed because
+# the new rank was inserted BETWEEN them, and each half alone permits the
+# inversion: swap the two ranks and the case above still passes.
+#
+# This is the only place the waiting/needs_input order is observable. The
+# same-actor guard a few lines down never reaches the ranking — it returns
+# early on `current_state`, before a record is written — so it would stay green
+# through an inverted table. Two actors are what make the comparison happen.
+run clear
+run subagent-start "$(agent_json A Explore)"
+prompt_for A Explore Bash 'rm -rf /tmp/x'
+run notify "$(notify_json agent_needs_input 'a worker wants you')"
+assert_opt @claude_state waiting
+assert_opt @claude_glyph '🛑'
 
 section "permission: records who is asking, publishes nothing"
 # PermissionRequest fires BEFORE the permission rules are applied, so it is not
@@ -253,7 +283,7 @@ run clear
 run ask '{"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"Which  glyph\nwins?"},{"question":"ignored"}]}}'
 assert_exit_zero "ask" $?
 assert_opt @claude_state asking
-assert_opt @claude_glyph '🔶'
+assert_opt @claude_glyph '🛑'
 # The first question only, whitespace collapsed: @claude_note is read back on a
 # single line by bin/tmux-agents.
 assert_opt @claude_note 'Which glyph wins?'
@@ -275,7 +305,7 @@ run clear
 run ask '{"tool_input":{"questions":[{"question":"keep me"}]}}'
 run notify "$(notify_json permission_prompt 'Claude needs your permission')"
 assert_opt @claude_state asking
-assert_opt @claude_glyph '🔶'
+assert_opt @claude_glyph '🛑'
 assert_opt @claude_note 'keep me'
 
 for from in asking waiting; do
@@ -369,7 +399,7 @@ section "done: the Stop transition publishes stalled"
 run 'done'
 assert_exit_zero 'done' $?
 assert_opt @claude_state stalled
-assert_opt @claude_glyph '🔘'
+assert_opt @claude_glyph '🟢'
 
 section "clear"
 run notify "$(notify_json permission_prompt 'something')"
@@ -441,6 +471,70 @@ assert_opt @claude_session_id ''
 run start 'not json at all'
 assert_exit_zero "start with malformed stdin" $?
 assert_opt @claude_session_id ''
+section "start: a resumed session opens stalled, the others open blank"
+# `claude --continue` reopens a conversation that already has a finished turn
+# in it, so the pane should say so from the start rather than look like an
+# empty shell until you type. SessionStart carries which it was in `.source`.
+start_json() { jq -cn --arg s "$1" '{hook_event_name:"SessionStart", source:$s}'; }
+
+run notify "$(notify_json permission_prompt 'something')"
+run start "$(start_json resume)"
+assert_exit_zero "start resume" $?
+assert_opt @claude_state stalled
+assert_opt @claude_glyph '🟢'
+# The records from the previous session are still wiped first: what is
+# published is one fresh `stalled` on main, not whatever the pane was left
+# holding. Pinned through @claude_agents, where a surviving actor would show.
+agents=$(get_opt @claude_agents)
+if [[ "$(grep -c . <<<"${agents//$'\036'/$'\n'}")" -eq 1 ]]; then
+  ok "resume publishes exactly one record"
+else
+  bad "resume left extra records: [${agents//$'\036'/ | }]"
+fi
+
+# compact is the one that would hurt: it fires MID-TURN after auto-compaction,
+# so publishing there would paint the finished-turn glyph over a working
+# session. startup and clear are simply new conversations with nothing to read.
+for src in startup clear compact fork; do
+  run busy
+  run start "$(start_json "$src")"
+  got=$(get_opt @claude_state)
+  if [[ -z "$got" ]]; then ok "source=$src opens blank"; else bad "source=$src -> [$got], want blank"; fi
+done
+
+# SessionEnd carries the literal string "resume" too -- as `reason`, when the
+# session ends because one was resumed elsewhere. Reading `.source` with jq is
+# what keeps the two apart; a substring match on the payload would light up a
+# pane whose session had just ended. SessionEnd lands on `clear` and cannot
+# reach that branch at all now, so the payload is aimed at `start` as well --
+# that is the mode a future substring match would be written in.
+run busy
+run clear '{"hook_event_name":"SessionEnd","reason":"resume"}'
+assert_opt @claude_state ''
+run busy
+run start '{"hook_event_name":"SessionEnd","reason":"resume"}'
+assert_opt @claude_state ''
+
+# ...and a payload-less invocation of either still just clears.
+run busy
+run clear
+assert_opt @claude_state ''
+run busy
+run start
+assert_opt @claude_state ''
+
+# A payload jq cannot parse must clear and say nothing, not fail. This hook's
+# first promise is that it never blocks the session, and these are the two modes
+# whose failure would be invisible twice over -- they run at the session
+# boundaries, before there is any glyph to notice missing.
+run busy
+run start 'not json at all'
+assert_exit_zero "start with an unparsable payload" $?
+assert_opt @claude_state ''
+run busy
+run clear 'not json at all'
+assert_exit_zero "clear with an unparsable payload" $?
+assert_opt @claude_state ''
 
 section "unknown mode / no mode"
 run busy
@@ -474,6 +568,10 @@ check_no_vs16 asking
 run clear
 run notify "$(notify_json permission_prompt 'p')"
 check_no_vs16 waiting
+run clear
+run notify "$(notify_json agent_needs_input 'w')"
+check_no_vs16 needs_input
+run clear
 run 'done'
 check_no_vs16 stalled
 

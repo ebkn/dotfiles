@@ -11,7 +11,7 @@ Consumers are `set-titles-string` in `.tmux.conf` and
 
 | Option | Meaning |
 | --- | --- |
-| `@claude_state` | `busy` ▶ / `asking` 🔶 / `waiting` 🛑 / `stalled` 🔘. Unset means idle. |
+| `@claude_state` | `busy` ▶ / `asking` 🛑 / `waiting` 🛑 / `needs_input` 🛑 / `stalled` 🟢. Unset means idle. |
 | `@claude_glyph` | The rendered glyph, stored ready to concatenate. |
 | `@claude_since` | Epoch seconds. |
 | `@claude_note` | The pending question or permission message. |
@@ -31,12 +31,38 @@ aligned.
 **Every glyph must carry `Emoji_Presentation=Yes` on its own**, never a base
 character promoted with VS16 `U+FE0F`, because terminals and tmux disagree on
 whether such a sequence is one cell or two. `⚠️` was tried for `asking` and
-visibly misaligned the tab title, which is the only reason `asking` is an orange
-diamond rather than the warning sign it wants to be. `agent-state.test.sh`
-asserts that no published glyph contains `U+FE0F`.
+visibly misaligned the tab title, which is why the set is built from
+single-codepoint shapes rather than from the signs these states would otherwise
+want. `agent-state.test.sh` asserts that no published glyph contains `U+FE0F`.
 
-The split between 🛑 and 🔘 is by how loudly the pane should shout: a modal is
-open and nothing moves, versus nothing is happening and the next move is yours.
+**Hue answers one question, and it is not "which state is this".** At tab size
+hue is all that resolves, and the only thing worth resolving there is whether it
+is worth going to that tab. So hue groups:
+
+| glyph | states | reading |
+| --- | --- | --- |
+| 🛑 red | `asking`, `waiting`, `needs_input` | blocked on you — go there |
+| 🟢 green | `stalled` | the turn is over, nothing is blocked |
+| ▶ none | `busy` | running; the one state you are *not* meant to look at |
+
+Shape carries nothing further: **all three blocked states print the same 🛑**.
+Which kind of block it is — a question, a permission prompt, an agent elsewhere
+wanting input — does not change the answer to the only question this indicator
+is asked, and a second visual axis for it only made the first one harder to
+read.
+
+Know the consequence before adding a state: **the glyph is no longer a key.** The
+picker prints no state text, so a row's glyph no longer says *which* block it is
+reporting. It does say that `ctrl-o` applies — the key is offered for all three
+red states, which is what keeps "red" a single actionable category — but the
+state itself still travels in the row's hidden key field, so anything that needs
+to tell them apart reads that, never the rendering.
+
+Both halves of this cost a revision to learn. 🔘 was worn by both `stalled` and
+what is now `needs_input`, so "a worker is blocked on you" and "your turn
+finished" rendered identically — and being grey it read as ▶ besides. Giving
+different meanings one colour is the mistake; giving one meaning one colour is
+the opposite move.
 
 ## One pane holds several actors
 
@@ -54,7 +80,7 @@ State is therefore kept **per actor**, one small file each under
 `${XDG_STATE_HOME:-~/.local/state}/claude-agent-state/<socket>-<pane>/`, and the
 options are derived from them by priority:
 
-    asking > waiting > busy > stalled
+    asking > waiting > needs_input > busy > stalled
 
 so anything blocked on the human outranks anything still running. Ties go to the
 oldest, then to whichever record carries a note. Several actors routinely enter a
@@ -169,16 +195,42 @@ to the published state for it. The bindings appear as sessions restart.
 
 ## Registration
 
-Registered on `SessionStart` (`start`: clear, then bind), `SessionEnd`
-(`clear`), `UserPromptSubmit` / `PostToolBatch` (busy),
-`PreToolUse` with matcher `AskUserQuestion` (asking),
+Registered on `SessionStart` (`start`: clear, bind, and open a resumed session
+as `stalled` — see below), `SessionEnd` (`clear`), `UserPromptSubmit` /
+`PostToolBatch` (busy), `PreToolUse` with matcher `AskUserQuestion` (asking),
 `PermissionRequest` (attribution only, publishes nothing), `Notification`
-(waiting / stalled), `Stop` (stalled), and `SubagentStart`/`SubagentStop`
+(waiting / needs_input), `Stop` (stalled), and `SubagentStart`/`SubagentStop`
 (register / forget an actor).
 
 Modes name the transition and states name what is published, so they need not
 match: the `done` argv mode is the Stop transition and publishes `stalled`,
 which also spares `settings.json` a lockstep edit.
+
+### A resumed session opens `stalled`
+
+`claude --continue` reopens a conversation that already holds a finished turn
+whose next move is yours, so the pane says so from the moment it opens.
+Previously a resumed session was indistinguishable from an empty shell until you
+typed — the wrong way round, since the sessions worth finding again are exactly
+the ones you left in the middle of something.
+
+It keys on `SessionStart`'s `.source`, and **only `resume`**. `startup` and
+`clear` are new conversations with nothing to have left unread. `compact` fires
+**mid-turn** after auto-compaction while the agent is still working, so
+publishing there would paint 🟢 over a busy session and the next `PostToolBatch`
+would take it straight back — a flicker and nothing more. `fork` is arguably the
+same case as `resume` and is left out only until it is wanted; it is one word.
+
+**The field is read with `jq`, not matched in the string, and that is not
+style.** `SessionEnd` also carries the literal `resume` — as its `reason`, when
+the session ends because one was resumed elsewhere — so `case "$json" in
+*resume*)` would light up a pane whose session had just *ended*. `.source` is a
+different key and only `SessionStart` has one. Since the two events now land on
+different modes (`start` and `clear`), `SessionEnd` cannot reach this branch at
+all; the rule stands anyway, because a substring match written inside `start`
+would fail the same way. This is the one `start` invocation per session, and it
+shares its `jq` pass with the session-id binding, so the fork it costs is
+affordable where the `busy` path would never allow it.
 
 ## Cost
 
@@ -187,8 +239,9 @@ It takes the transition as an **argv mode**, not from the stdin JSON's
 fires once per tool batch and exists solely to clear `waiting`/`asking` back to
 `busy` once a prompt is answered, so it must stay cheap.
 
-It reads stdin only while a subagent is actually registered on the pane — with
-one actor there is nothing to attribute — and when it does, it attributes with
+It reads stdin on the hot paths only while a subagent is actually registered on
+the pane — with one actor there is nothing to attribute — and when it does, it
+attributes with
 **jq, never a shell regex over the raw payload**: `PostToolBatch` carries the
 *content* of every tool result in the batch, so a file the agent just read can
 contain the text `"agent_id"` and would silently file the main thread's state
@@ -266,7 +319,7 @@ That makes state precedence real logic rather than incidental, and
 `agent-state.test.sh` pins it: the same dialog fires both hooks, so
 `permission_prompt` must not demote `asking` to `waiting`, and `agent_needs_input`
 (a background agent blocking on the human) must not demote either of them to
-`stalled` — that is the one direction that loses information.
+`needs_input` — that is the one direction that loses information.
 
 `idle_prompt` is deliberately **not** in the allow-list: it fires 60s after a
 turn ends, a state `Stop` has already published, so republishing would only
