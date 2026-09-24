@@ -49,6 +49,12 @@
 #   done           — turn finished, unread         (Stop)
 #   subagent-start — a subagent began              (SubagentStart)
 #   subagent-stop  — a subagent finished           (SubagentStop)
+#   correct <state> [note]
+#                  — the live answer disagrees     (bin/tmux-agent-sync)
+#
+# Every mode but the last is a hook. `correct` is the one surface that is not:
+# hooks report transitions, three of them are reported by no hook at all, and a
+# poller asking `claude agents --json` is what fills that gap.
 #
 # Modes name the *transition*, states name what is published, and the two need
 # not match: `done` is the Stop transition, and the state it publishes is
@@ -223,6 +229,33 @@ current_state() { # of *this* actor, for the within-actor precedence rules
 
 forget_actor() {
   rm -f "$(actor_file)" 2>/dev/null || true
+}
+
+# Every actor that claims to be blocked stops claiming it. Used only by
+# `correct`, whose input is a SESSION-level answer: a session `claude agents
+# --json` does not call `waiting` has no actor in it blocked on you, whichever
+# actor's record says otherwise. Correcting `main` alone would leave the
+# aggregate blocked and the tab red — the bug rather than the fix, since the
+# record that sticks is typically a subagent's (see the pending-decision
+# section).
+#
+# Demoted to `busy`, not deleted: has_agents is what makes the hot path pay for
+# jq, so forgetting a subagent that is still running sends its next
+# PostToolBatch to `main` and misattributes it. A subagent that has really gone
+# is removed by SubagentStop as usual.
+unblock_actors() {
+  local f stamp
+  stamp=$(date +%s)
+  for f in "$state_dir"/a_*; do
+    [ -f "$f" ] || continue
+    read_entry "$f" || continue
+    case "$e_state" in
+      asking | waiting | needs_input) ;;
+      *) continue ;;
+    esac
+    printf '%s%s%s%s%s%s\n' \
+      busy "$SEP" "$stamp" "$SEP" "$e_label" "$SEP" >"$f" 2>/dev/null || true
+  done
 }
 
 # --- the pending permission decision -----------------------------------------
@@ -587,6 +620,48 @@ case "$mode" in
     parse_agent
     [ -n "$agent_id" ] || exit 0
     forget_actor
+    publish
+    ;;
+  correct)
+    # Not a hook. bin/tmux-agent-sync calls this when `claude agents --json`
+    # contradicts what the records say, which is the only source for the three
+    # transitions no hook reports at all: a permission prompt being answered, a
+    # dialog dismissed, and an interrupted turn. Without it a 🛑 published by
+    # the Notification stays up for the whole of an approved long command.
+    #
+    # It goes through the records rather than writing the pane options directly,
+    # and that is not fastidiousness. publish() skips the tmux calls when the
+    # records match `.published`, so options written behind its back would make
+    # the NEXT genuine transition a no-op: a second prompt re-recording the same
+    # `waiting`, at the same timestamp, derives byte-identically to what
+    # `.published` already holds, and the pane would keep the corrected ▶ with a
+    # modal open. One writer for the records, one publisher for the options.
+    #
+    # The state comes from argv, so the vocabulary is re-checked here: the
+    # caller is a separate script, and an unknown value reaching glyph_of would
+    # publish a live state name with no glyph at all.
+    case "${2:-}" in
+      busy | stalled)
+        # Away from blocked, so nothing may be left claiming it — including a
+        # pending note, whose call the CLI has just told us was settled without
+        # a prompt. Leaving it would attribute the next dialog to that call.
+        unblock_actors
+        drop_pending
+        ;;
+      waiting)
+        # `asking` is the richer reading of the same CLI status: the question
+        # text is the one thing no other surface carries. Per actor, like the
+        # Notification path, because another actor being blocked says nothing
+        # about this one.
+        [ "$(current_state)" = "asking" ] && exit 0
+        ;;
+      *) exit 0 ;;
+    esac
+    # Bounded like every other caller's note. derive() truncates the aggregate
+    # but the per-actor listing carries what record() stored, and the CLI's
+    # `waitingFor` is arbitrary text.
+    note=${3:-}
+    record "$2" "${note:0:120}"
     publish
     ;;
   ask)

@@ -193,6 +193,56 @@ still say `clear`. **A consumer must therefore treat a pane with no
 `@claude_session_id` as "unknown", never as "not a Claude pane"**, and fall back
 to the published state for it. The bindings appear as sessions restart.
 
+### `correct` — the half that is not a hook
+
+Two consumers act on that binding. `bin/tmux-agents` corrects the *rendering*
+while its picker is open, which fixes the list and nothing else; the WezTerm tab
+glyph is read from `@claude_glyph` and stays wrong. `bin/tmux-agent-sync` is the
+poller that fixes the option itself, and it does so by calling this hook:
+
+```
+agent-state.sh correct <busy|stalled|waiting> [note]
+```
+
+with `TMUX` and `TMUX_PANE` set to the pane it is correcting.
+
+**It goes through the records, never straight to the pane options, and that is
+load-bearing.** `publish()` skips its tmux calls when the records still match
+`.published`, so an option written behind its back would make the *next* genuine
+transition a no-op: a second permission prompt re-records the same `waiting` at
+the same timestamp, derives byte-identically to what `.published` already holds,
+and the pane keeps the corrected ▶ with a modal open. One writer for the
+records, one publisher for the options.
+
+Two rules follow from the CLI's answer being about the **session**, not about an
+actor:
+
+- A correction **away** from blocked demotes *every* blocked actor record to
+  `busy`, not just `main`. The record that sticks is typically a subagent's — a
+  prompt raised inside one, then approved — so correcting `main` alone leaves
+  the aggregate blocked and the tab red, which is the bug and not the fix. It
+  also drops the pending note, whose call has just been shown to have been
+  settled without a prompt. Demoted rather than deleted: forgetting a live
+  subagent sends its next `PostToolBatch` to `main` (see `has_agents`).
+- A correction **towards** blocked never overwrites `asking`. The CLI reports
+  the same `waiting` for a question and for a permission prompt, and the
+  question text is the one thing no other surface carries.
+
+The state is re-checked against the vocabulary here rather than trusted, because
+the caller is a separate script: an unknown value reaching `glyph_of` would
+publish a live state name with no glyph at all, and the note is bounded to 120
+characters like every other caller's — `derive` truncates only the *aggregate*,
+so an unbounded `waitingFor` would otherwise reach `@claude_agents` whole.
+
+**The two corrections date a state differently, and the difference is visible.**
+This one goes through `record`, so it keeps `record`'s rule that a timestamp is
+when the actor *entered* the state — re-confirming `busy` does not restamp it,
+which is right, because the pane really has been busy since then and the
+flagship case (main already `busy`, a subagent holding the contradicted
+`waiting`) reaches exactly it. `bin/tmux-agents` instead stamps a corrected row
+with `now`, having no per-actor record to consult. So the picker's age column
+and `@claude_since` can disagree after the same correction.
+
 ## Registration
 
 Registered on `SessionStart` (`start`: clear, bind, and open a resumed session
@@ -387,6 +437,14 @@ skips** without them.
   the id with it. `clear_opts` unsets four options and must keep ignoring the
   fifth; getting that wrong leaves the join key missing exactly while a session
   is running, and nothing else in this suite would notice.
+- **`correct`** — the case worth having is the multi-actor one: a prompt raised
+  inside a subagent, approved, and the pane going ▶ again. Correcting only
+  `main` passes every other assertion in that section while leaving the tab red
+  for the whole run, which is the precise shape of the bug this mode exists to
+  remove. Beside it, the vocabulary guard (an unknown state must leave the pane
+  alone rather than publish a glyph-less one) and the two asymmetries: the
+  pending note goes with the block, and `asking` survives a correction towards
+  blocked.
 - **Cost** — three cases assert cost rather than output: no JSON parsing on the
   busy path while the pane has one actor, one jq pass once a subagent is
   registered, no tmux round trip when nothing a consumer can see has changed.

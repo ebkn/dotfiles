@@ -544,6 +544,161 @@ run clear 'not json at all'
 assert_exit_zero "clear with an unparsable payload" $?
 assert_opt @claude_state ''
 
+section "correct: the poller's answer overrides the records"
+# `correct` is the half of the fix hooks cannot supply. Three transitions fire
+# no hook at all -- a permission prompt being answered, a dialog dismissed, an
+# interrupted turn -- so bin/tmux-agent-sync asks `claude agents --json` and
+# calls this when the live answer contradicts what the records say.
+#
+# It takes its state on the command line, not on stdin, so run() (mode, stdin)
+# cannot express it. </dev/null matters: nothing here reads stdin, and a hook
+# invoked from a poller has no pipe on it.
+run_correct() {
+  TMUX="$TMUX_ENV" TMUX_PANE="$PANE" "$HOOK" correct "$@" </dev/null
+}
+
+run notify "$(notify_json permission_prompt 'Claude needs your permission')"
+assert_opt @claude_state waiting
+run_correct busy
+assert_exit_zero "correct busy" $?
+assert_opt @claude_state busy
+assert_opt @claude_glyph '▶ '
+# The note described the block that is now over, so it must go with it.
+assert_opt @claude_note ''
+
+run clear
+run notify "$(notify_json permission_prompt 'Claude needs your permission')"
+run_correct stalled
+assert_opt @claude_state stalled
+assert_opt @claude_glyph '🟢'
+
+# The other direction: a dialog the hooks have not published yet. The
+# Notification for a permission prompt arrives a measured 6s after the modal
+# opens (see agent-state.md), and never at all when it is answered sooner, so
+# without this the picker sees a red the tab bar does not.
+run clear
+run busy
+run_correct waiting 'Bash: rm -rf /tmp/x'
+assert_opt @claude_state waiting
+assert_opt @claude_glyph '🛑'
+assert_opt @claude_note 'Bash: rm -rf /tmp/x'
+
+# A correction goes through record(), so it inherits record()'s rule: the
+# timestamp is when the actor ENTERED the state, and re-confirming a state does
+# not restamp it. That matters here because the flagship case reaches exactly
+# it -- main is already `busy` while a subagent holds the `waiting` the CLI
+# contradicts -- and the pane really has been busy since the earlier moment.
+#
+# Note this is NOT what bin/tmux-agents does while its picker is open: its
+# correction stamps the row with `now`, because the CLI publishes no timestamp
+# of its own. The two therefore report different ages for the same correction.
+run clear
+run busy
+old=$(get_opt @claude_since)
+run_correct busy
+if [[ "$(get_opt @claude_since)" == "$old" ]]; then
+  ok "re-confirming a state does not restamp @claude_since"
+else
+  bad "@claude_since restamped on a same-state correction: was [$old], now [$(get_opt @claude_since)]"
+fi
+
+# The vocabulary belongs to this hook, not to its caller. A state it does not
+# know must leave the pane alone rather than reach glyph_of and publish an empty
+# glyph against a live state name.
+run clear
+run notify "$(notify_json permission_prompt 'something')"
+for bogus in shell '' 'busy; rm -rf /'; do
+  run_correct "$bogus"
+  got=$(get_opt @claude_state)
+  if [[ "$got" == waiting ]]; then ok "correct [$bogus] is ignored"; else bad "correct [$bogus] published [$got]"; fi
+done
+run_correct
+assert_exit_zero "correct with no state at all" $?
+assert_opt @claude_state waiting
+
+# THE CASE THIS MODE WAS ADDED FOR. A prompt raised inside a subagent files a
+# `waiting` record against that subagent, and nothing clears it when the prompt
+# is approved -- the main thread parked on "Waiting for N background agents"
+# fires no hook at all. Correcting only `main` would leave the aggregate at
+# waiting and the tab red for the whole run, which is the bug rather than the
+# fix, so a correction away from blocked has to reach every actor.
+#
+# All THREE blocked states are exercised, one fixture each, because the case
+# list in unblock_actors is the kind of thing a later state quietly misses:
+# `needs_input` was added to the vocabulary after bin/tmux-agents' matching
+# list was written, was not added there, and left exactly that state stuck red.
+# Nothing but a fixture per state notices.
+for blocked in waiting needs_input asking; do
+  run clear
+  run busy
+  run subagent-start "$(agent_json A1 Worker)"
+  case $blocked in
+    waiting) prompt_for A1 Worker Bash 'rm -rf /' ;;
+    needs_input) run notify "$(agent_json A1 Worker agent_needs_input 'Worker needs your input')" ;;
+    asking) run ask '{"tool_name":"AskUserQuestion","agent_id":"A1","agent_type":"Worker","tool_input":{"questions":[{"question":"which one?"}]}}' ;;
+  esac
+  got=$(get_opt @claude_state)
+  if [[ "$got" == "$blocked" ]]; then ok "a subagent holding $blocked blocks the pane"; else bad "fixture for $blocked published [$got]"; fi
+  run_correct busy
+  assert_opt @claude_state busy
+  assert_opt @claude_glyph '▶ '
+  listing_of_agents=$(get_opt @claude_agents)
+  # Demoted to `busy`, and the state is named rather than merely checked for the
+  # absence of the old one: demoting to `stalled` instead would leave main's
+  # `busy` winning the aggregate, so every assertion above would still pass.
+  #
+  # Not deleted, either. has_agents is what makes the hot path pay for jq, so
+  # forgetting a live subagent sends its next PostToolBatch to `main` -- the
+  # misattribution this file is shaped to avoid.
+  #
+  # The subagent's OWN record is picked out first. A pattern over the whole
+  # listing cannot express this: main's record is `busy` too, so
+  # `*busy${US}*${US}Worker${US}*` matches across the record boundary and passes
+  # whatever state the subagent was left in -- which it duly did, until a
+  # mutation to `stalled` was tried against it.
+  worker=""
+  while IFS= read -r entry; do
+    case $entry in *"${US}Worker${US}"*) worker=$entry ;; esac
+  done <<<"${listing_of_agents//$RS/$'\n'}"
+  case $worker in
+    "busy${US}"*) ok "the subagent's $blocked is demoted to busy, keeping its label" ;;
+    '') bad "$blocked: the subagent was forgotten: [$listing_of_agents]" ;;
+    *) bad "$blocked was not demoted to busy: [$worker]" ;;
+  esac
+done
+
+# A pending note belongs to a call that was about to be asked about. Once the
+# CLI says nothing is blocked, that call was settled without a prompt, and
+# leaving the note would attribute the NEXT dialog to it.
+run clear
+run busy
+run permission "$(permission_json '' '' Bash 'auto-approved')"
+run_correct busy
+run notify "$(notify_json permission_prompt 'Claude needs your permission')"
+assert_opt @claude_note 'Claude needs your permission'
+
+# The note is bounded here like every other caller's. The CLI's `waitingFor` is
+# arbitrary text, and derive() truncates only the AGGREGATE note -- the per-actor
+# listing carries what record() stored -- so an unbounded note would reach
+# @claude_agents whole, which no other path allows.
+run clear
+run busy
+long=$(printf 'x%.0s' $(seq 1 300))
+run_correct waiting "$long"
+note=$(get_opt @claude_note)
+if [[ "${#note}" -eq 120 ]]; then ok "a long correction note is truncated to 120"; else bad "note is ${#note} characters, want 120"; fi
+listing=$(get_opt @claude_agents)
+if [[ "$listing" != *"${long:0:130}"* ]]; then ok "the untruncated note never reaches @claude_agents"; else bad "@claude_agents carries the full note"; fi
+
+# `asking` carries the question itself, which nothing else can reconstruct, and
+# the CLI reports the same `waiting` for it as for a permission prompt. So a
+# correction towards blocked must not flatten it into a bare 🛑.
+run clear
+run ask '{"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"which one?"}]}}'
+run_correct waiting 'Bash: something else'
+assert_opt @claude_state asking
+assert_opt @claude_note 'which one?'
+
 section "unknown mode / no mode"
 run busy
 run bogus_mode
