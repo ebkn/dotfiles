@@ -489,10 +489,234 @@ else
   esac
 fi
 
-rm -f "$work/stub/claude"
+# --- the same correction, written back onto the panes -------------------------
+
+# --rows fixes the picker and nothing else: the WezTerm tab glyph is read from
+# @claude_glyph by set-titles-string, so it stays wrong until something writes
+# the option. --sync is that something, run from launchd, and it applies the
+# SAME rule -- which is why it is a mode of this script rather than a second one
+# that would drift from it.
+#
+# It writes through the hook's `correct` mode rather than setting the options
+# itself, so what is asserted here is the end state of that whole path.
+
+socket_path=$(tmux -L "$socket" display-message -p '#{socket_path}')
+pane_of() { tmux -L "$socket" list-panes -t "work:$1" -F '#{pane_id}' | head -1; }
+opt_of() { tmux -L "$socket" show-options -p -t "$(pane_of "$1")" -qv "$2"; }
+
+# A bound pane the hooks have published nothing for. The CLI calls it idle, and
+# nothing may appear on it: every idle Claude session on the machine lighting up
+# is the failure mode a poller invites, and "agree = leave alone" is what
+# prevents it.
+add_bound_pane corr-blank "" "" sid-blank
+
+# --sync calls the hook at $HOME/.claude/hooks/agent-state.sh, so the fixture is
+# a $HOME rather than a variable pointing the script somewhere else: the script
+# keeps no seam that exists only for this test, which is the same rule that kept
+# fzf and ssh stubbed as programs on PATH.
+mkdir -p "$work/home/.claude/hooks"
+ln -sf "$PWD/root/.claude/hooks/agent-state.sh" "$work/home/.claude/hooks/agent-state.sh"
+
+# $1, when given, replaces the hook with that program -- used by the cost cases,
+# which count invocations rather than looking at what they did.
+run_sync() {
+  rm -f "$work/sync.err"
+  if [ -n "${1:-}" ]; then
+    ln -sf "$1" "$work/home/.claude/hooks/agent-state.sh"
+  else
+    ln -sf "$PWD/root/.claude/hooks/agent-state.sh" "$work/home/.claude/hooks/agent-state.sh"
+  fi
+  HOME="$work/home" \
+    XDG_STATE_HOME="$work/state" \
+    TMUX="$socket_path,0,0" \
+    PATH="$work/stub:$PWD/bin:$PATH" \
+    tmux-agents --sync 2>"$work/sync.err"
+}
+
+stub_claude '[{"sessionId":"sid-stale","status":"busy"},
+              {"sessionId":"sid-needs","status":"busy"},
+              {"sessionId":"sid-blank","status":"idle"},
+              {"sessionId":"sid-late","status":"waiting","waitingFor":"permission prompt"},
+              {"sessionId":"sid-unknown","status":"shell"}]'
+
+if ! run_sync; then
+  fail "--sync runs" "stderr: $(cat "$work/sync.err" 2>/dev/null)"
+else
+  # The reported symptom, on the surface the user actually looks at.
+  if [ "$(opt_of corr-stale @claude_state)" = busy ] &&
+    [ "$(opt_of corr-stale @claude_glyph)" = '▶ ' ]; then
+    pass "a stale 🛑 is cleared off the pane itself"
+  else
+    fail "a stale 🛑 is cleared off the pane itself" \
+      "state: [$(opt_of corr-stale @claude_state)] glyph: [$(opt_of corr-stale @claude_glyph)]"
+  fi
+
+  if [ "$(opt_of corr-needs @claude_state)" = busy ]; then
+    pass "a stale needs_input is cleared too"
+  else
+    fail "a stale needs_input is cleared too" "state: [$(opt_of corr-needs @claude_state)]"
+  fi
+
+  if [ "$(opt_of corr-late @claude_state)" = waiting ] &&
+    [ "$(opt_of corr-late @claude_note)" = "permission prompt" ]; then
+    pass "a dialog the hooks have not reported yet reaches the pane"
+  else
+    fail "a dialog the hooks have not reported yet reaches the pane" \
+      "state: [$(opt_of corr-late @claude_state)] note: [$(opt_of corr-late @claude_note)]"
+  fi
+
+  if [ -z "$(opt_of corr-blank @claude_state)" ]; then
+    pass "an idle session with nothing published stays blank"
+  else
+    fail "an idle session with nothing published stays blank" \
+      "state: [$(opt_of corr-blank @claude_state)]"
+  fi
+
+  for w in corr-unknown corr-nobind corr-gone; do
+    if [ "$(opt_of "$w" @claude_state)" = waiting ]; then
+      pass "$w is left as the hooks published it"
+    else
+      fail "$w is left as the hooks published it" "state: [$(opt_of "$w" @claude_state)]"
+    fi
+  done
+fi
+
+# The binding is the join key, and it has to outlive every correction: losing it
+# would make the pane permanently uncorrectable, which no glyph would show.
+if [ "$(opt_of corr-stale @claude_session_id)" = sid-stale ]; then
+  pass "a correction leaves @claude_session_id bound"
+else
+  fail "a correction leaves @claude_session_id bound" \
+    "binding: [$(opt_of corr-stale @claude_session_id)]"
+fi
+
+# Idempotent: the second pass agrees with the CLI everywhere, so it must find
+# nothing to do. A poller that rewrites the same options every tick would also
+# call `refresh-client -S` every tick, forever.
+before=$(tmux -L "$socket" list-panes -a -F '#{pane_id} #{@claude_state} #{@claude_since}')
+run_sync
+if [ "$before" = "$(tmux -L "$socket" list-panes -a -F '#{pane_id} #{@claude_state} #{@claude_since}')" ]; then
+  pass "a second pass changes nothing"
+else
+  fail "a second pass changes nothing" "the options moved on a no-op pass"
+fi
+
+# Cost, not output. A pane the CLI agrees with must not be written to at all,
+# and no assertion above can tell the difference: re-applying a state a pane
+# already holds is a no-op by the time it reaches the options, because the hook
+# short-circuits on its own last-published record. What it is NOT free of is the
+# process -- one per pane, every tick, forever -- and dropping the comparison
+# that produces `changes` is therefore invisible except here.
+cat >"$work/stub/hook" <<STUB
+#!/bin/sh
+printf '%s %s\n' "\$TMUX_PANE" "\$2" >>"$work/hook.log"
+STUB
+chmod +x "$work/stub/hook"
+rm -f "$work/hook.log"
+touch "$work/hook.log"
+run_sync "$work/stub/hook"
+called=$(grep -c . "$work/hook.log")
+# Nothing is wrong any more -- the panes were corrected above -- so the CLI now
+# agrees with every one of them.
+if [ "$called" -eq 0 ]; then
+  pass "a tick with nothing to correct spawns no hook at all"
+else
+  fail "a tick with nothing to correct spawns no hook at all" \
+    "$called calls: $(tr '\n' ' ' <"$work/hook.log")"
+fi
+
+# ...and the panes that DO disagree are the only ones it reaches. Rewinding one
+# pane to a stale 🛑 is enough to show both halves at once.
+tmux -L "$socket" set-option -p -t "$(pane_of corr-stale)" @claude_state waiting
+rm -f "$work/hook.log"
+touch "$work/hook.log"
+run_sync "$work/stub/hook"
+if [ "$(cat "$work/hook.log")" = "$(pane_of corr-stale) busy" ]; then
+  pass "only the pane that disagrees is written to"
+else
+  fail "only the pane that disagrees is written to" \
+    "log: [$(tr '\n' ' ' <"$work/hook.log" 2>/dev/null)]"
+fi
+rm -f "$work/stub/hook"
+run_sync
+
+# A background timer may not open an ssh connection, and `collect_rows local` is
+# the only thing stopping it. Without this the guarantee is untested: the remote
+# fixtures live further down the file, so at this point there is no @ssh_my_machine
+# pane for a missing `local` to fan out to, and dropping the argument would pass
+# every other case here.
+tmux -L "$socket" new-window -t work -n sync-ssh "$IDLE"
+sync_ssh_pane=$(pane_of sync-ssh)
+tmux -L "$socket" set-option -p -t "$sync_ssh_pane" @ssh_my_machine 1
+tmux -L "$socket" set-option -p -t "$sync_ssh_pane" @ssh_host somehost
+cat >"$work/stub/ssh" <<STUB
+#!/bin/sh
+echo "\$@" >>"$work/ssh.log"
+STUB
+chmod +x "$work/stub/ssh"
+rm -f "$work/ssh.log"
+run_sync
+if [ ! -s "$work/ssh.log" ]; then
+  pass "a sync pass never opens an ssh connection"
+else
+  fail "a sync pass never opens an ssh connection" "$(cat "$work/ssh.log")"
+fi
+rm -f "$work/stub/ssh"
+tmux -L "$socket" kill-window -t work:sync-ssh 2>/dev/null
+
+# A CLI that cannot answer must leave every pane exactly as it is, for the same
+# reason --rows degrades to the hook state: an indicator that vanishes when a
+# CLI is renamed is worse than one that is late.
+stub_claude fail
+before=$(tmux -L "$socket" list-panes -a -F '#{pane_id} #{@claude_state}')
+if ! run_sync; then
+  fail "--sync survives a CLI that fails" "stderr: $(cat "$work/sync.err" 2>/dev/null)"
+elif [ "$before" = "$(tmux -L "$socket" list-panes -a -F '#{pane_id} #{@claude_state}')" ]; then
+  pass "a failing CLI leaves every pane untouched"
+else
+  fail "a failing CLI leaves every pane untouched" "the options moved"
+fi
+
+tmux -L "$socket" kill-window -t work:corr-blank 2>/dev/null
 for w in corr-stale corr-late corr-needs corr-unknown corr-nobind corr-gone; do
   tmux -L "$socket" kill-window -t "work:$w" 2>/dev/null
 done
+
+# With the bound panes gone, no pane on this server carries a session id -- and
+# that is the guard which makes a 5-second timer affordable, since `claude
+# agents --json` is the only expensive part of a tick. Asserted here because the
+# fixtures have just been removed, and asserted at all because nothing about the
+# result differs: the CLI would simply be asked a question with no use for the
+# answer.
+cat >"$work/stub/claude" <<STUB
+#!/bin/sh
+echo called >>"$work/claude.log"
+echo '[]'
+STUB
+chmod +x "$work/stub/claude"
+rm -f "$work/claude.log"
+run_sync
+if [ ! -s "$work/claude.log" ]; then
+  pass "a tick with no pane bound to a session does not run the CLI"
+else
+  fail "a tick with no pane bound to a session does not run the CLI" \
+    "$(wc -l <"$work/claude.log") calls"
+fi
+rm -f "$work/stub/claude"
+
+# The state a launchd job spends most of its life in: tmux is not running at
+# all. It must exit 0 and say nothing, or the log named in the plist grows by a
+# line every five seconds forever.
+sync_out=$(HOME="$work/home" XDG_STATE_HOME="$work/state" \
+  TMUX="$work/no-such-socket,0,0" PATH="$work/stub:$PWD/bin:$PATH" \
+  tmux-agents --sync 2>&1)
+sync_status=$?
+if [ "$sync_status" -eq 0 ] && [ -z "$sync_out" ]; then
+  pass "a tick with no tmux server at all is silent and succeeds"
+else
+  fail "a tick with no tmux server at all is silent and succeeds" \
+    "exit $sync_status, output: [$sync_out]"
+fi
 
 # --- remote hosts -------------------------------------------------------------
 

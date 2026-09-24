@@ -213,8 +213,13 @@ fi
 # A function because the picker needs this answer more than once: once to fill
 # the list, and again on every refresh while it is open. Called through $(...),
 # so the temp dir it may create is cleaned up by the subshell's own EXIT trap.
+#
+# `collect_rows local` skips the remote fan-out. --sync runs on a timer, and an
+# ssh round trip per tick is not a cost a background poller may impose — nor a
+# useful one, since a remote pane's session is known only to the remote machine
+# and could not be corrected from here anyway.
 collect_rows() {
-  local rows hosts row ssh_host rest mine tmpdir i host
+  local only_local=${1:-} rows hosts row ssh_host rest mine tmpdir i host
 
   # One tmux call for everything. Field 1 is the host — empty means this machine,
   # which keeps local and remote rows in one shape for the awk pass below — and
@@ -250,6 +255,8 @@ collect_rows() {
       *) hosts="$hosts $ssh_host" ;;
     esac
   done <<<"$rows"
+
+  [ "$only_local" = local ] && hosts=""
 
   if [ -n "$hosts" ]; then
     # Temp files exist only on this path. They are needed to collect the hosts in
@@ -475,6 +482,71 @@ render_list() {
 # a moment later.
 if [ "${1:-}" = "--rows" ]; then
   render_list "$(correct_rows "$(collect_rows)")"
+  exit 0
+fi
+
+# --- write the correction back onto the panes (--sync) ------------------------
+
+# --rows fixes the picker and nothing else. The WezTerm tab glyph is read
+# straight out of @claude_glyph by set-titles-string, so until something writes
+# that option a tab stays red for the whole of an approved command and keeps
+# whatever glyph it had through an interrupt. --sync is that something, run from
+# launchd.
+#
+# It is a MODE OF THIS SCRIPT rather than a script of its own for one reason:
+# the rule deciding what to correct would otherwise exist twice, and the two
+# copies would drift — which is exactly how `needs_input` came to be missing
+# from the one in correct_rows.
+#
+# The correction is applied by calling the hook, never by setting the options
+# here. publish() skips its tmux calls while the records still match what it
+# last published, so an option written behind its back would make the next
+# genuine transition a no-op — see agent-state.md, which is also where the rules
+# about which actors a correction reaches live.
+#
+# Named by its installed path, with no override to point it elsewhere: the test
+# supplies a $HOME instead, which keeps this script free of a seam that exists
+# only for the test.
+hook=$HOME/.claude/hooks/agent-state.sh
+
+sync_panes() {
+  local rows corrected sock changes pane state note
+
+  rows=$(collect_rows local)
+  # The guard that makes a 5s timer affordable: `claude agents --json` is the
+  # only expensive part, and with no pane bound to a session there is nothing to
+  # ask it about. One awk over rows already in hand, and on a machine with no
+  # Claude running under tmux that is the entire cost of a tick.
+  printf '%s\n' "$rows" | awk -F"$TAB" '$10 != "" { found = 1 } END { exit !found }' || return 0
+  [ -x "$hook" ] || return 0
+  sock=$(tmux display-message -p '#{socket_path}' 2>/dev/null) || return 0
+  [ -n "$sock" ] || return 0
+
+  corrected=$(correct_rows "$rows")
+  # Only the rows the correction actually changed. Comparing the two listings is
+  # what keeps a tick free of writes when nothing is wrong: correct_rows prints
+  # every row either way, and re-applying an unchanged one would set four
+  # options and force a redraw on every pane, every tick, forever.
+  changes=$(printf '%s\n%s\n%s\n' "$rows" "$SENTINEL" "$corrected" |
+    awk -F"$TAB" -v sentinel="$SENTINEL" '
+      BEGIN { OFS = FS }
+      !past { if ($0 == sentinel) { past = 1; next } before[++n] = $0; next }
+      { i++; if ($0 == before[i]) next; print $4, $6, $8 }
+    ')
+  [ -n "$changes" ] || return 0
+
+  # $TMUX is constructed rather than inherited: under launchd there is none, and
+  # the hook reads only its first field (the socket) to key its records. The
+  # pane is the hook's other half of that key, and is the whole reason
+  # @claude_session_id exists — it is what turned a sessionId into this pane.
+  while IFS="$TAB" read -r pane state note; do
+    [ -n "$pane" ] || continue
+    TMUX="$sock,0,0" TMUX_PANE="$pane" "$hook" correct "$state" "$note" </dev/null || true
+  done <<<"$changes"
+}
+
+if [ "${1:-}" = "--sync" ]; then
+  sync_panes
   exit 0
 fi
 

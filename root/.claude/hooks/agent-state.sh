@@ -50,7 +50,7 @@
 #   subagent-start — a subagent began              (SubagentStart)
 #   subagent-stop  — a subagent finished           (SubagentStop)
 #   correct <state> [note]
-#                  — the live answer disagrees     (bin/tmux-agent-sync)
+#                  — the live answer disagrees     (`tmux-agents --sync`)
 #
 # Every mode but the last is a hook. `correct` is the one surface that is not:
 # hooks report transitions, three of them are reported by no hook at all, and a
@@ -623,7 +623,7 @@ case "$mode" in
     publish
     ;;
   correct)
-    # Not a hook. bin/tmux-agent-sync calls this when `claude agents --json`
+    # Not a hook. `tmux-agents --sync` calls this when `claude agents --json`
     # contradicts what the records say, which is the only source for the three
     # transitions no hook reports at all: a permission prompt being answered, a
     # dialog dismissed, and an interrupted turn. Without it a 🛑 published by

@@ -110,6 +110,52 @@ What the merge does, and does not, do:
   "since the state was entered": the CLI publishes no timestamp for its status,
   and keeping the hook's would date a state it disagrees with.
 
+## `--sync` — the same correction, written back onto the panes
+
+`--rows` fixes the picker and nothing else. The WezTerm tab glyph is read
+straight out of `@claude_glyph` by `set-titles-string`, so without this a tab
+stays red for the whole of an approved command and keeps whatever glyph it had
+through an interrupt — which is the symptom that is actually noticed, since the
+tab bar is always on screen and the picker is not.
+
+`--sync` is run from launchd
+(`launchd/com.ebkn.tmux-agent-sync.plist`, every 5s). **It is a mode of this
+script, not a script of its own**, and that is the point: the rule deciding what
+to correct would otherwise exist in two copies that drift — which is precisely
+how `needs_input` came to be missing from the one above.
+
+- **It applies the correction by calling the hook** (`agent-state.sh correct`),
+  never by setting the options here. `publish()` skips its tmux calls while the
+  records still match what it last published, so an option written behind its
+  back would make the *next* genuine transition a no-op. Which actor records a
+  correction reaches is [the hook's rule](../root/.claude/hooks/agent-state.md),
+  not this script's.
+- **Only rows the correction actually changed are applied.** `correct_rows`
+  prints every row either way, so the two listings are compared; without that, a
+  tick would set four options and force a redraw on every pane, forever. Pinned
+  by a case that counts hook invocations, because nothing about the *result*
+  differs.
+- **A tick with no Claude session under tmux costs one `tmux list-panes`.** The
+  CLI call is guarded by "does any pane carry a binding", so an idle machine
+  pays essentially nothing and the interval can stay short.
+- **A pane the CLI agrees with is left alone, including a blank one.** An idle
+  session whose hooks published nothing must not acquire a 🟢: "agree = do
+  nothing" is what stops a poller lighting up every Claude pane on the machine.
+- **It never reaches a remote pane** (`collect_rows local`): an ssh round trip
+  per tick is not a cost a background timer may impose, and a remote session's
+  state is not this machine's to correct anyway.
+
+`$TMUX` is constructed rather than inherited — under launchd there is none — and
+the hook reads only its first field, the socket, to key its records.
+
+**The three corrected columns are read back with `IFS=$'\t' read`**, which works
+only because `pane` and `state` are never empty and the note is last: tab is an
+IFS *whitespace* character, so an empty field anywhere else shifts the rest by
+one. That is the same trap the pane listing documents above, and it is the thing
+to check before adding a column. The note itself is safe because the CLI's
+`waitingFor` reaches it through jq's `@tsv`, which escapes a tab rather than
+emitting one.
+
 ## Refreshing while it is open
 
 `start` corrects the first list as soon as the picker is up; `load` fires again
@@ -369,6 +415,34 @@ the three red states rather than just `waiting`, which is what caught
 `needs_input` being left out of the merge; another drives `prefix + A` against a
 red the CLI calls gone, because that key picks its row from the same list and
 must not drift from it.
+
+**`--sync` cases** reuse those same fixtures and assert the pane **options**
+instead of the rendering, because that is the surface the tab glyph reads. They
+run the real hook, reached through a fixture `$HOME` rather than a variable
+pointing the script elsewhere — the script keeps no seam that exists only for
+the test — so what is pinned is the end of the whole path rather than an
+intention to call something.
+
+**Four of them assert cost, and they are the ones that earn their keep**, since
+none of them changes anything an option-level assertion could see:
+
+- A tick that agrees with every pane spawns **no hook at all**, and a tick with
+  one disagreement reaches that pane and no other. Re-applying a state a pane
+  already holds is a no-op by the time it reaches tmux, so dropping the
+  comparison that finds the changed rows is invisible except to a counting stub.
+- A tick **never opens an ssh connection**. The remote fixtures live further
+  down the file, so at that point there is no `@ssh_my_machine` pane for a
+  missing `collect_rows local` to fan out to — the case makes one.
+- A tick with no pane bound to a session **does not run the CLI**. Asserted just
+  after the fixtures are killed, which is the only moment in the file where that
+  is true.
+
+Beside them: the binding survives a correction (losing it makes the pane
+permanently uncorrectable, which no glyph would show), a bound but blank pane
+the CLI calls idle stays blank, a failing CLI leaves every pane untouched, and a
+tick with **no tmux server at all** — the state a launchd job spends most of its
+life in — exits 0 saying nothing, or the log named in the plist grows by a line
+every five seconds forever.
 
 Assertions that look subtler than they are:
 

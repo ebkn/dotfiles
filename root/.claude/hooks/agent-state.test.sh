@@ -547,7 +547,7 @@ assert_opt @claude_state ''
 section "correct: the poller's answer overrides the records"
 # `correct` is the half of the fix hooks cannot supply. Three transitions fire
 # no hook at all -- a permission prompt being answered, a dialog dismissed, an
-# interrupted turn -- so bin/tmux-agent-sync asks `claude agents --json` and
+# interrupted turn -- so `tmux-agents --sync` asks `claude agents --json` and
 # calls this when the live answer contradicts what the records say.
 #
 # It takes its state on the command line, not on stdin, so run() (mode, stdin)

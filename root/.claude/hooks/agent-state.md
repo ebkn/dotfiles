@@ -197,7 +197,7 @@ to the published state for it. The bindings appear as sessions restart.
 
 Two consumers act on that binding. `bin/tmux-agents` corrects the *rendering*
 while its picker is open, which fixes the list and nothing else; the WezTerm tab
-glyph is read from `@claude_glyph` and stays wrong. `bin/tmux-agent-sync` is the
+glyph is read from `@claude_glyph` and stays wrong. `tmux-agents --sync` is the
 poller that fixes the option itself, and it does so by calling this hook:
 
 ```
