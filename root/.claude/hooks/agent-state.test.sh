@@ -122,6 +122,14 @@ assert_exit_zero() {
   fi
 }
 
+# The record separators inside @claude_agents. Up here with the builders rather
+# than beside the multi-actor cases that read them most: `set -u` turns a
+# reference made ABOVE the definition into a fatal error that takes the whole
+# suite down, so a section added earlier than they used to sit could not assert
+# on a record at all.
+RS=$'\036'
+US=$'\037'
+
 notify_json() { jq -cn --arg t "$1" --arg m "${2-}" '{notification_type:$t, message:$m}'; }
 
 # A payload from inside a subagent: $1 agent_id, $2 agent_type, and optionally
@@ -581,8 +589,6 @@ section "several actors in one pane"
 # reason the hook keeps per-actor records at all: the published options are a
 # derived view over them, and every failure below was a real symptom — a tab
 # claiming progress while a dialog sat unanswered.
-RS=$'\036'
-US=$'\037'
 
 # The reported bug, as a regression test. Two subagents run; one of them is
 # blocked on a permission prompt; the other keeps working. Before per-actor
