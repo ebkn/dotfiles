@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Runs `tmux-agents --sync` every 5s, so the agent-state glyph on a WezTerm tab
+  stops being wrong in the three cases no Claude Code hook reports: a permission
+  prompt being answered, a dialog dismissed, and a turn interrupted. See
+  root/.claude/hooks/agent-state.md.
+
+  WHY A POLLER AT ALL, given this repo's pane options were designed precisely to
+  avoid polling. The options are cheap to READ -- a tmux format reads them with
+  no subprocess, which is what keeps status-interval at 30s -- and nothing about
+  that changes here. What is polled is the *source*: Claude Code publishes those
+  three transitions to no hook, and `claude agents --json` is the documented way
+  to read the state they leave behind. There is no event to subscribe to.
+
+  WHY 5 SECONDS. The cost of a tick is one `tmux list-panes` plus, only when
+  some pane is bound to a session, ~120ms of `claude agents --json` (measured).
+  With no Claude running under tmux a tick is the list-panes and nothing else,
+  so the machine pays for this only while it is in use. 5s is the dial between
+  how long a stale 🛑 survives and how much of a core that costs while you have
+  sessions open -- roughly 2.4% of one, at this interval. Raising it is safe;
+  the only consequence is a slower correction.
+
+  It writes nothing when the CLI agrees with the panes, which is the ordinary
+  case: no tmux writes, no redraw, and not even a process per pane.
+
+  The PATH and `sh -c` notes in com.ebkn.pr-review-watch.plist apply verbatim: a
+  launchd agent inherits none of the login shell's environment. `claude` must be
+  reachable on that PATH, and $HOME/.local/bin is where these dotfiles link it.
+
+  Load with:  launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.ebkn.tmux-agent-sync.plist
+  Status:     launchctl print gui/$UID/com.ebkn.tmux-agent-sync
+  Unload:     launchctl bootout gui/$UID/com.ebkn.tmux-agent-sync
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ebkn.tmux-agent-sync</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>exec env PATH="$HOME/.local/bin:$PATH" "$HOME/.local/bin/tmux-agents" --sync</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>StartInterval</key>
+    <integer>5</integer>
+
+    <!-- Nothing is owed at login: there is no tmux server yet, so the first
+         tick would do nothing but start a process. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/tmux-agent-sync.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/tmux-agent-sync.log</string>
+</dict>
+</plist>

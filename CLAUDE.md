@@ -80,7 +80,8 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 ├── launchd/            #   macOS LaunchAgents (symlinked to ~/Library/LaunchAgents)
 │   ├── com.ebkn.pr-review-watch.plist     # 60s poll driving bin/pr-review-watch
 │   ├── com.ebkn.pr-state-watch.plist      # 300s poll driving bin/pr-state-watch
-│   └── com.ebkn.pr-review-dispatch.plist  # 30s pass driving bin/pr-review-dispatch
+│   ├── com.ebkn.pr-review-dispatch.plist  # 30s pass driving bin/pr-review-dispatch
+│   └── com.ebkn.tmux-agent-sync.plist     # 5s pass driving `tmux-agents --sync`
 ├── textlint/           #   Japanese prose rules for bin/textlint-docs (not a project config)
 │   ├── textlintrc.yml  #     Rule set, each relaxation justified inline
 │   ├── prh.yml         #     Notation dictionary, split into universal / project-dependent
@@ -136,7 +137,7 @@ the measurement and the reason live.
 
 Each entry names the doc to read first.
 
-- **Agent state indicator** — which Claude session is blocked, published as tmux pane user options (`@claude_state` and friends), kept per actor because hooks fire inside subagents too. Producer: `root/.claude/hooks/agent-state.sh`; consumers: `set-titles-string` in `.tmux.conf` and `bin/tmux-agents`. → [root/.claude/hooks/agent-state.md](root/.claude/hooks/agent-state.md)
+- **Agent state indicator** — which Claude session is blocked, published as tmux pane user options (`@claude_state` and friends), kept per actor because hooks fire inside subagents too. Producer: `root/.claude/hooks/agent-state.sh`; consumers: `set-titles-string` in `.tmux.conf` and `bin/tmux-agents`. **Three transitions are reported by no hook at all** — a prompt answered, a dialog dismissed, a turn interrupted — so a 5s launchd pass (`tmux-agents --sync`) corrects the options against `claude agents --json`, joined to the pane by `@claude_session_id`. The rule deciding what to correct lives in `bin/tmux-agents` **once**, and the picker and the poller must keep sharing it. → [root/.claude/hooks/agent-state.md](root/.claude/hooks/agent-state.md)
 - **Agent picker** (`prefix + a`) — list every session by state and jump to its WezTerm tab. **Latency-critical: the cost is process count, not work**, so the first list comes from the pane options alone; it then refreshes itself, correcting against `claude agents --json` — the three transitions no hook reports. → [bin/tmux-agents.md](bin/tmux-agents.md)
 - **Answering a blocked agent** (`ctrl-o` in the picker, `C-]` to leave) — mirrors the agent's window in a popup so a dialog can be answered in place. Offered for **all three** 🛑 states: the view attaches to the real window, so there is nothing `needs_input` could fail at. → [bin/tmux-agent-view.md](bin/tmux-agent-view.md)
 - **Answering the first red one** (`prefix + A`) — the same thing with the picking taken out, named by a `🛑 N  C-q A` count in WezTerm's tab bar. The count is read off the **tab titles**, never polled from tmux, which is why it costs nothing; `A` picks by the same rule `ctrl-o` is offered by, and the two must not drift. → [bin/tmux-agents.md](bin/tmux-agents.md)

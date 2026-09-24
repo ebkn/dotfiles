@@ -153,6 +153,13 @@ link_dotfiles() {
   # is that a quiet 60-second tick costs nothing. See bin/pr-state-watch.md.
   link_with_backup "${DOTFILES_DIR}/launchd/com.ebkn.pr-state-watch.plist" \
     "${HOME}/Library/LaunchAgents/com.ebkn.pr-state-watch.plist"
+  # Unrelated to the three above: this one corrects the agent-state glyph on a
+  # WezTerm tab, because three of the transitions it shows are reported by no
+  # hook. It needs no link of its own for the program -- it execs
+  # ~/.local/bin/tmux-agents, already linked above -- so the pairing rule the
+  # PR agents follow does not apply here.
+  link_with_backup "${DOTFILES_DIR}/launchd/com.ebkn.tmux-agent-sync.plist" \
+    "${HOME}/Library/LaunchAgents/com.ebkn.tmux-agent-sync.plist"
   # The retrospective skill owns these two, so they live beside its SKILL.md
   # rather than under bin/. They are still put on PATH, because the skill runs
   # from whatever project the session is in: naming them by absolute path would
