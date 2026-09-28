@@ -392,15 +392,44 @@ wait_mode() {
 # The harness itself: a signalled job DOES reach the screen. Without this case a
 # broken reproduction (nothing attached, wrong socket, a capture that reads the
 # wrong pane) would make the real assertion below pass while proving nothing.
-tmux -L "$INNER" run-shell -b "sleep 3117"
+#
+# `exec`, and it is load-bearing. run-shell runs the job as `sh -c <cmd>`, and
+# whether that shell stays in the picture is a property of the platform's sh:
+# macOS execs a lone simple command away, dash on Linux forks, leaving *two*
+# processes matching the pattern. Picking one of them with `head -1` took the
+# wrapper, and killing that reported nothing at all -- the orphaned sleep still
+# held the job's output open, so tmux never saw the job end. `exec` collapses
+# both platforms to the one process tmux is actually waiting on, which is also
+# what the real monitor is: its pid file records the pid of the job's own child.
+#
+# The job is a private symlink to `sleep` under $DIR, named after this run, and
+# the pattern is that name, not a distinctive duration. `pgrep -f` reads the
+# whole machine's process table, which is the same trap kill_our_monitors above
+# was written to escape: a second copy of this suite, or any unrelated process
+# whose argv happens to match, is otherwise indistinguishable from our own job.
+# A name carrying $$ cannot name anything outside this run.
+sanity_cmd="$DIR/sanity-sleep-$$"
+ln -s "$(command -v sleep)" "$sanity_cmd"
+tmux -L "$INNER" run-shell -b "exec '$sanity_cmd' 3117"
 sanity_pid=""
 for _ in $(seq 1 50); do
-  sanity_pid=$(pgrep -f 'sleep 3117' | head -1)
+  sanity_pid=$(pgrep -f "sanity-sleep-$$")
   [ -n "$sanity_pid" ] && break
   sleep 0.1
 done
-if [ -z "$sanity_pid" ]; then
+# shellcheck disable=SC2086 # deliberately split: the count is the assertion
+set -- $sanity_pid
+if [ "$#" -eq 0 ]; then
   fail_ "harness: a signalled run-shell job is visible on the client" "the sanity job never started"
+elif [ "$#" -gt 1 ]; then
+  # Not narrowed to one: more than one match means the pattern no longer names
+  # the job's own child, and picking one of them silently is exactly how this
+  # case came to assert nothing on Linux. Killed before failing, because a job
+  # outlives the server -- measured: still running after `kill-server`, so
+  # cleanup() cannot reach it and a failed run would leak it for its full hour.
+  kill -TERM "$@" 2>/dev/null
+  fail_ "harness: a signalled run-shell job is visible on the client" \
+    "the sanity job matched more than one process: $*"
 else
   kill -TERM "$sanity_pid" 2>/dev/null
   wait_gone "$sanity_pid"

@@ -125,6 +125,28 @@ The first case deliberately signals a throwaway job and asserts the report
 **does** appear, so a broken reproduction fails loudly instead of proving
 nothing.
 
+That throwaway job runs `exec sleep …`, and the `exec` is load-bearing.
+`run-shell` runs a job as `sh -c <cmd>`, and whether that shell stays in the
+picture is a property of the platform's `sh`: macOS execs a lone simple command
+away, **dash on Linux forks, leaving two processes matching the pattern**.
+`pgrep -f … | head -1` then picked the wrapper, and killing it reported nothing
+at all — the orphaned `sleep` still held the job's output open, so tmux never
+saw the job end, and the case that exists to prove the harness works was the one
+thing red in CI. `exec` collapses both platforms to the single process tmux is
+waiting on, which is also what the real monitor is: its pid file records the pid
+of the job's own child.
+
+Two things follow from that, and both are load-bearing. The match is no longer
+narrowed with `head -1`: more than one hit **fails the case**, because silently
+picking one of them is how this went unnoticed for as long as it did. And the
+job is a private symlink to `sleep` under the run's own temp dir, named with
+`$$`, rather than a distinctive duration — `pgrep -f` reads the whole machine's
+process table, which is the same trap `kill_our_monitors` was written to escape,
+and a name carrying `$$` cannot match anything outside this run. The failing
+branch kills what it matched before reporting, because a `run-shell` job
+outlives its server (measured: still running after `kill-server`), so cleanup
+cannot reach it.
+
 Assertions poll `#{pane_in_mode}` rather than sleeping a fixed amount: at half a
 second the regression case went green against the unfixed script, because the
 monitor is inside `sleep 2` when the signal lands and two servers then have to
