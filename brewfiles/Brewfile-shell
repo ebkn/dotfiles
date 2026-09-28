@@ -18,6 +18,10 @@ brew 'neovim'
 brew 'tree-sitter-cli' # required by nvim-treesitter to compile parsers
 
 # fuzzy finder
+# Keep the version in step with the pin in .github/workflows/lint-and-test.yml.
+# tmux-agents.test.sh drives the real fzf in a real pane and reads the rendered
+# screen back, so a version that draws or binds differently is a green local run
+# against a red CI one.
 brew 'fzf'
 
 # json

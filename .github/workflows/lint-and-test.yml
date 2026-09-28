@@ -164,6 +164,27 @@ jobs:
           make -j"$(nproc)" >/dev/null
           sudo make install >/dev/null
 
+      # fzf is what bin/tmux-agents runs to draw the picker, and the runner
+      # image does not carry it. tmux-agents.test.sh drives the real binary in a
+      # real pane and reads the rendered screen back, so this is the subject
+      # under test in the same sense tmux is -- a stub could only confirm the
+      # command line, and what is worth confirming is what fzf puts on the
+      # screen and what it does with a key.
+      #
+      # Pinned, and to the version brewfiles/Brewfile-shell installs, for the
+      # same reason as tmux: the assertions read rendered output, so a version
+      # that draws or binds differently is a green local run against a red CI
+      # one. The checksum is upstream's own, from the release's checksums file.
+      - name: Install fzf
+        run: |
+          version=0.74.3
+          expected=3501a595e4b5c40a6b047340a0e8f805c46fd4e61ef95ef8a136ba8c61cf6f22
+          curl -fsSL -o fzf.tar.gz \
+            "https://github.com/junegunn/fzf/releases/download/v${version}/fzf-${version}-linux_amd64.tar.gz"
+          echo "${expected}  fzf.tar.gz" | sha256sum --check --strict
+          tar -xzf fzf.tar.gz
+          sudo install -m 0755 fzf /usr/local/bin/fzf
+
       # Printed, not assumed. The version is the one thing that explains a
       # failure in the round-trip cases below, and the run that found that out
       # had no record of it.
@@ -171,6 +192,7 @@ jobs:
         run: |
           tmux -V
           zsh --version
+          fzf --version
 
       - name: agent-state hook
         run: bash root/.claude/hooks/agent-state.test.sh

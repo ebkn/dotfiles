@@ -185,10 +185,22 @@ judge it.** `tmux` is built from a pinned release in CI because
 `agent-state.test.sh` pins how values survive a round trip through `set-option`
 and a `-F` format, and tmux has changed how it renders non-printable bytes
 between versions — an unpinned one was green locally and red in CI on code
-nobody had touched. Each such pin is cross-referenced from
-`brewfiles/Brewfile-shell`; bump both sides together, and the workflow prints
-`tmux -V` so the next gap is visible in the log rather than only in its
-failures.
+nobody had touched. `fzf` is pinned and installed for the same reason —
+`tmux-agents.test.sh` drives the real binary in a real pane and reads the
+rendered screen back — and the runner image does not carry it at all. Each such
+pin is cross-referenced from `brewfiles/Brewfile-shell`; bump both sides
+together, and the workflow prints each version so the next gap is visible in the
+log rather than only in its failures.
+
+**A test that asserts a permission failure needs a non-root runner.** The
+container standing in for CI must therefore run as an ordinary user: as root the
+kernel ignores the `chmod 500` such a case sets up with, the operation it expects
+to fail succeeds, and it reports a bug that does not exist. That, an absent
+UTF-8 locale (tmux renders every wide glyph as `_`), an absent `nc` and an absent
+`fzf` are four failures a careless container invented — so **a difference the
+container finds is a hypothesis until the container is shown to match the
+runner**, and the one environment difference worth keeping is the runner's
+missing `TERM`.
 
 **A test that needs something installed must supply it, not require it.** CI has
 no tmux plugin manager, and `.tmux.conf` runs one — so `tmux-conf.test.sh` builds
