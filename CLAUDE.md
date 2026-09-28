@@ -176,6 +176,16 @@ command, so local and CI cannot disagree — **which holds only because both
 `shellcheck` and `shfmt` are version-pinned in the workflow**; an unpinned linter
 turned main red on a runner-image bump with no shell script changed. See
 [bin/lint-shell.md](bin/lint-shell.md).
+
+**The same rule reaches tools a suite runs *against*, not just the ones that
+judge it.** `tmux` is built from a pinned release in CI because
+`agent-state.test.sh` pins how values survive a round trip through `set-option`
+and a `-F` format, and tmux has changed how it renders non-printable bytes
+between versions — an unpinned one was green locally and red in CI on code
+nobody had touched. Each such pin is cross-referenced from
+`brewfiles/Brewfile-shell`; bump both sides together, and the workflow prints
+`tmux -V` so the next gap is visible in the log rather than only in its
+failures.
 Run it before pushing, and **after `git add`**: discovery is `git ls-files`, so an
 untracked script passes vacuously.
 

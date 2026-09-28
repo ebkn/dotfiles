@@ -100,6 +100,27 @@ any printable delimiter would eventually appear inside one. That is what lets
 `bin/tmux-agents` show a row per actor and, because it rides the same
 `list-panes -F` format, works over ssh unchanged.
 
+**That choice is not version-independent, and the cost of finding out was a red
+CI nobody could reproduce.** On an older tmux than the one these dotfiles
+install, the separators do **not** survive being read back out of the option:
+measured on an `ubuntu-latest` runner (tmux from `apt`, unpinned at the time),
+the listing that plainly held two records split into one, so every multi-actor
+assertion failed while the same suite was green locally on 3.7c. What is verified
+is the loss of the `RS` byte on read-back — computed on the runner, not read off
+a log. That tmux's own rendering of non-printable bytes is the mechanism is the
+likely explanation and not yet proven.
+
+Two consequences:
+
+- **CI now builds a pinned tmux** (`.github/workflows/lint-and-test.yml`), the
+  same version `brewfiles/Brewfile-shell` installs, and prints `tmux -V` before
+  the suite runs. Keep the two in step.
+- **The picker's per-actor rows are suspect against a remote host running an
+  older tmux**, since the remote expands the same format. The aggregate options
+  (`@claude_state` and friends) carry no control characters and are unaffected,
+  and `bin/tmux-agents` already falls back to them when the listing is absent —
+  but it has no way to notice a listing that arrived mangled. Unresolved.
+
 Keyed by socket *and* pane id: a pane id is only unique within one server.
 
 `SubagentStart` / `SubagentStop` maintain the set. **`Stop` deliberately does

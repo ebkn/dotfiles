@@ -122,13 +122,51 @@ jobs:
       - name: init-project swift case grader
         run: bash root/.agents/skills/init-project/evals/swift-makefile-entry-point/assert.test.sh
 
+      # zsh is needed by the zsh unit tests below and does not ship with the
+      # runner image.
+      - name: Install zsh
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
+
       # agent-state.sh drives the tab glyph and the prefix+a picker off tmux
-      # pane options. The test runs a throwaway tmux server, so tmux has to be
-      # on the runner -- the test fails rather than skips without it, on
-      # purpose. zsh is needed by the zsh unit tests below, and neither ships
-      # with the runner image.
-      - name: Install tmux and zsh
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq tmux zsh
+      # pane options, and agent-state.test.sh runs a throwaway tmux server
+      # against the real thing -- so tmux is not a convenience here, it is the
+      # subject under test. It fails rather than skips without it, on purpose.
+      #
+      # BUILT FROM A PINNED RELEASE, not `apt-get install tmux`, for the reason
+      # the shellcheck step above spells out: what the distro hands over moves,
+      # and an unpinned tool in a gate fails on somebody else's commit. It also
+      # has to be the version the developer runs, because what this suite pins is
+      # how values survive a round trip through `set-option` and a `-F` format,
+      # and tmux has changed how it renders non-printable bytes between releases.
+      # `apt-get install tmux=<version>` would not do: Ubuntu drops the old
+      # package from the archive on a security update, and the pin then fails
+      # with "Version not found" instead of installing the wrong thing.
+      #
+      # Keep the version in step with brewfiles/Brewfile-shell. The checksum is
+      # of the release tarball as fetched (upstream publishes no digest beside
+      # it). libevent and ncurses headers are the only build deps the release
+      # tarball needs -- it ships the generated parser, so no bison.
+      - name: Install tmux
+        run: |
+          version=3.7c
+          expected=7c60cae9a0e25288e2e24750aafc9e8800fc7fd4555e447e1b29ee4201cfb3bf
+          sudo apt-get install -y -qq libevent-dev libncurses-dev pkg-config
+          curl -fsSL -o tmux.tar.gz \
+            "https://github.com/tmux/tmux/releases/download/${version}/tmux-${version}.tar.gz"
+          echo "${expected}  tmux.tar.gz" | sha256sum --check --strict
+          tar -xzf tmux.tar.gz
+          cd "tmux-${version}"
+          ./configure --prefix=/usr/local >/dev/null
+          make -j"$(nproc)" >/dev/null
+          sudo make install >/dev/null
+
+      # Printed, not assumed. The version is the one thing that explains a
+      # failure in the round-trip cases below, and the run that found that out
+      # had no record of it.
+      - name: Versions under test
+        run: |
+          tmux -V
+          zsh --version
 
       - name: agent-state hook
         run: bash root/.claude/hooks/agent-state.test.sh

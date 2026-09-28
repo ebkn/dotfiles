@@ -2,6 +2,11 @@
 brew 'zsh'
 
 # tmux
+# Keep the version in step with the pin in .github/workflows/lint-and-test.yml.
+# agent-state.test.sh pins how values survive a round trip through `set-option`
+# and a `-F` format, and tmux has changed how it renders non-printable bytes
+# between releases -- so a version gap there is a green local run against a red
+# CI one, on code nobody touched.
 brew 'tmux'
 
 # auto-reconnecting SSH
