@@ -61,6 +61,36 @@ feeding it an unknown option and a `bind` with no arguments.
 exits non-zero. So the test starts a server with `-f /dev/null` and sources the
 config into it.
 
+**It sources into a fixture `$HOME`, and both reasons matter.** The config's last
+two lines reach into the real one:
+
+```
+run '~/.tmux/plugins/tpm/tpm'
+run-shell 'f="$HOME/.tmux/plugins/tmux-fzf-url/fzf-url.sh"; … sed -i …'
+```
+
+Without the plugin manager installed `tpm` exits 127 and `source-file` reports it
+on stderr, so a well-formed config failed this case on every machine but the
+developer's — which is what it did in CI, invisibly, for as long as an earlier
+failure hid the step. The fixture reproduces the precondition with a no-op `tpm`
+instead of excusing the line in the captured stderr; excusing it would have
+loosened "stderr must be empty" for everything else too, and that strictness is
+the whole reason `source-file` is used here.
+
+The second line is the sharper reason: on a machine where that plugin *is*
+installed, this test used to **rewrite it in place** with `sed -i`. A test that
+needs something installed should supply it, which also takes it out of the real
+`$HOME`. `$HOME` is exported before the server starts, because tmux expands `~`
+and `$HOME` from the **server's** environment, not the sourcing client's.
+
+A consequence to know before reading a surprising column count below: **the
+throwaway server is now deliberately plugin-free on every machine.** It was not
+before — a real `tpm` loaded the developer's plugins into it while CI, where the
+load failed, had none, so the cheatsheet cases were measuring a different set of
+bindings depending on where they ran. `tagged notes reach the running server`
+compares `server >= file`, which plugins could only pad; with none it sits at
+equality, which is the comparison that was meant.
+
 What it asserts:
 
 - `prefix + d` asks before it detaches. Note `list-keys -T prefix d` returns

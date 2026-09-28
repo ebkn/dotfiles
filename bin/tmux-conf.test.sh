@@ -58,6 +58,32 @@ pass() { printf 'ok   %s\n' "$1"; }
 # `source-file` is the form that reports: it prints "<file>:<line>: <error>" on
 # stderr AND exits non-zero. So the server starts empty and the config is
 # sourced into it, which also leaves it loaded for the checks below.
+#
+# A FIXTURE $HOME, because the config's last two lines reach into the real one
+# and both of them make this case lie:
+#
+#   run '~/.tmux/plugins/tpm/tpm'
+#   run-shell 'f="$HOME/.tmux/plugins/tmux-fzf-url/fzf-url.sh"; ... sed -i ...'
+#
+# Without the plugin manager installed, tpm exits 127 and `source-file` reports
+# that on stderr -- so a perfectly well-formed config fails this case on every
+# machine that is not the developer's, which is what turned CI red. Excusing the
+# line in the captured stderr was the alternative, and it would have loosened
+# "stderr must be empty" for everything else too; that strictness is the entire
+# reason source-file is used here rather than `new-session -f`.
+#
+# The second line is the better argument: on a machine where that plugin IS
+# installed, this test rewrites it in place with `sed -i`. A fixture $HOME
+# reproduces the precondition and takes the test out of the real one at the same
+# time.
+#
+# Exported before the server starts: tmux expands `~` and `$HOME` from the
+# SERVER's environment, not from the client that sources the file.
+mkdir -p "$work/home/.tmux/plugins/tpm"
+printf '#!/bin/sh\nexit 0\n' >"$work/home/.tmux/plugins/tpm/tpm"
+chmod +x "$work/home/.tmux/plugins/tpm/tpm"
+export HOME="$work/home"
+
 tmux -L "$socket" -f /dev/null new-session -d
 load_err=$(tmux -L "$socket" source-file ./.tmux.conf 2>&1)
 load_rc=$?

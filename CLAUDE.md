@@ -177,6 +177,9 @@ command, so local and CI cannot disagree — **which holds only because both
 turned main red on a runner-image bump with no shell script changed. See
 [bin/lint-shell.md](bin/lint-shell.md).
 
+Run it before pushing, and **after `git add`**: discovery is `git ls-files`, so an
+untracked script passes vacuously.
+
 **The same rule reaches tools a suite runs *against*, not just the ones that
 judge it.** `tmux` is built from a pinned release in CI because
 `agent-state.test.sh` pins how values survive a round trip through `set-option`
@@ -186,8 +189,12 @@ nobody had touched. Each such pin is cross-referenced from
 `brewfiles/Brewfile-shell`; bump both sides together, and the workflow prints
 `tmux -V` so the next gap is visible in the log rather than only in its
 failures.
-Run it before pushing, and **after `git add`**: discovery is `git ls-files`, so an
-untracked script passes vacuously.
+
+**A test that needs something installed must supply it, not require it.** CI has
+no tmux plugin manager, and `.tmux.conf` runs one — so `tmux-conf.test.sh` builds
+a fixture `$HOME` containing a no-op `tpm` rather than tolerating its absence in
+the captured stderr. The same fixture stops that suite rewriting a real plugin
+file with `sed -i`, which it did on any machine that had the plugin.
 
 Each suite's rationale — what it pins, which cases earn their keep, and the
 harness traps that made earlier versions green while proving nothing — is in the
