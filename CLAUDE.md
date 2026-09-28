@@ -172,7 +172,10 @@ Adopted from `tetsunavi-monorepo`'s `015_shell_scripts.md`, with the divergences
 ## Testing
 
 `bin/lint-shell` is the static gate for every shell script and CI runs the same
-command, so local and CI cannot disagree — see [bin/lint-shell.md](bin/lint-shell.md).
+command, so local and CI cannot disagree — **which holds only because both
+`shellcheck` and `shfmt` are version-pinned in the workflow**; an unpinned linter
+turned main red on a runner-image bump with no shell script changed. See
+[bin/lint-shell.md](bin/lint-shell.md).
 Run it before pushing, and **after `git add`**: discovery is `git ls-files`, so an
 untracked script passes vacuously.
 

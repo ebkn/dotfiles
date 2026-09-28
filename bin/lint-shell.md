@@ -10,6 +10,22 @@ runs (`.github/workflows/lint-and-test.yml`), so local and CI cannot disagree.
 
 Run it before pushing.
 
+## The same command is not the same gate unless the tools are pinned
+
+"Local and CI cannot disagree" is a claim about the *command*, and it is worth
+exactly as much as the versions behind it. **Both `shellcheck` and `shfmt` are
+therefore pinned in the workflow**, by version and SHA256, and both pins are
+cross-referenced from `brewfiles/Brewfile-shell`: bump them together or the two
+sides drift.
+
+shellcheck was not pinned at first — it ships with the GitHub runner image, which
+looked like a reason to use it. Then the image moved, that copy began reporting
+`SC2317` on a `review-test` eval helper, and **main went red with nobody having
+changed a shell script**. The local shellcheck said nothing about the same file,
+so the failure was unreproducible by the one command that is supposed to
+reproduce it. An unpinned linter in a gate does not fail loudly; it fails on
+somebody else's commit.
+
 ## Targets are discovered, not listed
 
 By shebang, so a new script is covered automatically. The two exceptions are

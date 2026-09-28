@@ -22,7 +22,10 @@ brew 'jo'
 # rg
 brew 'ripgrep'
 
-# linter
+# linter (bin/lint-shell runs it at default severity)
+# Keep the version in step with the pin in .github/workflows/lint-and-test.yml.
+# CI used the runner image's copy until that copy moved and started reporting a
+# check this one does not, turning main red with no shell script changed.
 brew 'shellcheck'
 
 # shell formatter (bin/lint-shell enforces `shfmt -i 2 -ci`)
