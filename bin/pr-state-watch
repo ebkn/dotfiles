@@ -392,13 +392,13 @@ done <<<"$repos"
 # session opened LATER in a merged worktree that is still lying around is told
 # on its first pass -- which is the forgotten worktree this exists for.
 MERGED_LOOKBACK_DAYS=${PR_STATE_WATCH_MERGED_DAYS:-3}
+# BSD date first (macOS, where launchd runs this), GNU as the fallback.
+since=$(date -u -v-"${MERGED_LOOKBACK_DAYS}"d +%Y-%m-%d 2>/dev/null ||
+  date -u -d "$MERGED_LOOKBACK_DAYS days ago" +%Y-%m-%d)
 if [ -n "$manual_pr" ]; then
   merged_list=$(jq -cn --arg r "${manual_pr%%#*}" --argjson n "$only_pr" \
     '[{number:$n, repository:{nameWithOwner:$r}}]')
 else
-  # BSD date first (macOS, where launchd runs this), GNU as the fallback.
-  since=$(date -u -v-"${MERGED_LOOKBACK_DAYS}"d +%Y-%m-%d 2>/dev/null ||
-    date -u -d "$MERGED_LOOKBACK_DAYS days ago" +%Y-%m-%d)
   merged_list=$(gh search prs --author=@me --merged --limit 100 \
     --json number,repository -- "merged:>=$since" 2>/dev/null)
 fi
@@ -413,10 +413,17 @@ while IFS= read -r repo; do
 
   numbers=$(printf '%s' "$merged_list" | jq -c --arg r "$repo" \
     '[.[] | select(.repository.nameWithOwner == $r) | .number]')
+  # Bounded by merge date as well as by --limit, because the list is ordered by
+  # CREATION, not by merge (checked on a live repo). Under a bare --limit a
+  # long-lived PR that merged today falls off the end in a busy repo and is
+  # never announced.
+  #
   # The list answers for the whole repo; the search is what says which merges
-  # are recent. $n is bound first because `$want | index(.number)` would rebind
-  # `.` to the array and quietly match nothing.
+  # to act on (and --pr narrows it to one). $n is bound first because
+  # `$want | index(.number)` would rebind `.` to the array and quietly match
+  # nothing.
   rows=$(gh pr list --repo "$repo" --author @me --state merged --limit 100 \
+    --search "merged:>=$since" \
     --json number,title,url,headRefName,headRefOid 2>/dev/null |
     jq -r --argjson want "$numbers" '
       .[] | .number as $n | select($want | index($n))

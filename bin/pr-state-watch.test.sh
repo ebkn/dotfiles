@@ -633,18 +633,26 @@ merged
 run >/dev/null
 eq 'nothing merged means no list at all' '0' "$(grep '^pr list' "$TMP/gh.log" | grep -c -- '--state merged' || true)"
 
-echo "-- the merged search is bounded by the merge date --"
-# PR_STATE_WATCH_MERGED_DAYS has to reach the request. A lookback of 0 days is
-# today, which the test can compute without the BSD/GNU date split.
+echo "-- both merged requests are bounded by the merge date --"
+# The search is the obvious one. The LIST is the one that bites: `gh pr list`
+# orders by creation, not by merge (checked on a live repo -- a PR merged ten
+# minutes after its neighbour was listed after it), so under a bare --limit a
+# long-lived PR that merged today falls off the end in a busy repo and is never
+# announced. Bounding it by merge date makes the limit irrelevant.
+#
+# PR_STATE_WATCH_MERGED_DAYS has to reach both. A lookback of 0 days is today,
+# which the test can compute without the BSD/GNU date split.
 arrange_merged state-m8
 before=$(date -u +%Y-%m-%d)
 PR_STATE_WATCH_MERGED_DAYS=0 run >/dev/null
 after=$(date -u +%Y-%m-%d)
-line=$(grep '^search prs' "$TMP/gh.log" | grep -- 'merged' | head -1)
-case "$line" in
-  *"merged:>=$before"* | *"merged:>=$after"*) ok "the search is bounded by today when the lookback is 0 days" ;;
-  *) no "the search is bounded by today when the lookback is 0 days" "[$line]" ;;
-esac
+for req in 'search prs' 'pr list'; do
+  line=$(grep "^$req" "$TMP/gh.log" | grep -- 'merged' | head -1)
+  case "$line" in
+    *"merged:>=$before"* | *"merged:>=$after"*) ok "the $req is bounded by today when the lookback is 0 days" ;;
+    *) no "the $req is bounded by today when the lookback is 0 days" "[$line]" ;;
+  esac
+done
 # The default is a real date, not an empty qualifier that GitHub would read as
 # no bound at all.
 run >/dev/null

@@ -173,6 +173,13 @@ what finds the worktree, so a repo with a recent merge also costs one
 decides which of its PRs count. The test gives the list a second merged PR on
 the same branch to catch a filter that matches everything.
 
+**The list is bounded by merge date too, not only by `--limit`.** `gh pr list`
+orders by *creation*, not by merge. On a live repo, a PR that merged ten minutes
+after its neighbour was listed after it. Under a bare `--limit 100`, a long-lived
+PR that merges today falls off the end of a busy repo's list and is never
+announced. Checked the other way as well: with `--search "merged:>=<date>"`, a PR
+created ten days earlier and merged today comes back.
+
 **A fixed lookback (3 days, `PR_STATE_WATCH_MERGED_DAYS`), not a cursor.** A
 merge happens once, so the job file existing is the whole idempotence record,
 delivered or not, and re-seeing a PR in the window costs nothing. The window
