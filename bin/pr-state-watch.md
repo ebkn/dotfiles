@@ -180,6 +180,11 @@ PR that merges today falls off the end of a busy repo's list and is never
 announced. Checked the other way as well: with `--search "merged:>=<date>"`, a PR
 created ten days earlier and merged today comes back.
 
+**A failed request is reported, not read as "nothing merged".** Both requests
+take raw JSON, so success always prints at least `[]`, and an empty answer can
+only mean failure. That is the same rule as the open half's
+`could not list pull requests`.
+
 **A fixed lookback (3 days, `PR_STATE_WATCH_MERGED_DAYS`), not a cursor.** A
 merge happens once, so the job file existing is the whole idempotence record,
 delivered or not, and re-seeing a PR in the window costs nothing. The window

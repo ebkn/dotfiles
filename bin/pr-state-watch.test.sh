@@ -659,6 +659,19 @@ run >/dev/null
 eq 'the default bound is a date' '1' \
   "$(grep -- '--merged' "$TMP/gh.log" | grep -cE 'merged:>=[0-9]{4}-[0-9]{2}-[0-9]{2}')"
 
+echo "-- a merged search or list that fails is reported, not read as nothing merged --"
+# The same rule as the open half's "could not list pull requests": an empty
+# answer from a failed request is indistinguishable from a quiet week.
+arrange_merged state-m9
+/bin/rm -f "$FIX/merged-search.json"
+out=$(run)
+has 'a failed search says so' "$out" 'could not search for merged pull requests'
+arrange_merged state-m9
+: >"$FIX/merged-prs.json"
+out=$(run)
+has 'a failed list names the repository' "$out" 'skip acme/widget: could not list merged pull requests'
+eq 'and writes nothing' 'no' "$(exists "$(MJOB)")"
+
 echo "-- --pr finds a merged PR without any search --"
 arrange_merged state-m10
 out=$(run --pr acme/widget#42)

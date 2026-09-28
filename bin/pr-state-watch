@@ -399,8 +399,12 @@ if [ -n "$manual_pr" ]; then
   merged_list=$(jq -cn --arg r "${manual_pr%%#*}" --argjson n "$only_pr" \
     '[{number:$n, repository:{nameWithOwner:$r}}]')
 else
+  # Raw JSON rather than --jq, so that success always prints at least `[]`: an
+  # empty answer can then only mean the request failed, and is reported as such
+  # instead of being read as a quiet week.
   merged_list=$(gh search prs --author=@me --merged --limit 100 \
-    --json number,repository -- "merged:>=$since" 2>/dev/null)
+    --json number,repository -- "merged:>=$since" 2>/dev/null) || merged_list=
+  [ -n "$merged_list" ] || printf 'skip: could not search for merged pull requests\n'
 fi
 [ -n "$merged_list" ] || merged_list='[]'
 merged_repos=$(printf '%s' "$merged_list" | jq -r '[.[].repository.nameWithOwner] | unique | .[]' 2>/dev/null)
@@ -417,14 +421,18 @@ while IFS= read -r repo; do
   # CREATION, not by merge (checked on a live repo). Under a bare --limit a
   # long-lived PR that merged today falls off the end in a busy repo and is
   # never announced.
-  #
+  mprs=$(gh pr list --repo "$repo" --author @me --state merged --limit 100 \
+    --search "merged:>=$since" \
+    --json number,title,url,headRefName,headRefOid 2>/dev/null) || mprs=
+  [ -n "$mprs" ] || {
+    printf 'skip %s: could not list merged pull requests\n' "$repo"
+    continue
+  }
   # The list answers for the whole repo; the search is what says which merges
   # to act on (and --pr narrows it to one). $n is bound first because
   # `$want | index(.number)` would rebind `.` to the array and quietly match
   # nothing.
-  rows=$(gh pr list --repo "$repo" --author @me --state merged --limit 100 \
-    --search "merged:>=$since" \
-    --json number,title,url,headRefName,headRefOid 2>/dev/null |
+  rows=$(printf '%s' "$mprs" |
     jq -r --argjson want "$numbers" '
       .[] | .number as $n | select($want | index($n))
       | [ ($n|tostring), .headRefName, .headRefOid, .url, .title ] | @tsv' 2>/dev/null)
