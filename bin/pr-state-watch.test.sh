@@ -56,6 +56,7 @@ cat >"$STUB/gh" <<'EOF'
 # folded into pr-review-watch, and nothing else would notice it changing.
 set -uo pipefail
 printf '%s\n' "$*" >>"$GHLOG"
+all="$*"
 sub=${1:-}; shift
 jqexpr=""
 while [ $# -gt 0 ]; do
@@ -64,9 +65,13 @@ while [ $# -gt 0 ]; do
     *) shift ;;
   esac
 done
-case "$sub" in
-  search) fixture="$FIX/search.json" ;;
-  pr) fixture="$FIX/prs.json" ;;
+# The merged half asks the same two subcommands a different question, so the
+# fixture is chosen by the question rather than by the subcommand alone.
+case "$all" in
+  search*--merged*) fixture="$FIX/merged-search.json" ;;
+  search*) fixture="$FIX/search.json" ;;
+  pr*"--state merged"*) fixture="$FIX/merged-prs.json" ;;
+  pr*) fixture="$FIX/prs.json" ;;
   *) echo "gh stub: unsupported subcommand $sub" >&2; exit 2 ;;
 esac
 [ -f "$fixture" ] || { echo "gh stub: missing $fixture" >&2; exit 1; }
@@ -109,6 +114,11 @@ EOF
 cat >"$FIX/agents.json" <<EOF
 [{"pid":1,"cwd":"$WT","kind":"interactive","sessionId":"sess-1","startedAt":1,"status":"idle"}]
 EOF
+
+# Nothing merged recently, unless a case says otherwise. Every pass asks, so
+# the cases about open PRs need an answer here too.
+printf '[]' >"$FIX/merged-search.json"
+printf '[]' >"$FIX/merged-prs.json"
 
 # prs <mergeable> [isDraft] [headRefOid] [branch] [statusCheckRollup]
 prs() {
@@ -258,8 +268,8 @@ echo "-- the request shape is the cost, so it is pinned --"
 # assertion above while quietly multiplying the rate-limit cost.
 prs CONFLICTING false sha-r
 run >/dev/null
-eq 'exactly one search' '1' "$(grep -c '^search prs' "$TMP/gh.log")"
-eq 'exactly one list, for the one repo' '1' "$(grep -c '^pr list' "$TMP/gh.log")"
+eq 'exactly one search for open PRs' '1' "$(grep '^search prs' "$TMP/gh.log" | grep -c -- '--state=open')"
+eq 'exactly one open list, for the one repo' '1' "$(grep '^pr list' "$TMP/gh.log" | grep -c -- '--state open')"
 has 'mergeability is asked for in the list itself' "$(cat "$TMP/gh.log")" 'mergeable'
 has 'and the head oid alongside it' "$(cat "$TMP/gh.log")" 'headRefOid'
 
@@ -481,7 +491,7 @@ STATE="$TMP/state-ci12"
 CIJOB="$STATE/jobs/acme__widget__42__ci.json"
 prs MERGEABLE false head1 feature/x "[$(check lint COMPLETED FAILURE)]"
 run >/dev/null
-eq 'exactly one pr list call for the repo' '1' "$(grep -c '^pr list' "$TMP/gh.log")"
+eq 'exactly one open pr list call for the repo' '1' "$(grep '^pr list' "$TMP/gh.log" | grep -c -- '--state open')"
 has 'and it asks for the rollup inline' "$(grep '^pr list' "$TMP/gh.log")" 'statusCheckRollup'
 eq 'no checks/run subcommand is called at all' '0' \
   "$(grep -cE '^(run|checks|api) ' "$TMP/gh.log" || true)"

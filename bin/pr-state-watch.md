@@ -250,4 +250,10 @@ The cases that earn their keep are the state machine, not the parsing:
   rather than on the filename, so it would still fail if the program simply
   stopped locking.
 
+The stub picks its fixture from the full argument list (`--merged`,
+`--state merged`), captured **before** the flag-parsing loop shifts it away. The
+first version tested `$*` after the loop, so every merged question got the
+open-PR fixture, and the open-PR cases went red for reasons that had nothing to
+do with them.
+
 Written for bash 3.2 (`/bin/bash` on macOS): no `mapfile`, no associative arrays.
