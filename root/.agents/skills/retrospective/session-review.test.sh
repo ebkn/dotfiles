@@ -10,7 +10,18 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 review="$here/session-review"
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+
+# One case touches session-extract to prove a newer extractor invalidates the
+# cache, and that reaches OUTSIDE this sandbox: session-review resolves the
+# extractor beside itself and keys its cache on that mtime, so running this test
+# would otherwise invalidate the developer's real ~/.cache/session-review and
+# make their next /retrospective re-extract everything. The mtime is saved and
+# put back. `cp -p` and `touch -r` rather than reading the timestamp: `stat`'s
+# format flags are BSD/GNU-incompatible, which is what broke the Linux CI job.
+# The trap is armed before the reference is taken, so a failure here still
+# removes the temp dir; `touch -r` against a missing reference is suppressed.
+trap 'touch -r "$tmp/extract.ref" "$here/session-extract" 2>/dev/null; rm -rf "$tmp"' EXIT
+cp -p "$here/session-extract" "$tmp/extract.ref"
 
 projects="$tmp/projects/-repo"
 mkdir -p "$projects"
@@ -118,13 +129,29 @@ assert "same basename in two projects: two cache entries" 2 "$(find "$XDG_CACHE_
 
 # A change to session-extract must reach every cached summary, or a metric
 # added later reads as uniformly zero -- indistinguishable from measured zero.
+#
+# Compared against a MARKER FILE rather than by reading the cache entry's own
+# mtime twice, because `stat`'s format flags are not portable: `stat -f %m` is
+# the modification time on BSD, while GNU's `-f` is --file-system and `%m` its
+# mount point -- so this case passed on macOS and failed the Linux CI job with
+# `stat: cannot read file system information for '%m'`. Bash's `-nt` needs no
+# external command and means the same thing on both.
+#
+# The marker is created BEFORE the touch, so the comparison still has to see a
+# regeneration: with the cache left alone the entry stays older than the marker.
+# Comparing content instead would prove nothing -- a regenerated summary of
+# unchanged input is byte-identical, which is the whole reason a timestamp is
+# what is being asserted.
 sample="$(find "$XDG_CACHE_HOME/session-review/v4" -name '*__s6.json' | head -1)"
-before="$(stat -f %m "$sample")"
+marker="$tmp/cache-marker"
+touch "$marker"
+# Filesystems with one-second timestamp granularity would otherwise let the
+# regenerated entry share the marker's mtime, and `-nt` is strict.
 sleep 1
 touch "$here/session-extract"
 run >/dev/null
-after="$(stat -f %m "$sample")"
-assert "a newer session-extract invalidates the cache" true "$([ "$after" -gt "$before" ] && echo true || echo false)"
+assert "a newer session-extract invalidates the cache" true \
+  "$([ "$sample" -nt "$marker" ] && echo true || echo false)"
 
 # The window is by mtime, so an old resumed session is in range; its start
 # must not manufacture a year of empty weeks before the window.
