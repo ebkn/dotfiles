@@ -18,6 +18,28 @@ Popups are exempt (`#{m:_*,#{session_name}}`): there `d` closes a popup, which i
 what it looks like it does, and asking on the way out of a view is friction with
 nothing to protect.
 
+## The `prefix + w` tree format (`@tree_format`)
+
+`choose-tree -F` controls only the text after each row's `name:`. The `(n)` key,
+the tree lines and the name are drawn by tmux and cannot be restyled. The format
+is kept in `@tree_format` and passed as `#{E:@tree_format}`, which keeps the
+binding line readable. `E:` is required: without it, the option's text would
+appear as-is instead of being expanded per row.
+
+A session row reads `● attached` (green) or `○ no tab` (grey). Under the
+one-tab-one-session rule, "detached" means no WezTerm tab shows the session, so
+it is labelled that way. A symbol accompanies the colour so the difference
+survives a theme where green and grey look alike.
+
+Two tmux details, verified on 3.7c by rendering the tree in a nested client and
+running `capture-pane`:
+
+- `#{pN:…}` pads on the **right** (left-aligned text), and `#{p-N:…}` pads on the
+  left. The window name and its flags are padded as one unit so the flag stays
+  attached to the name.
+- `#[…]` styles in the format are rendered in tree rows (seen with
+  `capture-pane -e`).
+
 ## Purple means "another machine" (`@ssh_view`)
 
 The status bar and the active pane border go purple when the screen in front of
