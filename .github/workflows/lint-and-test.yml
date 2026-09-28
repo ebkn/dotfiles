@@ -144,13 +144,17 @@ jobs:
       #
       # Keep the version in step with brewfiles/Brewfile-shell. The checksum is
       # of the release tarball as fetched (upstream publishes no digest beside
-      # it). libevent and ncurses headers are the only build deps the release
-      # tarball needs -- it ships the generated parser, so no bison.
+      # it).
+      #
+      # bison is named even though the runner image already has it: `./configure`
+      # fails with `"yacc not found"` without one, and relying on the image to
+      # carry it is the same bet this step exists to stop making. Found by
+      # running the job in an ubuntu:24.04 container, where it is absent.
       - name: Install tmux
         run: |
           version=3.7c
           expected=7c60cae9a0e25288e2e24750aafc9e8800fc7fd4555e447e1b29ee4201cfb3bf
-          sudo apt-get install -y -qq libevent-dev libncurses-dev pkg-config
+          sudo apt-get install -y -qq libevent-dev libncurses-dev pkg-config bison
           curl -fsSL -o tmux.tar.gz \
             "https://github.com/tmux/tmux/releases/download/${version}/tmux-${version}.tar.gz"
           echo "${expected}  tmux.tar.gz" | sha256sum --check --strict
