@@ -970,10 +970,18 @@ pty_attach() {
   # WezTerm cases below unreachable on exactly the machines they matter least to
   # break on. `-u` removes it from the session environment; SSH_CONNECTION= would
   # set it to the empty string, which still reads as present.
+  #
+  # TERM is supplied, and unconditionally. A GitHub runner provides none, and
+  # tmux then refuses the pty outright -- "open terminal failed: terminal does
+  # not support clear" -- which reaches the test only as a client that never
+  # appears and a timeout after the wait loop. Reproduced in an ubuntu:24.04
+  # container: identical failure with TERM unset, green with it set. The value is
+  # not a property of the developer's terminal, because the client being attached
+  # is tmux's own and not theirs.
   if [ "${OSTYPE:-}" != "${OSTYPE#darwin}" ]; then
-    { sleep 120 | env -u TMUX -u SSH_CONNECTION script -q /dev/null tmux -L "$socket" attach -t "$1"; } >"$work/pty.log" 2>&1 &
+    { sleep 120 | env -u TMUX -u SSH_CONNECTION TERM=xterm-256color script -q /dev/null tmux -L "$socket" attach -t "$1"; } >"$work/pty.log" 2>&1 &
   else
-    { sleep 120 | env -u TMUX -u SSH_CONNECTION script -q -c "tmux -L $socket attach -t $1" /dev/null; } >"$work/pty.log" 2>&1 &
+    { sleep 120 | env -u TMUX -u SSH_CONNECTION TERM=xterm-256color script -q -c "tmux -L $socket attach -t $1" /dev/null; } >"$work/pty.log" 2>&1 &
   fi
   # Remembered so cleanup can end it: the sleep outlives the test otherwise, and
   # anything inheriting its stdout would wait two minutes for the pipe to close.

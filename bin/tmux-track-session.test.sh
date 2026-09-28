@@ -135,10 +135,18 @@ wait_running() { # wait_running <conn_id>
 # between BSD (macOS: `script -q <file> <cmd...>`) and util-linux (CI:
 # `script -qec "<cmd>" <file>`). Probe rather than branch on the platform --
 # macOS also ships util-linux via Homebrew.
+#
+# TERM is supplied, and unconditionally. A GitHub runner provides none, and tmux
+# then refuses the pty outright -- "open terminal failed: terminal does not
+# support clear" -- which reaches this test only as `timed out attaching a client`
+# after the wait loop, so it reads as a tracking bug rather than a missing
+# variable. Reproduced in an ubuntu:24.04 container: identical failure with TERM
+# unset, green with it set. The value is not a property of the developer's
+# terminal, because the client being attached is tmux's own and not theirs.
 if script -q /dev/null echo probe 2>/dev/null | grep -q probe; then
-  in_pty() { script -q /dev/null "$@" >/dev/null 2>&1 & }
+  in_pty() { env TERM=xterm-256color script -q /dev/null "$@" >/dev/null 2>&1 & }
 else
-  in_pty() { script -qec "$*" /dev/null >/dev/null 2>&1 & }
+  in_pty() { env TERM=xterm-256color script -qec "$*" /dev/null >/dev/null 2>&1 & }
 fi
 
 # Attach a real client to <session> and return once tmux reports it.
