@@ -297,6 +297,11 @@ The cases that earn their keep are the state machine, not the parsing:
   merged PR with no live session writes nothing, and **is** announced once a
   session appears.
 
+Every merged case arranges its own fixtures (`arrange_merged`). Several of them
+assert only that nothing happened, and a case like that, inheriting its
+fixtures from the one before, passes vacuously as soon as the earlier case
+changes.
+
 The stub picks its fixture from the full argument list (`--merged`,
 `--state merged`), captured **before** the flag-parsing loop shifts it away. The
 first version tested `$*` after the loop, so every merged question got the

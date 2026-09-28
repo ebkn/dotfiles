@@ -502,6 +502,10 @@ eq 'no checks/run subcommand is called at all' '0' \
 # undone and whether ending it would lose anything. No open PRs in these cases:
 # the merged half must run even when nothing is open, which is the ordinary
 # state right after your last PR merges.
+#
+# EVERY case below arranges its own fixtures through arrange_merged. Several of
+# them assert only that nothing happened, and such a case inheriting its
+# fixtures passes vacuously the moment the case it inherited from changes.
 
 # merged <number>... -- the search result: these PRs merged recently.
 merged() {
@@ -522,17 +526,28 @@ merged_prs() {
      {number:43, title:"older", url:"https://github.com/acme/widget/pull/43",
       headRefName:$br, headRefOid:"old43"}]' >"$FIX/merged-prs.json"
 }
+with_session() {
+  printf '[{"pid":1,"cwd":"%s","kind":"interactive","sessionId":"sess-1","startedAt":1,"status":"idle"}]' \
+    "$WT" >"$FIX/agents.json"
+}
+without_session() { printf '[]' >"$FIX/agents.json"; }
+# arrange_merged <state-name> [branch] -- a fresh queue, #42 merged on
+# <branch> (default: the one checked out in $WT), a live session in $WT.
+arrange_merged() {
+  STATE="$TMP/$1"
+  merged 42
+  merged_prs m1 "${2:-feature/x}"
+  with_session
+  printf '%s' "$REPO" >"$FIX/ghq-github.com_acme_widget"
+  printf '[]' >"$FIX/search.json"
+  printf '[]' >"$FIX/prs.json"
+}
 MJOB() { printf '%s' "$STATE/jobs/acme__widget__42__merged.json"; }
 mjob() { jq -r "$1" "$(MJOB)" 2>/dev/null; }
 exists() { [ -f "$1" ] && echo yes || echo no; }
 
-printf '[]' >"$FIX/search.json"
-printf '[]' >"$FIX/prs.json"
-
 echo "-- a merged PR is queued for the session on that branch --"
-STATE="$TMP/state-m1"
-merged 42
-merged_prs m1
+arrange_merged state-m1
 out=$(run)
 eq 'a merged job is written' 'yes' "$(exists "$(MJOB)")"
 eq 'its kind says merged' 'merged' "$(mjob .kind)"
@@ -550,6 +565,8 @@ echo "-- a merge is announced once, delivered or not --"
 # A merge happens once, so unlike a conflict there is no head to re-key on: the
 # job existing IS the record. The search keeps returning the PR for the whole
 # lookback, so anything weaker re-announces it every five minutes.
+arrange_merged state-m2
+run >/dev/null
 jq '.pending = [] | .status = "delivered"' "$(MJOB)" >"$TMP/m.json" && mv "$TMP/m.json" "$(MJOB)"
 out=$(run)
 eq 'the next pass queues nothing' '' "$(printf '%s' "$out" | grep '^queue' || true)"
@@ -558,7 +575,7 @@ eq 'and does not re-arm the delivered job' '0' "$(mjob '.pending|length')"
 echo "-- merging withdraws the PR's undelivered conflict and ci jobs --"
 # They are about a head that can no longer change. Left alone, the dispatcher
 # holds them forever once the worktree goes, since nothing expires a job.
-STATE="$TMP/state-m2"
+arrange_merged state-m3
 mkdir -p "$STATE/jobs"
 for k in conflict ci; do
   jq -n '{kind:"x", pending:[{id:"x"}], status:"pending"}' >"$STATE/jobs/acme__widget__42__$k.json"
@@ -571,28 +588,25 @@ eq 'and says why' 'merged' "$(jq -r .status "$STATE/jobs/acme__widget__42__ci.js
 echo "-- no live session means nobody to tell, and no job --"
 # Queued anyway, it would be held on every dispatch pass for as long as the
 # worktree stays -- which is exactly the forgotten worktree this is about.
-STATE="$TMP/state-m3"
-cp "$FIX/agents.json" "$TMP/agents.bak"
-printf '[]' >"$FIX/agents.json"
+arrange_merged state-m4
+without_session
 out=$(run)
 eq 'no job is written' 'no' "$(exists "$(MJOB)")"
 eq 'and nothing is said about it' '' "$(printf '%s' "$out" | grep 'merged' || true)"
 # ...but it is not forgotten either: the search still returns the PR, so a
 # session opened later in that worktree is told on the next pass.
-cp "$TMP/agents.bak" "$FIX/agents.json"
+with_session
 out=$(run)
 has 'a session started later is told' "$out" 'queue acme/widget#42: feature/x was merged'
 
 echo "-- a merged branch with no worktree is already cleaned up --"
-STATE="$TMP/state-m4"
-merged_prs m1 no/such/branch
+arrange_merged state-m5 no/such/branch
 out=$(run)
 eq 'no job is written' 'no' "$(exists "$(MJOB)")"
 eq 'and nothing is said about it' '' "$(printf '%s' "$out" | grep -v '^$' || true)"
-merged_prs m1
 
 echo "-- the merged half costs one search, and a list only where it found one --"
-STATE="$TMP/state-m5"
+arrange_merged state-m7
 run >/dev/null
 eq 'exactly one merged search' '1' "$(grep '^search prs' "$TMP/gh.log" | grep -c -- '--merged')"
 has 'bounded by a merge date' "$(grep -- '--merged' "$TMP/gh.log")" 'merged:>='
@@ -600,10 +614,9 @@ eq 'one merged list for the one repo' '1' "$(grep '^pr list' "$TMP/gh.log" | gre
 merged
 run >/dev/null
 eq 'nothing merged means no list at all' '0' "$(grep '^pr list' "$TMP/gh.log" | grep -c -- '--state merged' || true)"
-merged 42
 
 echo "-- --pr finds a merged PR without any search --"
-STATE="$TMP/state-m6"
+arrange_merged state-m10
 out=$(run --pr acme/widget#42)
 eq 'it queues' 'merged' "$(mjob .kind)"
 eq 'and spends no search request' '0' "$(grep -c '^search prs' "$TMP/gh.log")"
@@ -611,7 +624,7 @@ eq 'and leaves the other merged PR alone' 'no' \
   "$(exists "$STATE/jobs/acme__widget__43__merged.json")"
 
 echo "-- --dry-run reports the merge and writes nothing --"
-STATE="$TMP/state-m7"
+arrange_merged state-m11
 mkdir -p "$STATE/jobs"
 jq -n '{kind:"ci", pending:[{id:"x"}], status:"pending"}' >"$STATE/jobs/acme__widget__42__ci.json"
 out=$(run --dry-run)
