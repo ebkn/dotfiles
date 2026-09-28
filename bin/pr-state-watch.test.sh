@@ -558,6 +558,7 @@ eq 'the worktree is resolved' "$WT" "$(mjob .worktree)"
 eq 'the session is resolved' 'sess-1' "$(mjob .sessionId)"
 eq 'exactly one pending item' '1' "$(mjob '.pending|length')"
 has 'the run says what merged' "$out" 'queue acme/widget#42: feature/x was merged'
+has 'and counts it' "$out" 'queued 1 merge(s)'
 eq 'a PR the search did not name is left alone' 'no' \
   "$(exists "$STATE/jobs/acme__widget__43__merged.json")"
 
@@ -567,23 +568,34 @@ echo "-- a merge is announced once, delivered or not --"
 # lookback, so anything weaker re-announces it every five minutes.
 arrange_merged state-m2
 run >/dev/null
+eq 'the first pass queues it' '1' "$(mjob '.pending|length')"
 jq '.pending = [] | .status = "delivered"' "$(MJOB)" >"$TMP/m.json" && mv "$TMP/m.json" "$(MJOB)"
 out=$(run)
 eq 'the next pass queues nothing' '' "$(printf '%s' "$out" | grep '^queue' || true)"
 eq 'and does not re-arm the delivered job' '0' "$(mjob '.pending|length')"
 
-echo "-- merging withdraws the PR's undelivered conflict and ci jobs --"
-# They are about a head that can no longer change. Left alone, the dispatcher
-# holds them forever once the worktree goes, since nothing expires a job.
-arrange_merged state-m3
+echo "-- merging withdraws the PR's conflict and ci jobs, even with the worktree gone --"
+# They are about a head that can no longer change. The case that matters is the
+# one arranged here: the worktree already removed, so nobody is told about the
+# merge -- and the dispatcher would hold these for good, since nothing expires a
+# job. Withdrawing only when there is a session to tell would miss exactly that.
+arrange_merged state-m3 no/such/branch
 mkdir -p "$STATE/jobs"
-for k in conflict ci; do
-  jq -n '{kind:"x", pending:[{id:"x"}], status:"pending"}' >"$STATE/jobs/acme__widget__42__$k.json"
-done
+jq -n '{kind:"conflict", pending:[{id:"conflict:m1", kind:"conflict"}], status:"pending", conflictHead:"m1"}' \
+  >"$STATE/jobs/acme__widget__42__conflict.json"
+jq -n '{kind:"ci", pending:[{id:"ci:m1", kind:"ci", checks:["lint"]}], status:"pending", ciHead:"m1"}' \
+  >"$STATE/jobs/acme__widget__42__ci.json"
+# The review job has no kind and no suffix. A human's feedback on a merged PR is
+# for a human to dispose of, and the queue is its only copy -- a glob like
+# `${prefix}*.json` would take it along with the two above.
+jq -n '{pending:[{id:"review:1", kind:"review", author:"bob", body:"nit"}], status:"pending"}' \
+  >"$STATE/jobs/acme__widget__42.json"
 run >/dev/null
 eq 'the conflict job is emptied' '0' "$(jq '.pending|length' "$STATE/jobs/acme__widget__42__conflict.json")"
 eq 'the ci job is emptied' '0' "$(jq '.pending|length' "$STATE/jobs/acme__widget__42__ci.json")"
 eq 'and says why' 'merged' "$(jq -r .status "$STATE/jobs/acme__widget__42__ci.json")"
+eq 'the review job keeps its feedback' '1' "$(jq '.pending|length' "$STATE/jobs/acme__widget__42.json")"
+eq 'and no merged job is written without a worktree' 'no' "$(exists "$(MJOB)")"
 
 echo "-- no live session means nobody to tell, and no job --"
 # Queued anyway, it would be held on every dispatch pass for as long as the
@@ -592,7 +604,7 @@ arrange_merged state-m4
 without_session
 out=$(run)
 eq 'no job is written' 'no' "$(exists "$(MJOB)")"
-eq 'and nothing is said about it' '' "$(printf '%s' "$out" | grep 'merged' || true)"
+eq 'and nothing is said about it' '' "$(printf '%s' "$out" | grep -v '^$' || true)"
 # ...but it is not forgotten either: the search still returns the PR, so a
 # session opened later in that worktree is told on the next pass.
 with_session
@@ -605,15 +617,39 @@ out=$(run)
 eq 'no job is written' 'no' "$(exists "$(MJOB)")"
 eq 'and nothing is said about it' '' "$(printf '%s' "$out" | grep -v '^$' || true)"
 
+echo "-- a merged PR in a repo with no local checkout is not this pipeline's business --"
+arrange_merged state-m6
+/bin/rm -f "$FIX/ghq-github.com_acme_widget"
+out=$(run)
+eq 'no job is written' 'no' "$(exists "$(MJOB)")"
+eq 'and no merged list is spent on it' '0' "$(grep '^pr list' "$TMP/gh.log" | grep -c -- '--state merged' || true)"
+
 echo "-- the merged half costs one search, and a list only where it found one --"
 arrange_merged state-m7
 run >/dev/null
 eq 'exactly one merged search' '1' "$(grep '^search prs' "$TMP/gh.log" | grep -c -- '--merged')"
-has 'bounded by a merge date' "$(grep -- '--merged' "$TMP/gh.log")" 'merged:>='
 eq 'one merged list for the one repo' '1' "$(grep '^pr list' "$TMP/gh.log" | grep -c -- '--state merged')"
 merged
 run >/dev/null
 eq 'nothing merged means no list at all' '0' "$(grep '^pr list' "$TMP/gh.log" | grep -c -- '--state merged' || true)"
+
+echo "-- the merged search is bounded by the merge date --"
+# PR_STATE_WATCH_MERGED_DAYS has to reach the request. A lookback of 0 days is
+# today, which the test can compute without the BSD/GNU date split.
+arrange_merged state-m8
+before=$(date -u +%Y-%m-%d)
+PR_STATE_WATCH_MERGED_DAYS=0 run >/dev/null
+after=$(date -u +%Y-%m-%d)
+line=$(grep '^search prs' "$TMP/gh.log" | grep -- 'merged' | head -1)
+case "$line" in
+  *"merged:>=$before"* | *"merged:>=$after"*) ok "the search is bounded by today when the lookback is 0 days" ;;
+  *) no "the search is bounded by today when the lookback is 0 days" "[$line]" ;;
+esac
+# The default is a real date, not an empty qualifier that GitHub would read as
+# no bound at all.
+run >/dev/null
+eq 'the default bound is a date' '1' \
+  "$(grep -- '--merged' "$TMP/gh.log" | grep -cE 'merged:>=[0-9]{4}-[0-9]{2}-[0-9]{2}')"
 
 echo "-- --pr finds a merged PR without any search --"
 arrange_merged state-m10
@@ -626,7 +662,8 @@ eq 'and leaves the other merged PR alone' 'no' \
 echo "-- --dry-run reports the merge and writes nothing --"
 arrange_merged state-m11
 mkdir -p "$STATE/jobs"
-jq -n '{kind:"ci", pending:[{id:"x"}], status:"pending"}' >"$STATE/jobs/acme__widget__42__ci.json"
+jq -n '{kind:"ci", pending:[{id:"ci:m1", kind:"ci", checks:["lint"]}], status:"pending", ciHead:"m1"}' \
+  >"$STATE/jobs/acme__widget__42__ci.json"
 out=$(run --dry-run)
 has 'the merge is still reported' "$out" 'was merged'
 eq 'but no job file is written' 'no' "$(exists "$(MJOB)")"

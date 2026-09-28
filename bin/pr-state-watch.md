@@ -295,7 +295,11 @@ The cases that earn their keep are the state machine, not the parsing:
   stopped locking;
 - a merge is announced once, even after its job is delivered and emptied; a
   merged PR with no live session writes nothing, and **is** announced once a
-  session appears.
+  session appears;
+- the withdrawal of conflict and CI jobs is tested with the worktree **already
+  gone**, which is the case it exists for, beside a review job that must keep
+  its feedback. Both were checked by mutation: gating the withdrawal on the
+  worktree, and widening it to a `<prefix>*.json` glob, each turn the suite red.
 
 Every merged case arranges its own fixtures (`arrange_merged`). Several of them
 assert only that nothing happened, and a case like that, inheriting its
