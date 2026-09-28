@@ -1085,5 +1085,80 @@ has "it says to re-run a flake rather than invent a fix" "$body" "re-run"
 # A ci job has no reviewer and no thread, exactly like a conflict job.
 lacks "a ci prompt carries no reply instruction" "$body" "Reply on the PR"
 
+# --- merged jobs ------------------------------------------------------------
+# The fourth kind. It asks the session to CHANGE NOTHING: say what this session
+# is leaving undone, and whether ending it would lose anything. Ending it is the
+# human's move -- a session cannot /exit itself -- so the prompt is a report,
+# and the assertions are mostly about what it must not ask for.
+
+printf 'merged jobs\n'
+
+make_merged_job() {
+  jq -n --arg wt "$WT" '{
+    kind:"merged",
+    repo:"acme/widget", pr:42, url:"https://github.com/acme/widget/pull/42",
+    title:"a title", branch:"feature/x", worktree:$wt,
+    sessionId:"sess-1", status:"pending", mergedHead:"deadbee",
+    pending:[{id:"merged:deadbee", kind:"merged", branch:"feature/x", head:"deadbee",
+              at:"2026-09-07T10:00:00Z"}],
+    updatedAt:"2026-09-07T10:00:00Z"}' >"$STATE/jobs/acme__widget__42__merged.json"
+}
+mjob() { jq -r "$1" "$STATE/jobs/acme__widget__42__merged.json"; }
+
+reset
+PID=$(spawn_holder)
+WIRE="$TMP/wire-merged"
+listen "$TMP/smerged.sock" "$WIRE" || no "listener came up (merged)"
+session live "$PID" "$WT" "$TMP/smerged.sock" 100
+make_merged_job
+out=$(run)
+settle "$WIRE" || no "nothing reached the socket (merged)"
+
+eq "a merged job is delivered like any other" "delivered" "$(mjob .status)"
+
+msg=$(jq -r .message.content <"$WIRE")
+first=$(printf '%s' "$msg" | head -1)
+has "the preview line names the detector" "$first" "[pr-state-watch]"
+# The notification the user asked for IS this line: it is all the terminal shows
+# until expanded, so the fact of the merge has to be in it.
+has "and says the PR was merged" "$first" "was merged"
+has "the peer framing is still corrected" "$msg" "not sent by another agent"
+
+PROMPT="$STATE/jobs/acme__widget__42__merged.prompt.md"
+eq "a prompt file is written beside the job" "yes" "$([ -f "$PROMPT" ] && echo yes)"
+body=$(cat "$PROMPT")
+
+# What was noticed and left alone lives only in this conversation; the session
+# ending takes it with it. So it is asked for before the safety check -- and the
+# "nothing" escape is what keeps a model from padding the list to fill it.
+has "it asks for what was found and left undone" "$body" "did not act on"
+has "and allows the answer to be none" "$body" "say so in one line"
+
+# The safety check is judged against what MERGED, not against the upstream: the
+# remote branch is usually deleted on merge, so @{u} no longer exists, and a
+# squash merge makes `git branch --merged` say no for a branch that is fully in.
+has "it checks for uncommitted work" "$body" "git status --short"
+has "and for commits the merge did not take" "$body" "git rev-list --count deadbee..HEAD"
+
+# Everything this could plausibly tempt a model into is destructive and the
+# human's to do. Ruled out in words, because nothing about "the PR merged"
+# says otherwise.
+has "it forbids cleaning up on its own" "$body" "Do not delete the branch or the worktree"
+lacks "it does not suggest gdmerged" "$body" "gdmerged"
+lacks "a merged prompt carries no reply instruction" "$body" "Reply on the PR"
+
+# The one kind whose job answers itself. A merged job exists to get a worktree
+# cleaned up; the worktree being gone before delivery means that happened, so
+# the job is closed rather than held -- the generic rule for a gone worktree
+# holds forever, every thirty seconds, and would do so here for no reason.
+reset
+make_merged_job
+jq --arg wt "$TMP/no-such-worktree" '.worktree = $wt' "$STATE/jobs/acme__widget__42__merged.json" >"$TMP/mj.json"
+mv "$TMP/mj.json" "$STATE/jobs/acme__widget__42__merged.json"
+out=$(run)
+eq "a merged job whose worktree is gone is closed" "cleaned" "$(mjob .status)"
+eq "with nothing left owed" "0" "$(mjob '.pending | length')"
+lacks "and is not reported as held" "$out" "hold"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

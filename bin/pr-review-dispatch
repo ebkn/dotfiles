@@ -243,6 +243,10 @@ write_prompt_file() {
       write_ci_prompt "$job" >"$out"
       return
       ;;
+    merged)
+      write_merged_prompt "$job" >"$out"
+      return
+      ;;
   esac
   {
     printf '# Review feedback on %s\n\n' "$(jq -r .url "$job")"
@@ -391,6 +395,57 @@ If the fix turns on a decision that is not yours — the check encodes a policy 
 EOF
 }
 
+# The one prompt that asks for NO change. The PR is done; what is left is the
+# session, and ending it is the human's move -- Claude Code gives a session no
+# way to /exit itself, and cleaning up the worktree from inside it would pull the
+# directory out from under the session.
+#
+# So it asks for two things only the session can produce:
+#
+#   - **What it noticed and left alone.** That exists only in this conversation,
+#     and ending the session is when it is lost. Asked for BEFORE the safety
+#     check so it is not skipped once the answer looks like "safe to end", and
+#     with an explicit "nothing" so a model does not pad the list to fill it.
+#   - **Whether ending would lose anything**, judged against the head that
+#     MERGED rather than the upstream: the remote branch is usually deleted on
+#     merge, so @{u} no longer exists, and a squash merge makes `git branch
+#     --merged` answer no for a branch that is entirely in.
+#
+# The prohibition is the load-bearing line again. "The PR merged, tidy up" reads
+# as licence to delete the branch, and stashing or committing is the cheapest way
+# to make `git status` come back clean.
+write_merged_prompt() {
+  local job=$1 branch head pr repo
+  branch=$(jq -r .branch "$job")
+  head=$(jq -r '.mergedHead // "?"' "$job")
+  pr=$(jq -r .pr "$job")
+  repo=$(jq -r .repo "$job")
+  # An UNQUOTED heredoc with every markdown backtick escaped, for the reason
+  # write_conflict_prompt spells out.
+  cat <<EOF
+# $branch was merged
+
+- PR: $repo#$pr — $(jq -r .title "$job")
+- $(jq -r .url "$job")
+- Worktree: $(jq -r .worktree "$job")
+- Merged head: $head
+
+This is a report, not a task. It changes nothing, and it does not cancel what you were doing: if you are in the middle of other work, answer this after the current step and carry on.
+
+## Do this
+
+1. Say in one line that the PR was merged.
+2. List what this session found but did not act on: improvements you noticed and left out of scope, follow-ups, open questions, and anything learned about the codebase that is not written down anywhere. Only what actually came up in this conversation, one line each, saying where it applies. If there is nothing, say so in one line — do not invent items to fill the list. Put it in your reply; do not write it to a file or open issues.
+3. Check whether ending this session would lose anything, and show what you ran:
+   - \`git status --short\` — uncommitted or untracked work.
+   - \`git rev-list --count $head..HEAD\` — commits the merge did not take. If $head is not in this clone, \`git fetch origin pull/$pr/head\` and run it again.
+   - Work done in this conversation that went into neither this PR nor any other commit.
+4. End with one verdict: **safe to end** (the user can \`/exit\`), or **not safe**, naming what would be lost.
+
+Do not delete the branch or the worktree, and do not stash, commit or push anything to make the check come back clean. Ending the session is the user's decision.
+EOF
+}
+
 # Claude Code frames anything arriving on the socket as a message from another
 # Claude session, which is wrong here -- this is a human reviewer's comment
 # relayed by a cron job -- and it CANNOT be fixed through the envelope: an
@@ -413,6 +468,14 @@ prompt_text() {
     printf '[pr-state-watch] checks are failing on PR %s — read %s and fix them.\n' \
       "$(jq -r .url "$job")" "$file"
     printf 'Relayed by the pr-review pipeline, not sent by another agent: GitHub reported the failure, so there is nobody to reply to.\n'
+    return
+  fi
+  # The merge notification IS this first line: it is all the terminal shows
+  # until expanded, so the fact of the merge leads it.
+  if [ "$(jq -r '.kind // "review"' "$job")" = merged ]; then
+    printf '[pr-state-watch] PR %s was merged — read %s before ending this session.\n' \
+      "$(jq -r .url "$job")" "$file"
+    printf 'Relayed by the pr-review pipeline, not sent by another agent: GitHub reported the merge, so there is nobody to reply to.\n'
     return
   fi
   n=$(jq -r '.pending | length' "$job")
@@ -502,6 +565,18 @@ for job in "${jobs_todo[@]}"; do
     #
     # It still HOLDS rather than deleting the job: what to do with feedback whose
     # branch was merged is a decision for a human, and the queue is the only copy.
+    #
+    # The exception is a merged job, which exists to get that worktree cleaned
+    # up: its being gone means the job was answered, so it is closed quietly
+    # instead of held forever for no reason.
+    if [ ! -d "$worktree" ] && [ "$(jq -r '.kind // "review"' "$job")" = merged ]; then
+      [ "$dry_run" -eq 0 ] || continue
+      jq --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '.status = "cleaned" | .pending = [] | .updatedAt = $now' \
+        "$job" >"$job.tmp" && mv "$job.tmp" "$job"
+      /bin/rm -f "$job.tmp" 2>/dev/null
+      continue
+    fi
     if [ ! -d "$worktree" ]; then
       printf 'hold  %s: worktree %s is gone; no session can be resolved and resume has nowhere to run\n' \
         "$label" "$worktree"

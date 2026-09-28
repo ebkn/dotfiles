@@ -110,6 +110,27 @@ call asking GitHub what it could have said itself.
 Neither written prompt carries the reply-and-resolve instruction, since neither
 has a reviewer or a thread to answer; the test suite pins both.
 
+## The merged prompt asks for no change at all
+
+The third written prompt ([pr-state-watch.md#merged](pr-state-watch.md#merged))
+is a report, not a task. It asks for the two things only the session can
+produce. First, **what it noticed and left alone**: that exists only in the
+conversation, and ending the session loses it. It is asked for before the safety
+check, with an explicit "say so in one line" so a model does not pad the list.
+Second, **whether ending would lose anything**. That is judged by
+`git rev-list --count <mergedHead>..HEAD` rather than against the upstream,
+because the remote branch is usually deleted on merge, and a squash merge makes
+`git branch --merged` answer no for a branch that is entirely in.
+
+The prohibition is the load-bearing line once more: "the PR merged" reads as
+licence to delete the branch, and stashing or committing is the cheapest way to
+make `git status` come back clean. The prompt does not mention `gdmerged`, and
+the test pins that. Ending the session and cleaning up stay the human's to do.
+
+A merged job whose worktree is already gone is **closed as `cleaned`**, not
+held under the message in [Held jobs](#held-jobs): the job asked for that
+worktree to go away, and it has.
+
 ## `from` cannot be filled in from here, and this was tested rather than assumed
 
 The socket's schema *does* carry an `origin` object whose peer variant is
