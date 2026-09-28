@@ -2,7 +2,8 @@
 
 Two things go wrong on a PR of yours that nothing tells you about: it stops
 merging, and its checks go red. This notices both and hands the branch's Claude
-Code session an instruction to deal with it.
+Code session an instruction to deal with it. It also notices the PR being
+**merged**, and tells that session so it can wrap up (see [Merged](#merged)).
 
 Both are **polled state**, not received events, which is what makes them one
 program rather than two. The decisive detail is that `statusCheckRollup` comes
@@ -43,7 +44,8 @@ One `gh search prs --author=@me --state=open` returns **every open PR you have,
 anywhere, in a single request**. One `gh pr list --json mergeable,…` per repo
 that has one returns mergeability for all of that repo's PRs at once.
 
-Typically two or three requests per pass, whatever the PR count. The obvious
+Typically two or three requests per pass, whatever the PR count, plus the one
+merged search (and a list only for a repo where it found something). The obvious
 alternative — walk `ghq list` (77 repos on this machine) and ask each — is 77
 requests for the same answer, and still misses a checkout outside ghq.
 
@@ -151,10 +153,52 @@ make a red check green is to weaken what it checks, and a session told only "mak
 CI pass" has every incentive to reach for it. See
 [pr-review-dispatch.md](pr-review-dispatch.md) for why that text is where it is.
 
+## Merged
+
+The third question, asked so that a finished PR's session gets closed rather
+than left open in a worktree nobody returns to. The session is told the PR
+merged, lists what it noticed and did not act on, and says whether ending it
+would lose anything. **It stops there.** Claude Code gives a session no tool to
+end itself (`EndConversation` is reserved for abuse and demonstrations), and
+removing the worktree from inside the session would pull the directory out
+from under it. So `/exit` stays with the human, and so does `gdmerged`, which
+the prompt deliberately does not mention.
+
+**A merged PR is invisible to the open search**, and diffing that list does not
+find it either: a PR closed without merging drops out the same way. So the
+merges get a search of their own, `--merged "merged:>=<date>"`: one more search
+request per pass. `gh search prs` cannot return `headRefName`, and the branch is
+what finds the worktree, so a repo with a recent merge also costs one
+`gh pr list --state merged`. The list answers for the whole repo, and the search
+decides which of its PRs count. The test gives the list a second merged PR on
+the same branch to catch a filter that matches everything.
+
+**A fixed lookback (3 days, `PR_STATE_WATCH_MERGED_DAYS`), not a cursor.** A
+merge happens once, so the job file existing is the whole idempotence record,
+delivered or not, and re-seeing a PR in the window costs nothing. The window
+buys two things a cursor would not: a pass missed while the machine slept is
+caught up, and a session opened *later* in a merged worktree that is still
+around gets told on its first pass. That later session is the forgotten
+worktree this feature exists for.
+
+**No live session means no job**, silently. Queued anyway, the job would hold
+on every dispatch pass for as long as the worktree stayed. The lookback is what
+makes skipping safe.
+
+**The merge withdraws the PR's undelivered conflict and CI jobs**, whether or
+not anyone is told: they describe a head that can no longer change, and without
+this the dispatcher would hold them for good once the worktree went. Review jobs
+are left alone, because what to do with feedback on a merged PR is a human's
+call.
+
+The mirror case sits in the dispatcher: a merged job whose worktree is gone
+before delivery is closed as `cleaned` rather than held, because the thing it
+asked for already happened.
+
 ## Job files are separate, and so is the lock
 
-`<repo>__<pr>__conflict.json` and `<repo>__<pr>__ci.json`, beside the review
-path's `<repo>__<pr>.json`. Two writers on one file would interleave, and each
+`<repo>__<pr>__conflict.json`, `<repo>__<pr>__ci.json` and
+`<repo>__<pr>__merged.json`, beside the review path's `<repo>__<pr>.json`. Two writers on one file would interleave, and each
 would drop the other's `pending` on its next pass — which applies to the two
 halves of this program as much as to the two programs, since one PR can be both
 conflicted and failing.
@@ -248,7 +292,10 @@ The cases that earn their keep are the state machine, not the parsing:
   filter that quietly matches everything is this pipeline's signature bug;
 - the watcher's lock does not block a conflict pass, asserted on the outcome
   rather than on the filename, so it would still fail if the program simply
-  stopped locking.
+  stopped locking;
+- a merge is announced once, even after its job is delivered and emptied; a
+  merged PR with no live session writes nothing, and **is** announced once a
+  session appears.
 
 The stub picks its fixture from the full argument list (`--merged`,
 `--state merged`), captured **before** the flag-parsing loop shifts it away. The

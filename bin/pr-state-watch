@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# pr-state-watch — detect PRs of yours that can no longer merge, and queue the
-# conflict for the Claude Code session working on that branch.
+# pr-state-watch — detect PRs of yours that can no longer merge, whose checks
+# went red, or that were merged, and queue it for the Claude Code session
+# working on that branch.
 #
 # A sibling detector to bin/pr-review-watch, feeding the SAME queue and the same
 # deliverer (bin/pr-review-dispatch). It DETECTS and QUEUES only: it never
@@ -24,16 +25,18 @@
 # or three requests per pass, whatever the PR count.
 #
 # Usage:
-#   pr-state-watch            poll once and queue whatever newly conflicts
+#   pr-state-watch            poll once and queue whatever newly conflicts,
+#                             fails or merged
 #   pr-state-watch --dry-run  report what would be queued, write nothing
 #   pr-state-watch --pr owner/repo#42
 #                                check that PR alone, skipping the search
 #
-# The queue is shared, so `pr-review-watch --print` dumps conflict jobs too.
+# The queue is shared, so `pr-review-watch --print` dumps these jobs too.
 #
 # Environment:
 #   PR_REVIEW_WATCH_STATE_DIR   queue location (shared with pr-review-watch)
 #   PR_REVIEW_WATCH_EXTRA_REPOS colon-separated checkouts outside ghq (default ~/dotfiles)
+#   PR_STATE_WATCH_MERGED_DAYS  how far back to look for merges (default 3)
 #
 # Requires: gh (authenticated), jq, git.
 set -uo pipefail
@@ -122,11 +125,14 @@ else
     --json repository --jq '[.[].repository.nameWithOwner] | unique | .[]' 2>/dev/null)
 fi
 
-[ -n "$repos" ] || exit 0
+# No early exit on an empty $repos: the merged half below still has to run, and
+# "nothing open" is exactly the state right after your last PR merges. The loop
+# is safe on an empty list -- `<<<""` yields one empty line, which it skips.
 
 now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 queued_total=0
 queued_ci=0
+queued_merged=0
 waiting=0
 
 while IFS= read -r repo; do
@@ -369,8 +375,114 @@ while IFS= read -r repo; do
   done <<<"$rows"
 done <<<"$repos"
 
+# --- merged ------------------------------------------------------------------
+# A merged PR drops out of the open search above, and diffing that list would
+# not find it either: a PR closed without merging drops out the same way. So it
+# gets a search of its own -- one more request per pass, still well inside the
+# search API's 30/min at this interval.
+#
+# `gh search prs` cannot return headRefName (not among its --json fields), and
+# the branch is what finds the worktree, so each repo with a recent merge costs
+# one `gh pr list --state merged` as well. Most passes find nothing and spend
+# only the search.
+#
+# A fixed lookback, not a cursor. The job file is the record that a merge was
+# announced, so re-seeing a PR costs nothing, and the window buys two things a
+# cursor would not: a pass missed while the machine slept is caught up, and a
+# session opened LATER in a merged worktree that is still lying around is told
+# on its first pass -- which is the forgotten worktree this exists for.
+MERGED_LOOKBACK_DAYS=${PR_STATE_WATCH_MERGED_DAYS:-3}
+if [ -n "$manual_pr" ]; then
+  merged_list=$(jq -cn --arg r "${manual_pr%%#*}" --argjson n "$only_pr" \
+    '[{number:$n, repository:{nameWithOwner:$r}}]')
+else
+  # BSD date first (macOS, where launchd runs this), GNU as the fallback.
+  since=$(date -u -v-"${MERGED_LOOKBACK_DAYS}"d +%Y-%m-%d 2>/dev/null ||
+    date -u -d "$MERGED_LOOKBACK_DAYS days ago" +%Y-%m-%d)
+  merged_list=$(gh search prs --author=@me --merged --limit 100 \
+    --json number,repository -- "merged:>=$since" 2>/dev/null)
+fi
+[ -n "$merged_list" ] || merged_list='[]'
+merged_repos=$(printf '%s' "$merged_list" | jq -r '[.[].repository.nameWithOwner] | unique | .[]' 2>/dev/null)
+
+while IFS= read -r repo; do
+  [ -n "${repo:-}" ] || continue
+  # Silent, unlike the open half: most of what merged is long since cleaned up,
+  # and a line per merged PR per pass is how a log stops being read.
+  path=$(repo_path "$repo" "$EXTRA_REPOS") || continue
+
+  numbers=$(printf '%s' "$merged_list" | jq -c --arg r "$repo" \
+    '[.[] | select(.repository.nameWithOwner == $r) | .number]')
+  # The list answers for the whole repo; the search is what says which merges
+  # are recent. $n is bound first because `$want | index(.number)` would rebind
+  # `.` to the array and quietly match nothing.
+  rows=$(gh pr list --repo "$repo" --author @me --state merged --limit 100 \
+    --json number,title,url,headRefName,headRefOid 2>/dev/null |
+    jq -r --argjson want "$numbers" '
+      .[] | .number as $n | select($want | index($n))
+      | [ ($n|tostring), .headRefName, .headRefOid, .url, .title ] | @tsv' 2>/dev/null)
+
+  while IFS=$'\t' read -r pr branch head url title; do
+    [ -n "${pr:-}" ] || continue
+    prefix="$STATE_DIR/jobs/${repo//\//__}__${pr}"
+
+    # The PR's conflict and CI jobs are about a head that can no longer change.
+    # Withdrawn whether or not anyone is told about the merge: left alone, the
+    # dispatcher holds them for good once the worktree goes, since nothing in
+    # this pipeline expires a job. Review jobs are NOT touched -- what to do with
+    # feedback on a merged PR is a human's call, and the queue is the only copy.
+    if [ "$dry_run" -eq 0 ]; then
+      for stale in "${prefix}__conflict.json" "${prefix}__ci.json"; do
+        [ -f "$stale" ] || continue
+        [ "$(jq -r '.pending | length' "$stale" 2>/dev/null || echo 0)" -gt 0 ] || continue
+        jq --arg now "$now" '.status = "merged" | .pending = [] | .updatedAt = $now' \
+          "$stale" >"$stale.tmp" && mv "$stale.tmp" "$stale"
+        /bin/rm -f "$stale.tmp" 2>/dev/null
+      done
+    fi
+
+    # A merge happens once, so the job existing IS the record -- delivered or
+    # not. There is no head to re-key on the way the conflict half does.
+    job="${prefix}__merged.json"
+    [ -f "$job" ] && continue
+
+    # No worktree: already cleaned up, nothing to say.
+    worktree=$(worktree_for_branch "$path" "$branch") || continue
+
+    # No live session: nobody to tell, and no job. Queued anyway, it would be
+    # held on every dispatch pass for as long as the worktree stayed. Nothing is
+    # lost by skipping, because the lookback re-finds it and a session opened
+    # there later is told then.
+    session=$(session_for_worktree "$path" "$worktree")
+    [ -n "$session" ] || continue
+
+    printf 'queue %s#%s: %s was merged -> %s\n' "$repo" "$pr" "$branch" "$session"
+    queued_merged=$((queued_merged + 1))
+    [ "$dry_run" -eq 0 ] || continue
+
+    # mergedHead is what the session compares its own HEAD against: commits
+    # outside it are work the merge did not take, which is the one thing that
+    # makes ending the session unsafe.
+    jq -n \
+      --arg repo "$repo" --argjson pr "$pr" --arg url "$url" --arg title "$title" \
+      --arg branch "$branch" --arg head "$head" --arg worktree "$worktree" \
+      --arg session "$session" --arg now "$now" '
+      { kind: "merged",
+        repo: $repo, pr: $pr, url: $url, title: $title,
+        branch: $branch, worktree: $worktree,
+        sessionId: $session,
+        status: "pending",
+        mergedHead: $head,
+        pending: [ { id: ("merged:" + $head), kind: "merged",
+                     branch: $branch, head: $head, at: $now } ],
+        updatedAt: $now }' >"$job.tmp" && mv "$job.tmp" "$job"
+    /bin/rm -f "$job.tmp" 2>/dev/null
+  done <<<"$rows"
+done <<<"$merged_repos"
+
 [ "$queued_total" -gt 0 ] && printf 'queued %d conflict(s)\n' "$queued_total"
 [ "$queued_ci" -gt 0 ] && printf 'queued %d failing check set(s)\n' "$queued_ci"
+[ "$queued_merged" -gt 0 ] && printf 'queued %d merge(s)\n' "$queued_merged"
 # Reported rather than silent: a pass that only ever waits means mergeability is
 # never settling, and the queue staying empty would otherwise look like health.
 [ "$waiting" -gt 0 ] && printf 'waiting on %d PR(s): mergeability still computing, or checks still running\n' "$waiting"

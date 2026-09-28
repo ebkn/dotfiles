@@ -496,5 +496,128 @@ has 'and it asks for the rollup inline' "$(grep '^pr list' "$TMP/gh.log")" 'stat
 eq 'no checks/run subcommand is called at all' '0' \
   "$(grep -cE '^(run|checks|api) ' "$TMP/gh.log" || true)"
 
+# --- merged ------------------------------------------------------------------
+# A merged PR drops out of the open search, so it is found by a search of its
+# own. The session on the branch is told so it can say what it is leaving
+# undone and whether ending it would lose anything. No open PRs in these cases:
+# the merged half must run even when nothing is open, which is the ordinary
+# state right after your last PR merges.
+
+# merged <number>... -- the search result: these PRs merged recently.
+merged() {
+  local n out=""
+  for n in "$@"; do
+    out="$out${out:+,}{\"number\":$n,\"repository\":{\"name\":\"widget\",\"nameWithOwner\":\"acme/widget\"}}"
+  done
+  printf '[%s]' "$out" >"$FIX/merged-search.json"
+}
+# merged_prs <head> [branch] -- the repo's merged list. It returns 43 as well,
+# because `gh pr list` answers for the whole repo; only the search says which
+# ones are new, and a filter that quietly matches everything is this
+# pipeline's signature bug.
+merged_prs() {
+  jq -n --arg oid "${1:-m1}" --arg br "${2:-feature/x}" '
+    [{number:42, title:"a title", url:"https://github.com/acme/widget/pull/42",
+      headRefName:$br, headRefOid:$oid},
+     {number:43, title:"older", url:"https://github.com/acme/widget/pull/43",
+      headRefName:$br, headRefOid:"old43"}]' >"$FIX/merged-prs.json"
+}
+MJOB() { printf '%s' "$STATE/jobs/acme__widget__42__merged.json"; }
+mjob() { jq -r "$1" "$(MJOB)" 2>/dev/null; }
+exists() { [ -f "$1" ] && echo yes || echo no; }
+
+printf '[]' >"$FIX/search.json"
+printf '[]' >"$FIX/prs.json"
+
+echo "-- a merged PR is queued for the session on that branch --"
+STATE="$TMP/state-m1"
+merged 42
+merged_prs m1
+out=$(run)
+eq 'a merged job is written' 'yes' "$(exists "$(MJOB)")"
+eq 'its kind says merged' 'merged' "$(mjob .kind)"
+# The session compares its own HEAD against this to tell whether anything local
+# is missing from what merged. Without it "is it safe to end" has no answer.
+eq 'it records the head that merged' 'm1' "$(mjob .mergedHead)"
+eq 'the worktree is resolved' "$WT" "$(mjob .worktree)"
+eq 'the session is resolved' 'sess-1' "$(mjob .sessionId)"
+eq 'exactly one pending item' '1' "$(mjob '.pending|length')"
+has 'the run says what merged' "$out" 'queue acme/widget#42: feature/x was merged'
+eq 'a PR the search did not name is left alone' 'no' \
+  "$(exists "$STATE/jobs/acme__widget__43__merged.json")"
+
+echo "-- a merge is announced once, delivered or not --"
+# A merge happens once, so unlike a conflict there is no head to re-key on: the
+# job existing IS the record. The search keeps returning the PR for the whole
+# lookback, so anything weaker re-announces it every five minutes.
+jq '.pending = [] | .status = "delivered"' "$(MJOB)" >"$TMP/m.json" && mv "$TMP/m.json" "$(MJOB)"
+out=$(run)
+eq 'the next pass queues nothing' '' "$(printf '%s' "$out" | grep '^queue' || true)"
+eq 'and does not re-arm the delivered job' '0' "$(mjob '.pending|length')"
+
+echo "-- merging withdraws the PR's undelivered conflict and ci jobs --"
+# They are about a head that can no longer change. Left alone, the dispatcher
+# holds them forever once the worktree goes, since nothing expires a job.
+STATE="$TMP/state-m2"
+mkdir -p "$STATE/jobs"
+for k in conflict ci; do
+  jq -n '{kind:"x", pending:[{id:"x"}], status:"pending"}' >"$STATE/jobs/acme__widget__42__$k.json"
+done
+run >/dev/null
+eq 'the conflict job is emptied' '0' "$(jq '.pending|length' "$STATE/jobs/acme__widget__42__conflict.json")"
+eq 'the ci job is emptied' '0' "$(jq '.pending|length' "$STATE/jobs/acme__widget__42__ci.json")"
+eq 'and says why' 'merged' "$(jq -r .status "$STATE/jobs/acme__widget__42__ci.json")"
+
+echo "-- no live session means nobody to tell, and no job --"
+# Queued anyway, it would be held on every dispatch pass for as long as the
+# worktree stays -- which is exactly the forgotten worktree this is about.
+STATE="$TMP/state-m3"
+cp "$FIX/agents.json" "$TMP/agents.bak"
+printf '[]' >"$FIX/agents.json"
+out=$(run)
+eq 'no job is written' 'no' "$(exists "$(MJOB)")"
+eq 'and nothing is said about it' '' "$(printf '%s' "$out" | grep 'merged' || true)"
+# ...but it is not forgotten either: the search still returns the PR, so a
+# session opened later in that worktree is told on the next pass.
+cp "$TMP/agents.bak" "$FIX/agents.json"
+out=$(run)
+has 'a session started later is told' "$out" 'queue acme/widget#42: feature/x was merged'
+
+echo "-- a merged branch with no worktree is already cleaned up --"
+STATE="$TMP/state-m4"
+merged_prs m1 no/such/branch
+out=$(run)
+eq 'no job is written' 'no' "$(exists "$(MJOB)")"
+eq 'and nothing is said about it' '' "$(printf '%s' "$out" | grep -v '^$' || true)"
+merged_prs m1
+
+echo "-- the merged half costs one search, and a list only where it found one --"
+STATE="$TMP/state-m5"
+run >/dev/null
+eq 'exactly one merged search' '1' "$(grep '^search prs' "$TMP/gh.log" | grep -c -- '--merged')"
+has 'bounded by a merge date' "$(grep -- '--merged' "$TMP/gh.log")" 'merged:>='
+eq 'one merged list for the one repo' '1' "$(grep '^pr list' "$TMP/gh.log" | grep -c -- '--state merged')"
+merged
+run >/dev/null
+eq 'nothing merged means no list at all' '0' "$(grep '^pr list' "$TMP/gh.log" | grep -c -- '--state merged' || true)"
+merged 42
+
+echo "-- --pr finds a merged PR without any search --"
+STATE="$TMP/state-m6"
+out=$(run --pr acme/widget#42)
+eq 'it queues' 'merged' "$(mjob .kind)"
+eq 'and spends no search request' '0' "$(grep -c '^search prs' "$TMP/gh.log")"
+eq 'and leaves the other merged PR alone' 'no' \
+  "$(exists "$STATE/jobs/acme__widget__43__merged.json")"
+
+echo "-- --dry-run reports the merge and writes nothing --"
+STATE="$TMP/state-m7"
+mkdir -p "$STATE/jobs"
+jq -n '{kind:"ci", pending:[{id:"x"}], status:"pending"}' >"$STATE/jobs/acme__widget__42__ci.json"
+out=$(run --dry-run)
+has 'the merge is still reported' "$out" 'was merged'
+eq 'but no job file is written' 'no' "$(exists "$(MJOB)")"
+eq 'and nothing is withdrawn' '1' "$(jq '.pending|length' "$STATE/jobs/acme__widget__42__ci.json")"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
