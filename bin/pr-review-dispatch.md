@@ -129,7 +129,9 @@ the test pins that. Ending the session and cleaning up stay the human's to do.
 
 A merged job whose worktree is already gone is **closed as `cleaned`**, not
 held under the message in [Held jobs](#held-jobs): the job asked for that
-worktree to go away, and it has.
+worktree to go away, and it has. It prints one `close` line, and `--dry-run`
+prints the same line without writing. A closed job has nothing pending, so no
+later pass reaches it again.
 
 ## `from` cannot be filled in from here, and this was tested rather than assumed
 

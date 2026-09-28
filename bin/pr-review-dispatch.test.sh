@@ -1155,9 +1155,13 @@ reset
 make_merged_job
 jq --arg wt "$TMP/no-such-worktree" '.worktree = $wt' "$STATE/jobs/acme__widget__42__merged.json" >"$TMP/mj.json"
 mv "$TMP/mj.json" "$STATE/jobs/acme__widget__42__merged.json"
+out=$(run --dry-run)
+has "a dry run says it would close it" "$out" "close acme/widget#42"
+eq "but leaves it as it was" "pending" "$(mjob .status)"
 out=$(run)
 eq "a merged job whose worktree is gone is closed" "cleaned" "$(mjob .status)"
 eq "with nothing left owed" "0" "$(mjob '.pending | length')"
+has "and the closing is said once" "$out" "close acme/widget#42"
 lacks "and is not reported as held" "$out" "hold"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

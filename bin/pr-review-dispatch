@@ -570,6 +570,8 @@ for job in "${jobs_todo[@]}"; do
     # up: its being gone means the job was answered, so it is closed quietly
     # instead of held forever for no reason.
     if [ ! -d "$worktree" ] && [ "$(jq -r '.kind // "review"' "$job")" = merged ]; then
+      # Said once: a closed job has nothing pending, so no later scan reaches it.
+      printf 'close %s: merged, and its worktree is already gone\n' "$label"
       [ "$dry_run" -eq 0 ] || continue
       jq --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         '.status = "cleaned" | .pending = [] | .updatedAt = $now' \
