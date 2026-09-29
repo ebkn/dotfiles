@@ -31,6 +31,17 @@ one-tab-one-session rule, "detached" means no WezTerm tab shows the session, so
 it is labelled that way. A symbol accompanies the colour so the difference
 survives a theme where green and grey look alike.
 
+A pane row shows `@claude_glyph`, then the pane title, then the directory. **It
+shows the title rather than `pane_current_command`, because Claude Code reports
+its version number (`2.1.284`) as the command.** The title is replaced by the
+command only when it is still the default: tmux sets an unset title to `#{host}`,
+matched as `#{host_short}*`. So any program that sets a title (Claude Code, nvim)
+is identified by it. The title is trimmed of Claude's leading `✳ ` and cut to 30
+columns. `@claude_session_id` looked like a better signal for "this is a Claude
+pane", but several live Claude panes turned out not to carry it. The glyph is padded
+to 3 columns because 🟢 is two columns with no trailing space, `▶ ` is two with
+one, and an idle pane has none.
+
 Two tmux details, verified on 3.7c by rendering the tree in a nested client and
 running `capture-pane`:
 
