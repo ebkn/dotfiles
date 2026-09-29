@@ -141,13 +141,13 @@ t "focus returns to the tab it was run from" \
 for s in $locals; do tmux kill-session -t "=$s"; done
 
 # ---------------------------------------------------------------------------
-# Output AND a failure status, e.g. a connection dropped mid-listing. The exit
-# status must decide, not emptiness: a script that only checked for output
-# would open tabs for a partial list.
+# The marker arrived, but ssh exited 255 -- a connection lost after the
+# listing. The only case where the status check alone refuses, so it is what
+# keeps that check from being dropped as redundant with the marker.
 run "zeta" 0 255
-t "a failed adopt exits non-zero" "1" "$status"
-t "a failed adopt says which host" "1" "$(printf '%s' "$out" | grep -c 'could not adopt sessions on myhost')"
-t "a failed adopt opens nothing, even with partial output" "" "$(
+t "a failure status from ssh exits non-zero, even with the marker" "1" "$status"
+t "a failure status from ssh says which host" "1" "$(printf '%s' "$out" | grep -c 'could not adopt sessions on myhost')"
+t "a failure status from ssh opens nothing, even with the marker" "" "$(
   sessions_but_keep
   grep '^wezterm' "$CALLS"
 )"
