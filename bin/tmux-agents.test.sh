@@ -351,6 +351,69 @@ else
   fail "the per-actor path produces a list" "fzf stub was never reached"
 fi
 
+# --- a listing that arrived escaped, as an older tmux hands it over ------------
+#
+# The separators are ASCII RS/US, and an older tmux does not store them: measured
+# on 3.4, `set-option` rewrites each one as the four literal characters \036 /
+# \037, and they come back that way out of `show-options` as well as out of a
+# format -- so it is the option store, not the format expansion. 3.7c, the pinned
+# version, round-trips them untouched.
+#
+# That matters over ssh, where the REMOTE tmux expands the format, so the version
+# under the rows is not the version this suite runs. The listing then arrives as
+# one record where it plainly held several, the picker shows one garbled row, and
+# the blocked subagent inside it is invisible -- the one failure this list exists
+# to prevent. The aggregate options carry no control characters and were never
+# affected, which is exactly why nothing noticed.
+#
+# Written here as the literal escaped text rather than by installing an old tmux:
+# what the consumer has to cope with is the bytes that arrive, and those are
+# measured above. The real 3.4 is checked by hand, not from CI, which has one
+# pinned version by design.
+tmux -L "$socket" new-window -t work -n esc-win "$IDLE"
+esc_pane=$(tmux -L "$socket" list-panes -t work:esc-win -F '#{pane_id}' | head -1)
+tmux -L "$socket" set-option -p -t "$esc_pane" @claude_state waiting
+tmux -L "$socket" set-option -p -t "$esc_pane" @claude_since "$((now - 300))"
+esc_listing='busy\037'"$((now - 20))"'\037Plan\037\036'
+esc_listing+='waiting\037'"$((now - 300))"'\037Explore\037needs permission\036'
+tmux -L "$socket" set-option -p -t "$esc_pane" @claude_agents "$esc_listing"
+
+if run_picker; then
+  rows=$(grep -c 'esc-win' "$work/list" || true)
+  if [ "$rows" -eq 2 ]; then
+    pass "an escaped listing still contributes one row per actor"
+  else
+    fail "an escaped listing still contributes one row per actor" \
+      "got $rows" "$(grep 'esc-win' "$work/list")"
+  fi
+
+  # Not just the count: the fields inside a record are separated by US, which is
+  # escaped the same way. A row that split on RS but not US would still be one
+  # row per actor while showing the whole record as the window name.
+  esc_blocked=$(grep 'esc-win' "$work/list" | grep -F 'Explore' | cut -f2-)
+  case "$esc_blocked" in
+    '🛑 '*"esc-win [Explore]"*"needs permission"*)
+      pass "and its fields are separated, not shown as one blob"
+      ;;
+    *)
+      fail "and its fields are separated, not shown as one blob" \
+        "row: ${esc_blocked:-<missing>}"
+      ;;
+  esac
+
+  # The escaped text must not survive into what is displayed. A row reading
+  # `\037` is a visible artefact even when the split happened to work.
+  case $(grep 'esc-win' "$work/list") in
+    *'\03'*) fail "no escape sequence is left in the rendered row" \
+      "$(grep 'esc-win' "$work/list")" ;;
+    *) pass "no escape sequence is left in the rendered row" ;;
+  esac
+else
+  fail "the escaped-listing path produces a list" "fzf stub was never reached"
+fi
+
+tmux -L "$socket" kill-window -t work:esc-win 2>/dev/null
+
 # Back to the aggregate-only fixture: the remote and empty cases below assume it.
 tmux -L "$socket" kill-window -t work:multi-win 2>/dev/null
 

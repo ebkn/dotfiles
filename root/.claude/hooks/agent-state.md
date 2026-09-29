@@ -102,24 +102,37 @@ any printable delimiter would eventually appear inside one. That is what lets
 
 **That choice is not version-independent, and the cost of finding out was a red
 CI nobody could reproduce.** On an older tmux than the one these dotfiles
-install, the separators do **not** survive being read back out of the option:
-measured on an `ubuntu-latest` runner (tmux from `apt`, unpinned at the time),
-the listing that plainly held two records split into one, so every multi-actor
-assertion failed while the same suite was green locally on 3.7c. What is verified
-is the loss of the `RS` byte on read-back — computed on the runner, not read off
-a log. That tmux's own rendering of non-printable bytes is the mechanism is the
-likely explanation and not yet proven.
+install, the separators do not survive being written into the option. The
+mechanism is now measured rather than guessed: **tmux 3.4 rewrites each one as
+the four literal characters `\036` / `\037`** — it escapes them, it does not
+drop them — and they come back that way out of `show-options -v` as much as out
+of a `-F` format, so **it is the option store, not the format expansion**. 3.7c
+round-trips the raw bytes untouched. Measured by writing the bytes and comparing
+hex in and hex out, on both versions, in a container; the earlier reading that
+the `RS` byte was "lost" was the same fact seen through a split that no longer
+matched.
 
-Two consequences:
+Every printable form tested — a literal `\036`, one backslash, two — round-trips
+on **both** versions, so the escaped text is stable once it exists.
 
-- **CI now builds a pinned tmux** (`.github/workflows/lint-and-test.yml`), the
-  same version `brewfiles/Brewfile-shell` installs, and prints `tmux -V` before
-  the suite runs. Keep the two in step.
-- **The picker's per-actor rows are suspect against a remote host running an
-  older tmux**, since the remote expands the same format. The aggregate options
-  (`@claude_state` and friends) carry no control characters and are unaffected,
-  and `bin/tmux-agents` already falls back to them when the listing is absent —
-  but it has no way to notice a listing that arrived mangled. Unresolved.
+Three consequences:
+
+- **CI builds a pinned tmux** (`.github/workflows/lint-and-test.yml`), the same
+  version `brewfiles/Brewfile-shell` installs, and prints `tmux -V` before the
+  suite runs. Keep the two in step.
+- **`bin/tmux-agents` normalises the escaped form back to the raw bytes** as rows
+  enter `collect_rows`, so nothing downstream has to know which version wrote
+  them. This is what makes the per-actor rows correct over ssh, where the
+  *remote* tmux expands the format and its version is not the one running the
+  picker. Done with parameter expansion behind a `case` guard, because that path
+  is latency-critical and its cost is process count.
+- **Untreated, the failure was worse than "mangled".** The whole listing arrives
+  as one record whose first field is not a recognised state, and an unrecognised
+  state deliberately still renders — as the last-rank glyph, 🟢. So a blocked
+  subagent on an older remote showed up as a green idle row: not garbled, but
+  actively reassuring, which is the one outcome this list exists to prevent. The
+  aggregate options carry no control characters and were never affected, which is
+  exactly why nothing noticed.
 
 Keyed by socket *and* pane id: a pane id is only unique within one server.
 

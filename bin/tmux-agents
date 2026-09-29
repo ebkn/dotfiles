@@ -293,6 +293,29 @@ collect_rows() {
     rm -rf "$tmpdir"
   fi
 
+  # An older tmux does not store the RS/US separators: measured on 3.4,
+  # `set-option` rewrites each one as the four literal characters \036 / \037,
+  # out of `show-options` as much as out of a format, so it is the option store
+  # rather than the format expansion. 3.7c round-trips them untouched.
+  #
+  # Normalised here, at the boundary where rows enter this script, so nothing
+  # downstream has to know: over ssh the REMOTE tmux expands the format, so the
+  # version under a row is not the version running this code, and a local pane
+  # is no different if this machine is the old one. Untreated, the whole listing
+  # arrives as a single record whose first field is not a recognised state, so a
+  # blocked subagent renders as a green idle row -- not merely garbled, actively
+  # reassuring, which is the one outcome this list exists to prevent.
+  #
+  # Parameter expansion, not sed: collect_rows is the latency-critical path and
+  # its cost is process count. The case guard keeps even the string work off the
+  # common path, where no escape is present at all.
+  case $rows in
+    *'\036'* | *'\037'*)
+      rows=${rows//'\036'/$RS}
+      rows=${rows//'\037'/$US}
+      ;;
+  esac
+
   printf '%s\n' "$rows"
 }
 

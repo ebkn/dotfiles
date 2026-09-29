@@ -402,6 +402,19 @@ exercised in one run. One remote pane carries a listing too, which is the only
 place those control-character separators cross an ssh transport and a remote
 tmux's own format expansion.
 
+**A listing that arrived escaped** gets a case of its own, because a remote tmux
+older than the pinned one stores the separators as the literal characters `\036`
+/ `\037` (measured on 3.4; see
+[agent-state.md](../root/.claude/hooks/agent-state.md)). `collect_rows`
+normalises them back, and the case is written as that literal text rather than by
+installing an old tmux: what the consumer has to cope with is the bytes that
+arrive, and those are measured elsewhere. It asserts three things, and the count
+is the weakest of them — a mutation that normalised `RS` but not `US` still
+produced one row per actor, and was caught only by the assertions that the fields
+are separated and that no escape sequence survives into the rendered row. The
+real 3.4 is checked by hand, end to end, not from CI, which has one pinned
+version by design.
+
 **Correction cases** drive `--rows` directly, with a stub `claude` — the real one
 would answer about the sessions the developer has open, which are not the
 fixtures. They pin both directions of the disagreement (a stale 🛑 becoming ▶, a
