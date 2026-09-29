@@ -226,6 +226,15 @@ that decides how bad it is:
   which Claude Code arms as `setTimeout(…, 6000)` and *cancels* when the prompt
   resolves. Measured at +6.018 s and +6.023 s; a prompt answered in 5.68 s
   published nothing.
+
+  **Publishing `waiting` from `PreToolUse` instead was considered and declined.**
+  It would remove the delay outright, and the poller retracting a wrong red within
+  5 s is what would make it survivable at all — but the cost lands on the common
+  case: *every* auto-approved call would flash red, and most calls are
+  auto-approved. A glyph that blinks on work that was never blocked is worse than
+  one that is late on work that is, because it is the frequent case that decides
+  whether the indicator gets believed. Revisit only if the delay is measured to
+  cost more than the noise would.
 - **🛑 then stays for the whole of the approved command**, because the only
   thing that clears it is that actor's next `PostToolBatch`, which lands when
   the tool *finishes*. Measured against a 25 s command: the pane's own state
