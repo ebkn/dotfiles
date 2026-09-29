@@ -126,6 +126,16 @@ Three consequences:
   *remote* tmux expands the format and its version is not the one running the
   picker. Done with parameter expansion behind a `case` guard, because that path
   is latency-critical and its cost is process count.
+
+  **Row by row, and only where no real `RS` is present.** A note is text from a
+  prompt, so one can legitimately contain `\036` as four characters, and
+  rewriting those would split the record in half — the very confusion the raw
+  bytes were chosen to avoid, arriving from the other direction. A listing a
+  storing tmux wrote always carries at least one real `RS`, because the producer
+  terminates every record with one, so that presence is what separates "escaped
+  by an old tmux" from "text that looks like an escape". It cannot be decided for
+  the run as a whole: a local pane on the current tmux and a remote one on an
+  older tmux arrive in the same listing and need opposite treatment.
 - **Untreated, the failure was worse than "mangled".** The whole listing arrives
   as one record whose first field is not a recognised state, and an unrecognised
   state deliberately still renders — as the last-rank glyph, 🟢. So a blocked

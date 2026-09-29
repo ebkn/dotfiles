@@ -415,6 +415,12 @@ are separated and that no escape sequence survives into the rendered row. The
 real 3.4 is checked by hand, end to end, not from CI, which has one pinned
 version by design.
 
+**Its mirror image has a case too**: a listing the current tmux wrote whose
+*note* contains `\036` as literal text. Normalising that would split the record,
+so the rule is per row and keyed on whether a real `RS` is present. Without it
+the fixture renders three rows for two actors, the third a plausible green idle
+one made of the note's tail — which is how the case was written.
+
 **Correction cases** drive `--rows` directly, with a stub `claude` — the real one
 would answer about the sessions the developer has open, which are not the
 fixtures. They pin both directions of the disagreement (a stale 🛑 becoming ▶, a

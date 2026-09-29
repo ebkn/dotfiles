@@ -219,7 +219,7 @@ fi
 # useful one, since a remote pane's session is known only to the remote machine
 # and could not be corrected from here anyway.
 collect_rows() {
-  local only_local=${1:-} rows hosts row ssh_host rest mine tmpdir i host
+  local only_local=${1:-} rows hosts row ssh_host rest mine tmpdir i host normalised
 
   # One tmux call for everything. Field 1 is the host — empty means this machine,
   # which keeps local and remote rows in one shape for the awk pass below — and
@@ -307,12 +307,33 @@ collect_rows() {
   # reassuring, which is the one outcome this list exists to prevent.
   #
   # Parameter expansion, not sed: collect_rows is the latency-critical path and
-  # its cost is process count. The case guard keeps even the string work off the
-  # common path, where no escape is present at all.
+  # its cost is process count. The outer guard keeps even the string work off the
+  # common path, where no escape is present anywhere.
+  #
+  # Per row, and that is the point rather than a detail: a note is text from a
+  # prompt, so one can legitimately contain `\036` as characters, and rewriting
+  # those would split the record in half -- the confusion the raw bytes were
+  # chosen to avoid, arriving from the other direction. A listing written by a
+  # tmux that stores the bytes always carries at least one real RS, because the
+  # producer terminates every record with one, so the presence of a raw RS is
+  # what tells "escaped by an old tmux" from "text that looks like an escape".
+  # It cannot be decided for the run as a whole: a local pane on the current
+  # tmux and a remote one on an older tmux arrive in the same listing and need
+  # opposite treatment.
   case $rows in
     *'\036'* | *'\037'*)
-      rows=${rows//'\036'/$RS}
-      rows=${rows//'\037'/$US}
+      normalised=""
+      while IFS= read -r row; do
+        case $row in
+          *"$RS"*) ;;
+          *)
+            row=${row//'\036'/$RS}
+            row=${row//'\037'/$US}
+            ;;
+        esac
+        normalised="$normalised$row"$'\n'
+      done <<<"$rows"
+      rows=${normalised%$'\n'}
       ;;
   esac
 

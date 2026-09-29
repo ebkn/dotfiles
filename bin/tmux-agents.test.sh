@@ -412,6 +412,39 @@ else
   fail "the escaped-listing path produces a list" "fzf stub was never reached"
 fi
 
+# A row the CURRENT tmux wrote, whose note happens to contain that escape as
+# literal text. Normalising it would turn the note's own characters into a record
+# separator and split the record in half -- the exact confusion the raw bytes were
+# chosen to avoid, arriving from the other direction. A listing written by a tmux
+# that stores the bytes always carries at least one real RS, because every record
+# ends with one, so that is what tells the two apart. Per row and not per run:
+# a local pane on the pinned tmux and a remote one on an older tmux appear in the
+# same listing, and each needs the opposite treatment.
+tmux -L "$socket" new-window -t work -n lit-win "$IDLE"
+lit_pane=$(tmux -L "$socket" list-panes -t work:lit-win -F '#{pane_id}' | head -1)
+tmux -L "$socket" set-option -p -t "$lit_pane" @claude_state waiting
+tmux -L "$socket" set-option -p -t "$lit_pane" @claude_since "$((now - 60))"
+tmux -L "$socket" set-option -p -t "$lit_pane" @claude_agents \
+  "waiting${US}$((now - 60))${US}Explore${US}what is \\036 for${RS}busy${US}$((now - 5))${US}${US}${RS}"
+
+if run_picker; then
+  lit_rows=$(grep -c 'lit-win' "$work/list" || true)
+  if [ "$lit_rows" -eq 2 ]; then
+    pass "a listing with real separators is left alone though its note holds the escape"
+  else
+    fail "a listing with real separators is left alone though its note holds the escape" \
+      "got $lit_rows" "$(grep 'lit-win' "$work/list")"
+  fi
+  lit_note=$(grep 'lit-win' "$work/list" | grep -F 'Explore' | cut -f2-)
+  case "$lit_note" in
+    *'what is \036 for'*) pass "and the note keeps the escape as the text it is" ;;
+    *) fail "and the note keeps the escape as the text it is" "row: ${lit_note:-<missing>}" ;;
+  esac
+else
+  fail "the literal-escape-in-note path produces a list" "fzf stub was never reached"
+fi
+
+tmux -L "$socket" kill-window -t work:lit-win 2>/dev/null
 tmux -L "$socket" kill-window -t work:esc-win 2>/dev/null
 
 # Back to the aggregate-only fixture: the remote and empty cases below assume it.
