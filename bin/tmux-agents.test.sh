@@ -686,6 +686,30 @@ else
     "binding: [$(opt_of corr-stale @claude_session_id)]"
 fi
 
+# The per-actor listing has to be corrected on the pane too, not just the
+# aggregate. `--rows` drops a contradicted listing rather than re-rendering it,
+# but that is the picker's own view; the option left on the pane is what the NEXT
+# reader sees -- another picker, a refresh, `prefix + A` counting reds off the tab
+# titles. A pane whose @claude_state says busy while @claude_agents still holds a
+# waiting record is a pane that goes red again the moment anything expands the
+# listing, and nothing here noticed that until this case.
+#
+# Asserted in both directions, because "no longer says waiting" is also what an
+# empty option says, and clearing the listing would be a different bug wearing
+# the same result.
+stale_listing=$(opt_of corr-stale @claude_agents)
+case $stale_listing in
+  *waiting*)
+    fail "a corrected pane's listing drops the stale blocked record" \
+      "listing: [$stale_listing]"
+    ;;
+  *busy*) pass "a corrected pane's listing drops the stale blocked record" ;;
+  *)
+    fail "a corrected pane's listing drops the stale blocked record" \
+      "the listing was cleared rather than rebuilt: [$stale_listing]"
+    ;;
+esac
+
 # Idempotent: the second pass agrees with the CLI everywhere, so it must find
 # nothing to do. A poller that rewrites the same options every tick would also
 # call `refresh-client -S` every tick, forever.

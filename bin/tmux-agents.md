@@ -442,6 +442,16 @@ pointing the script elsewhere — the script keeps no seam that exists only for
 the test — so what is pinned is the end of the whole path rather than an
 intention to call something.
 
+**Including `@claude_agents`, not only the aggregate.** `--rows` drops a
+contradicted listing rather than re-rendering it, but that is the picker's own
+view; the option left on the pane is what the *next* reader sees. A pane whose
+`@claude_state` says busy while its listing still holds a `waiting` record goes
+red again the moment anything expands it, and nothing noticed that until a case
+asserted it. Asserted in both directions, because "no longer says waiting" is
+also what an empty option says, and clearing the listing would be a different bug
+wearing the same result. Confirmed by stopping the hook writing the option: the
+stale record survives and the case fails.
+
 **Four of them assert cost, and they are the ones that earn their keep**, since
 none of them changes anything an option-level assertion could see:
 
