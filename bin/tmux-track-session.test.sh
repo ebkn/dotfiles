@@ -79,6 +79,7 @@ cleanup() {
   tmux kill-server 2>/dev/null
   tmux -L "$INNER" kill-server 2>/dev/null
   tmux -L "$OUTER" kill-server 2>/dev/null
+  TMUX_TMPDIR="$DIR/adopt-tmux" tmux kill-server 2>/dev/null
   rm -rf "$DIR"
 }
 trap cleanup EXIT
@@ -338,6 +339,67 @@ for _ in $(seq 1 50); do
 done
 kill -0 "$monitor_i" 2>/dev/null && gone=alive
 t "attach: still kills this conn_id's own stale monitor" "dead" "$gone"
+
+# ---------------------------------------------------------------------------
+# adopt: the remote half of bin/tmux-restore-ssh-tabs. Each session it prints
+# becomes one restored tab connecting with conn_id = that session's name, so
+# after it runs every printed session must be recorded under its own name and
+# under no other conn_id. A record left crossing (conn a -> session b) sends
+# tab "a" into b and tab "b" into b as well: two tabs mirroring one session and
+# session a never shown -- the same silent symptom as suite (1).
+#
+# A server and state dir of its own: the cases above leave clients and records
+# scattered over the shared one, and which sessions are free is the input here.
+# ---------------------------------------------------------------------------
+ADOPT_TMP="$DIR/adopt-tmux"
+ADOPT_STATE="$DIR/adopt-state"
+ADOPT_SESSIONS="$ADOPT_STATE/tmux-track-session/session"
+mkdir -p "$ADOPT_TMP" "$ADOPT_SESSIONS"
+at() { TMUX_TMPDIR="$ADOPT_TMP" tmux "$@"; }
+arecord() { printf '%s' "$2" >"$ADOPT_SESSIONS/$1"; }
+aread() { cat "$ADOPT_SESSIONS/$1" 2>/dev/null || echo '<none>'; }
+
+# Created a second apart and in reverse alphabetical order, so the output order
+# can only come from session_created: tmux itself lists by name. Tab order is
+# the point -- restored tabs should come back in the order they were opened.
+at -f /dev/null new-session -d -s zeta "$IDLE"
+sleep 1
+at new-session -d -s alpha "$IDLE"
+at new-session -d -s _popup_1 "$IDLE"
+at new-session -d -s 'with/slash' "$IDLE"
+at new-session -d -s held "$IDLE"
+in_pty env TMUX_TMPDIR="$ADOPT_TMP" tmux attach -t =held
+CLIENT_PIDS="$CLIENT_PIDS $!"
+for _ in $(seq 1 50); do
+  [ "$(at list-clients -F x 2>/dev/null | wc -l | tr -d ' ')" -gt 0 ] && break
+  sleep 0.1
+done
+
+arecord zeta alpha # crossed: conn zeta was last in alpha
+arecord other zeta # a third conn_id naming a session being adopted
+arecord live held  # a live connection's record, not ours to touch
+
+# Without its client, `held` is free and the cases below fail as though adopt
+# were wrong; say which it is.
+t "adopt harness: held has a client" "1" "$(at display-message -p -t '=held:' '#{session_attached}')"
+
+adopted=$(TMUX_TMPDIR="$ADOPT_TMP" XDG_STATE_HOME="$ADOPT_STATE" "$SCRIPT" adopt)
+adopt_status=$?
+# tmux-restore-ssh-tabs treats a non-zero exit as "adopt failed" and opens
+# nothing, so success must say 0 -- a trailing `[ … ] && …` would not.
+t "adopt: exits 0" "0" "$adopt_status"
+t "adopt: prints the free sessions, oldest first" "zeta alpha" "$(printf '%s' "$adopted" | tr '\n' ' ')"
+t "adopt: records each adopted session under its own name (zeta)" "zeta" "$(aread zeta)"
+t "adopt: records each adopted session under its own name (alpha)" "alpha" "$(aread alpha)"
+t "adopt: releases an adopted session from every other conn_id" "<none>" "$(aread other)"
+t "adopt: leaves the record of an attached session alone" "held" "$(aread live)"
+at kill-server 2>/dev/null
+
+# No server at all (a remote after a reboot) is "nothing to restore", not a
+# failure: the caller would otherwise blame an outdated checkout.
+adopted=$(TMUX_TMPDIR="$ADOPT_TMP" XDG_STATE_HOME="$ADOPT_STATE" "$SCRIPT" adopt)
+adopt_status=$?
+t "adopt: with no server, prints nothing and exits 0" "0:" "$adopt_status:$adopted"
 
 # ---------------------------------------------------------------------------
 # The monitor must die quietly.

@@ -23,6 +23,9 @@
 # Subcommands:
 #   attach <conn_id>                — attach to last-known session for conn_id
 #   monitor <conn_id> <client_tty>  — poll session changes (called by tmux)
+#   adopt                           — claim each free session for a conn_id of
+#                                     its own name and print it (called over ssh
+#                                     by tmux-restore-ssh-tabs)
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tmux-track-session"
 SESSION_DIR="$STATE_DIR/session"
@@ -211,6 +214,31 @@ $saved
     rm -f "$PID_DIR/$conn_id"
     ;;
 
+  adopt)
+    # Called over ssh by bin/tmux-restore-ssh-tabs, which opens one tab per
+    # printed name and connects it with conn_id = that name. Each session is
+    # claimed for a conn_id of its own name first, because the records left by
+    # the old connections can cross (conn a last in session b): followed as
+    # they are, tab "a" lands in b, tab "b" joins it there, and session a never
+    # gets a tab at all -- two tabs mirroring one session, silently.
+    ensure_dirs
+    # Oldest first, so tabs come back in the order they were opened. -s keeps
+    # tmux's own order within one second, which is the resolution it records.
+    free=$(tmux list-sessions -f '#{==:#{session_attached},0}' \
+      -F '#{session_created} #{session_name}' 2>/dev/null | sort -s -n -k1,1)
+    while IFS= read -r line; do
+      name="${line#* }"
+      case "$name" in
+        # Empty: `<<<` on an empty listing still yields one line.
+        # _*: popup sessions (bin/tmux-popup), which never had a tab.
+        # */*: the name becomes a file name under $SESSION_DIR.
+        '' | _* | */*) continue ;;
+      esac
+      claim "$name" "$name"
+      printf '%s\n' "$name"
+    done <<<"$free"
+    ;;
+
   # Legacy subcommands (called by old tmux hooks still loaded in running
   # sessions). No-op until the tmux config is reloaded or tmux restarted.
   register | update | cleanup)
@@ -218,7 +246,7 @@ $saved
     ;;
 
   *)
-    echo "Usage: tmux-track-session {attach|monitor}" >&2
+    echo "Usage: tmux-track-session {attach|monitor|adopt}" >&2
     exit 1
     ;;
 esac

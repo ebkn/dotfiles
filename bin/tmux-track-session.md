@@ -151,3 +151,23 @@ Assertions poll `#{pane_in_mode}` rather than sleeping a fixed amount: at half a
 second the regression case went green against the unfixed script, because the
 monitor is inside `sleep 2` when the signal lands and two servers then have to
 render.
+
+## `adopt`
+
+Called over ssh by `bin/tmux-restore-ssh-tabs`: prints each free session
+(oldest first, skipping `_*` popups and names containing `/`) and claims it for a
+conn_id of its own name first. Without the claim, crossed records from the old
+connections send two restored tabs into one session. Uses the same `claim` as the
+monitor, so the exclusivity rule stays written once. See
+[tmux-restore-ssh-tabs.md](tmux-restore-ssh-tabs.md).
+
+**It exits 0 whenever it ran, including with no server at all** (a remote after
+a reboot, which prints nothing). The caller reads a non-zero exit as "adopt
+failed, the remote checkout is probably outdated" and opens nothing, so a
+trailing `[ … ] && …` that leaked a 1 would turn "nothing to restore" into a
+misleading error.
+
+The test runs it against a server of its own, since which sessions are free *is*
+the input and the earlier cases leave clients scattered over the shared one.
+Sessions are created a second apart in reverse alphabetical order, so the output
+order can only have come from `session_created`.
