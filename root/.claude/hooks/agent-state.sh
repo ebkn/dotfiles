@@ -218,8 +218,23 @@ record() { # $1 state, $2 note (the glyph is derived on read, not stored)
   [ -n "$since" ] || since=$(date +%s)
   # The label is what bin/tmux-agents shows to tell one subagent from another;
   # jq has already stripped anything that could break the encoding out of it.
+  #
+  # Every control character goes, not just the newline, and it is done HERE
+  # rather than trusting the caller: this function is what forges a record, and
+  # `correct` reaches it with a note that never saw JQ_CLEAN -- it comes from
+  # `claude agents --json`'s waitingFor by way of bin/tmux-agents, whose jq hands
+  # it over with `@tsv`, and @tsv escapes only tab, newline, return and
+  # backslash. An RS surviving that trip splits its own record inside
+  # @claude_agents and the picker renders a phantom row whose state is the tail
+  # of the note -- the failure JQ_CLEAN exists to prevent, arriving around the
+  # side of it. Not a hypothetical source: waitingFor can carry an MCP
+  # elicitation message, which comes from whichever server raised it.
+  #
+  # Runs of whitespace are left alone, unlike JQ_CLEAN: bash 3.2 cannot collapse
+  # them in one expansion, and a double space in a note is not a correctness
+  # problem the way a forged separator is.
   printf '%s%s%s%s%s%s%s\n' \
-    "$state" "$SEP" "$since" "$SEP" "$agent_type" "$SEP" "${note//$'\n'/ }" \
+    "$state" "$SEP" "$since" "$SEP" "$agent_type" "$SEP" "${note//[[:cntrl:]]/ }" \
     >"$file" 2>/dev/null || true
 }
 

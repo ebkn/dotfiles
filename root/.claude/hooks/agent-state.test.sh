@@ -583,6 +583,30 @@ assert_opt @claude_state waiting
 assert_opt @claude_glyph '🛑'
 assert_opt @claude_note 'Bash: rm -rf /tmp/x'
 
+# The note reaching `correct` is the ONE piece of free text in this file that has
+# not been through JQ_CLEAN: it comes from `claude agents --json`'s waitingFor by
+# way of bin/tmux-agents, whose jq hands it over with `@tsv` -- and @tsv escapes
+# only tab, newline, carriage return and backslash. A control character therefore
+# survives the trip, and RS is the one that matters: records inside
+# @claude_agents are separated by it, so a note carrying one splits its own record
+# and the picker renders a phantom row whose state is the tail of the note. That
+# was verified and fixed for every hook path; this path arrived later and reached
+# record() around the side of it.
+#
+# Not a hypothetical source: waitingFor can carry an MCP elicitation message,
+# which comes from whichever server raised it.
+run clear
+run busy
+run_correct waiting "$(printf 'holds%san%sRS' "$RS" "$US")"
+listing=$(get_opt @claude_agents)
+case $listing in
+  *"$RS"*"$RS"*) bad "a control character in the note split the record: [$listing]" ;;
+  *"$US"*"$US"*"$US"*"$US"*) bad "a US in the note added a field: [$listing]" ;;
+  *'holds an RS'*) ok "a control character in the note is cleaned, not left to split the record" ;;
+  *) bad "the note did not survive cleaning at all: [$listing]" ;;
+esac
+assert_opt @claude_note 'holds an RS'
+
 # A correction goes through record(), so it inherits record()'s rule: the
 # timestamp is when the actor ENTERED the state, and re-confirming a state does
 # not restamp it. That matters here because the flagship case reaches exactly

@@ -115,6 +115,19 @@ matched.
 Every printable form tested — a literal `\036`, one backslash, two — round-trips
 on **both** versions, so the escaped text is stable once it exists.
 
+**The separators are only safe because no free text can contain one.** Every value
+that reaches a record is stripped of control characters — `JQ_CLEAN` does it for
+the hook payloads, and `record()` does it again for the one value that never saw
+jq. That second half was missing: `correct`'s note comes from the CLI's
+`waitingFor` by way of `bin/tmux-agents`, whose jq hands it over with `@tsv`, and
+**`@tsv` escapes only tab, newline, return and backslash** — so an `RS` survived
+the trip, split its own record, and produced a phantom row whose state was the
+tail of the note. Exactly the failure `JQ_CLEAN` was written to prevent, reaching
+`record()` around the side of it. Cleaning now happens in `record()` itself, which
+is what forges a record, rather than in each of its callers. Not a hypothetical
+source: `waitingFor` can carry an MCP elicitation message, which comes from
+whichever server raised it.
+
 Three consequences:
 
 - **CI builds a pinned tmux** (`.github/workflows/lint-and-test.yml`), the same
