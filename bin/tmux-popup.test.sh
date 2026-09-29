@@ -19,6 +19,9 @@
 #
 # Run: bash bin/tmux-popup.test.sh   (exit 0 = pass)
 set -uo pipefail
+# A tmux suite: container or CI only (see bin/tmux-test-guard.sh).
+# shellcheck source=bin/tmux-test-guard.sh
+. "$(dirname "$0")/tmux-test-guard.sh" || exit 2
 
 cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
 script="$PWD/bin/tmux-popup"

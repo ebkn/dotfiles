@@ -31,6 +31,9 @@
 # useful version of this test without them.
 
 set -u
+# A tmux suite: container or CI only (see bin/tmux-test-guard.sh).
+# shellcheck source=bin/tmux-test-guard.sh
+. "$(dirname "$0")/tmux-test-guard.sh" || exit 2
 
 DIR=$(mktemp -d)
 export TMUX_TMPDIR="$DIR/tmux"

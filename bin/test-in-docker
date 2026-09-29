@@ -1,0 +1,55 @@
+#!/bin/bash
+#
+# test-in-docker [suite...]
+#
+# Run test suites inside a container built to match the CI runner. With no
+# arguments, runs every suite that sources bin/tmux-test-guard.sh -- the tmux
+# suites, which must never run on the host.
+# See bin/test-in-docker.md.
+
+set -eo pipefail
+
+repo=$(cd "$(dirname "$0")/.." && pwd)
+image=dotfiles-test
+
+# Built from stdin, so no build context is sent. Cached after the first run;
+# the tmux compile only repeats when the Dockerfile changes.
+docker build --quiet --platform linux/amd64 -t "$image" - \
+  <"$repo/bin/test-in-docker.Dockerfile" >/dev/null
+
+if [ "$#" -gt 0 ]; then
+  suites=("$@")
+else
+  # A command substitution with its status checked, not a process
+  # substitution: a failed listing must not become "ran nothing, all green".
+  # The sourcing line itself, not the bare name: tmux-test-guard.test.sh
+  # mentions the guard without being a tmux suite.
+  if ! listing=$(git -C "$repo" grep -l -E '^\. .*tmux-test-guard\.sh" \|\| exit 2$' -- '*.test.sh' '*.test.zsh'); then
+    echo "test-in-docker: no guarded suites found" >&2
+    exit 1
+  fi
+  suites=()
+  while IFS= read -r f; do
+    [ -n "$f" ] && suites+=("$f")
+  done <<<"$listing"
+fi
+
+# Read-only: a suite writes to its own mktemp dir, never to the checkout. No
+# -t, so TERM stays unset as it is on the runner.
+# shellcheck disable=SC2016 # expanded by the container's shell, not this one
+docker run --rm --platform linux/amd64 -v "$repo:/work:ro" "$image" bash -c '
+  failed=""
+  for f in "$@"; do
+    printf "=== %s\n" "$f"
+    case "$f" in
+      *.zsh) runner=zsh ;;
+      *) runner=bash ;;
+    esac
+    "$runner" "$f" || failed="$failed $f"
+  done
+  if [ -n "$failed" ]; then
+    printf "\nFAILED:%s\n" "$failed"
+    exit 1
+  fi
+  printf "\nall %d suite(s) passed\n" "$#"
+' test-in-docker "${suites[@]}"

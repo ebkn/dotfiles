@@ -194,6 +194,11 @@ jobs:
           zsh --version
           fzf --version
 
+      # Every tmux suite must refuse to run on a developer machine, where one
+      # missed `unset TMUX` killed the real server. Static: it runs nothing.
+      - name: tmux suites are guarded
+        run: bash bin/tmux-test-guard.test.sh
+
       - name: agent-state hook
         run: bash root/.claude/hooks/agent-state.test.sh
 

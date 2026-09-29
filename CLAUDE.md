@@ -52,6 +52,8 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   ├── git-generated      #   Locally hide linguist-generated files from diffs via .git/info/attributes
 │   ├── lint-shell         #   shellcheck + shfmt + zsh -n over every shell script (same command CI runs)
 │   ├── lint-shell.test.sh #   Pins the target enumeration (a failed listing must not report ok)
+│   ├── test-in-docker     #   Run suites in a runner-matching container (+ .Dockerfile); the tmux suites run ONLY here
+│   ├── tmux-test-guard.sh #   Sourced by every tmux suite: refuses to run on the host (.test.sh enforces enrollment)
 │   ├── skill-eval         #   Run a skill's eval cases against a throwaway fixture (calls the API; costs money)
 │   ├── skill-eval-*.sh    #   Assertions and fixture helpers the cases source
 │   ├── textlint-docs      #   Run textlint/ rules on any repo (symlinked to ~/.local/bin; backs the lint-docs skill)
@@ -180,6 +182,16 @@ turned main red on a runner-image bump with no shell script changed. See
 Run it before pushing, and **after `git add`**: discovery is `git ls-files`, so an
 untracked script passes vacuously.
 
+**tmux suites run in Docker, never on the host: use `bin/test-in-docker`.**
+`TMUX_TMPDIR` does not isolate a suite inside a tmux pane, because tmux prefers
+the socket in `$TMUX`. A probe that forgot `unset TMUX` killed every local
+session. Every tmux suite (each `bin/tmux-*.test.sh`, and any suite that invokes
+`tmux … new-session|kill-server`) sources `bin/tmux-test-guard.sh`, which exits
+2 outside a container or CI. `bin/tmux-test-guard.test.sh` fails CI when a
+suite is missing it. The same goes for any ad-hoc tmux experiment: run it in the
+container, or with an explicit `-L`/`-S` socket and `TMUX` unset. See
+[bin/test-in-docker.md](bin/test-in-docker.md).
+
 **The same rule reaches tools a suite runs *against*, not just the ones that
 judge it.** `tmux` is built from a pinned release in CI because
 `agent-state.test.sh` pins how values survive a round trip through `set-option`
@@ -227,6 +239,7 @@ silent.
 | `bin/tmux-pane-titles.test.sh` | [tmux-pane-titles.md](bin/tmux-pane-titles.md) |
 | `bin/tmux-session-swap.test.sh` | [tmux-session-swap.md](bin/tmux-session-swap.md) |
 | `bin/tmux-track-session.test.sh` | [tmux-track-session.md](bin/tmux-track-session.md) |
+| `bin/test-in-docker` (runs the tmux suites above), `bin/tmux-test-guard.test.sh` | [test-in-docker.md](bin/test-in-docker.md) |
 | `bin/autossh-ssh.test.sh` | [autossh-ssh.md](bin/autossh-ssh.md) |
 | `bin/pr-review-common.test.sh` | [pr-review-common.md](bin/pr-review-common.md) |
 | `bin/pr-review-watch.test.sh` | [pr-review-watch.md](bin/pr-review-watch.md) |

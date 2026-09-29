@@ -19,6 +19,9 @@
 # states may overwrite each other is real logic, not an implementation detail,
 # and getting it wrong is invisible until a pane shows the wrong glyph at 2am.
 set -uo pipefail
+# A tmux suite: container or CI only (see bin/tmux-test-guard.sh).
+# shellcheck source=bin/tmux-test-guard.sh
+. "$(dirname "$0")/../../../bin/tmux-test-guard.sh" || exit 2
 
 HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/agent-state.sh"
 
