@@ -218,11 +218,20 @@ Three consequences, all measured:
 - **An interrupted turn keeps whatever glyph it had** until the next prompt.
 
 The state itself is not missing, only the event: Claude Code tracks
-`status` (`busy` / `waiting` / `idle`) with a `waitingFor` reason, and
-`claude agents --json` is the documented way to read it — the agent-view docs
+`status` — **four values, `busy` / `shell` / `idle` / `waiting`** — with a
+`waitingFor` reason, and `claude agents --json` is the documented way to read it — the agent-view docs
 name a status bar as the use case, and say in the same breath that the files
 underneath are *not* a stable interface. Measured: 140 ms, no TTY needed, and
 `waiting` / `permission prompt` appears the moment the dialog opens.
+
+`shell` is the one that took a second look. It is **a refinement of `idle`**, not
+a fourth independent state: the CLI derives it as
+`status === "idle" && <the user is at a shell> ? "shell" : status`, read out of
+the installed bundle (2.1.284) rather than inferred from watching it. So it means
+not blocked, and `bin/tmux-agents` treats it as `idle`. It was left in the
+unrecognised bucket at first, which made it the one status that could strand a
+pane red forever: no hook reports the transition into a shell either, so the
+poller is the only thing that could clear the glyph.
 
 **Those rows carry `sessionId` and nothing about tmux; `$TMUX_PANE` is known
 only inside a hook.** `@claude_session_id` is that join, published once per

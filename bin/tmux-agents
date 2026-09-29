@@ -409,10 +409,18 @@ correct_rows() { # $1 rows
         s = status[sid]
         # An unrecognised status is left alone rather than guessed at. The
         # vocabulary belongs to the CLI, not to this script, and a value never
-        # seen before (a "shell" status turned up while this was written) must
-        # not be mapped onto a glyph by accident. (No apostrophes in this
-        # program: it is one long single-quoted shell string.)
-        if (s != "waiting" && s != "busy" && s != "idle") { print; next }
+        # seen before must not be mapped onto a glyph by accident. (No
+        # apostrophes in this program: it is one long single-quoted shell
+        # string.)
+        #
+        # "shell" is in the set because it is NOT an unknown: the CLI derives it
+        # as status === "idle" and the user at a shell, so it is a flavour of
+        # idle, which already means not blocked. Read out of the installed
+        # bundle rather than inferred from behaviour. Left out, it was the one
+        # value that could strand a pane red forever -- no hook reports the
+        # transition into a shell either, so this poller is the only thing that
+        # could ever clear it, and it declined to.
+        if (s != "waiting" && s != "busy" && s != "idle" && s != "shell") { print; next }
         # Only the blocked/not-blocked disagreement is acted on. When the two
         # agree, the hook data is kept whole: its note names the tool and its
         # per-actor listing names which subagent is blocked, and the CLI knows

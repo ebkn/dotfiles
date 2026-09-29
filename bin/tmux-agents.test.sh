@@ -498,6 +498,12 @@ add_bound_pane corr-late busy "" sid-late
 # asking and waiting would leave exactly this one stuck.
 add_bound_pane corr-needs needs_input "a worker needs you" sid-needs
 add_bound_pane corr-unknown waiting "needs permission" sid-unknown
+# `shell` is NOT the example of an unknown status any more, because it is not one:
+# the CLI's own bundle derives it as `status === "idle" && <in a shell> ? "shell"
+# : status`, so it is a flavour of idle and belongs in the recognised set. A value
+# that is genuinely outside the vocabulary is needed to keep pinning the rule, and
+# it has to stay outside it -- so something no CLI would emit.
+add_bound_pane corr-shell waiting "needs permission" sid-shell
 add_bound_pane corr-nobind waiting "needs permission" ""
 # A binding whose session the CLI does not list: the session ended while the
 # pane stayed open. Absence is not evidence that it is unblocked.
@@ -520,7 +526,8 @@ rows_for() { grep -cF "$1" "$work/rows"; }
 stub_claude '[{"sessionId":"sid-stale","status":"busy"},
               {"sessionId":"sid-needs","status":"busy"},
               {"sessionId":"sid-late","status":"waiting","waitingFor":"permission prompt"},
-              {"sessionId":"sid-unknown","status":"shell"}]'
+              {"sessionId":"sid-unknown","status":"teleporting"},
+              {"sessionId":"sid-shell","status":"shell"}]'
 
 if ! run_rows; then
   fail "--rows produces a list" "stderr: $(cat "$work/rows.err" 2>/dev/null)"
@@ -552,11 +559,26 @@ else
   esac
 
   # A status this script has never heard of is left alone rather than guessed
-  # at. The vocabulary belongs to the CLI: a "shell" status turned up while this
-  # was written, and mapping an unknown one onto a glyph would invent a state.
+  # at. The vocabulary belongs to the CLI, and mapping an unknown one onto a
+  # glyph would invent a state.
   case "$(row_of corr-unknown)" in
     '🛑'*) pass "an unrecognised status leaves the row alone" ;;
     *) fail "an unrecognised status leaves the row alone" "row: $(row_of corr-unknown)" ;;
+  esac
+
+  # `shell` is the fourth value the CLI publishes, and leaving it unrecognised
+  # left a pane stuck red with no way back: the poller is the only thing that can
+  # clear a state no hook reports, and it declined to. It is not a guess -- the
+  # CLI derives it as `status === "idle" && <in a shell> ? "shell" : status`, so
+  # it is idle with the user at a shell, and idle already means "not blocked".
+  # Read out of the installed bundle (2.1.284), which is why the value is pinned
+  # here rather than left to a comment.
+  case "$(row_of corr-shell)" in
+    '🛑'*) fail "a shell status clears a stale red, like the idle it refines" \
+      "still blocked: $(row_of corr-shell)" ;;
+    '') fail "a shell status clears a stale red, like the idle it refines" \
+      "the row disappeared" ;;
+    *) pass "a shell status clears a stale red, like the idle it refines" ;;
   esac
 
   # A session that started before the binding existed has no id, and must stay
@@ -633,7 +655,8 @@ stub_claude '[{"sessionId":"sid-stale","status":"busy"},
               {"sessionId":"sid-needs","status":"busy"},
               {"sessionId":"sid-blank","status":"idle"},
               {"sessionId":"sid-late","status":"waiting","waitingFor":"permission prompt"},
-              {"sessionId":"sid-unknown","status":"shell"}]'
+              {"sessionId":"sid-unknown","status":"teleporting"},
+              {"sessionId":"sid-shell","status":"shell"}]'
 
 if ! run_sync; then
   fail "--sync runs" "stderr: $(cat "$work/sync.err" 2>/dev/null)"
@@ -659,6 +682,16 @@ else
   else
     fail "a dialog the hooks have not reported yet reaches the pane" \
       "state: [$(opt_of corr-late @claude_state)] note: [$(opt_of corr-late @claude_note)]"
+  fi
+
+  # The pane, not just the picker's view: `shell` is where the poller is the only
+  # thing that could ever clear the glyph, since no hook reports the transition
+  # into it either.
+  if [ "$(opt_of corr-shell @claude_state)" = stalled ]; then
+    pass "a shell session's stale red is cleared off the pane too"
+  else
+    fail "a shell session's stale red is cleared off the pane too" \
+      "state: [$(opt_of corr-shell @claude_state)]"
   fi
 
   if [ -z "$(opt_of corr-blank @claude_state)" ]; then
@@ -798,7 +831,7 @@ else
 fi
 
 tmux -L "$socket" kill-window -t work:corr-blank 2>/dev/null
-for w in corr-stale corr-late corr-needs corr-unknown corr-nobind corr-gone; do
+for w in corr-stale corr-late corr-needs corr-unknown corr-shell corr-nobind corr-gone; do
   tmux -L "$socket" kill-window -t "work:$w" 2>/dev/null
 done
 

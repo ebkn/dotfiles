@@ -98,9 +98,17 @@ What the merge does, and does not, do:
 - **A contradicted per-actor listing is dropped**, not re-rendered: it is
   derived from the same records that were just contradicted, so keeping it would
   put the stale rows straight back and the correction would be invisible.
-- **An unrecognised status is left alone.** The vocabulary belongs to the CLI; a
-  `shell` status turned up while this was written, and mapping an unknown one
-  onto a glyph invents a state.
+- **An unrecognised status is left alone.** The vocabulary belongs to the CLI,
+  and mapping an unknown one onto a glyph invents a state.
+- **`shell` is not one of those**, though it was treated as one at first. The CLI
+  publishes four statuses — `busy`, `shell`, `idle`, `waiting` — and derives the
+  third as `status === "idle" && <the user is at a shell> ? "shell" : status`, so
+  it is a flavour of `idle`, which already means not blocked. Read out of the
+  installed bundle (2.1.284), not inferred from watching it. Leaving it
+  unrecognised made it the one value that could **strand a pane red forever**: no
+  hook reports the transition into a shell either, so this poller is the only
+  thing that could clear the glyph, and it declined to. A genuinely unknown value
+  still has a case, with a status no CLI would emit.
 - **Only local rows are corrected.** A remote pane's session is known to the
   remote machine, and asking it would be an ssh round trip per refresh.
 - **Every failure degrades to the uncorrected rows** — a missing CLI, a rename,
