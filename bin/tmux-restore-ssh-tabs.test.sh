@@ -115,9 +115,12 @@ as_zsh_runs() {
 
 # ---------------------------------------------------------------------------
 run "$(printf 'zeta\nmy work')"
+# The first three words only: the host, and the path adopt is run by. What
+# follows is the success marker, which the failure cases below pin by what it
+# does rather than by how it is spelled.
 t "runs adopt on the named host" \
-  "myhost ~/.local/bin/tmux-track-session adopt && echo tmux-restore-ssh-tabs/ok" \
-  "$(grep -v '^wezterm' "$CALLS")"
+  "myhost ~/.local/bin/tmux-track-session adopt" \
+  "$(grep -v '^wezterm' "$CALLS" | cut -d' ' -f1-3)"
 t "exits 0 when tabs were opened" "0" "$status"
 
 locals=$(sessions_but_keep)
