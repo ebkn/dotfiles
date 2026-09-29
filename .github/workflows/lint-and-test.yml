@@ -283,6 +283,11 @@ jobs:
       - name: ssh pane decoration
         run: zsh zsh/ssh-decorate.test.zsh
 
+      # MYSSH_SESSION must reach the remote as one argument, or a restored tab
+      # opens a fresh empty session beside the one it was meant to restore.
+      - name: ssh remote session
+        run: zsh zsh/ssh-session.test.zsh
+
       # rm() routes deletions through trash. Both of its failure modes look
       # like a successful delete from the shell, so they can only be caught
       # here: losing the fallback leaves Linux with no working rm, and handing

@@ -80,3 +80,13 @@ Three shapes were checked by breaking it and confirming red:
 
 The test kills every pid its stub recorded on the way out, because a failing run
 is by definition one that leaked a process.
+
+## ssh-session.test.zsh
+
+Pins which remote session `myssh` attaches to: `local-<pane id>` by default,
+`$MYSSH_SESSION` when set (by `bin/tmux-restore-ssh-tabs`).
+
+The remote command is **run through `sh`** against a stub `tmux-track-session`,
+exactly as the remote login shell would, rather than matched as text — a name with
+a space passes a text match and is then split in two by the remote shell. That is
+why the name is quoted with `${(q)…}` before it goes into the command.

@@ -237,6 +237,11 @@ myssh() {
     if [ -n "$TMUX_PANE" ]; then
       remote_session="local-${TMUX_PANE#%}"
     fi
+    # bin/tmux-restore-ssh-tabs names an existing session instead: a restored
+    # tab is a new pane, and its own pane id would open a fresh empty session.
+    [ -n "${MYSSH_SESSION:-}" ] && remote_session=$MYSSH_SESSION
+    # Quoted for the remote shell, which parses the command below once more.
+    local remote_session_q=${(q)remote_session}
     # Ping the ssh-config-resolved hostname, so the keepalive exercises the
     # same endpoint the tunnel itself uses. See _ssh_keepalive_start.
     _ssh_keepalive_start \
@@ -270,7 +275,7 @@ myssh() {
     # sessions on the remote. Falls back to plain tmux if script is not deployed.
     AUTOSSH_GATETIME=0 autossh -M 0 \
       -o ControlPath=none "${ssh_opts[@]}" -t "$host" \
-      "~/.local/bin/tmux-track-session attach ${remote_session} 2>/dev/null || tmux new-session -A -s ${remote_session} 2>/dev/null || exec \$SHELL -l"
+      "~/.local/bin/tmux-track-session attach ${remote_session_q} 2>/dev/null || tmux new-session -A -s ${remote_session_q} 2>/dev/null || exec \$SHELL -l"
   else
     command ssh "$@"
   fi
