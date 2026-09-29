@@ -283,6 +283,23 @@ agent-state.sh correct <busy|stalled|waiting> [note]
 
 with `TMUX` and `TMUX_PANE` set to the pane it is correcting.
 
+**The poller runs from launchd (`launchd/com.ebkn.tmux-agent-sync.plist`, a 5 s
+`StartInterval`), and linking that plist is not loading it.** `bin/relink` links
+it; `bin/launchd-load` loads it, and is deliberately not called by `relink` —
+loading an agent is a decision about a machine, not a fact about the file layout.
+`bin/launchd-load --status` says which are running. Until it is loaded there is
+**no symptom but the bug this whole mechanism exists to fix**: the picker is right
+(it corrects its own rendering) while the tab glyph stays stale, which reads as
+the feature never having worked rather than as an unloaded agent. See
+[launchd-load.md](../../../bin/launchd-load.md).
+
+Loaded and succeeding are also different, and both silent. `launchctl print
+gui/$UID/com.ebkn.tmux-agent-sync` gives `runs` and `last exit code`; the end-to-end
+check is that every pane carrying `@claude_session_id` agrees with
+`claude agents --json` — with `stalled` standing for the CLI's `idle`. **`stalled`
+alone proves nothing**, since a resumed session and an unread finished turn both
+publish it from the hooks.
+
 **It goes through the records, never straight to the pane options, and that is
 load-bearing.** `publish()` skips its tmux calls when the records still match
 `.published`, so an option written behind its back would make the *next* genuine
