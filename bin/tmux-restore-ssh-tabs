@@ -26,11 +26,21 @@ export WEZTERM_UNIX_SOCKET=~/.local/share/wezterm/default-org.wezfurlong.wezterm
 # One round trip that both lists and claims. A failure here -- unreachable
 # host, or a remote whose tmux-track-session predates `adopt` -- must stop
 # everything: an empty answer would read as "nothing to restore".
+#
+# ssh's exit status alone cannot tell: Tailscale SSH reports 0 for every remote
+# command (measured against a macOS host: `ssh <host> 'exit 3'` exits 0). So
+# the remote also prints a marker, only if adopt succeeded, as the last line.
+# It contains a `/`, which adopt never prints in a session name, so it cannot
+# be mistaken for one.
+# (Spelled out again in the remote command, where it must not expand locally.)
+marker=tmux-restore-ssh-tabs/ok
 # shellcheck disable=SC2088 # the tilde is for the remote shell to expand
-if ! sessions=$(ssh "$host" '~/.local/bin/tmux-track-session adopt'); then
+if ! out=$(ssh "$host" '~/.local/bin/tmux-track-session adopt && echo tmux-restore-ssh-tabs/ok') ||
+  [ "${out##*$'\n'}" != "$marker" ]; then
   echo "tmux-restore-ssh-tabs: could not adopt sessions on $host (is its dotfiles checkout up to date?)" >&2
   exit 1
 fi
+sessions=${out%"$marker"}
 if [ -z "$sessions" ]; then
   echo "No detached tmux sessions on $host" >&2
   exit 1

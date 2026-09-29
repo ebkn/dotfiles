@@ -38,15 +38,31 @@ command -v tmux >/dev/null || {
   exit 1
 }
 
-# ssh prints $ADOPT and exits $SSH_EXIT, recording the command it was asked to
-# run. wezterm answers `cli list-clients` with two GUI clients, the less idle
-# one focused on pane 7, and records everything else.
+# ssh records the command it was asked to run, then really runs it, as the
+# remote shell would, against a remote $HOME whose tmux-track-session prints
+# $ADOPT and exits $ADOPT_EXIT. Running it rather than faking its output is
+# what lets a case see whether the success marker is tied to adopt's status.
+# ssh exits with the command's status, unless $SSH_EXIT overrides it: 255 for a
+# dropped connection, 0 for Tailscale SSH, which reports 0 for everything.
+# wezterm answers `cli list-clients` with two GUI clients, the less idle one
+# focused on pane 7, and records everything else.
 cat >"$DIR/stub/ssh" <<'STUB'
 #!/bin/sh
 printf '%s\n' "$*" >>"$CALLS"
-[ -n "$ADOPT" ] && printf '%s\n' "$ADOPT"
-exit "${SSH_EXIT:-0}"
+shift
+HOME="$REMOTE_HOME" sh -c "$*"
+rc=$?
+exit "${SSH_EXIT:-$rc}"
 STUB
+export REMOTE_HOME="$DIR/remote"
+mkdir -p "$REMOTE_HOME/.local/bin"
+cat >"$REMOTE_HOME/.local/bin/tmux-track-session" <<'STUB'
+#!/bin/sh
+[ "$1" = adopt ] || exit 1
+[ -n "$ADOPT" ] && printf '%s\n' "$ADOPT"
+exit "${ADOPT_EXIT:-0}"
+STUB
+chmod +x "$REMOTE_HOME/.local/bin/tmux-track-session"
 cat >"$DIR/stub/wezterm" <<'STUB'
 #!/bin/sh
 if [ "$1 $2" = "cli list-clients" ]; then
@@ -71,9 +87,10 @@ t() { # t <name> <expected> <actual>
 tmux -f /dev/null new-session -d -s keep 'sleep 600'
 tmux set -g default-command cat
 
-run() { # run <adopt output> [ssh exit] -- sets $status and $out
+run() { # run <adopt output> [adopt exit] [ssh exit] -- sets $status and $out
   : >"$CALLS"
-  out=$(PATH="$DIR/stub:$PATH" ADOPT="$1" SSH_EXIT="${2:-0}" "$SCRIPT" myhost 2>&1)
+  out=$(PATH="$DIR/stub:$PATH" ADOPT="$1" ADOPT_EXIT="${2:-0}" SSH_EXIT="${3:-}" \
+    "$SCRIPT" myhost 2>&1)
   status=$?
 }
 
@@ -99,7 +116,8 @@ as_zsh_runs() {
 # ---------------------------------------------------------------------------
 run "$(printf 'zeta\nmy work')"
 t "runs adopt on the named host" \
-  "myhost ~/.local/bin/tmux-track-session adopt" "$(grep -v '^wezterm' "$CALLS")"
+  "myhost ~/.local/bin/tmux-track-session adopt && echo tmux-restore-ssh-tabs/ok" \
+  "$(grep -v '^wezterm' "$CALLS")"
 t "exits 0 when tabs were opened" "0" "$status"
 
 locals=$(sessions_but_keep)
@@ -126,10 +144,30 @@ for s in $locals; do tmux kill-session -t "=$s"; done
 # Output AND a failure status, e.g. a connection dropped mid-listing. The exit
 # status must decide, not emptiness: a script that only checked for output
 # would open tabs for a partial list.
-run "zeta" 255
+run "zeta" 0 255
 t "a failed adopt exits non-zero" "1" "$status"
 t "a failed adopt says which host" "1" "$(printf '%s' "$out" | grep -c 'could not adopt sessions on myhost')"
 t "a failed adopt opens nothing, even with partial output" "" "$(
+  sessions_but_keep
+  grep '^wezterm' "$CALLS"
+)"
+
+# Tailscale SSH reports exit status 0 whatever the remote command returned
+# (measured against a macOS host: `ssh <host> 'exit 3'` exits 0), so a remote
+# tmux-track-session too old to know `adopt` -- usage on stderr, nothing on
+# stdout, exit 1 -- arrives looking exactly like "no sessions". The script must
+# still tell them apart.
+run "" 1 0
+t "a failed adopt behind an ssh that always exits 0 exits non-zero" "1" "$status"
+t "a failed adopt behind an ssh that always exits 0 says adopt failed" "1" \
+  "$(printf '%s' "$out" | grep -c 'could not adopt sessions on myhost')"
+t "a failed adopt behind an ssh that always exits 0 opens nothing" "" "$(
+  sessions_but_keep
+  grep '^wezterm' "$CALLS"
+)"
+
+run "zeta" 1 0
+t "partial output behind an ssh that always exits 0 opens nothing" "" "$(
   sessions_but_keep
   grep '^wezterm' "$CALLS"
 )"

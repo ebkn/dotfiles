@@ -36,7 +36,24 @@ in the state directory).
 
 **The remote must run a `tmux-track-session` that knows `adopt`.** An old one
 prints its usage and exits 1, and the script stops there rather than reading the
-empty output as "nothing to restore".
+empty output as "nothing to restore" — even behind an ssh that loses the
+status (below).
+
+## Why ssh's exit status is not enough
+
+**Tailscale SSH reports exit status 0 for every remote command** — measured
+against a macOS host (whether a Linux one does the same is unmeasured):
+`ssh <host> 'exit 3'` exits 0, and `ssh -v` shows `exit-status` 0 from a server
+announcing itself as `Tailscale`. Behind it, an old remote's usage-and-exit-1
+reached the script as empty output with status 0 — indistinguishable from "no
+detached sessions", which is exactly what it printed.
+
+So the remote command is `tmux-track-session adopt && echo tmux-restore-ssh-tabs/ok`,
+and the script requires that marker as the last line **as well as** a zero
+status. The marker contains a `/`, which `adopt` never prints in a session name,
+so it cannot collide with one. The marker alone would already catch a connection
+dropped (255) mid-listing; the status check is kept as a second, independent
+signal for any ssh that does report it.
 
 ## How a tab is made
 
@@ -73,5 +90,11 @@ would — the assertion is on which session and host `myssh` would receive, not 
 the text. `ssh` and `wezterm` are stubs: the remote half is pinned by
 `tmux-track-session.test.sh`, and WezTerm cannot run on a CI runner.
 
+The `ssh` stub **runs** the command it is given, against a fake remote `$HOME`
+whose `tmux-track-session` prints and exits as the case says, and can override
+its own exit status (`SSH_EXIT=0` plays Tailscale). A stub that only printed
+canned output could not show whether the marker is tied to `adopt`'s status.
+
 The failure cases matter as much as the happy path: a failed `adopt` and an empty
-one must both exit non-zero and open nothing.
+one must both exit non-zero and open nothing, and a failed `adopt` behind an ssh
+that always exits 0 must still be reported as a failure.
