@@ -573,12 +573,16 @@ else
   # it is idle with the user at a shell, and idle already means "not blocked".
   # Read out of the installed bundle (2.1.284), which is why the value is pinned
   # here rather than left to a comment.
+  # The glyph is named rather than "anything but red", as the two cases above name
+  # theirs: `shell` refines idle, so the row must land on stalled's 🟢 and not on
+  # busy's ▶. A catch-all here passed a mutation mapping shell onto busy, which
+  # only the pane-option case below caught -- and that goes through the hook's own
+  # glyph_of, not the awk that renders this row.
   case "$(row_of corr-shell)" in
-    '🛑'*) fail "a shell status clears a stale red, like the idle it refines" \
-      "still blocked: $(row_of corr-shell)" ;;
-    '') fail "a shell status clears a stale red, like the idle it refines" \
-      "the row disappeared" ;;
-    *) pass "a shell status clears a stale red, like the idle it refines" ;;
+    '🟢'*) pass "a shell status renders as stalled, the idle it refines" ;;
+    '') fail "a shell status renders as stalled, the idle it refines" "the row disappeared" ;;
+    *) fail "a shell status renders as stalled, the idle it refines" \
+      "row: $(row_of corr-shell)" ;;
   esac
 
   # A session that started before the binding existed has no id, and must stay
