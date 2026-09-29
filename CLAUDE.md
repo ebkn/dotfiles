@@ -44,7 +44,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   ├── tmux-popup         #   Open the per-tab popup session (prefix + p/t/o all go through it)
 │   ├── fzf-nvim           #   Pick a file with fzf and open it in nvim (prefix + o)
 │   ├── tmux-pane-titles   #   Name the window after its panes' dirs/branches (called from zsh hooks)
-│   ├── tmux-restore-tabs  #   Re-open a WezTerm tab per orphaned tmux session
+│   ├── tmux-restore-tabs  #   Re-open a WezTerm tab per orphaned tmux session, in the window it was run from
 │   ├── tmux-track-session #   Remember the remote session an ssh pane was in, for autossh reconnect
 │   ├── tmux-session-swap  #   Swap two clients on prefix + w, so one tab keeps meaning one session
 │   ├── autossh-ssh        #   AUTOSSH_PATH shim: the reconnect notice myssh shows between attempts
@@ -239,6 +239,7 @@ silent.
 | `bin/tmux-pane-titles.test.sh` | [tmux-pane-titles.md](bin/tmux-pane-titles.md) |
 | `bin/tmux-session-swap.test.sh` | [tmux-session-swap.md](bin/tmux-session-swap.md) |
 | `bin/tmux-track-session.test.sh` | [tmux-track-session.md](bin/tmux-track-session.md) |
+| `bin/tmux-restore-tabs.test.sh` | [tmux-restore-tabs.md](bin/tmux-restore-tabs.md) |
 | `bin/test-in-docker` (runs the tmux suites above), `bin/tmux-test-guard.test.sh` | [test-in-docker.md](bin/test-in-docker.md) |
 | `bin/autossh-ssh.test.sh` | [autossh-ssh.md](bin/autossh-ssh.md) |
 | `bin/pr-review-common.test.sh` | [pr-review-common.md](bin/pr-review-common.md) |

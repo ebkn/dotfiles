@@ -30,7 +30,15 @@ export WEZTERM_UNIX_SOCKET=~/.local/share/wezterm/default-org.wezfurlong.wezterm
 # This preserves the original tab order when restoring after a crash.
 # Sessions that already have a client attached are skipped to avoid duplicates.
 # ${(@f)...} splits output by newlines into array elements (zsh syntax).
-sessions=("${(@f)$(tmux list-sessions -F '#{session_created} #{session_attached} #{session_name}' 2>/dev/null | sort -n | awk '$2 == 0 { print substr($0, index($0,$3)) }')}")
+#
+# The name is everything after the first space, cut by position. It used to be
+# found with awk's index($0, $3), which returns the name's FIRST occurrence on
+# the line -- inside the timestamp for a numeric name like "35" on
+# "1790660355 35" -- so the tab attached to a session that does not exist.
+sessions=()
+for line in "${(@f)$(tmux list-sessions -f '#{==:#{session_attached},0}' -F '#{session_created} #{session_name}' 2>/dev/null | sort -s -n -k1,1)}"; do
+  [[ -n "$line" ]] && sessions+=("${line#* }")
+done
 
 if [[ ${#sessions[@]} -eq 0 || -z "${sessions[1]}" ]]; then
   echo "No unattached tmux sessions found"
@@ -44,15 +52,23 @@ if [[ -n "$TMUX" ]]; then
   current_session=$(tmux display-message -p '#S')
 fi
 
-# Remember the current wezterm pane ID so we can return to it after spawning
-# all the new tabs (otherwise focus would stay on the last spawned tab).
-current_pane=$(wezterm cli list --format json | jq -r '.[] | select(.is_active) | .pane_id')
+# The pane the user ran this from, asked of WezTerm itself: the focused pane of
+# the GUI client idle for the shortest time, i.e. the one just typed into.
+#
+# Neither obvious source works. `wezterm cli list`'s is_active is per TAB, so it
+# is true for one pane in every tab and yielded a list of ids. And
+# $WEZTERM_PANE, which `cli spawn` reads by default, is inherited from whenever
+# the tmux server started -- after WezTerm restarts it names a pane of the old
+# WezTerm, and every tab opened in a NEW WINDOW of its own.
+current_pane=$(wezterm cli list-clients --format json |
+  jq -r 'sort_by(.idle_time.secs, .idle_time.nanos) | .[0].focused_pane_id')
 
-# Create a new wezterm tab for each tmux session (except the current one).
-# Each tab runs 'tmux attach -t <session>' to connect to that session.
+# Create a new wezterm tab for each tmux session (except the current one), in
+# the window of the pane found above. `=` makes the target an exact name, not a
+# prefix.
 for session in "${sessions[@]}"; do
   if [[ "$session" != "$current_session" ]]; then
-    wezterm cli spawn -- tmux attach -t "$session" >/dev/null
+    wezterm cli spawn --pane-id "$current_pane" -- tmux attach -t "=$session" >/dev/null
   fi
 done
 

@@ -225,6 +225,12 @@ jobs:
       - name: tmux-track-session
         run: bash bin/tmux-track-session.test.sh
 
+      # Restored tabs must land in the window they were asked from, attached to
+      # the exact session. Both broke silently: every tab in a new window, and a
+      # numeric name cut out of its own timestamp.
+      - name: tmux-restore-tabs
+        run: bash bin/tmux-restore-tabs.test.sh
+
       # Both of these turn pane options into something a person reads -- a tab
       # label and the prefix + a list. Every mistake renders a plausible wrong
       # answer rather than an error.
