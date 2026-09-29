@@ -245,14 +245,20 @@ has 'the wait is reported rather than silent' "$out" 'still computing'
 out=$(run)
 eq 'UNKNOWN queues nothing by itself' 'no' "$([ -f "$JOB" ] && echo yes || echo no)"
 
-echo "-- a draft PR is work in progress, not news --"
+echo "-- a conflicting draft is queued like any other PR --"
+# Drafts were once excluded as "not yet news", which left a conflicting draft
+# announced by NEITHER half: the CI half skips every CONFLICTING PR because the
+# conflict is announced instead. On this account the PRs being actively worked
+# in a live session are mostly drafts, so the exclusion hid exactly the case this
+# program exists for -- and silently, with no log line.
 # The rm is the Arrange, not tidiness: without it this case passes whenever the
-# preceding group happened to leave no job, and stops testing anything the
-# moment the groups are reordered.
+# preceding group happened to leave a job, and stops testing anything the moment
+# the groups are reordered.
 /bin/rm -f "$JOB"
 prs CONFLICTING true sha-d
 run >/dev/null
-eq 'a conflicting draft writes no job' 'no' "$([ -f "$JOB" ] && echo yes || echo no)"
+eq 'a conflicting draft is queued' 'conflict' "$(job .kind)"
+eq 'at its head' 'sha-d' "$(job .conflictHead)"
 
 echo "-- no worktree for the branch means nothing this pipeline can deliver --"
 /bin/rm -f "$JOB"
@@ -431,19 +437,14 @@ eq 'the job is marked resolved' 'resolved' "$(cijob .status)"
 eq 'and nothing is left owed' '0' "$(cijob '.pending|length')"
 eq 'and the head is cleared so a later failure notifies afresh' 'null' "$(cijob .ciHead)"
 
-echo "-- a draft IS queued for CI, unlike for a conflict --"
-# Deliberate asymmetry, and the only one in this program. A conflict on a draft
-# is not yet news -- the branch is still being written. A red check on a draft is
-# exactly what you want dealt with BEFORE marking it ready for review.
+echo "-- a draft IS queued for CI --"
+# A red check on a draft is exactly what you want dealt with BEFORE marking it
+# ready for review.
 STATE="$TMP/state-ci7"
 CIJOB="$STATE/jobs/acme__widget__42__ci.json"
 prs MERGEABLE true head1 feature/x "[$(check lint COMPLETED FAILURE)]"
 run >/dev/null
 eq 'a failing draft is queued' 'yes' "$([ -f "$CIJOB" ] && echo yes || echo no)"
-prs CONFLICTING true head1 feature/x "[]"
-run >/dev/null
-eq 'a conflicting draft is still not' 'no' \
-  "$([ -f "$STATE/jobs/acme__widget__42__conflict.json" ] && echo yes || echo no)"
 
 echo "-- a conflicting PR is not also given a CI job --"
 # The merge changes the tree the checks ran against, so fixing CI first is work

@@ -125,11 +125,24 @@ checks ran against, so fixing them first is work against a head that will not
 survive. The conflict is announced, and the next pass re-evaluates CI on the new
 head.
 
-### Drafts are included here, and excluded from conflicts
+### Drafts are included in both halves
 
-The only asymmetry between the two halves, and it is deliberate. A conflict on a
-draft is not yet news — the branch is still being written. A red check on a draft
-is exactly what should be dealt with **before** marking it ready for review.
+A red check on a draft is exactly what should be dealt with **before** marking
+it ready for review, and so is a conflict.
+
+Conflicts on drafts used to be skipped as "not yet news". That rule broke the
+CI half without anyone noticing. The CI half skips every `CONFLICTING` PR on
+the promise that the conflict is announced instead, so a conflicting draft was
+announced by **neither** half, and the log said nothing about it. On this
+account the PRs being worked in a live session are mostly drafts. GitHub also
+runs no `pull_request` workflow on a PR with a merge conflict, so the checks do
+not go red to hint at it either. Found when two conflicting drafts with
+worktrees, one of them with a live session, sat unannounced while the log
+looked healthy.
+
+Parking a draft does not make it noisy. A job is written once per head, and
+without a live session in the worktree it waits in the queue rather than
+interrupting anything.
 
 ### Flakes are the session's call, not this program's
 
