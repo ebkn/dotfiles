@@ -430,7 +430,6 @@
       "Edit(/etc/sudoers)"
     ],
     "ask": [
-      "Bash(curl *)",
       "Bash(wget *)",
       "Bash(telnet *)",
       "Bash(nc *)",

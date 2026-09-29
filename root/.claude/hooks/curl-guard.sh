@@ -1,6 +1,10 @@
 #!/bin/bash
 # Auto-approve curl invocations that provably target an allow-listed host with
-# no dangerous flags, letting them skip the blanket `Bash(curl *)` ask rule.
+# no dangerous flags.
+#
+# There must be no `Bash(curl *)` ask rule: an ask rule still prompts even when
+# a PreToolUse hook returns "allow", so it would make this hook a no-op.
+# See: https://code.claude.com/docs/en/permissions#extend-permissions-with-hooks
 #
 # Why a hook instead of `Bash(curl *<domain>*)` allow rules: permission patterns
 # match the raw command string and do no URL parsing, so `curl *github.com*`
@@ -10,8 +14,9 @@
 #
 # Fail-closed by design: this hook only ever emits "allow". Anything it cannot
 # fully verify -- unknown host, dangerous flag, shell expansion, a non-curl
-# segment -- emits no decision, leaving `Bash(curl *)` to prompt as it does now.
-# A bug here therefore degrades to "you get asked", never to "it runs".
+# segment -- emits no decision, leaving the call to the permission mode (a
+# prompt in default mode, the classifier in auto mode). A bug here therefore
+# degrades to "no auto-approval", never to "approved without verification".
 #
 # The host allow-list is derived from the WebFetch(domain:...) rules in
 # settings.json so curl and WebFetch stay in sync from a single source.

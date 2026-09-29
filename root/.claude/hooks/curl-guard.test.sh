@@ -1,7 +1,7 @@
 #!/bin/bash
 # Exercises curl-guard.sh against the cases that decide whether it is safe.
 # ALLOW = hook emits an allow decision. DEFER = hook stays silent, so the
-# existing `Bash(curl *)` ask rule prompts.
+# permission mode decides (a prompt in default mode, the classifier in auto).
 set -uo pipefail
 
 HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/curl-guard.sh"

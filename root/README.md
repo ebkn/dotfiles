@@ -58,19 +58,28 @@ purely as a sample argument, now a placeholder.
 
 ## curl permissions
 
-**`Bash(curl *)` must stay in `permissions.ask`** — do **not** replace it with
-`Bash(curl *<domain>*)` allow rules. Permission patterns match the raw command
-string with no URL parsing, so `curl *github.com*` also matches
-`curl https://evil.com/?ref=github.com`
+Do **not** grant curl with `Bash(curl *<domain>*)` allow rules. Permission
+patterns match the raw command string with no URL parsing, so `curl *github.com*`
+also matches `curl https://evil.com/?ref=github.com`
 ([documented as fragile](https://code.claude.com/docs/en/permissions.md)).
 
 Per-domain curl access is instead granted by `root/.claude/hooks/curl-guard.sh`,
 which parses the argv and checks the real host against the
 `WebFetch(domain:...)` rules in `settings.json` (one source of truth for both).
 
+**`Bash(curl *)` must not be in `permissions.ask`.** A hook `allow` does not
+override an `ask` rule — [the rule still
+prompts](https://code.claude.com/docs/en/permissions#extend-permissions-with-hooks)
+— so with that rule present the hook approves nothing and is dead code. It sat
+there, doing nothing, until that was noticed.
+
 The hook only ever emits `allow`; anything it cannot verify emits no decision and
-falls through to that `ask` rule — so **removing the `ask` rule silently
-downgrades every deferral to the auto-mode classifier.**
+falls through to the mode: `default` mode prompts (curl is not in `allow`), auto
+mode hands it to the classifier. **Know what that trades away** — the same trade
+recorded for `rm` below: an unverified curl in auto mode is no longer a
+guaranteed prompt, and `bypassPermissions`, which honours only `ask` rules, now
+runs any curl unchecked. `wget`, `nc` and friends stay in `ask`; they have no
+guard to be shadowed.
 
 Run `root/.claude/hooks/curl-guard.test.sh` after touching it.
 
