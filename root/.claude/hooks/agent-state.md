@@ -205,7 +205,9 @@ permission decision runs telemetry and no hook at all, an interrupt during a
 dialog returns a plain `deny`, and `Stop` is "right before Claude concludes its
 response" while `StopFailure` is an API error.
 
-Three consequences, all measured:
+Three consequences. The first two were measured by timing the hooks; the third is
+read out of the CLI's source, and the distinction is kept because it is the one
+that decides how bad it is:
 
 - **🛑 arrives 6 s late, or not at all.** `waiting` rides the `Notification`,
   which Claude Code arms as `setTimeout(…, 6000)` and *cancels* when the prompt
@@ -215,7 +217,16 @@ Three consequences, all measured:
   thing that clears it is that actor's next `PostToolBatch`, which lands when
   the tool *finishes*. Measured against a 25 s command: the pane's own state
   flipped back at the moment of approval, the glyph did not.
-- **An interrupted turn keeps whatever glyph it had** until the next prompt.
+- **An interrupted turn keeps whatever glyph it had** until the next prompt, so
+  far as the hooks go — nothing fires, so the pane option is simply never
+  rewritten. **But the CLI's own answer is right immediately**, which bounds it:
+  the status is not pushed by an event at all, it is *computed when read* —
+  `status: isLoading || delegatedActive ? "busy" : "idle"`, with a pending dialog
+  checked first and returning `waiting` plus its reason. An interrupt clears the
+  loading flag, so the very next `claude agents --json` says `idle`, and the 5 s
+  poller takes the glyph down. Read out of the installed bundle, not inferred
+  from watching a glyph: previously this bullet was inferred, and it was the only
+  one of the three whose blast radius was unknown.
 
 The state itself is not missing, only the event: Claude Code tracks
 `status` — **four values, `busy` / `shell` / `idle` / `waiting`** — with a
