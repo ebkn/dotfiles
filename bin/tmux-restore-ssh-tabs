@@ -1,0 +1,65 @@
+#!/bin/bash
+#
+# tmux-restore-ssh-tabs <host>
+#
+# Re-open a WezTerm tab per detached tmux session on <host>, each one a myssh
+# connection attached back to that session. The remote counterpart of
+# tmux-restore-tabs, for when the local side is what was lost: a reboot, a
+# killed local tmux server, or a different client machine. The remote sessions
+# survive all of those, detached, and nothing reconnects to them on its own.
+#
+# One tab per remote session, each in a local tmux session of its own (one tab
+# means one session -- see bin/tmux-session-swap.md), so each gets its own pane
+# and myssh's usual decoration, keepalive and autossh reconnect.
+#
+# See bin/tmux-restore-ssh-tabs.md for why the remote has to `adopt` the
+# sessions first rather than simply list them.
+
+set -eo pipefail
+
+host=${1:?usage: tmux-restore-ssh-tabs <host>}
+
+# Same reason as tmux-restore-tabs: after WezTerm restarts, the variable inside
+# existing tmux sessions names the old, dead socket; the symlink follows.
+export WEZTERM_UNIX_SOCKET=~/.local/share/wezterm/default-org.wezfurlong.wezterm
+
+# One round trip that both lists and claims. A failure here -- unreachable
+# host, or a remote whose tmux-track-session predates `adopt` -- must stop
+# everything: an empty answer would read as "nothing to restore".
+# shellcheck disable=SC2088 # the tilde is for the remote shell to expand
+if ! sessions=$(ssh "$host" '~/.local/bin/tmux-track-session adopt'); then
+  echo "tmux-restore-ssh-tabs: could not adopt sessions on $host (is its dotfiles checkout up to date?)" >&2
+  exit 1
+fi
+if [ -z "$sessions" ]; then
+  echo "No detached tmux sessions on $host" >&2
+  exit 1
+fi
+
+# The pane this ran from: the focused pane of the GUI client idle for the
+# shortest time. Tabs go into its window and focus comes back to it. Not
+# `cli list`'s is_active (true once per tab) nor $WEZTERM_PANE (stale inside
+# tmux, which put every tab in a new window) -- see bin/tmux-restore-tabs.
+current_pane=$(wezterm cli list-clients --format json |
+  jq -r 'sort_by(.idle_time.secs, .idle_time.nanos) | .[0].focused_pane_id')
+
+while IFS= read -r session; do
+  [ -n "$session" ] || continue
+  read -r local_session pane <<<"$(tmux new-session -d -P -F '#{session_name} #{pane_id}')"
+  # The command substitution's status is lost in the here-string, so check the
+  # result. It matters: send-keys with an empty -t does not fail, it types into
+  # whatever pane tmux considers current (measured).
+  if [ -z "$pane" ]; then
+    echo "tmux-restore-ssh-tabs: could not create a local session for $session" >&2
+    exit 1
+  fi
+  # Typed into the pane's shell rather than passed as the pane's command, so
+  # the tab is an ordinary shell afterwards: leaving myssh returns to a prompt,
+  # and the line is in history to run again. Typeahead is kept until the shell
+  # is ready to read it.
+  tmux send-keys -t "$pane" -l "MYSSH_SESSION=$(printf '%q' "$session") myssh $(printf '%q' "$host")"
+  tmux send-keys -t "$pane" Enter
+  wezterm cli spawn --pane-id "$current_pane" -- tmux attach -t "=$local_session" >/dev/null
+done <<<"$sessions"
+
+wezterm cli activate-pane --pane-id "$current_pane"

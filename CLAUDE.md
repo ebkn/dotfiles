@@ -45,6 +45,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   ├── fzf-nvim           #   Pick a file with fzf and open it in nvim (prefix + o)
 │   ├── tmux-pane-titles   #   Name the window after its panes' dirs/branches (called from zsh hooks)
 │   ├── tmux-restore-tabs  #   Re-open a WezTerm tab per orphaned tmux session, in the window it was run from
+│   ├── tmux-restore-ssh-tabs # Re-open a myssh tab per detached session on a remote host
 │   ├── tmux-track-session #   Remember the remote session an ssh pane was in, for autossh reconnect
 │   ├── tmux-session-swap  #   Swap two clients on prefix + w, so one tab keeps meaning one session
 │   ├── autossh-ssh        #   AUTOSSH_PATH shim: the reconnect notice myssh shows between attempts
@@ -147,6 +148,7 @@ Each entry names the doc to read first.
 - **Key-binding cheatsheet** (`prefix + ?`) — derived from `tmux list-keys -N`, so adding `-N "<category>: <description>"` to a `bind` line is what documents it. A binding without a note is invisible here, deliberately. → [bin/tmux-cheatsheet.md](bin/tmux-cheatsheet.md)
 - **One WezTerm tab means one tmux session** (`prefix + w`) — nothing in tmux enforces it, so `w` swaps clients rather than switching. → [bin/tmux-session-swap.md](bin/tmux-session-swap.md)
 - **Remote session tracking** — the autossh reconnect binding must stay single-valued in both directions. → [bin/tmux-track-session.md](bin/tmux-track-session.md)
+- **Restoring remote tabs** (`tmux-restore-ssh-tabs <host>`) — one `myssh` tab per detached remote session. The remote must `adopt` first, or crossed reconnect records put two tabs on one session; it needs an up-to-date `tmux-track-session` on the host. → [bin/tmux-restore-ssh-tabs.md](bin/tmux-restore-ssh-tabs.md)
 - **`.tmux.conf` itself** — `prefix + d` asks before detaching; every non-`-n` binding must carry `-N`. → [bin/tmux-conf.md](bin/tmux-conf.md)
 - **The reconnect screen** — `AUTOSSH_PATH` shim owning the screen between attempts; the mouse-report flood is the half that looks like a separate bug. → [bin/autossh-ssh.md](bin/autossh-ssh.md)
 - **Document reading** (`bin/read-doc` + `read-doc/style.css`) — the point is the stylesheet, not the converter; **do not turn it into a terminal pager.** Untrusted input, so pandoc runs `--sandbox` behind a CSP. Includes the ssh forward mode. → [bin/read-doc.md](bin/read-doc.md)
@@ -240,6 +242,7 @@ silent.
 | `bin/tmux-session-swap.test.sh` | [tmux-session-swap.md](bin/tmux-session-swap.md) |
 | `bin/tmux-track-session.test.sh` | [tmux-track-session.md](bin/tmux-track-session.md) |
 | `bin/tmux-restore-tabs.test.sh` | [tmux-restore-tabs.md](bin/tmux-restore-tabs.md) |
+| `bin/tmux-restore-ssh-tabs.test.sh` | [tmux-restore-ssh-tabs.md](bin/tmux-restore-ssh-tabs.md) |
 | `bin/test-in-docker` (runs the tmux suites above), `bin/tmux-test-guard.test.sh` | [test-in-docker.md](bin/test-in-docker.md) |
 | `bin/autossh-ssh.test.sh` | [autossh-ssh.md](bin/autossh-ssh.md) |
 | `bin/pr-review-common.test.sh` | [pr-review-common.md](bin/pr-review-common.md) |

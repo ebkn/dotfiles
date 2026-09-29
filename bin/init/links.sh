@@ -101,6 +101,7 @@ link_dotfiles() {
 
   # scripts
   link_with_backup "${DOTFILES_DIR}/bin/tmux-restore-tabs" "${HOME}/.local/bin/tmux-restore-tabs"
+  link_with_backup "${DOTFILES_DIR}/bin/tmux-restore-ssh-tabs" "${HOME}/.local/bin/tmux-restore-ssh-tabs"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-pane-titles" "${HOME}/.local/bin/tmux-pane-titles"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-track-session" "${HOME}/.local/bin/tmux-track-session"
   link_with_backup "${DOTFILES_DIR}/bin/autossh-ssh" "${HOME}/.local/bin/autossh-ssh"
