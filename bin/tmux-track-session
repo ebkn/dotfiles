@@ -51,6 +51,22 @@ ensure_dirs() {
   mkdir -p "$SESSION_DIR" "$PID_DIR"
 }
 
+# claim <conn_id> <session>
+#
+# Claim the session exclusively: whoever visited last owns it. Without the
+# release step the previous owner keeps its record and both connections restore
+# onto the same session. The released connection has no record left, so it
+# falls back to its own $conn_id session.
+claim() {
+  local f
+  for f in "$SESSION_DIR"/*; do
+    [ -f "$f" ] || continue
+    [ "$f" = "$SESSION_DIR/$1" ] && continue
+    [ "$(cat "$f")" = "$2" ] && rm -f "$f"
+  done
+  printf '%s' "$2" >"$SESSION_DIR/$1"
+}
+
 case "${1:-}" in
   attach)
     conn_id="${2:?usage: tmux-track-session attach <conn_id>}"
@@ -187,16 +203,7 @@ $saved
       fi
 
       if [ "$session" != "$prev" ]; then
-        # Claim the session exclusively: whoever visited last owns it. Without
-        # this the previous owner keeps its record and both connections restore
-        # onto the same session. The released connection has no record left, so
-        # it falls back to its own $conn_id session.
-        for f in "$SESSION_DIR"/*; do
-          [ -f "$f" ] || continue
-          [ "$f" = "$SESSION_DIR/$conn_id" ] && continue
-          [ "$(cat "$f")" = "$session" ] && rm -f "$f"
-        done
-        printf '%s' "$session" >"$SESSION_DIR/$conn_id"
+        claim "$conn_id" "$session"
         prev="$session"
       fi
       sleep 2
