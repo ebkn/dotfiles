@@ -52,6 +52,14 @@
     <key>StartInterval</key>
     <integer>5</integer>
 
+    <!-- StartInterval alone does NOT give 5s. launchd also refuses to spawn a
+         job sooner than ThrottleInterval after its previous spawn, and that
+         defaults to 10s (`launchctl print` shows it as "minimum runtime"), so
+         this agent ran every 10s while everything here said 5. The interval is
+         the pair of keys, and both have to change together. -->
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+
     <!-- Nothing is owed at login: there is no tmux server yet, so the first
          tick would do nothing but start a process. -->
     <key>RunAtLoad</key>
