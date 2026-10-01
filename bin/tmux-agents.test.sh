@@ -1299,6 +1299,32 @@ STUB
       "sh -c 'PICK=$1 PATH=$work/stub:$PWD/bin:\$PATH tmux-agents >$work/out 2>&1'"
     sleep 2
   }
+  # What the key said, read out of the server's command log -- which records
+  # every command with its arguments, `display-message "..."` included. This is
+  # the only observable the refusals have: msg() writes to a status line that
+  # nothing headless can capture, and a case asserting merely "no view opened"
+  # would pass just as well for a script that died on line one.
+  #
+  # Server-wide and not `-t "$client"`: the per-client log holds only what was
+  # actually rendered on that client's status line, which depends on it being
+  # attached and on the message not having been superseded. The command log
+  # answers the question the test is really asking -- which branch ran.
+  msg_log() { tmux -L "$socket" show-messages 2>/dev/null | grep -F 'display-message'; }
+  said_count() { msg_log | grep -cF "$1" || true; }
+  # wait_said <count before> <sentence> — wait for the sentence to be logged
+  # once more than it had been. Its mere presence proves nothing: two prefix + A
+  # cases refuse with the same sentence, so the second was satisfied by the
+  # first one's line whether or not its own run got as far as deciding. Waiting
+  # for it, rather than sleeping a fixed 2s, is also what makes the absence
+  # check after it sound: once the refusal is logged the branch has been taken,
+  # where a slow run under load would leave a fixed sleep checking too early.
+  wait_said() {
+    for _ in $(seq 1 20); do
+      [ "$(said_count "$2")" -gt "$1" ] && return 0
+      sleep 0.25
+    done
+    return 1
+  }
   # A mirror is open once a CLIENT is attached to it, not once its session
   # exists. tmux-agent-view creates the session and attaches after, and under
   # load that gap outlasted the check: a case read the clients, found none ("the
@@ -1312,12 +1338,14 @@ STUB
     done
     return 1
   }
+  refused=$(said_count "that session is not waiting on you")
   press_ctrl_o busy-win
-  if [ "$(mirrors)" = 0 ]; then
+  if wait_said "$refused" "that session is not waiting on you" && [ "$(mirrors)" = 0 ]; then
     pass "ctrl-o on a session that is not blocked attaches nothing"
   else
     fail "ctrl-o on a session that is not blocked attaches nothing" \
-      "$(tmux -L "$socket" list-sessions -F '#{session_name}')"
+      "sessions: $(tmux -L "$socket" list-sessions -F '#{session_name}' | tr '\n' ' ')" \
+      "messages: $(msg_log | tail -3 | tr "\n" "|")"
   fi
   # And it does not jump either: the client must still be on the session it was
   # attached to. This is the half a headless run cannot see, since with no
@@ -1391,19 +1419,6 @@ STUB
     tmux -L "$socket" run-shell -b \
       "cd $PWD && PATH=${1:+$1:}$PWD/bin:\$PATH tmux-agents --answer-first $client >$work/first 2>&1"
   }
-  # What the key said, read out of the server's command log -- which records
-  # every command with its arguments, `display-message "..."` included. This is
-  # the only observable the refusals have: msg() writes to a status line that
-  # nothing headless can capture, and a case asserting merely "no view opened"
-  # would pass just as well for a script that died on line one.
-  #
-  # Server-wide and not `-t "$client"`: the per-client log holds only what was
-  # actually rendered on that client's status line, which depends on it being
-  # attached and on the message not having been superseded. The command log
-  # answers the question the test is really asking -- which branch ran.
-  msg_log() { tmux -L "$socket" show-messages 2>/dev/null | grep -F 'display-message'; }
-  said() { msg_log | grep -qF "$1"; }
-
   if ! drop_mirrors; then
     fail "the ctrl-o mirror is gone before prefix + A is tested" \
       "$(tmux -L "$socket" list-sessions -F '#{session_name}')"
@@ -1432,9 +1447,9 @@ STUB
   # asking about, which is the same mistake the picker's ctrl-o refuses to make.
   ask_pane=$(tmux -L "$socket" list-panes -t tabB:ask-win -F '#{pane_id}' | head -1)
   tmux -L "$socket" set-option -pu -t "$ask_pane" @claude_state
+  refused=$(said_count "nothing is waiting on you")
   answer_first
-  sleep 2
-  if [ "$(mirrors)" = 0 ] && said "nothing is waiting on you"; then
+  if wait_said "$refused" "nothing is waiting on you" && [ "$(mirrors)" = 0 ]; then
     pass "prefix + A opens nothing when no agent is blocked, and says so"
   else
     fail "prefix + A opens nothing when no agent is blocked, and says so" \
@@ -1453,9 +1468,9 @@ STUB
   tmux -L "$socket" set-option -p -t "$ask_pane" @claude_state asking
   tmux -L "$socket" set-option -p -t "$ask_pane" @claude_since "$now"
   tmux -L "$socket" set-option -p -t "$ask_pane" @claude_session_id sid-answered
+  refused=$(said_count "nothing is waiting on you")
   answer_first "$work/stub"
-  sleep 2
-  if [ "$(mirrors)" = 0 ] && said "nothing is waiting on you"; then
+  if wait_said "$refused" "nothing is waiting on you" && [ "$(mirrors)" = 0 ]; then
     pass "prefix + A ignores a red the session itself says is gone"
   else
     fail "prefix + A ignores a red the session itself says is gone" \
@@ -1492,12 +1507,12 @@ prefix=\${fmt%%#\{*}
 printf '%s%s\t@9\t%%9\tremote-win\tasking\t%s\tremote note\n' "\$prefix" remote-sess $((now - 900))
 STUB
   chmod +x "$work/sshstub/ssh"
-  answer_first "$work/sshstub"
-  sleep 2
   # The whole sentence, not just "remote": the log is server-wide and keeps
   # growing, so a one-word needle can be satisfied by an unrelated message from
   # an earlier section.
-  if [ "$(mirrors)" = 0 ] && said "the blocked agent is remote"; then
+  refused=$(said_count "the blocked agent is remote")
+  answer_first "$work/sshstub"
+  if wait_said "$refused" "the blocked agent is remote" && [ "$(mirrors)" = 0 ]; then
     pass "prefix + A refuses a remote agent instead of opening a local window id"
   else
     fail "prefix + A refuses a remote agent instead of opening a local window id" \

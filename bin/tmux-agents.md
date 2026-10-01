@@ -525,7 +525,13 @@ The refusals are read out of `show-messages`, server-wide rather than
 `-t <client>`: the command log records `display-message` with its argument,
 which answers the question the test is really asking — *which branch ran* — where
 "no view opened" would pass just as well for a script that died on line one. The
-needle is the whole sentence, since that log keeps growing across sections.
+needle is the whole sentence, since that log keeps growing across sections —
+and for the same reason **its presence proves nothing; its count does.** Two
+prefix + A cases refuse with the same sentence, so the second was satisfied by
+the first one's line whether or not its own run got as far as deciding. Each
+refusal case now records the count before acting and waits for it to rise
+(`wait_said`), which also replaces a fixed `sleep 2`: once the refusal is logged
+the branch has been taken, so the "no mirror" check after it is not early.
 
 Two harness traps, both of which made these pass or fail for the wrong reason:
 
