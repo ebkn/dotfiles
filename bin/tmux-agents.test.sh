@@ -1033,6 +1033,37 @@ else
   fail "the remote path produces a list" "fzf stub was never reached"
 fi
 
+# The `-u` on the remote command, which the stub above cannot see: it never runs
+# the remote tmux, so dropping the flag passed every case. An ssh exec is the
+# other place the launchd bug lives -- sshd starts the command with no $TMUX,
+# and with a locale only if SendEnv and AcceptEnv happen to agree -- and there
+# the failure is the quiet kind again: every remote row parses as one field and
+# is dropped, so remote agents are simply gone. This stub runs the command for
+# real, against a bare_tmux server, with the locale stripped.
+rt_dir="$work/remote-tmpdir"
+mkdir -p "$rt_dir"
+bare_tmux "$rt_dir" -f /dev/null new-session -d -s far -n bare-remote-win "$IDLE"
+rt_pane=$(bare_tmux "$rt_dir" list-panes -t far -F '#{pane_id}' | head -1)
+bare_tmux "$rt_dir" set-option -p -t "$rt_pane" @claude_state asking
+bare_tmux "$rt_dir" set-option -p -t "$rt_pane" @claude_since "$now"
+cat >"$work/stub/ssh" <<STUB
+#!/bin/sh
+for a in "\$@"; do cmd=\$a; done
+exec env -u TMUX -u LANG -u LC_ALL -u LC_CTYPE TMUX_TMPDIR="$rt_dir" sh -c "\$cmd"
+STUB
+chmod +x "$work/stub/ssh"
+if run_picker; then
+  bare_row=$(cut -f2- "$work/list" | grep 'bare-remote-win' || true)
+  case "$bare_row" in
+    '🛑 '*bakery*) pass "a remote agent is listed when the remote shell has no locale" ;;
+    *) fail "a remote agent is listed when the remote shell has no locale" \
+      "row: ${bare_row:-<missing>}" ;;
+  esac
+else
+  fail "a remote agent is listed when the remote shell has no locale" "fzf stub was never reached"
+fi
+bare_tmux "$rt_dir" kill-server 2>/dev/null
+
 # Back to a local-only fixture so the empty case below starts from a known state.
 tmux -L "$socket" kill-window -t work:ssh-pane-a 2>/dev/null
 tmux -L "$socket" kill-window -t work:ssh-pane-b 2>/dev/null

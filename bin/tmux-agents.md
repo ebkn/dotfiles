@@ -169,7 +169,10 @@ flag rather than an exported locale because a locale name valid on macOS need
 not exist on Linux, and it adds no process. The case pinning it runs `--sync`
 with **both** the locale and `$TMUX` removed, against a server on the default
 socket of a private `TMUX_TMPDIR` (`bare_tmux` in the suite) — run_sync's `$TMUX`
-would mask it.
+would mask it. The remote listing needs the flag for the same reason, since an
+ssh exec has no `$TMUX` and a locale only if SendEnv and AcceptEnv agree; the
+canned ssh stub never runs the remote tmux, so a second case has its stub run
+the command for real under that stripped environment.
 
 To check the live job end to end, publish a stale 🛑 through the hook on an
 **idle** session's pane (one whose own hooks will not fire and clear it first)
