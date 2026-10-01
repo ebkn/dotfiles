@@ -30,6 +30,15 @@ readonly FMT=$'#{session_name}\t#{window_id}\t#{pane_id}\t#{window_name}\t#{@cla
 
 # Used to build the formats above and to split the rows back apart below, so it
 # has to be a real character in the script text.
+#
+# Every tmux call whose output is split on it passes -u. A tmux client with no
+# UTF-8 locale prints control characters in a -F format as `_`, TAB included,
+# and launchd starts `--sync` with no LANG, LC_ALL or LC_CTYPE at all: each row
+# then parsed as one field, no pane looked bound to a session, and every tick
+# returned early having corrected nothing -- the picker green, the tab red, exit
+# 0 and an empty log. -u is a flag rather than an exported locale because a
+# locale name that exists on macOS need not exist on Linux, and a flag adds no
+# process to the latency path.
 readonly TAB=$'\t'
 
 # @claude_agents holds one record per actor in the pane — the main thread plus
@@ -105,7 +114,7 @@ resolve_jump() {
     # Jump to the local pane holding that ssh connection instead, and name the
     # remote window so the last hop is obvious.
     local_target=$(
-      tmux list-panes -a -F $'#{pane_id}\t#{window_id}\t#{@ssh_host}' 2>/dev/null |
+      tmux -u list-panes -a -F $'#{pane_id}\t#{window_id}\t#{@ssh_host}' 2>/dev/null |
         awk -F'\t' -v h="$host" '$3 == h { print $2 "\t" $1; exit }'
     ) || true
     if [ -z "$local_target" ]; then
@@ -123,7 +132,7 @@ resolve_jump() {
   # client_tty and WezTerm's tty_name are the same device, which is what links
   # them.
   client=$(
-    tmux list-clients -F $'#{client_tty}\t#{window_id}\t#{client_session}' 2>/dev/null |
+    tmux -u list-clients -F $'#{client_tty}\t#{window_id}\t#{client_session}' 2>/dev/null |
       awk -F'\t' -v w="$window_id" '$2 == w { print $1 "\t" $3; exit }'
   ) || true
   IFS=$'\t' read -r rj_tty client_session <<<"$client"
@@ -227,7 +236,7 @@ collect_rows() {
   # it. The last two fields carry the ssh decoration, so the listing that finds remote
   # hosts is the same listing that is about to be rendered rather than a second
   # round-trip; the awk pass never looks at them.
-  rows=$(tmux list-panes -a -F "${TAB}${FMT}${TAB}#{@ssh_my_machine}${TAB}#{@ssh_host}" 2>/dev/null) || true
+  rows=$(tmux -u list-panes -a -F "${TAB}${FMT}${TAB}#{@ssh_my_machine}${TAB}#{@ssh_host}" 2>/dev/null) || true
 
   # Only `myssh` panes are queried: @ssh_my_machine marks a host the user declared
   # to be theirs, i.e. one running tmux and these dotfiles. Plain `ssh` panes may
@@ -279,7 +288,7 @@ collect_rows() {
         -o ControlMaster=auto \
         -o ControlPath="$HOME/.ssh/cm-agents-%r@%h:%p" \
         -o ControlPersist=60s \
-        "$host" "tmux list-panes -a -F '${host}${TAB}${FMT}'" \
+        "$host" "tmux -u list-panes -a -F '${host}${TAB}${FMT}'" \
         >"$tmpdir/remote.$i" 2>/dev/null &
     done
     # Bare `wait` always reports success, so an unreachable host cannot trip set -e.

@@ -307,7 +307,10 @@ gui/$UID/com.ebkn.tmux-agent-sync` gives `runs` and `last exit code`; the end-to
 check is that every pane carrying `@claude_session_id` agrees with
 `claude agents --json` — with `stalled` standing for the CLI's `idle`. **`stalled`
 alone proves nothing**, since a resumed session and an unread finished turn both
-publish it from the hooks.
+publish it from the hooks. **Nor does a manual `tmux-agents --sync` from a pane**:
+it inherits `$TMUX`, which makes tmux keep the TAB separators that launchd's
+bare environment turned into `_` — the job was loaded, exiting 0 and correcting
+nothing until `-u` went in. See [tmux-agents.md](../../../bin/tmux-agents.md).
 
 **It goes through the records, never straight to the pane options, and that is
 load-bearing.** `publish()` skips its tmux calls when the records still match

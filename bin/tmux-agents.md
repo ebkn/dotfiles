@@ -156,6 +156,26 @@ how `needs_input` came to be missing from the one above.
 `$TMUX` is constructed rather than inherited — under launchd there is none — and
 the hook reads only its first field, the socket, to key its records.
 
+**Every tmux call whose output is split on TAB passes `-u`.** A tmux client
+prints control characters in a `-F` format as `_` — TAB included — unless it
+believes the terminal is UTF-8, and it believes that if the locale says so **or
+if `$TMUX` is set**. launchd provides neither, so until `-u` the job read every
+row as one field, found no pane bound to a session, and returned early on every
+tick: loaded, `last exit code = 0`, an empty log, and the tab red while the
+picker was green — the exact symptom this mode exists to remove, for as long as
+it had existed. Nothing run from inside tmux could see it, the picker and a
+manual `--sync` included, because `$TMUX` alone is enough to hide it. `-u` is a
+flag rather than an exported locale because a locale name valid on macOS need
+not exist on Linux, and it adds no process. The case pinning it runs `--sync`
+with **both** the locale and `$TMUX` removed, against a server on the default
+socket of a private `TMUX_TMPDIR` (`bare_tmux` in the suite) — run_sync's `$TMUX`
+would mask it.
+
+To check the live job end to end, publish a stale 🛑 through the hook on an
+**idle** session's pane (one whose own hooks will not fire and clear it first)
+and watch it go back within a tick:
+`TMUX=<socket>,0,0 TMUX_PANE=<pane> ~/.claude/hooks/agent-state.sh correct waiting probe`.
+
 **The three corrected columns are read back with `IFS=$'\t' read`**, which works
 only because `pane` and `state` are never empty and the note is last: tab is an
 IFS *whitespace* character, so an empty field anywhere else shifts the rest by

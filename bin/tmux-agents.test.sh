@@ -40,10 +40,26 @@ fi
 socket="agents-test-$$"
 work=$(mktemp -d)
 pty_pids=""
+
+# A server on the DEFAULT socket of a private TMUX_TMPDIR, reached the way a
+# client with no $TMUX reaches the real one -- launchd, an ssh exec. $TMUX is
+# removed here rather than trusted to be unset: with no -L/-S, tmux prefers the
+# socket named in $TMUX over TMUX_TMPDIR, so one inherited value would send a
+# fixture's new-session, and its kill-server, to some other server.
+bare_tmux() { # $1 private TMUX_TMPDIR, then tmux arguments
+  local dir=$1
+  shift
+  env -u TMUX TMUX_TMPDIR="$dir" tmux "$@"
+}
+
 cleanup() {
   # shellcheck disable=SC2086 # deliberate word splitting: pty_pids is a list
   [ -n "$pty_pids" ] && kill $pty_pids 2>/dev/null
   tmux -L "$socket" kill-server 2>/dev/null
+  # Any bare_tmux server, should its case die before its own kill-server.
+  for d in "$work"/*-tmpdir; do
+    [ -d "$d" ] && bare_tmux "$d" kill-server 2>/dev/null
+  done
   rm -rf "$work"
 }
 trap cleanup EXIT
@@ -799,6 +815,60 @@ else
 fi
 rm -f "$work/stub/hook"
 run_sync
+
+# launchd starts the job with no LANG, LC_ALL or LC_CTYPE and no $TMUX, and a
+# tmux client with neither prints every control character in a -F format as `_`
+# -- the TAB separators included. The whole listing then parses as one field per
+# row, no pane appears bound to a session, and the tick returns early having
+# corrected nothing: green picker, red tab, exit 0, empty log.
+#
+# BOTH have to be missing, which is why every case above is blind to it: a
+# client that finds $TMUX set assumes UTF-8 whatever the locale says, and
+# run_sync sets $TMUX to reach this suite's server. So this case runs against a
+# bare_tmux server, which a client with no $TMUX finds on its own -- exactly how
+# the launchd job finds the real one.
+#
+# Everything else it needs is its own too -- $HOME with the real hook, state
+# dir, CLI stub -- so it holds wherever it sits in this file: the shared ones
+# are rewired by the cases around it.
+lt_dir="$work/launchd-tmpdir"
+mkdir -p "$lt_dir" "$work/lt-home/.claude/hooks" "$work/lt-stub"
+ln -sf "$PWD/root/.claude/hooks/agent-state.sh" "$work/lt-home/.claude/hooks/agent-state.sh"
+printf '#!/bin/sh\necho %s\n' "'[{\"sessionId\":\"sid-launchd\",\"status\":\"busy\"}]'" \
+  >"$work/lt-stub/claude"
+chmod +x "$work/lt-stub/claude"
+bare_tmux "$lt_dir" -f /dev/null new-session -d -s launchd "$IDLE"
+lt_sock=$(bare_tmux "$lt_dir" display-message -p '#{socket_path}')
+lt_pane=$(bare_tmux "$lt_dir" list-panes -t launchd -F '#{pane_id}' | head -1)
+bare_tmux "$lt_dir" set-option -p -t "$lt_pane" @claude_session_id sid-launchd
+lt_opt() { bare_tmux "$lt_dir" show-options -p -t "$lt_pane" -qv "$1"; }
+# Published through the hook, not with set-option: an option written behind the
+# hook's back leaves its records matching `.published`, so the correction would
+# derive nothing new and skip the very write asserted here.
+HOME="$work/lt-home" XDG_STATE_HOME="$work/lt-state" \
+  TMUX="$lt_sock,0,0" TMUX_PANE="$lt_pane" \
+  "$PWD/root/.claude/hooks/agent-state.sh" correct waiting "permission prompt"
+# Without this the case passes vacuously whenever the setup fails to publish,
+# since "busy afterwards" is also what an untouched pane says.
+if [ "$(lt_opt @claude_state)" != waiting ]; then
+  fail "a stale 🛑 is cleared with no locale and no \$TMUX, as under launchd" \
+    "setup did not publish waiting: [$(lt_opt @claude_state)]"
+elif ! env -u TMUX -u LANG -u LC_ALL -u LC_CTYPE \
+  TMUX_TMPDIR="$lt_dir" \
+  HOME="$work/lt-home" \
+  XDG_STATE_HOME="$work/lt-state" \
+  PATH="$work/lt-stub:$PWD/bin:$PATH" \
+  tmux-agents --sync 2>"$work/sync.err"; then
+  fail "--sync runs with no locale and no \$TMUX" "stderr: $(cat "$work/sync.err" 2>/dev/null)"
+# The glyph as well as the state: @claude_glyph is what set-titles-string puts
+# on the tab, which is where the symptom was seen.
+elif [ "$(lt_opt @claude_state)" = busy ] && [ "$(lt_opt @claude_glyph)" = '▶ ' ]; then
+  pass "a stale 🛑 is cleared with no locale and no \$TMUX, as under launchd"
+else
+  fail "a stale 🛑 is cleared with no locale and no \$TMUX, as under launchd" \
+    "state: [$(lt_opt @claude_state)] glyph: [$(lt_opt @claude_glyph)]"
+fi
+bare_tmux "$lt_dir" kill-server 2>/dev/null
 
 # A background timer may not open an ssh connection, and `collect_rows local` is
 # the only thing stopping it. Without this the guarantee is untested: the remote
