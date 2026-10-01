@@ -1299,6 +1299,19 @@ STUB
       "sh -c 'PICK=$1 PATH=$work/stub:$PWD/bin:\$PATH tmux-agents >$work/out 2>&1'"
     sleep 2
   }
+  # A mirror is open once a CLIENT is attached to it, not once its session
+  # exists. tmux-agent-view creates the session and attaches after, and under
+  # load that gap outlasted the check: a case read the clients, found none ("the
+  # view is showing []"), and the late attach then outlived drop_mirrors and
+  # failed the next case as well. Pinned by delaying that attach by 3s, which
+  # failed four cases here before this and none after.
+  wait_mirror() {
+    for _ in $(seq 1 20); do
+      tmux -L "$socket" list-clients -F '#{client_session}' | grep -q '^_agent_' && return 0
+      sleep 0.25
+    done
+    return 1
+  }
   press_ctrl_o busy-win
   if [ "$(mirrors)" = 0 ]; then
     pass "ctrl-o on a session that is not blocked attaches nothing"
@@ -1318,6 +1331,7 @@ STUB
   fi
 
   press_ctrl_o ask-win
+  wait_mirror
   # Both sizes come out of one list-clients, matched by name. `display-message
   # -p -c <client> '#{client_width}'` does NOT report that client here -- with a
   # popup open it answered with the popup's size, which made the assertion below
@@ -1352,25 +1366,20 @@ STUB
   # binding runs it -- and that is the half that needs a client passed in, since
   # a run-shell child's $TMUX names the server and not the client that pressed
   # the key.
-  wait_mirror() {
-    for _ in $(seq 1 20); do
-      [ "$(mirrors)" != 0 ] && return 0
-      sleep 0.25
-    done
-    return 1
-  }
   # Detaching a mirror is asynchronous -- the popup, its client and its session
   # all go away after the detach returns -- so this WAITS for the count to reach
   # zero. Without the wait, the first case below inherits the mirror the ctrl-o
   # cases left on ask-win: wait_mirror returns instantly and the window name is
   # already the one the assertion expects, so the case passes in full without
-  # --answer-first having run at all.
+  # --answer-first having run at all. The detach is repeated inside the wait,
+  # because a mirror whose attach is still on its way has no client to detach
+  # yet; detaching once and waiting left exactly that one behind.
   drop_mirrors() {
-    for m in $(tmux -L "$socket" list-clients -F '#{client_name} #{client_session}' |
-      awk '$2 ~ /^_agent_/ { print $1 }'); do
-      tmux -L "$socket" detach-client -t "$m" 2>/dev/null
-    done
     for _ in $(seq 1 20); do
+      for m in $(tmux -L "$socket" list-clients -F '#{client_name} #{client_session}' |
+        awk '$2 ~ /^_agent_/ { print $1 }'); do
+        tmux -L "$socket" detach-client -t "$m" 2>/dev/null
+      done
       [ "$(mirrors)" = 0 ] && return 0
       sleep 0.25
     done

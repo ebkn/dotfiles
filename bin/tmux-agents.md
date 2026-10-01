@@ -533,7 +533,17 @@ Two harness traps, both of which made these pass or fail for the wrong reason:
    attached to `ask-win`, and the first `--answer-first` case expects exactly
    that window — so without waiting for the count to reach zero it passed in full
    with `--answer-first` never having run. Hence `drop_mirrors` waits, and the
-   wait is itself a case.
+   wait is itself a case. **Opening one is asynchronous too, in two steps:**
+   `tmux-agent-view` creates the mirror session and attaches to it after, so
+   "the session exists" is not "the view is open". `wait_mirror` waited for the
+   session and then read the clients, which under load found none ("the view is
+   showing []") — and the attach that landed late had no client yet when
+   `drop_mirrors` detached, so it outlived the drop and failed the next case
+   too. That was the suite's flake under amd64 emulation (two prefix + A cases,
+   roughly one run in three). `wait_mirror` now waits for an attached client,
+   the ctrl-o case waits through it, and `drop_mirrors` repeats its detach
+   inside the wait. Measured by delaying that attach by 3s: four cases failed
+   before, none after.
 2. **The remote section deletes its `ssh` stub** when it is done, deliberately,
    so the local cases cannot pick it up. The remote `--answer-first` case
    therefore brings its own in `$work/sshstub` — the same reason `$work/wstub`
