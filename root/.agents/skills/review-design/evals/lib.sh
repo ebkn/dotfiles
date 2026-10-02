@@ -199,19 +199,14 @@ exit "$fails"
 TEST
 }
 
-# review_design_fixture_init
-# Writes the base state -- the module, the command, their docs and tests, and
-# the test runner -- with every doc true of the code. Call skill_eval_init_repo
-# afterwards to commit it on main.
-review_design_fixture_init() {
-  mkdir -p lib
-  {
-    _review_design_module_head
-    _review_design_sum_doc_refusing
-    _review_design_sum_code_refusing
-  } >lib/quantity.sh
+# total.sh and the README are assembled the same way as the module: each takes
+# the name of a function that prints its one paragraph on unreadable weights,
+# so a case can swap that paragraph and keep the rest.
 
-  cat >total.sh <<'COMMAND'
+# _review_design_write_command <part>
+_review_design_write_command() {
+  {
+    cat <<'PART'
 #!/bin/bash
 # total.sh -- print the total weight of the weighbridge tickets given as
 # arguments.
@@ -227,7 +222,9 @@ usage: total.sh <weight>...
 Print the total of the weights, in tonnes. A weight is a number with an
 optional trailing "t", such as 12.5t.
 
-If any weight cannot be read, nothing is printed and the exit status is 1.
+PART
+    "$1"
+    cat <<'PART'
 USAGE
 }
 
@@ -239,10 +236,21 @@ case "${1:-}" in
 esac
 
 sum_quantities "$@"
-COMMAND
+PART
+  } >total.sh
   chmod +x total.sh
+}
 
-  cat >README.md <<'README'
+_review_design_usage_refusing() {
+  cat <<'PART'
+If any weight cannot be read, nothing is printed and the exit status is 1.
+PART
+}
+
+# _review_design_write_readme <part>
+_review_design_write_readme() {
+  {
+    cat <<'PART'
 # weighbridge
 
 `total.sh` adds up the weights printed on a stack of weighbridge tickets.
@@ -253,11 +261,32 @@ A weight is a number of tonnes with an optional trailing `t`.
 
 ## Unreadable weights
 
+PART
+    "$1"
+  } >README.md
+}
+
+_review_design_readme_refusing() {
+  cat <<'PART'
 A weight that cannot be read -- empty, not a number, or negative -- fails the
 whole total: `total.sh` prints nothing and exits 1,
 so a wrong total never reaches the ledger.
-README
+PART
+}
 
+# review_design_fixture_init
+# Writes the base state -- the module, the command, their docs and tests, and
+# the test runner -- with every doc true of the code. Call skill_eval_init_repo
+# afterwards to commit it on main.
+review_design_fixture_init() {
+  mkdir -p lib
+  {
+    _review_design_module_head
+    _review_design_sum_doc_refusing
+    _review_design_sum_code_refusing
+  } >lib/quantity.sh
+  _review_design_write_command _review_design_usage_refusing
+  _review_design_write_readme _review_design_readme_refusing
   _review_design_write_tests_refusing
 
   cat >run-tests.sh <<'RUNNER'
