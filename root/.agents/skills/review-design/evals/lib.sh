@@ -83,6 +83,36 @@ sum_quantities() {
 PART
 }
 
+_review_design_sum_doc_skipping() {
+  cat <<'PART'
+# sum_quantities [<input>...]
+# Print the total of every argument, in tonnes. No arguments is 0.
+# An argument parse_quantity refuses is skipped: it is named on stderr as
+# "skipped: <input>" and left out of the total, and the status stays 0. So if
+# none can be read, the total is 0.
+PART
+}
+
+# The skipping code once more, this time saying why parse_quantity's own
+# message is dropped -- the missing why a review of the bare version raises.
+_review_design_sum_code_skipping_explained() {
+  cat <<'PART'
+sum_quantities() {
+  local total=0 input value
+  for input in "$@"; do
+    # parse_quantity's own message is dropped so that each skipped weight is
+    # reported once, in the one form a caller can look for.
+    if ! value="$(parse_quantity "$input" 2>/dev/null)"; then
+      printf 'skipped: %s\n' "$input" >&2
+      continue
+    fi
+    total="$(awk -v a="$total" -v b="$value" 'BEGIN { printf "%g", a + b }')"
+  done
+  printf '%s\n' "$total"
+}
+PART
+}
+
 _review_design_write_tests_refusing() {
   cat >lib/quantity.test.sh <<'TEST'
 #!/bin/bash
@@ -247,6 +277,13 @@ If any weight cannot be read, nothing is printed and the exit status is 1.
 PART
 }
 
+_review_design_usage_skipping() {
+  cat <<'PART'
+A weight that cannot be read is skipped: it is named on stderr as
+"skipped: <weight>", the rest are totalled, and the exit status is 0.
+PART
+}
+
 # _review_design_write_readme <part>
 _review_design_write_readme() {
   {
@@ -271,6 +308,15 @@ _review_design_readme_refusing() {
 A weight that cannot be read -- empty, not a number, or negative -- fails the
 whole total: `total.sh` prints nothing and exits 1,
 so a wrong total never reaches the ledger.
+PART
+}
+
+_review_design_readme_skipping() {
+  cat <<'PART'
+A weight that cannot be read -- empty, not a number, or negative -- is
+skipped: `total.sh` names it on stderr as `skipped: <weight>` and totals the
+rest, exiting 0. If none can be read the total is 0, so check stderr before a
+total goes into the ledger.
 PART
 }
 
@@ -337,5 +383,21 @@ review_design_unit_skip_without_docs() {
     _review_design_sum_doc_refusing
     _review_design_sum_code_skipping
   } >lib/quantity.sh
+  _review_design_write_tests_skipping
+}
+
+# review_design_unit_skip_with_docs
+# The unit for clean-unit-no-false-p1: the same change, done properly. The
+# comment, the usage text and the README all move with the code, the case of
+# nothing readable is stated rather than left open, and the one non-obvious
+# line says why. A review of this has nothing that meets P1.
+review_design_unit_skip_with_docs() {
+  {
+    _review_design_module_head
+    _review_design_sum_doc_skipping
+    _review_design_sum_code_skipping_explained
+  } >lib/quantity.sh
+  _review_design_write_command _review_design_usage_skipping
+  _review_design_write_readme _review_design_readme_skipping
   _review_design_write_tests_skipping
 }
