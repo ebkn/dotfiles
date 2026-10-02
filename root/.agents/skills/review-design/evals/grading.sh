@@ -76,6 +76,39 @@ review_design_ran_no_writing_git_before() {
   [ "$first" -gt "$1" ]
 }
 
+# review_design_reported_before_writing <start> <report>
+# The same boundary for a review that starts in the middle of a run: when the
+# skill starts by itself at a breakpoint, the unit's own work has already
+# written files and made commits, so only what lies between the skill starting
+# (<start>) and its report (<report>) counts. Fails when either is missing or
+# the report did not come after the start.
+review_design_reported_before_writing() {
+  [ -n "$1" ] && [ -n "$2" ] && [ "$2" -gt "$1" ] || return 1
+  if _review_design_called_between Write "$1" "$2"; then return 1; fi
+  if _review_design_called_between Edit "$1" "$2"; then return 1; fi
+  if _review_design_ran_between "$REVIEW_DESIGN_WRITING_GIT" "$1" "$2"; then return 1; fi
+  return 0
+}
+
+# _review_design_called_between <tool> <after> <before>
+# True when <tool> was called in a record strictly between the two indexes.
+_review_design_called_between() {
+  jq -se --arg name "$1" --argjson a "$2" --argjson b "$3" '
+    any(to_entries[]; .key > $a and .key < $b and .value.type == "assistant"
+      and any(.value.message.content[]?; .type == "tool_use" and .name == $name))' \
+    "$SKILL_EVAL_TRANSCRIPT" >/dev/null
+}
+
+# _review_design_ran_between <regex> <after> <before>
+# True when a Bash command matching <regex> ran strictly between the indexes.
+_review_design_ran_between() {
+  jq -se --arg re "$1" --argjson a "$2" --argjson b "$3" '
+    any(to_entries[]; .key > $a and .key < $b and .value.type == "assistant"
+      and any(.value.message.content[]?; .type == "tool_use" and .name == "Bash"
+        and (.input.command | test($re))))' \
+    "$SKILL_EVAL_TRANSCRIPT" >/dev/null
+}
+
 # review_design_total_of <weight>...
 # What total.sh prints and exits with, as "<stdout> (status <n>)". The fixture's
 # tests never feed in nothing but unreadable weights, and what that should do is

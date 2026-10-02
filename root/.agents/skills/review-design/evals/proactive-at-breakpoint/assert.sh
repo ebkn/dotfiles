@@ -7,7 +7,8 @@ source "$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh"
 source "$SKILL_EVAL_REPO_ROOT/root/.agents/skills/review-design/evals/grading.sh"
 
 skill_uses="$(transcript_skill_uses review-design)"
-report="$(review_design_report_text "$(review_design_report_index)")"
+report_at="$(review_design_report_index)"
+report="$(review_design_report_text "$report_at")"
 
 # --- the request itself was carried out ---
 check_match "total.sh --kg prints the total in kilograms" '3000' \
@@ -31,6 +32,12 @@ started_after_the_commit() {
 }
 check "started it at the breakpoint: after the work was committed" started_after_the_commit
 check "reported under a design-review heading" test -n "$report"
+# Started by itself, the review is something the user never asked for, so the
+# report is how they learn what it found -- and it still comes before any fix.
+# Runs that folded the review into the work skipped it and went straight to
+# editing, leaving only a line in the final summary.
+check "reported before writing anything, once started" \
+  review_design_reported_before_writing "$(transcript_first_tool_index Skill)" "$report_at"
 # One review plus at most three re-reviews.
 check "kept the review loop within its cap of four" test "$skill_uses" -le 4
 
