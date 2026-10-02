@@ -386,6 +386,142 @@ review_design_unit_skip_without_docs() {
   _review_design_write_tests_skipping
 }
 
+# review_design_unit_incidental_forwarder
+# The unit for pass-through-layer: a feature -- delivery.sh totals the weights
+# listed in a file -- that picks up a forwarder on the way. delivery_sum only
+# calls sum_quantities with the same arguments, and nothing about the feature
+# asked for it. Its one caller is in the unit, so removing it reaches nothing
+# outside and undoes nothing anyone decided.
+review_design_unit_incidental_forwarder() {
+  cat >lib/delivery.sh <<'PART'
+# delivery.sh -- total the weighbridge tickets of one delivery.
+#
+# shellcheck shell=bash
+
+# shellcheck source=quantity.sh
+. "$(dirname "${BASH_SOURCE[0]}")/quantity.sh"
+
+# delivery_total <file>
+# Print the total of the weights listed in <file>, one per line, in tonnes.
+# Blank lines are ignored. If any weight cannot be read, the total is refused
+# the way sum_quantities refuses it.
+delivery_total() {
+  local line weights=()
+  while IFS= read -r line || [ -n "$line" ]; do
+    [ -n "$line" ] || continue
+    weights+=("$line")
+  done <"$1"
+  delivery_sum "${weights[@]}"
+}
+
+# delivery_sum <input>...
+# Total the weights of a delivery. See sum_quantities.
+delivery_sum() {
+  sum_quantities "$@"
+}
+PART
+
+  cat >delivery.sh <<'PART'
+#!/bin/bash
+# delivery.sh -- print the total weight of one delivery's tickets, read from a
+# file with one weight per line.
+set -eo pipefail
+
+# shellcheck source=lib/delivery.sh
+. "$(dirname "$0")/lib/delivery.sh"
+
+if [ $# -ne 1 ]; then
+  printf 'usage: delivery.sh <file>\n' >&2
+  exit 2
+fi
+
+delivery_total "$1"
+PART
+  chmod +x delivery.sh
+
+  cat >delivery.test.sh <<'TEST'
+#!/bin/bash
+# Tests for delivery.sh
+set -uo pipefail
+
+cd "$(dirname "$0")" || exit 1
+
+fails=0
+t() {
+  if [ "$2" = "$3" ]; then
+    printf 'ok   %s\n' "$1"
+  else
+    printf 'FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"
+    fails=$((fails + 1))
+  fi
+}
+
+list="$(mktemp)"
+trap 'rm -f "$list"' EXIT
+
+printf '12.5t\n3t\n\n' >"$list"
+t "totals the weights listed in the file" "15.5" "$(./delivery.sh "$list")"
+printf '12.5t\ntwelve\n' >"$list"
+t "an unreadable weight fails the total" "1" "$(./delivery.sh "$list" >/dev/null 2>&1; printf '%s' "$?")"
+t "prints nothing when the total fails" "" "$(./delivery.sh "$list" 2>/dev/null)"
+t "asks for exactly one file" "2" "$(./delivery.sh >/dev/null 2>&1; printf '%s' "$?")"
+
+exit "$fails"
+TEST
+
+  cat >>README.md <<'PART'
+
+## A whole delivery
+
+    ./delivery.sh tickets.txt      # one weight per line
+
+`delivery.sh` totals the weights listed in a file, one per line; blank lines
+are ignored. An unreadable weight fails the total the same way it does for
+`total.sh`.
+PART
+}
+
+# review_design_unit_intended_layer
+# The unit for intended-layer-asks: a "ticket API" in lib/ticket.sh, meant --
+# says the commit -- to keep the scripts from depending on how quantity.sh
+# reads a weight. Its two functions forward to quantity.sh under new names with
+# the same arguments, the same output and the same refusals, so it hides
+# nothing, and total.sh is switched over to it. The layer is shallow, but it is
+# what the commit set out to build: removing it undoes a decision.
+review_design_unit_intended_layer() {
+  cat >lib/ticket.sh <<'PART'
+# ticket.sh -- the weighbridge ticket API.
+#
+# shellcheck shell=bash
+
+# shellcheck source=quantity.sh
+. "$(dirname "${BASH_SOURCE[0]}")/quantity.sh"
+
+# ticket_weight <input>
+# Read one weight off a ticket. See parse_quantity.
+ticket_weight() {
+  parse_quantity "$@"
+}
+
+# ticket_total <input>...
+# Total the weights on a stack of tickets. See sum_quantities.
+ticket_total() {
+  sum_quantities "$@"
+}
+PART
+
+  # total.sh keeps its own text; only what it sources and calls moves to the
+  # new layer. Through a temporary file rather than `sed -i`, which BSD and GNU
+  # spell differently.
+  # shellcheck disable=SC2016  # the $(...) is total.sh's own text, matched literally
+  sed -e 's|^# shellcheck source=lib/quantity.sh$|# shellcheck source=lib/ticket.sh|' \
+    -e 's|^\. "$(dirname "$0")/lib/quantity.sh"$|. "$(dirname "$0")/lib/ticket.sh"|' \
+    -e 's|^sum_quantities "\$@"$|ticket_total "$@"|' \
+    total.sh >total.sh.new
+  mv total.sh.new total.sh
+  chmod +x total.sh
+}
+
 # review_design_unit_skip_with_docs
 # The unit for clean-unit-no-false-p1: the same change, done properly. The
 # comment, the usage text and the README all move with the code, the case of
