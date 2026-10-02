@@ -22,9 +22,17 @@ bin/skill-eval review-test proactive-after-writing-tests --runs 3
 bin/skill-eval review-test gaps-in-error-contract --keep # keep the fixture to debug a FAIL
 ```
 
-**This spends money.** Every run calls the API on your Claude Code credentials;
-`--max-budget-usd` (default 1 USD per run) is the only cap. The default model is
-sonnet (`--model`); the `check_llm` judge is haiku (`SKILL_EVAL_JUDGE_MODEL`).
+**Every run spends model usage on your Claude Code credentials** — the same
+login your interactive sessions use; no separate key is issued for it. What
+that costs depends on how Claude Code is authenticated. With an API key or a
+Console login it is billed per token. On a Pro or Max subscription it draws on
+the plan's usage limits instead, and the dollar figures the runner prints are
+Claude Code's own estimate at list price, [not a
+bill](https://code.claude.com/docs/en/costs). The `apiKeySource` field of a
+transcript's `init` record says which credential a run used (`none` means the
+subscription login). Either way `--max-budget-usd` (default 1 USD per run,
+measured on that estimate) is the only cap. The default model is sonnet
+(`--model`); the `check_llm` judge is haiku (`SKILL_EVAL_JUDGE_MODEL`).
 Artifacts land in `tmp/skill-eval/<skill>/<case>/<timestamp>/run-N/`
 (`transcript.jsonl`, `result.json`, `assert.log`, `git-log.txt`,
 `git-status.txt`), which is gitignored.

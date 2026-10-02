@@ -20,8 +20,10 @@
 #   --model M  model for `claude -p` (default sonnet)
 #   --keep     leave the working directory behind, to investigate a FAIL
 #
-# THIS SPENDS MONEY. Every run calls the API on the caller's Claude Code
-# credentials, capped per run by --max-budget-usd (default 1 USD).
+# THIS SPENDS MODEL USAGE on the caller's Claude Code credentials: billed per
+# token on an API key, drawn from the plan's limits on a subscription, where the
+# dollar figures printed below are Claude Code's list-price estimate rather than
+# a bill. Capped per run by --max-budget-usd (default 1 USD, on that estimate).
 #
 # Artifacts land in tmp/skill-eval/<skill>/<case>/<timestamp>/run-N/.
 #
