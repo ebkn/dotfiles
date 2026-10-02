@@ -43,7 +43,7 @@ Four phases, in this order.
 
 1. **Find the range.**
    - If the caller named one, use it.
-   - If this skill already reviewed part of this branch earlier in the conversation, start from the head on that report's last line (`Reviewed: <base>..<head>`), so finished work is not reviewed twice.
+   - If this skill already reviewed part of this branch earlier in the conversation, start from the head on that report's closing line (`Reviewed: <base>..<head>`), so finished work is not reviewed twice.
    - Otherwise, from the merge-base with the default branch to `HEAD`. Find the default branch with `git rev-parse --abbrev-ref origin/HEAD`; without a remote, use `main`, then `master`.
    - Uncommitted changes (`git status --short`) belong to the work too. Include them, and say so in the report: a fix made now will share their commit.
 2. **Read what the change meant to do**: the commit messages in the range (`git log`), and the plan, issue or conversation it came from.
@@ -55,7 +55,7 @@ List every interface the range creates or changes. An interface is anything anot
 
 For each, write one sentence from the caller's side — what it does, not how — using only its signature, its comment and its docs. **Write it before reading the implementation.** The reviewer is usually the one who wrote the code, and reading the implementation first lets intent fill in what the interface fails to say.
 
-Then find its callers (Grep) and note which are inside the range and which outside.
+Then find its callers (Grep), tests included, and split them by file. A caller is **inside the range** when the range changes the file that makes the call; otherwise it is **outside** — even when its behavior changed through what it calls, because nothing in this change touched it. The outside ones are who a change to the interface would reach.
 
 ### Phase 3: Drift
 
@@ -73,7 +73,7 @@ Compare the code as it now is with everything that describes it, nearest first.
 
 ### Phase 4: Report
 
-Use this format. Translate the headings into the language of the report, but keep the last line exactly as shown: the next run of this skill reads it.
+Use this format. Translate the headings into the language of the report, but keep the `Reviewed:` line that closes it exactly as shown: the next run of this skill reads it.
 
 ```
 ## Design review: <base>..<head> (<N> commits[, plus uncommitted changes])
