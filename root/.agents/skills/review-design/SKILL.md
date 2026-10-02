@@ -7,6 +7,8 @@ allowed-tools: Read, Glob, Grep, Bash(git diff *), Bash(git log *), Bash(git sho
 
 Review the design of a change at an implementation breakpoint and report what to tidy, ranked P1/P2/P3.
 
+**Every run ends its review by writing the report out to the user, before anything is changed** — and above all when it started by itself in the middle of other work, where a review folded silently into the work is one the user never sees.
+
 **Match the user's language.** Answer a Japanese request in Japanese, an English one in English. Quote code, file paths, and command output verbatim.
 
 **Boundary of this skill: reading only.** Never edit a file, never run tests, never run `gh`. Run git only to read — `git diff`, `git log`, `git show`, `git merge-base`, `git status`, `git rev-parse` — and never with `--output`, which writes to a file. Never `git add` / `commit` / `stash` / `checkout` / `switch` / `reset` / `restore` / `push`. Acting on the findings happens outside the skill (see "After the review").
@@ -32,6 +34,8 @@ Beyond an explicit request, **start at an implementation breakpoint, even if no 
   - when the user has said a review is unnecessary
 
 **The trigger decides when; the range decides what.** The range runs from the last review (Phase 1), so a change that started no review is still in the next one: skipping a breakpoint delays a review, it never loses one.
+
+**Started by itself, it still reports first — in a short form, if the full one would interrupt the work.** The short form is three parts: the heading line exactly as in Phase 5 (`## Design review: <base>..<head>`, translated); one line per finding giving its priority, what it is and what you will do about it (or, with nothing found, one line naming what was checked); and the `Reviewed:` line. Nobody asked for this review, so this is the only way the user learns what it found and why the commits after the unit exist. Write it as text before the first fix, then carry on with "After the review" and the summary of the unit.
 
 Do not leave this condition to the caller's configuration alone (a `CLAUDE.md` or equivalent). Hosts that read nothing but `name` and `description` still have to trigger, and so does any repository whose configuration this skill never sees.
 
@@ -117,7 +121,7 @@ The cheapest evidence is in the callers: when each one repeats the same preparat
 
 ### Phase 5: Report
 
-Use this format. Translate the headings into the language of the report, but keep the `Reviewed:` line that closes it exactly as shown: the next run of this skill reads it.
+Write the report as text to the user before your next tool call — a message of its own, not a line in the closing summary. Use this format, or for a review that started by itself, the short form in "When to start". Translate the headings into the language of the report, but keep the `Reviewed:` line that closes it exactly as shown: the next run of this skill reads it.
 
 ```
 ## Design review: <base>..<head> (<N> commits[, plus uncommitted changes])
@@ -145,7 +149,7 @@ Reviewed: <base>..<head>
 
 Drop any section with nothing in it. If nothing is worth a finding, say so under the heading and list, under `### Checked`, what was checked: each doc and comment and the code it was compared with, and each red flag looked for and where. "No findings" alone cannot tell a clean change from an unread one. Still end with the `Reviewed:` line. Write abbreviated commit hashes there and in the heading, never a branch or tag name: names move, and the next session may not have them.
 
-**Write the report first.** Nothing is edited, run or committed until it is out — the fixes answer to it, and a report written afterwards describes a range that no longer exists. **The report does not end the turn either.** After the `Reviewed:` line, go straight on to "After the review".
+**Write the report first**, whether the review was asked for or started by itself. Nothing is edited, run or committed until it is out — the fixes answer to it, and a report written afterwards describes a range that no longer exists. **The report does not end the turn either.** After the `Reviewed:` line, go straight on to "After the review".
 
 ## Findings
 
