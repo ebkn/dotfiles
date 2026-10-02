@@ -1,6 +1,6 @@
 ---
 name: review-design
-description: Review the design of a just-finished unit of work — whether comments, docs and the intended design still match the code, and whether its interfaces are deep (simple to use, hiding real work) — then report what to tidy, ranked P1/P2/P3. Use when asked to look at the design of a change — "設計をレビューして", "設計の観点でレビューして", "コメントやドキュメントとの乖離を見て", "リファクタリングの観点で見て", "design review", "review the design" — or via the /review-design command. Not for finding bugs (code-review), reviewing test code (review-test), or line-level cleanups (simplify).
+description: Run this before reporting a finished unit of work back to the user, without being asked, whenever that unit — committed, tests passing — added or changed an interface: an exported function or type, a command's arguments, flags or output, an environment variable, a configuration key, a file format, a new module or script. It reviews the design of the change — whether comments, docs and the intended design still match the code, and whether its interfaces are deep (simple to use, hiding real work) — reports what to tidy, ranked P1/P2/P3, and the fixes follow. Also run it before create-pr while part of the branch is unreviewed. Not after every commit, and not for a change to tests, docs or configuration alone, or a small fix that changes no interface. On request too — "設計をレビューして", "設計の観点でレビューして", "コメントやドキュメントとの乖離を見て", "リファクタリングの観点で見て", "design review", "review the design" — or via the /review-design command. Not for finding bugs (code-review), reviewing test code (review-test), or line-level cleanups (simplify).
 effort: high
 allowed-tools: Read, Glob, Grep, Bash(git diff *), Bash(git log *), Bash(git show *), Bash(git merge-base *), Bash(git status *), Bash(git rev-parse *)
 ---
@@ -14,6 +14,26 @@ Review the design of a change at an implementation breakpoint and report what to
 **Why read-only git is in `allowed-tools`, when review-test keeps `Bash` out.** The range under review is the input of every run, so the reading commands are pre-approved by prefix. A prefix rule matches the raw command string, though: `Bash(git diff *)` also matches `git diff --output=<file>`, which is why that flag is named above.
 
 **The boundary is this skill's own contract, not something the host enforces.** Some hosts ignore `allowed-tools` outright — Codex reads only `name` and `description` — and there the writing git commands above may already be pre-approved and run without confirmation. **The absence of a prompt is not permission.**
+
+## When to start
+
+Beyond an explicit request, **start at an implementation breakpoint, even if no one asked.** A breakpoint is the end of a unit of work — a plan step, a task, a request — with its tests passing and its commits made: the moment before reporting it back to the user, or before starting the next unit.
+
+- **Start** at a breakpoint when, since the last review, the work has
+  - added or changed an interface (Phase 2 lists what counts: an exported function or type, a command's arguments, flags or output, an environment variable, a configuration key, a file format, a new module or script), or
+  - grown past about 200 changed lines outside tests.
+- **Start** before `create-pr` as well, if part of the branch has not been reviewed yet.
+- **Don't start**:
+  - after every commit — one unit of work often spans several
+  - in the middle of a unit: tests failing, the work half done
+  - for a change to tests, docs, configuration or formatting alone
+  - for a small fix that changes no interface; the next breakpoint reviews it
+  - for the commits this skill's own follow-up made
+  - when the user has said a review is unnecessary
+
+**The trigger decides when; the range decides what.** The range runs from the last review (Phase 1), so a change that started no review is still in the next one: skipping a breakpoint delays a review, it never loses one.
+
+Do not leave this condition to the caller's configuration alone (a `CLAUDE.md` or equivalent). Hosts that read nothing but `name` and `description` still have to trigger, and so does any repository whose configuration this skill never sees.
 
 ## Why at a breakpoint
 
@@ -55,6 +75,7 @@ Five phases, in this order.
    - If the caller named one, use it.
    - If this skill already reviewed part of this branch earlier in the conversation, start from the head on that report's closing line (`Reviewed: <base>..<head>`), so finished work is not reviewed twice.
    - Otherwise, from the merge-base with the default branch to `HEAD`. Find the default branch with `git rev-parse --abbrev-ref origin/HEAD`; without a remote, use `main`, then `master`.
+   - On the default branch itself, where that merge-base is `HEAD` and the range would be empty, take the commits of the unit of work just finished, which the conversation knows. With no such context, ask which commits to review.
    - Uncommitted changes (`git status --short`) belong to the work too. Include them, and say so in the report: a fix made now will share their commit.
 2. **Read what the change meant to do**: the commit messages in the range (`git log`), and the plan, issue or conversation it came from.
 3. **List the changed files** (`git diff --stat`). If the range changes nothing a caller or a reader depends on — formatting, a lockfile, tests alone — say so in one line and stop.
