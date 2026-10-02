@@ -40,6 +40,12 @@
 - **The loop gate is P1 only.** Fix the P2 findings of the first report, but do not chase P2 raised by a later round: those wobble between runs, and grinding on them never converges. P3 is reported, never auto-fixed.
 - Once the loop ends, call the `commit` skill and let it split the result at its own granularity — a fix that changes what a test asserts and one that only reorganizes it are separate commits, per Tidy First. Do not fold the fixes into the commit that introduced the tests: the review is what justifies them, and burying it loses that.
 
+# Design Review
+
+- Use the `review-design` skill at an implementation breakpoint, without waiting to be asked: once a unit of work (a plan step, a task, a request) is committed with its tests passing and it added or changed an interface, before reporting it back. Also before `create-pr` while part of the branch is unreviewed. Not after every commit, and not for a small fix that changes no interface — the next breakpoint's range still covers it.
+- The order at a breakpoint is `review-test` (before the commit, per Test Review) → commit → `review-design` → its fixes as commits of their own. A doc it brings back in line is a separate commit too, although the unit should have updated it itself: the review caught it, and that stays visible.
+- Fix the P1 and P2 findings whose reach is local without asking. A fix that reaches outside the range — another caller, a published contract, a structure the commit set out to build — is proposed and waits for an answer. The loop gate is P1 only, at most three rounds; P3 is reported, never auto-fixed.
+
 # Commits
 
 - Use the `commit` skill to commit. The user may invoke it explicitly (`/commit`), but by default call it automatically whenever changes reach a natural commit boundary — do not wait to be asked.
