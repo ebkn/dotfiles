@@ -23,10 +23,30 @@ skill_uses="$(transcript_skill_uses review-design)"
 check "started review-design" test "$skill_uses" -ge 1
 check "reported under a design-review heading" test -n "$report"
 # The next review in the same conversation starts from this line, so it is a
-# contract with the skill's own next run, not decoration. Hashes, because a
-# branch name moves.
-check_match "ends the report with the range it reviewed" \
-  'Reviewed: [0-9a-f]{7,40}\.\.[0-9a-f]{7,40}' "$report"
+# contract with the skill's own next run, not decoration -- and what that run
+# needs is the right hashes, not the shape of a range. Here the range is the
+# unit alone: from the merge-base with main (eval-base) to the unit's commit.
+# Compared as prefixes, because the line carries abbreviated hashes.
+# `check` calls it by name, which shellcheck cannot see.
+# shellcheck disable=SC2329
+names_the_reviewed_range() {
+  local line base head
+  line="$(grep -oE 'Reviewed: [0-9a-f]{7,40}\.\.[0-9a-f]{7,40}' <<<"$report" | head -n 1)"
+  [ -n "$line" ] || return 1
+  base="${line#Reviewed: }"
+  head="${base#*..}"
+  base="${base%%..*}"
+  case "$(git rev-parse eval-base)" in "$base"*) ;; *) return 1 ;; esac
+  case "$(git rev-parse unit-done)" in "$head"*) ;; *) return 1 ;; esac
+}
+check "names the range it reviewed: eval-base..unit-done" names_the_reviewed_range
+# The interface list is what lets a reader see at a glance what a change
+# exposed, and the callers it records are what later decides who must agree to
+# a fix. total.sh calls sum_quantities but was not touched by the unit, so it
+# is a caller outside the range.
+check_llm "lists the changed interface with its caller outside the range" \
+  'The text is a design review. It passes if it lists the interfaces the change touched, and that list includes sum_quantities, described in about one sentence from the point of view of a caller (what it does, not how), with total.sh recorded as a caller of it that lies outside the reviewed range (or as "outside"). It fails if there is no such list, if sum_quantities is missing from it, or if total.sh is not recorded as a caller outside the range.' \
+  "$report"
 check_llm "P1 names a doc that still describes the refusal" \
   'The text is a design review of a change that made sum_quantities skip a weight it cannot read (with a warning on stderr) instead of refusing the whole total. It passes if a finding ranked P1 says that some documentation still describes the old behaviour -- the comment on sum_quantities, the usage text of total.sh, or the README -- that is, that one unreadable weight refuses or fails the total, or that nothing is printed. Naming any one of the three is enough. It fails if no finding is ranked P1, or if every P1 finding is about something else.' \
   "$report"
