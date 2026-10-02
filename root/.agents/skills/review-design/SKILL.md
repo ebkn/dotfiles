@@ -24,7 +24,7 @@ Two prices start rising once a unit of work is done.
 
 ## After the review
 
-This skill changes no files while it runs, per the boundary above. Once it reports, the caller — the same agent, in the same turn — takes over and carries on without stopping.
+This skill changes no files while it runs, per the boundary above. Once the report is out — and not before — the caller, the same agent in the same turn, takes over and carries on without stopping.
 
 1. **Fix the P1 and P2 findings of the first report, without asking first.** The report is not the deliverable; code and docs that agree are. Reporting and stopping leaves every P1 in place, and asking permission to act on a review the caller already asked for is the failure this step exists to prevent. A doc or comment fix changes no caller, so it needs no one's agreement.
 2. **Fix the doc, not the code.** Rewriting a doc's old promise — and the reason it gave — is not changing a requirement: the commit already changed it, and the doc is catching up. If the code looks like what is wrong, that is a question for "Outside this review", not a fix.
@@ -55,7 +55,7 @@ List every interface the range creates or changes. An interface is anything anot
 
 For each, write one sentence from the caller's side — what it does, not how — using only its signature, its comment and its docs. **Write it before reading the implementation.** The reviewer is usually the one who wrote the code, and reading the implementation first lets intent fill in what the interface fails to say.
 
-Then find its callers (Grep), tests included, and split them by file. A caller is **inside the range** when the range changes the file that makes the call; otherwise it is **outside** — even when its behavior changed through what it calls, because nothing in this change touched it. The outside ones are who a change to the interface would reach.
+Then find its callers (Grep), tests included, and split them by file. A caller is **inside the range** when the range changes the file that makes the call — the file is listed in `git diff --stat` for the range; otherwise it is **outside**, even when its behavior changed through what it calls, because nothing in this change touched it. The outside ones are who a change to the interface would reach.
 
 ### Phase 3: Drift
 
@@ -99,9 +99,9 @@ Use this format. Translate the headings into the language of the report, but kee
 Reviewed: <base>..<head>
 ```
 
-Drop any section with nothing in it. If nothing is worth a finding, say so in one line under the heading and still end with the `Reviewed:` line. Write abbreviated commit hashes there, not branch names: a branch name moves.
+Drop any section with nothing in it. If nothing is worth a finding, say so in one line under the heading and still end with the `Reviewed:` line. Write abbreviated commit hashes there and in the heading, never a branch or tag name: names move, and the next session may not have them.
 
-**The report does not end the turn.** After the `Reviewed:` line, go straight on to "After the review".
+**Write the report first.** Nothing is edited, run or committed until it is out — the fixes answer to it, and a report written afterwards describes a range that no longer exists. **The report does not end the turn either.** After the `Reviewed:` line, go straight on to "After the review".
 
 ## Findings
 
