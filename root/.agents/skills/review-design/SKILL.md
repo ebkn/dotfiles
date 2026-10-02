@@ -138,7 +138,7 @@ The cheapest evidence is in the callers: when each one repeats the same preparat
 
 ### Phase 5: Report
 
-For a requested review, write the report as text to the user before your next tool call — a message of its own. A review that started itself puts the short form from "When to start" at the top of its closing message instead. The full format: Translate the headings into the language of the report, but keep the `Reviewed:` line that closes it exactly as shown: the next run of this skill reads it.
+For a requested review, write the report as text to the user before your next tool call — a message of its own. A review that started itself puts the short form from "When to start" at the top of its closing message instead. The full format is below. Translate the headings into the language of the report, but keep the `Reviewed:` line that closes it exactly as shown: the next run of this skill reads it.
 
 ```
 ## Design review: <base>..<head> (<N> commits[, plus uncommitted changes])
