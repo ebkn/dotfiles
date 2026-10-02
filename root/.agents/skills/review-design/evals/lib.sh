@@ -534,6 +534,56 @@ PART
   chmod +x total.sh
 }
 
+# Line-level edits for units that change only a line or two of a file the base
+# wrote. Exact-line matching through awk rather than sed, so nothing in the line
+# is read as a pattern; -v expands "\n", which is how one line becomes two.
+_review_design_replace_line() { # <file> <exact line> <replacement>
+  awk -v at="$2" -v with="$3" '$0 == at { print with; next } { print }' "$1" >"$1.new"
+  mv "$1.new" "$1"
+}
+_review_design_insert_after() { # <file> <exact line> <new line>
+  awk -v at="$2" -v add="$3" '{ print } $0 == at { print add }' "$1" >"$1.new"
+  mv "$1.new" "$1"
+}
+_review_design_insert_before() { # <file> <exact line> <new line>
+  awk -v at="$2" -v add="$3" '$0 == at { print add } { print }' "$1" >"$1.new"
+  mv "$1.new" "$1"
+}
+
+# review_design_unit_clock_inside
+# The unit for hidden-clock-no-seam: total.sh stamps each total with the day it
+# was weighed, through a new stamp_total that reads the clock itself. Nothing
+# can hand it a date, so the tests can only recompute today and compare -- and
+# would fail across midnight. The docs and tests moved with the code: the one
+# thing wrong is the missing seam. Its callers are all in the unit.
+review_design_unit_clock_inside() {
+  cat >>lib/quantity.sh <<'PART'
+
+# stamp_total <total>
+# Print <total> as a ticket line: the total in tonnes and the day it was
+# weighed, as in "15.5t on 2026-10-02".
+stamp_total() {
+  printf '%st on %s\n' "$1" "$(date +%F)"
+}
+PART
+
+  # shellcheck disable=SC2016  # these are total.sh's own lines, written literally
+  _review_design_replace_line total.sh 'sum_quantities "$@"' \
+    'total="$(sum_quantities "$@")"\nstamp_total "$total"'
+  _review_design_insert_after total.sh 'optional trailing "t", such as 12.5t.' \
+    'The total is stamped with the day it was weighed: "15.5t on 2026-10-02".'
+  chmod +x total.sh
+  _review_design_replace_line README.md '    ./total.sh 12.5t 3t      # prints 15.5' \
+    '    ./total.sh 12.5t 3t      # prints 15.5t on the day it was weighed'
+
+  # shellcheck disable=SC2016  # test lines, expanded when the tests run
+  _review_design_replace_line total.test.sh 't "prints the total" "15.5" "$(./total.sh 12.5t 3t)"' \
+    't "prints the total, stamped with today" "15.5t on $(date +%F)" "$(./total.sh 12.5t 3t)"'
+  # shellcheck disable=SC2016  # test lines, expanded when the tests run
+  _review_design_insert_before lib/quantity.test.sh 'exit "$fails"' \
+    't "stamps a total with today" "15.5t on $(date +%F)" "$(stamp_total 15.5)"'
+}
+
 # review_design_unit_skip_with_docs
 # The unit for clean-unit-no-false-p1: the same change, done properly. The
 # comment, the usage text and the README all move with the code, the case of
