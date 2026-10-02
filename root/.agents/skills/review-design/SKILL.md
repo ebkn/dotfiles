@@ -1,6 +1,6 @@
 ---
 name: review-design
-description: Run this before reporting a finished unit of work back to the user, without being asked, whenever that unit — committed, tests passing — added or changed an interface: an exported function or type, a command's arguments, flags or output, an environment variable, a configuration key, a file format, a new module or script. It reviews the design of the change — whether comments, docs and the intended design still match the code, and whether its interfaces are deep (simple to use, hiding real work) — reports what to tidy, ranked P1/P2/P3, and the fixes follow. Also run it before create-pr while part of the branch is unreviewed. Not after every commit, and not for a change to tests, docs or configuration alone, or a small fix that changes no interface. On request too — "設計をレビューして", "設計の観点でレビューして", "コメントやドキュメントとの乖離を見て", "リファクタリングの観点で見て", "design review", "review the design" — or via the /review-design command. Not for finding bugs (code-review), reviewing test code (review-test), or line-level cleanups (simplify).
+description: Run this before reporting a finished unit of work back to the user, without being asked, whenever that unit — committed, tests passing — added or changed an interface: an exported function or type, a command's arguments, flags or output, an environment variable, a configuration key, a file format, a new module or script. It reviews the design of the change — whether comments, docs and the intended design still match the code, and whether its interfaces are deep (simple to use, hiding real work) and testable — reports what to tidy, ranked P1/P2/P3, and the fixes follow. Also run it before create-pr while part of the branch is unreviewed. Not after every commit, and not for a change to tests, docs or configuration alone, or a small fix that changes no interface. On request too — "設計をレビューして", "設計の観点でレビューして", "コメントやドキュメントとの乖離を見て", "リファクタリングの観点で見て", "design review", "review the design" — or via the /review-design command. Not for finding bugs (code-review), reviewing test code (review-test), or line-level cleanups (simplify).
 effort: high
 allowed-tools: Read, Glob, Grep, Bash(git diff *), Bash(git log *), Bash(git show *), Bash(git merge-base *), Bash(git status *), Bash(git rev-parse *)
 ---
@@ -58,8 +58,8 @@ This skill changes no files while it runs, per the boundary above. After a reque
 
 1. **Fix the P1 and P2 findings of the first report whose reach is local, without asking first** (see "Reach" below). The report is not the deliverable; code and docs that agree, and interfaces that hide what they should, are. Reporting and stopping leaves every P1 in place, and asking permission to act on a review the caller already asked for is the failure this step exists to prevent.
 2. **For drift, fix the doc, not the code.** Rewriting a doc's old promise — and the reason it gave — is not changing a requirement: the commit already changed it, and the doc is catching up. If the code looks like what is wrong, that is a question for "Outside this review", not a fix.
-3. **For structure, change the code's shape and nothing it does.** Work in small named refactorings — Inline Function, Move Function, Change Function Declaration, Split Phase — and prefer deleting a layer to adding a better one.
-4. **Keep behavior where it is.** Run the tests before and after. The tests of what callers see must pass unchanged; a fix that would change what such a test expects is not a tidying — stop and report it.
+3. **For structure, change the code's shape and nothing it does.** Work in small named refactorings — Inline Function, Move Function, Change Function Declaration, Split Phase — and prefer deleting a layer to adding a better one. A missing seam is added the same way: Introduce Parameter, with the old source as its default, so every existing caller behaves as before.
+4. **Keep behavior where it is.** Run the tests before and after. The tests of what callers see must pass unchanged; a fix that would change what such a test expects is not a tidying — stop and report it. The one exception is a test the fix's seam was for: it may move onto the seam, asserting the same behavior with a fixed input in place of the clock or the environment.
 5. **Commit the fixes on their own, after the commits of the unit of work.** Never amend them into those commits or fold them in: the review is what justifies the fix, and folding it in hides that. This is the caller's step — the skill runs no git that writes.
 6. **Review again, for at most three rounds, until no P1 is left.** Stop on the same terms when one finding survives two rounds, and report what is left: an LLM's findings wobble, and grinding on them is not convergence.
 7. **The loop gate is P1 only.** P2 raised by a later round is reported, not chased. **Never auto-fix P3**; report it.
@@ -125,6 +125,12 @@ Weigh each interface from Phase 2 by what it hides against what it asks its call
 
 The cheapest evidence is in the callers: when each one repeats the same preparation or clean-up around a call, the complexity was pushed up to them instead of pulled down into the module.
 
+**Testability.** Each behavior an interface promises should be reachable through the interface alone. Look for:
+
+- an input that varies between runs — the clock, randomness, an environment variable, the working directory or `$HOME`, global state, a hard-coded path, the network — read deep inside the logic instead of entering at a seam, "a place where you can alter behavior in your program without editing in that place" (Feathers). A parameter with a default, or a value read once at the edge, is enough of one.
+- decision logic that is not trivial, tangled with I/O a test can only stage.
+- the tests themselves: one that recomputes the clock, sleeps, reaches into internals or needs elaborate setup to reach a single behavior is the interface saying it is hard to use.
+
 ### Phase 5: Report
 
 For a requested review, write the report as text to the user before your next tool call — a message of its own. A review that started itself puts the short form from "When to start" at the top of its closing message instead. The full format: Translate the headings into the language of the report, but keep the `Reviewed:` line that closes it exactly as shown: the next run of this skill reads it.
@@ -185,12 +191,14 @@ P1/P2/P3 are **absolute criteria**, not a distribution. Classify by whether a fi
 
 - A comment, doc, name or usage text states something about the code that is no longer true.
 - An interface the range created or changed leaks an implementation decision its callers must know or repeat. Every caller written from now on will depend on it.
+- A behavior an interface the range created or changed promises can be checked only against the wall clock, a real external resource, or the interface's internals.
 
 **P2** — fix now; it decides how long the code stays cheap to read and change. Any one of:
 
 - The range introduced a shallow module or a pass-through layer.
 - The range split code by the order things happen, or built a special case into a general mechanism.
 - The range wrote one decision down in more than one place, with nothing — no test, no cross-reference — tying them together.
+- The range reads an input that varies between runs deep inside logic, with no seam to set it.
 - A non-obvious constraint or decision the range introduced has no comment saying why.
 - An interface comment describes implementation detail its callers do not need.
 - A comment only repeats what the code beside it already says.
