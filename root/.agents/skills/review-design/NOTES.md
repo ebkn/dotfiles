@@ -72,6 +72,17 @@ moving.
   its closing message, after its fixes — also the user's call, see below.
 - **The trigger** decides when, and the range decides what: the range runs from
   the last review, so a skipped breakpoint delays a review and never loses one.
+- **Testability and change cost are lenses beside depth.** A hidden input with
+  no seam — Feathers: "a place where you can alter behavior in your program
+  without editing in that place" — is fixed by Introduce Parameter with the old
+  source as its default; the test the seam was for may then move onto it, the
+  one exception to "tests of what callers see stay unchanged" (a run did exactly
+  that). Change cost needs a stated next change, never an invented one, and is
+  the one case where adding a function earns its place — Beck: tidy first when
+  cost(tidying) + cost(change after tidying) < cost(change without tidying).
+- **Tests may be added beside the kept ones.** What a fix must not do is change
+  what an existing test expects; a test for a function it extracted changes
+  nothing of the kind.
 - **`effort: high`**, one step below `review-test`'s `max`, because it runs at
   every qualifying breakpoint.
 
@@ -104,11 +115,10 @@ not stripped.
 
 ## Open
 
-- **Testability and change-cost lenses** are designed but not yet in Phase 4:
-  hidden inputs read without a seam (Feathers: "a place where you can alter
-  behavior in your program without editing in that place"), and preparatory
-  refactoring against a known next change (Beck: tidy first when
-  cost(tidying) + cost(change after tidying) < cost(change without tidying)).
+- **Requested reviews reporting first** is the softest measured behaviour: a
+  small finding with an obvious fix tempts a run to fix first and report in its
+  closing summary. If it keeps happening, the option is to let requested reviews
+  report at the end too, as self-started ones do.
 - **Not yet measured**: see `evals/README.md`.
 - **Language**: one run answered a Japanese request in English throughout. No
   case grades the language yet.

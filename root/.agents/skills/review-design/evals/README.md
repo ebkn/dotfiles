@@ -15,6 +15,12 @@ Each pair differs in one thing, so a pass is not a fluke of the scenario:
 | `pass-through-layer` / `intended-layer-asks` | nobody asked for the shallow layer, or the commit did |
 | `proactive-at-breakpoint` / `no-fire-small-fix` | the unit changed an interface, or did not |
 
+Two stand alone for now, one per remaining lens: `hidden-clock-no-seam`
+(testability — a new interface reads the clock with no seam) and
+`next-change-scattered` (change cost — the prompt names the next change,
+which would have to edit two places). Their pairs, a clock read once at the
+edge and the same scattering with no next change named, are not written yet.
+
 They share one fixture, `lib.sh` (a weighbridge module, the command that totals
 its tickets, and the docs beside them), and one set of graders, `grading.sh`:
 where the report starts, which range its `Reviewed:` line names, and that
@@ -37,12 +43,24 @@ nothing is written before it.
   them, each bad run failing only its own — before any real run.
 - **`skill_eval_init_repo` used to commit the skill under test into the
   fixture**, where a doc-reviewing skill would read itself. Fixed in the harness.
+- **Pin the behaviour the tests do not reach.** Every case that lets the caller
+  fix something also pins an input no test covers — an all-unreadable total, a
+  `--kg` that must stay refused — because a fix answering an open question in
+  code passes every test.
+- **"Tests untouched" was too strict.** A fix may add a test beside the kept
+  ones; what it may not do is remove or change a line of them. One shared check
+  counts deleted lines.
 
 ## Last measured
 
-All six cases pass, one run each. The trigger pair over three runs each: starts
-at the breakpoint 9/9, always after the unit's commit; stays out of a small fix
-3/3; opens its closing message with the report 3/3.
+On the final SKILL.md, every one of the eight cases has passed; the latest full
+run was 7/8, the miss being `hidden-clock-no-seam` reporting after its fix,
+which then went 3/3. The trigger pair over three runs each: starts at the
+breakpoint 9/9, always after the unit's commit; stays out of a small fix 3/3;
+opens its closing message with the report 3/3.
+
+Requested reviews reporting first is the softest result: a small finding with
+an obvious fix tempts a run to fix first and report in its closing summary.
 
 Not measured yet: the 200-line trigger, the `create-pr` fallback, a unit that
 spans several commits, and whether an interface or merely the size of a change
