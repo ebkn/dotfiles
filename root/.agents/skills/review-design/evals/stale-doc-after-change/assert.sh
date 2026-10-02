@@ -46,8 +46,8 @@ check_llm "all three docs now describe skipping" \
 # The unit's tests are its specification of the new behaviour. Drift "fixed" by
 # turning the code back to match the docs would have to change them, so they
 # must come out of this untouched and still passing.
-check_eq "left the unit's tests untouched" "" \
-  "$(git diff --name-only unit-done -- lib/quantity.test.sh total.test.sh)"
+check "changed none of the unit's tests (new ones may be added)" \
+  review_design_kept_existing_tests lib/quantity.test.sh total.test.sh
 check "the tests still pass afterwards" ./run-tests.sh
 check_eq "left what an all-unreadable total does as the unit made it" "0 (status 0)" \
   "$(review_design_total_of twelve)"

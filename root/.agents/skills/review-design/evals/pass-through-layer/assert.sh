@@ -34,8 +34,8 @@ total_calls_sum() { sed -n '/^delivery_total()/,/^}/p' lib/delivery.sh | grep -q
 check "delivery_total calls sum_quantities itself" total_calls_sum
 
 # Folding the forwarder away changes the shape of the code and nothing it does.
-check_eq "left the tests untouched" "" \
-  "$(git diff --name-only unit-done -- lib/quantity.test.sh total.test.sh delivery.test.sh)"
+check "changed none of the tests (new ones may be added)" \
+  review_design_kept_existing_tests lib/quantity.test.sh total.test.sh delivery.test.sh
 check "the tests still pass afterwards" ./run-tests.sh
 
 check "kept the unit's commit as it was" git merge-base --is-ancestor unit-done HEAD

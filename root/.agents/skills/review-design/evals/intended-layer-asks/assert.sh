@@ -43,8 +43,8 @@ check_llm "the layer's comments do not restate quantity.sh's contract" \
   "$(cat lib/ticket.sh)"
 
 # Whatever else was done leaves behaviour alone and is committed on its own.
-check_eq "left the tests untouched" "" \
-  "$(git diff --name-only unit-done -- lib/quantity.test.sh total.test.sh)"
+check "changed none of the tests (new ones may be added)" \
+  review_design_kept_existing_tests lib/quantity.test.sh total.test.sh
 check "the tests still pass afterwards" ./run-tests.sh
 check "kept the unit's commit as it was" git merge-base --is-ancestor unit-done HEAD
 check_eq "left nothing uncommitted" "" "$(git status --porcelain)"

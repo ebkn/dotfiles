@@ -29,8 +29,8 @@ check_llm "says what it checked, having found nothing to fix" \
 # A P2 may be raised and fixed without asking, so an edit here is allowed
 # behaviour rather than a violation. What has to hold is that it left the
 # behaviour and the truth of the docs alone, and was committed on its own.
-check_eq "left the unit's tests untouched" "" \
-  "$(git diff --name-only unit-done -- lib/quantity.test.sh total.test.sh)"
+check "changed none of the unit's tests (new ones may be added)" \
+  review_design_kept_existing_tests lib/quantity.test.sh total.test.sh
 check "the tests still pass afterwards" ./run-tests.sh
 check_eq "left what an all-unreadable total does as the unit made it" "0 (status 0)" \
   "$(review_design_total_of twelve)"

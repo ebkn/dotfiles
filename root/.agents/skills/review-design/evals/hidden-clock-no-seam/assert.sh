@@ -32,8 +32,8 @@ check_llm "the date can now be supplied from outside stamp_total" \
 check_eq "today's stamped total is unchanged" "15.5t on $(date +%F)" \
   "$(./total.sh 12.5t 3t 2>/dev/null || true)"
 
-check_eq "left the command's tests untouched" "" \
-  "$(git diff --name-only unit-done -- total.test.sh)"
+check "changed none of the command's tests (new ones may be added)" \
+  review_design_kept_existing_tests total.test.sh
 # The one test change SKILL.md allows: the test the seam was for may move onto
 # it, asserting the same stamping with a fixed date instead of recomputing
 # today. A run did exactly that; anything beyond it is not a tidying.

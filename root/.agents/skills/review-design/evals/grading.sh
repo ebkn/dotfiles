@@ -76,6 +76,18 @@ review_design_ran_no_writing_git_before() {
   [ "$first" -gt "$1" ]
 }
 
+# review_design_kept_existing_tests <test file>...
+# True when not a line of the given test files was removed or changed since
+# the unit. SKILL.md asks that the tests of what callers see pass unchanged; a
+# new test beside them -- for a function a fix extracted, say -- changes
+# nothing they expect, so additions pass. A changed line is a deletion plus an
+# addition in git's count, so it does not.
+review_design_kept_existing_tests() {
+  local removed
+  removed="$(git diff --numstat unit-done -- "$@" | awk '{ s += $2 } END { print s + 0 }')"
+  [ "$removed" -eq 0 ]
+}
+
 # review_design_total_of <weight>...
 # What total.sh prints and exits with, as "<stdout> (status <n>)". The fixture's
 # tests never feed in nothing but unreadable weights, and what that should do is
