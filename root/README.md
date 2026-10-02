@@ -222,8 +222,11 @@ state that boundary in the body**, name the concrete commands, and say explicitl
 that absence of a prompt is not permission. Frontmatter alone is a Claude-only
 guarantee.
 
-This applies to `review-test`, `review-support`, `check-production-readiness`,
-and `retrospective`.
+This applies to `review-test`, `review-design`, `review-support`,
+`check-production-readiness`, and `retrospective`. Of these, `review-design` is
+the one whose `allowed-tools` pre-approves git — the reading commands only, since the
+range under review is the input of every run — so its body also forbids
+`--output`, the flag that makes `git diff` and `git log` write a file.
 
 `agents/openai.yaml` inside a skill supplies Codex UI metadata and is ignored
 elsewhere.
