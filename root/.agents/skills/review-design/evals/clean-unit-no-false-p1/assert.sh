@@ -18,6 +18,12 @@ check "names the range it reviewed: eval-base..unit-done" \
 check_llm "raises no P1 against a unit whose docs moved with its code" \
   'The text is a design review of a change whose code, comments, usage text and README all agree. It passes if the review raises no P1 -- either the P1 section is absent, or it says explicitly that nothing meets the P1 criteria. Findings at P2 or P3, and questions put to the user, are fine and do not fail this. It fails if any finding is presented as P1.' \
   "$report"
+# A report with nothing in it cannot tell a clean change from an unread one,
+# so a review that finds nothing has to say what it looked at. It also keeps
+# this case from passing on a review that never opened the files.
+check_llm "says what it checked, having found nothing to fix" \
+  'The text is a design review of a change to a small project that totals weights: a function comment in lib/quantity.sh, the usage text of total.sh and a README. It passes if the review either raises at least one finding ranked P1, P2 or P3, or -- having no ranked finding at all -- lists what it checked, naming at least the comment, the usage text and the README as compared with the code. Questions put to the user do not count as findings. It fails if it has no ranked finding and does not say what it compared.' \
+  "$report"
 
 # --- whatever the caller did afterwards ---
 # A P2 may be raised and fixed without asking, so an edit here is allowed
