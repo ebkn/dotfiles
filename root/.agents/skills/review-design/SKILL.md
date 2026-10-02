@@ -54,12 +54,15 @@ Two prices start rising once a unit of work is done.
 
 ## After the review
 
-This skill changes no files while it runs, per the boundary above. After a requested review, the caller — the same agent in the same turn — takes over once the report is out, and not before. After a review it started itself, the caller takes over as soon as the review is done, and the report follows the fixes ("When to start"). Either way the caller carries on without stopping.
+This skill changes no files while it runs, per the boundary above. After a requested review, the caller — the same agent in the same turn — takes over once the report is out, and not before. After a review it started itself, the caller takes over as soon as the review is done, and the report follows the fixes ("When to start"). Either way the caller carries on without stopping. The order, then:
+
+- **requested**: report (Phase 5) → tests → fixes → tests → commit
+- **started by itself**: tests → fixes → tests → commit → the report atop the closing message
 
 1. **Fix the P1 and P2 findings of the first report whose reach is local, without asking first** (see "Reach" below). The report is not the deliverable; code and docs that agree, and interfaces that hide what they should, are. Reporting and stopping leaves every P1 in place, and asking permission to act on a review the caller already asked for is the failure this step exists to prevent.
 2. **For drift, fix the doc, not the code.** Rewriting a doc's old promise — and the reason it gave — is not changing a requirement: the commit already changed it, and the doc is catching up. If the code looks like what is wrong, that is a question for "Outside this review", not a fix.
 3. **For structure, change the code's shape and nothing it does.** Work in small named refactorings — Inline Function, Move Function, Change Function Declaration, Split Phase — and prefer deleting a layer to adding a better one. A missing seam is added the same way: Introduce Parameter, with the old source as its default, so every existing caller behaves as before.
-4. **Keep behavior where it is.** Run the tests before and after. The tests of what callers see must pass unchanged; a fix that would change what such a test expects is not a tidying — stop and report it. The one exception is a test the fix's seam was for: it may move onto the seam, asserting the same behavior with a fixed input in place of the clock or the environment.
+4. **Keep behavior where it is.** Run the tests before and after. The tests of what callers see must pass unchanged — a new test beside them, say for a function the fix extracted, changes nothing they expect; a fix that would change what such a test expects is not a tidying — stop and report it. The one exception is a test the fix's seam was for: it may move onto the seam, asserting the same behavior with a fixed input in place of the clock or the environment.
 5. **Commit the fixes on their own, after the commits of the unit of work.** Never amend them into those commits or fold them in: the review is what justifies the fix, and folding it in hides that. This is the caller's step — the skill runs no git that writes.
 6. **Review again, for at most three rounds, until no P1 is left.** Stop on the same terms when one finding survives two rounds, and report what is left: an LLM's findings wobble, and grinding on them is not convergence.
 7. **The loop gate is P1 only.** P2 raised by a later round is reported, not chased. **Never auto-fix P3**; report it.
@@ -96,7 +99,7 @@ List every interface the range creates or changes. An interface is anything anot
 
 For each, write one sentence from the caller's side — what it does, not how — using only its signature, its comment and its docs. **Write it before reading the implementation.** The reviewer is usually the one who wrote the code, and reading the implementation first lets intent fill in what the interface fails to say.
 
-Then find its callers (Grep), tests included, and split them by file. A caller is **inside the range** when the range changes the file that makes the call — the file is listed in `git diff --stat` for the range; otherwise it is **outside**, even when its behavior changed through what it calls, because nothing in this change touched it. The outside ones are who a change to the interface would reach.
+Then find its callers (Grep), tests included, and split them by file. A caller is **inside the range** when the range changes the file that makes the call; otherwise it is **outside**, even when its behavior changed through what it calls, because nothing in this change touched it. Decide it by looking each caller's file up in the `git diff --stat` list from Phase 1 — never from whether its behavior changed. The outside ones are who a change to the interface would reach.
 
 ### Phase 3: Drift
 
