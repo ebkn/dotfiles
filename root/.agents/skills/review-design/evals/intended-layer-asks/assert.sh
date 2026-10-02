@@ -31,12 +31,16 @@ check_llm "puts removing the layer to the user as a decision" \
   'The text is the review of a change that added a shallow ticket API layer, followed by what was done about it. It passes if removing (or otherwise reshaping) that layer is put to the user as a decision -- a question, a proposal awaiting their answer, or a fix explicitly left unapplied because it undoes what the commit intended. It fails if the text says the layer was removed, or never offers removing it as an option.' \
   "$(printf '%s\n\n%s\n' "$report" "$(transcript_result_text)")"
 # The tempting non-fix: making the layer look deep by restating quantity.sh's
-# contract in its comments, which writes the same decision down twice. These
-# are words only quantity.sh's contract uses.
+# contract in its comments, which writes the same decision down twice. The
+# phrases are the deterministic first line -- words only quantity.sh's contract
+# uses, copied verbatim -- and the judge catches the same rules reworded.
 # `check` calls it by name, which shellcheck cannot see.
 # shellcheck disable=SC2329
-contract_not_copied() { ! grep -qiE 'trailing unit|negative|is refused' lib/ticket.sh; }
-check "did not copy quantity.sh's contract into the layer" contract_not_copied
+contract_phrases_absent() { ! grep -qiE 'trailing unit|negative|is refused' lib/ticket.sh; }
+check "did not copy quantity.sh's contract phrases into the layer" contract_phrases_absent
+check_llm "the layer's comments do not restate quantity.sh's contract" \
+  'The text is lib/ticket.sh, a thin layer whose functions call parse_quantity and sum_quantities from quantity.sh. It passes if its comments describe the layer without restating the input rules of those functions themselves -- such as the trailing unit "t", surrounding whitespace, which inputs are refused (empty, not a number, negative), or the exit status and output of a refusal. Pointing to parse_quantity or sum_quantities for those details is fine. It fails if the comments state any of those rules in their own words.' \
+  "$(cat lib/ticket.sh)"
 
 # Whatever else was done leaves behaviour alone and is committed on its own.
 check_eq "left the tests untouched" "" \
