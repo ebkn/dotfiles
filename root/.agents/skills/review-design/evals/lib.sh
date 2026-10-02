@@ -550,6 +550,100 @@ _review_design_insert_before() { # <file> <exact line> <new line>
   mv "$1.new" "$1"
 }
 
+# _review_design_replace_line_raw <file> <exact line> <replacement>
+# The same as _review_design_replace_line, with both strings taken verbatim
+# through the environment: -v would turn a backslash the replacement means
+# literally -- the \n inside a printf format -- into a real newline.
+_review_design_replace_line_raw() {
+  AT="$2" WITH="$3" awk '$0 == ENVIRON["AT"] { print ENVIRON["WITH"]; next } { print }' "$1" >"$1.new"
+  mv "$1.new" "$1"
+}
+
+# review_design_unit_unit_suffix_twice
+# The unit for next-change-scattered: every total is now printed with its unit,
+# and a new delivery.sh totals a delivery from a file -- each script writing
+# the "t" itself. Nothing wrong with that as it stands; but the next change,
+# stated in the case's prompt rather than here, is a kg output, which would
+# have to edit both. Both scripts are in the unit, so pulling the formatting
+# into one place reaches nothing outside.
+review_design_unit_unit_suffix_twice() {
+  # shellcheck disable=SC2016  # these are total.sh's own lines, written literally
+  _review_design_replace_line_raw total.sh 'sum_quantities "$@"' \
+    "$(printf '%s\n%s' 'total="$(sum_quantities "$@")"' "printf '%st\\n' \"\$total\"")"
+  _review_design_insert_after total.sh 'optional trailing "t", such as 12.5t.' \
+    'The total is printed with its unit, as in "15.5t".'
+  chmod +x total.sh
+
+  cat >delivery.sh <<'PART'
+#!/bin/bash
+# delivery.sh -- print the total weight of one delivery's tickets, read from a
+# file with one weight per line, with its unit.
+set -eo pipefail
+
+# shellcheck source=lib/quantity.sh
+. "$(dirname "$0")/lib/quantity.sh"
+
+if [ $# -ne 1 ]; then
+  printf 'usage: delivery.sh <file>\n' >&2
+  exit 2
+fi
+
+weights=()
+while IFS= read -r line || [ -n "$line" ]; do
+  [ -n "$line" ] || continue
+  weights+=("$line")
+done <"$1"
+
+total="$(sum_quantities "${weights[@]}")"
+printf '%st\n' "$total"
+PART
+  chmod +x delivery.sh
+
+  cat >delivery.test.sh <<'TEST'
+#!/bin/bash
+# Tests for delivery.sh
+set -uo pipefail
+
+cd "$(dirname "$0")" || exit 1
+
+fails=0
+t() {
+  if [ "$2" = "$3" ]; then
+    printf 'ok   %s\n' "$1"
+  else
+    printf 'FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"
+    fails=$((fails + 1))
+  fi
+}
+
+list="$(mktemp)"
+trap 'rm -f "$list"' EXIT
+
+printf '12.5t\n3t\n\n' >"$list"
+t "totals the weights listed in the file, with the unit" "15.5t" "$(./delivery.sh "$list")"
+printf '12.5t\ntwelve\n' >"$list"
+t "an unreadable weight fails the total" "1" "$(./delivery.sh "$list" >/dev/null 2>&1; printf '%s' "$?")"
+t "asks for exactly one file" "2" "$(./delivery.sh >/dev/null 2>&1; printf '%s' "$?")"
+
+exit "$fails"
+TEST
+
+  # shellcheck disable=SC2016  # test lines, expanded when the tests run
+  _review_design_replace_line total.test.sh 't "prints the total" "15.5" "$(./total.sh 12.5t 3t)"' \
+    't "prints the total with its unit" "15.5t" "$(./total.sh 12.5t 3t)"'
+  _review_design_replace_line README.md '    ./total.sh 12.5t 3t      # prints 15.5' \
+    '    ./total.sh 12.5t 3t      # prints 15.5t'
+  cat >>README.md <<'PART'
+
+## A whole delivery
+
+    ./delivery.sh tickets.txt      # one weight per line; prints 15.5t
+
+`delivery.sh` totals the weights listed in a file, one per line, and prints the
+total with its unit, as `total.sh` does.
+PART
+}
+
 # review_design_unit_clock_inside
 # The unit for hidden-clock-no-seam: total.sh stamps each total with the day it
 # was weighed, through a new stamp_total that reads the clock itself. Nothing
