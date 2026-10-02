@@ -356,6 +356,18 @@ RUNNER
   chmod +x run-tests.sh
 }
 
+# review_design_plant_upper_case_bug
+# For no-fire-small-fix: parse_quantity drops only a lower-case `t`, though
+# its comment promises either case -- a one-character bug that none of the
+# base's tests reach. Call it before skill_eval_init_repo, so the bug is part
+# of main. A literal replacement through awk's index(), since the pattern is
+# itself a sed expression full of characters sed would read as syntax.
+review_design_plant_upper_case_bug() {
+  awk '{ i = index($0, "[tT]$"); if (i) $0 = substr($0, 1, i - 1) "t$" substr($0, i + 5) } 1' \
+    lib/quantity.sh >lib/quantity.sh.new
+  mv lib/quantity.sh.new lib/quantity.sh
+}
+
 # review_design_begin_unit <branch>
 # Starts the unit of work on its own branch, so the review finds its range the
 # way it would in a real repository: from the merge-base with main.
