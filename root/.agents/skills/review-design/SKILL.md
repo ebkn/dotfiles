@@ -122,7 +122,7 @@ Use this format. Translate the headings into the language of the report, but kee
 Reviewed: <base>..<head>
 ```
 
-Drop any section with nothing in it. If nothing is worth a finding, say so in one line under the heading and still end with the `Reviewed:` line. Write abbreviated commit hashes there and in the heading, never a branch or tag name: names move, and the next session may not have them.
+Drop any section with nothing in it. If nothing is worth a finding, say so under the heading and list, under `### Checked`, what was checked: each doc and comment and the code it was compared with, and each red flag looked for and where. "No findings" alone cannot tell a clean change from an unread one. Still end with the `Reviewed:` line. Write abbreviated commit hashes there and in the heading, never a branch or tag name: names move, and the next session may not have them.
 
 **Write the report first.** Nothing is edited, run or committed until it is out — the fixes answer to it, and a report written afterwards describes a range that no longer exists. **The report does not end the turn either.** After the `Reviewed:` line, go straight on to "After the review".
 
