@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Design"
+  short_description: "Review a change against its docs, comments and interfaces (read-only)"
+  default_prompt: "Use $review-design to review the design of this branch's changes."
