@@ -87,7 +87,7 @@ Five phases, in this order.
    - Otherwise, from the merge-base with the default branch to `HEAD`. Find the default branch with `git rev-parse --abbrev-ref origin/HEAD`; without a remote, use `main`, then `master`.
    - On the default branch itself, where that merge-base is `HEAD` and the range would be empty, take the commits of the unit of work just finished, which the conversation knows. With no such context, ask which commits to review.
    - Uncommitted changes (`git status --short`) belong to the work too. Include them, and say so in the report: a fix made now will share their commit.
-2. **Read what the change meant to do**: the commit messages in the range (`git log`), and the plan, issue or conversation it came from.
+2. **Read what the change meant to do**: the commit messages in the range (`git log`), and the plan, issue or conversation it came from. Note what comes next as well, if the plan, the task list or the conversation says — Phase 4 weighs the structure against it. Do not invent one.
 3. **List the changed files** (`git diff --stat`). If the range changes nothing a caller or a reader depends on — formatting, a lockfile, tests alone — say so in one line and stop.
 
 ### Phase 2: Interfaces
@@ -130,6 +130,8 @@ The cheapest evidence is in the callers: when each one repeats the same preparat
 - an input that varies between runs — the clock, randomness, an environment variable, the working directory or `$HOME`, global state, a hard-coded path, the network — read deep inside the logic instead of entering at a seam, "a place where you can alter behavior in your program without editing in that place" (Feathers). A parameter with a default, or a value read once at the edge, is enough of one.
 - decision logic that is not trivial, tangled with I/O a test can only stage.
 - the tests themselves: one that recomputes the clock, sleeps, reaches into internals or needs elaborate setup to reach a single behavior is the interface saying it is hard to use.
+
+**Change cost.** When the next change is known (Phase 1, step 2), walk it through the code as it now stands and list the places it would touch. One decision to edit in several places, or structure the change would have to move first, is preparatory work worth doing now — Beck's test is whether cost(tidying) + cost(change after tidying) < cost(change without tidying). This is the case where adding a function or a layer earns its place: the next change is the change it makes cheaper. With no next change known, judge only by what the code itself shows.
 
 ### Phase 5: Report
 
@@ -192,6 +194,7 @@ P1/P2/P3 are **absolute criteria**, not a distribution. Classify by whether a fi
 - A comment, doc, name or usage text states something about the code that is no longer true.
 - An interface the range created or changed leaks an implementation decision its callers must know or repeat. Every caller written from now on will depend on it.
 - A behavior an interface the range created or changed promises can be checked only against the wall clock, a real external resource, or the interface's internals.
+- The next planned change would have to edit one decision in more than one place, or move structure first, and a short series of named refactorings now would bring it down to one place.
 
 **P2** — fix now; it decides how long the code stays cheap to read and change. Any one of:
 
