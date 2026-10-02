@@ -37,6 +37,12 @@ check "changed none of the tests (new ones may be added)" \
   review_design_kept_existing_tests lib/quantity.test.sh total.test.sh delivery.test.sh
 check "the tests still pass afterwards" ./run-tests.sh
 check_eq "total.sh still prints 15.5t" "15.5t" "$(./total.sh 12.5t 3t 2>/dev/null || true)"
+# The line between preparing for the kg output and building it: a fix that
+# added the option would pass every check above, yet it is a behaviour the
+# review was never asked for. At unit-done --kg is read as a weight and the
+# total refused, and so it must still be.
+check_eq "did not make the planned change itself: --kg is still refused" " (status 1)" \
+  "$(review_design_total_of --kg 1t)"
 
 check "kept the unit's commit as it was" git merge-base --is-ancestor unit-done HEAD
 check "committed the fix on its own" test "$(git rev-list --count unit-done..HEAD)" -ge 1
