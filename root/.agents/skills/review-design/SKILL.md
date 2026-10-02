@@ -7,7 +7,7 @@ allowed-tools: Read, Glob, Grep, Bash(git diff *), Bash(git log *), Bash(git sho
 
 Review the design of a change at an implementation breakpoint and report what to tidy, ranked P1/P2/P3.
 
-**Every run ends its review by writing the report out to the user, before anything is changed** — and above all when it started by itself in the middle of other work, where a review folded silently into the work is one the user never sees.
+**Every run writes its report out to the user** — a requested review before anything is changed; a review it started itself at the top of its closing message, once its fixes are committed. A review folded silently into the work is one the user never sees.
 
 **Match the user's language.** Answer a Japanese request in Japanese, an English one in English. Quote code, file paths, and command output verbatim.
 
@@ -35,7 +35,13 @@ Beyond an explicit request, **start at an implementation breakpoint, even if no 
 
 **The trigger decides when; the range decides what.** The range runs from the last review (Phase 1), so a change that started no review is still in the next one: skipping a breakpoint delays a review, it never loses one.
 
-**Started by itself, it still reports first — in a short form, if the full one would interrupt the work.** The short form is three parts: the heading line exactly as in Phase 5 (`## Design review: <base>..<head>`, translated); one line per finding giving its priority, what it is and what you will do about it (or, with nothing found, one line naming what was checked); and the `Reviewed:` line. Nobody asked for this review, so this is the only way the user learns what it found and why the commits after the unit exist. Write it as text before the first fix, then carry on with "After the review" and the summary of the unit.
+**Started by itself, it reports at the top of the closing message.** Do the review, apply and commit the fixes ("After the review"), then open the closing message — before the summary of the unit — with the report in a short form of three parts:
+
+- the heading line exactly as in Phase 5 (`## Design review: <base>..<head>`, translated), naming the range that was reviewed — the unit's commits, not the fixes
+- one line per finding: its priority, what it is, and what was done about it — or, with nothing found, one line naming what was checked
+- the `Reviewed:` line, with the same range
+
+Nobody asked for this review, so this is the only way the user learns what it found and why the commits after the unit exist.
 
 Do not leave this condition to the caller's configuration alone (a `CLAUDE.md` or equivalent). Hosts that read nothing but `name` and `description` still have to trigger, and so does any repository whose configuration this skill never sees.
 
@@ -48,7 +54,7 @@ Two prices start rising once a unit of work is done.
 
 ## After the review
 
-This skill changes no files while it runs, per the boundary above. Once the report is out — and not before — the caller, the same agent in the same turn, takes over and carries on without stopping.
+This skill changes no files while it runs, per the boundary above. After a requested review, the caller — the same agent in the same turn — takes over once the report is out, and not before. After a review it started itself, the caller takes over as soon as the review is done, and the report follows the fixes ("When to start"). Either way the caller carries on without stopping.
 
 1. **Fix the P1 and P2 findings of the first report whose reach is local, without asking first** (see "Reach" below). The report is not the deliverable; code and docs that agree, and interfaces that hide what they should, are. Reporting and stopping leaves every P1 in place, and asking permission to act on a review the caller already asked for is the failure this step exists to prevent.
 2. **For drift, fix the doc, not the code.** Rewriting a doc's old promise — and the reason it gave — is not changing a requirement: the commit already changed it, and the doc is catching up. If the code looks like what is wrong, that is a question for "Outside this review", not a fix.
@@ -121,7 +127,7 @@ The cheapest evidence is in the callers: when each one repeats the same preparat
 
 ### Phase 5: Report
 
-Write the report as text to the user before your next tool call — a message of its own, not a line in the closing summary. Use this format, or for a review that started by itself, the short form in "When to start". Translate the headings into the language of the report, but keep the `Reviewed:` line that closes it exactly as shown: the next run of this skill reads it.
+For a requested review, write the report as text to the user before your next tool call — a message of its own. A review that started itself puts the short form from "When to start" at the top of its closing message instead. The full format: Translate the headings into the language of the report, but keep the `Reviewed:` line that closes it exactly as shown: the next run of this skill reads it.
 
 ```
 ## Design review: <base>..<head> (<N> commits[, plus uncommitted changes])
@@ -149,7 +155,7 @@ Reviewed: <base>..<head>
 
 Drop any section with nothing in it. If nothing is worth a finding, say so under the heading and list, under `### Checked`, what was checked: each doc and comment and the code it was compared with, and each red flag looked for and where. "No findings" alone cannot tell a clean change from an unread one. Still end with the `Reviewed:` line. Write abbreviated commit hashes there and in the heading, never a branch or tag name: names move, and the next session may not have them.
 
-**Write the report first**, whether the review was asked for or started by itself. Nothing is edited, run or committed until it is out — the fixes answer to it, and a report written afterwards describes a range that no longer exists. **The report does not end the turn either.** After the `Reviewed:` line, go straight on to "After the review".
+**For a requested review, write the report first.** Nothing is edited, run or committed until it is out — the fixes answer to it. **The report does not end the turn either.** After the `Reviewed:` line, go straight on to "After the review". A self-started review reports at the end instead, but its range is still the one it reviewed, never the fixes that came after.
 
 ## Findings
 
