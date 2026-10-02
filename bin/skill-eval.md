@@ -75,7 +75,12 @@ a pass is how a case stays green while grading nothing.
 - **Do not let the harness leak into the fixture.** The `.claude/` the runner
   brings in and the `bin/` a scaffold uses for stubs are added to
   `.git/info/exclude`, so a skill reading `git status` sees the fixture and
-  nothing else.
+  nothing else. The runner writes that exclude only after the scaffold returns,
+  while `.claude/` is already there when it starts, so `skill_eval_init_repo`
+  excludes `.claude/` itself before its first commit — otherwise the skill
+  under evaluation is committed into the fixture's history, where a clean
+  `git status` cannot show it. `bin/` stays the scaffold's job: write stubs
+  *after* `skill_eval_init_repo`.
 
 ### Adding tools a scenario needs
 

@@ -85,6 +85,7 @@ done
 printf '%s\n' "$@" >"$STUB_CLAUDE_OUT/args"
 pwd >"$STUB_CLAUDE_OUT/cwd"
 git status --porcelain >"$STUB_CLAUDE_OUT/status" 2>/dev/null || true
+git ls-files >"$STUB_CLAUDE_OUT/tracked" 2>/dev/null || true
 if [ -e ".claude/skills/$STUB_SKILL/evals" ]; then
   echo present >"$STUB_CLAUDE_OUT/evals"
 else
@@ -229,6 +230,13 @@ t "a case with no budget_usd falls back to the default" "1" \
 # --- fixture isolation ---
 t "the .claude/ and bin/ we brought in stay out of git status" " M tracked.txt" \
   "$(cat "$STUB_CLAUDE_OUT/status")"
+# A clean status alone cannot see this: the skill is copied in *before* the
+# scaffold runs, so the scaffold's own first `git add -A` would commit it, and a
+# tracked, unchanged file never shows in status. The skill under evaluation then
+# sits in the fixture's history as if it were the user's code -- which a skill
+# that reviews the repository's docs reads as its subject.
+t "the fixture's first commit tracks nothing the runner carried in" "tracked.txt" \
+  "$(cat "$STUB_CLAUDE_OUT/tracked")"
 t "evals/ is not carried into the working directory" "absent" "$(cat "$STUB_CLAUDE_OUT/evals")"
 t "the scaffold can reach this repo through SKILL_EVAL_REPO_ROOT" "$PWD" \
   "$(cat "$STUB_CLAUDE_OUT/repo_root")"

@@ -15,6 +15,15 @@
 # depend on the machine, so the settings that matter are pinned locally here.
 skill_eval_init_repo() {
   git init -q -b main
+  # The runner copies the skill into .claude/ *before* the scaffold runs, so
+  # the `git add -A` below would commit it, and the skill under evaluation would
+  # sit in the fixture's history as the user's own code. The runner's exclude is
+  # written only after the scaffold returns -- too late for this first commit.
+  # bin/ is not listed: a scaffold keeps its stubs out by writing them after
+  # this call, as init-project's do. info/ comes from the init template, which
+  # a machine-wide init.templateDir can leave empty, so do not assume it exists.
+  mkdir -p .git/info
+  printf '.claude/\n' >>.git/info/exclude
   git config user.name "skill-eval"
   git config user.email "skill-eval@example.com"
   git config commit.gpgsign false
