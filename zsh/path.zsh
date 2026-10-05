@@ -12,8 +12,10 @@ export HOMEBREW_NO_INSECURE_REDIRECT=1
 
 # User-local scripts PATH and VOLTA_HOME are set in .zshenv
 
-case `uname` in
-  "Darwin" )
+# $OSTYPE, not `uname`: zsh sets it itself, so the branch costs no process on
+# every shell start (zsh/README.md).
+case "$OSTYPE" in
+  darwin* )
     # Homebrew
     export PATH="/opt/homebrew/bin:$PATH"
 
@@ -22,7 +24,9 @@ case `uname` in
     export NVM_DIR="$HOME/.nvm"
     NODE_DEFAULT="versions/node/v$(<"$NVM_DIR/alias/default")"
     export PATH="$PATH:$NVM_DIR/$NODE_DEFAULT/bin" # this requires $ nvm alias default vX.Y.Z
-    MANPATH="$PATH:$NVM_DIR/$NODE_DEFAULT/share/man"
+    # Appended to MANPATH (it used to be assigned $PATH by mistake, and never
+    # exported). Empty, the leading ":" keeps man's default search path first.
+    export MANPATH="$MANPATH:$NVM_DIR/$NODE_DEFAULT/share/man"
     NODE_PATH=$NVM_DIR/$NODE_DEFAULT/lib/node_modules
     export NODE_PATH=${NODE_PATH:A}
     # VScode
@@ -88,7 +92,7 @@ case `uname` in
     export PATH="$PATH:$HOME/.opencode/bin"
   ;;
 
-  "Linux" )
+  linux* )
     # Linuxbrew (Homebrew on Linux)
     export PATH="/home/linuxbrew/.linuxbrew/sbin:/home/linuxbrew/.linuxbrew/bin:$PATH"
     export PATH="$HOME/.linuxbrew/sbin:$HOME/.linuxbrew/bin:$PATH"
