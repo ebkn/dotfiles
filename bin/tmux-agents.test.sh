@@ -1483,6 +1483,28 @@ STUB
   tmux -L "$socket" set-option -pu -t "$ask_pane" @claude_session_id
   tmux -L "$socket" set-option -pu -t "$ask_pane" @claude_state
 
+  # needs_input is the third blocked state and the one this key is likeliest to
+  # lose: it ranks below asking/waiting, so every case above still passes with
+  # it missing from the rule that picks the row. Alone, it must still be opened.
+  tmux -L "$socket" set-option -p -t "$ask_pane" @claude_state needs_input
+  tmux -L "$socket" set-option -p -t "$ask_pane" @claude_since "$now"
+  answer_first
+  if wait_mirror; then
+    shown=$(tmux -L "$socket" list-clients -F '#{client_session} #{window_name}' |
+      awk '$1 ~ /^_agent_/ { print $2; exit }')
+    if [ "$shown" = ask-win ]; then
+      pass "prefix + A opens the view on a needs_input agent too"
+    else
+      fail "prefix + A opens the view on a needs_input agent too" \
+        "the view is showing [$shown]"
+    fi
+  else
+    fail "prefix + A opens the view on a needs_input agent too" \
+      "no mirror session appeared" "$(cat "$work/first" 2>/dev/null)"
+  fi
+  drop_mirrors
+  tmux -L "$socket" set-option -pu -t "$ask_pane" @claude_state
+
   # A REMOTE blocked agent must be refused, not opened. This is the half of the
   # selection rule that has no local equivalent and the worst failure mode: the
   # view is opened with `display-popup` against a window id from ANOTHER tmux
