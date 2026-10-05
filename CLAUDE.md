@@ -18,7 +18,7 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 │   ├── plugin.zsh      #   Zinit plugin definitions
 │   ├── ssh-agent.zsh   #   SSH agent selection (WSL only)
 │   ├── ssh.zsh         #   ssh/myssh wrappers publishing @ssh_host to tmux
-│   ├── update.zsh      #   update-all
+│   ├── update.zsh      #   update-all, and its uptime warning (macOS 26.0-26.3: TCP clock stops at 49.7 days)
 │   ├── *.test.zsh      #   Unit tests for the modules above
 │   └── .p10k.zsh       #   Powerlevel10k theme config
 ├── vim/                # Neovim/Vim configuration

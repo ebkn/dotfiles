@@ -62,6 +62,52 @@ out identical and no error is printed, everything is merely slower — which is 
 Prefer `$OSTYPE` over `uname` for such guards: zsh sets it internally, so it
 costs no process.
 
+## `update-all` warns about uptime on macOS 26.0–26.3
+
+On those releases the kernel's TCP clock stops **49.7 days after boot**, and a
+reboot is the only way back. `calculate_tcp_clock()` (XNU,
+`bsd/netinet/tcp_subr.c`) recomputes `tcp_now` — 32-bit milliseconds — from
+uptime and stores it only `if (tmp < current_tcp_now)`. Once the value wraps,
+that is never true again. `TIME_WAIT` sockets stop being reaped, the 16,384
+ephemeral ports leak away, and some days later every outbound connection fails
+at once.
+
+Measured on a 26.1 machine up 61 days: 45,327 sockets in `TIME_WAIT`, every one
+still there 75 seconds later against a 30-second timeout, and `git pull` failing
+with `Can't assign requested address`. **Ping still works** — ICMP needs no
+port — so it reads as a broken remote rather than a broken machine.
+
+**macOS 26.4 fixed it, and updating is the real answer.** Read tag by tag in
+`apple-oss-distributions/xnu`:
+
+| XNU tag | macOS | How `tcp_now` advances |
+| --- | --- | --- |
+| `xnu-11417.*` | 15 | `tcp_now += incr` — wraps harmlessly |
+| `xnu-12377.1.9` to `.81.4` | 26.0–26.3 | `if (tmp < current_tcp_now)` — freezes |
+| `xnu-12377.101.15` onwards | 26.4+ | `if (TSTMP_LT(tmp, current_tcp_now))` — modular |
+
+(26.4.1 was observed running `xnu-12377.101.15`; the earlier tags are matched to
+releases by their numbering.)
+
+So `_uptime_reboot_warning` exists for a machine that stays on an affected
+release, and it reads `kern.osrelease` to stay silent everywhere else — on a
+fixed kernel it would be a false alarm on every run. It asks the kernel rather
+than `$OSTYPE`, which is the release zsh was *built* for.
+
+It runs at the end of `update-all` and speaks from day 30. Three things about it
+are deliberate:
+
+- **It warns rather than reboots.** With FileVault on, an unattended restart
+  stops at the pre-boot unlock screen, where neither sshd nor Tailscale is
+  running, and a remote machine is unreachable until someone types at it.
+- **It counts wall-clock uptime, though the kernel counts only time awake**
+  (`tcp_now` comes from `mach_absolute_time()`, which does not advance during
+  sleep). On a machine that sleeps the warning is early, never late.
+- **It is only seen when `update-all` is run.** Day 30 leaves a 20-day window; a
+  machine that goes longer than that between runs is not covered.
+
+Pinned by `zsh/update.test.zsh`.
+
 ## Other conventions
 
 - **Tmux auto-start**: `.zshrc` starts tmux automatically and exits the shell
@@ -87,6 +133,7 @@ costs no process.
 | `his.test.zsh` | `his()` and `gs()` — see [alias.md](alias.md) |
 | `rm.test.zsh`, `fd.test.zsh` | the two `alias.zsh` wrappers |
 | `git-worktree.test.zsh` | `gw()` and `gdmerged()` — see [git.md](git.md) |
+| `update.test.zsh` | which releases and uptimes `update-all`'s warning speaks on |
 
 After changing shell config, verify with a new shell session or
 `source ~/.zshrc`. Startup profiling can be enabled by uncommenting the `zprof`
