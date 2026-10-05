@@ -216,6 +216,24 @@ else
   esac
 fi
 
+# C-] leaves the view only where #{session_name} matches the glob on its own
+# root binding; anywhere else it is passed through to the pane. Rename the
+# mirror out from under that glob and C-] types into the agent's pane instead of
+# leaving -- the one pane where a stray key counts -- while every check above
+# still passes, since `_agent_...` also matches @in_popup.
+leave_glob=$(sed -n "s/.* -n 'C-\]' if-shell -F '#{m:\([^,]*\),#{session_name}}'.*/\1/p" "$conf")
+if [ -z "$leave_glob" ]; then
+  fail "the mirror session name matches the C-] binding's guard in .tmux.conf" \
+    "no C-] guard found in $conf"
+else
+  # shellcheck disable=SC2254 # the glob is the point: it is the binding's pattern
+  case "$session" in
+    $leave_glob) pass "the mirror session name matches the C-] binding's guard in .tmux.conf" ;;
+    *) fail "the mirror session name matches the C-] binding's guard in .tmux.conf" \
+      "got: $session, guard: $leave_glob" ;;
+  esac
+fi
+
 # --- list --------------------------------------------------------------------
 
 run list /dev/ttys001
