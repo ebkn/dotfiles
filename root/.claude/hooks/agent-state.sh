@@ -328,8 +328,10 @@ drop_pending() {
 
 # `needs_input` sits above `busy` for the same reason `waiting` does: a
 # background agent blocked on you is not progress, whatever else the pane is
-# doing. It sits below `waiting` because a modal in front of you is answerable
-# where you already are, while this one is somewhere you have to go.
+# doing. It sits below `waiting` only within one pane: when one actor there has
+# a dialog open and another wants input, the dialog is what the pane is
+# showing, so its note is the one to publish. Across panes the picker and
+# prefix + A rank all three blocked states equally (bin/tmux-agents).
 rank_of() { # lower wins
   case "$1" in
     asking) printf 0 ;;
@@ -371,8 +373,8 @@ glyph_of() {
   #
   # Consequence to know before adding a state: the glyph is no longer a key.
   # The picker prints no state text, so a row's glyph no longer says which of
-  # the three blocked states it is (ctrl-o answers all three, and `prefix + A`
-  # ranks `needs_input` below the other two). The state
+  # the three blocked states it is (ctrl-o answers all three, and the picker
+  # and `prefix + A` rank them equally, oldest first). The state
   # itself still travels in the row's hidden key field, so anything that needs
   # to distinguish them reads that, never the rendering. A new 🛑 state also
   # goes into BLOCKED_STATES in bin/tmux-agents (and the case in

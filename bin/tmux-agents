@@ -259,9 +259,9 @@ fi
 # It is a separate key rather than an option on prefix + a because the two
 # answer different questions. `a` is "show me what is running"; `A` is the one
 # move you make when the tab bar has gone red and there is nothing to choose
-# between — the ranking already puts the most urgent blocked agent (rank, then
-# age) on top, which is the row you would have picked. Drawing a popup only to
-# accept its first row would be a flash of a list nobody reads.
+# between — the ranking already puts the agent blocked longest on top, which is
+# the row you would have picked. Drawing a popup only to accept its first row
+# would be a flash of a list nobody reads.
 #
 # The client is passed in, unlike prefix + a, because this does not run in a
 # popup: `run-shell` DOES expand #{...} in its command, so the binding can hand
@@ -546,17 +546,18 @@ render_list() {
     # subagent sorts to the top on its own instead of hiding behind whichever
     # actor happened to write the pane options last.
     function emit(st, since, note, label,   rank, glyph, where, name) {
-      # asking/waiting share rank 0: both mean a dialog is open and nothing moves
-      # until it is answered, and which one is more urgent is not for this script
-      # to guess. needs_input (rank 1 is any other state in BLOCKED_STATES)
-      # follows them rather than joining them: it is also
-      # blocked on the human, but a modal in front of you is answerable where
-      # you already are, while this one is somewhere you have to go (the same
-      # reason as rank_of in agent-state.sh). Everything else lands in the last rank,
-      # where the age sort below floats the longest-untouched one up on its own.
-      rank = (st == "asking" || st == "waiting") ? 0 \
-           : (st in bset) ? 1 \
-           : (st == "busy") ? 2 : 3
+      # Every state in BLOCKED_STATES shares rank 0: each means nothing moves
+      # until you answer, ctrl-o answers all of them where you are, and which
+      # kind of block is more urgent is not for this script to guess -- so the
+      # age sort below puts the one blocked longest first. needs_input used to
+      # rank below asking/waiting as "somewhere you have to go", which stopped
+      # being true once the answer view could reach it. (rank_of in
+      # agent-state.sh still orders them, but only to pick which actor a pane
+      # shows. No apostrophes here: this program is one single-quoted string.)
+      # Then busy; everything else lands in the last rank, where the age sort
+      # floats the longest-untouched one up on its own.
+      rank = (st in bset) ? 0 \
+           : (st == "busy") ? 1 : 2
 
       # Same per-glyph spacing rule as agent-state.sh: the emoji ones are
       # already two cells wide, the narrow ▶ is padded to two, so the
@@ -705,8 +706,8 @@ list=$(render_list "$rows")
 #
 # The row is chosen by answer_verdict, the function ctrl-o asks, applied to the
 # hidden key field of each row in turn -- so the two keys cannot drift apart.
-# `sort` has already put the highest-ranked, then oldest, one first, so "the
-# first ok" is the pick.
+# `sort` has already put the one blocked longest first, so "the first ok" is the
+# pick.
 if [ -n "$answer_client" ]; then
   outer_client=$answer_client
 

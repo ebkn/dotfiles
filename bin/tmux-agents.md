@@ -311,8 +311,11 @@ answer view on the top blocked row. No list is drawn and nothing is picked.
 It is a **separate key**, not an option on `prefix + a`, because the two answer
 different questions. `a` is "show me what is running"; `A` is "there is one
 thing to do, do it". Drawing a popup only to accept its own first row would be a
-flash of a list nobody reads — the ranking already puts the most urgent blocked
-agent (rank, then age) on top, which is the row you would have picked. When more than one is
+flash of a list nobody reads — the ranking already puts the agent blocked
+longest on top, which is the row you would have picked. All three blocked states
+share the top rank, so "longest" means across kinds of block too: `needs_input`
+once ranked below `asking`/`waiting` as "somewhere you have to go", which stopped
+being true once `ctrl-o` could answer it in place. When more than one is
 blocked nothing is lost by not starting at the list, because the answer view
 reopens the real picker on the way out ([tmux-agent-view.md](tmux-agent-view.md)).
 

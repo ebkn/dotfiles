@@ -178,13 +178,13 @@ fi
 
 # --- ranking -----------------------------------------------------------------
 
-# asking and waiting share the top rank; within it the older one comes first.
-# Then needs_input -- also blocked on the human, but somewhere you have to go
-# rather than in a dialog this picker can answer. Then busy, oldest first; then
-# everything else.
+# Every state blocked on the human -- asking, waiting and needs_input -- shares
+# the top rank, and within it the one blocked longest comes first: ctrl-o
+# answers all three where you are, so none of them is "somewhere you have to
+# go" any more. Then busy, oldest first; then everything else.
 expected_order='waiting-old
-asking-new
 needs-input
+asking-new
 busy-old
 busy-new
 stalled-old'
@@ -1534,10 +1534,11 @@ STUB
   fi
   drop_mirrors
 
-  # Several blocked at once: A answers the most urgent, rank before age. Every
-  # case above has exactly one local blocked row, so a pick that kept going and
-  # took the LAST blocked row -- the least urgent -- would pass them all. The
-  # needs_input row is the OLDER one, so age alone would choose it instead.
+  # Several blocked at once: A answers the one blocked longest, whatever kind of
+  # block it is -- needs_input shares the top rank with asking. Every case above
+  # has exactly one local blocked row, so a pick that kept going and took the
+  # LAST blocked row -- the newest -- would pass them all. The asking row is the
+  # newer one, and was the pick back when needs_input ranked below it.
   tmux -L "$socket" new-window -t tabB -n need-win "$IDLE"
   need_pane=$(tmux -L "$socket" list-panes -t tabB:need-win -F '#{pane_id}' | head -1)
   tmux -L "$socket" set-option -p -t "$need_pane" @claude_state needs_input
@@ -1548,14 +1549,14 @@ STUB
   if wait_mirror; then
     shown=$(tmux -L "$socket" list-clients -F '#{client_session} #{window_name}' |
       awk '$1 ~ /^_agent_/ { print $2; exit }')
-    if [ "$shown" = ask-win ]; then
-      pass "prefix + A answers the most urgent of several blocked agents, rank before age"
+    if [ "$shown" = need-win ]; then
+      pass "prefix + A answers the longest-blocked of several, needs_input included"
     else
-      fail "prefix + A answers the most urgent of several blocked agents, rank before age" \
+      fail "prefix + A answers the longest-blocked of several, needs_input included" \
         "the view is showing [$shown]"
     fi
   else
-    fail "prefix + A answers the most urgent of several blocked agents, rank before age" \
+    fail "prefix + A answers the longest-blocked of several, needs_input included" \
       "no mirror session appeared" "$(cat "$work/first" 2>/dev/null)"
   fi
   drop_mirrors
