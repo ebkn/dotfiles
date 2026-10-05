@@ -245,6 +245,18 @@ jobs:
       - name: tmux-agents
         run: bash bin/tmux-agents.test.sh
 
+      # The answer view mirrors a blocked agent's window in a popup. Its name
+      # must keep matching the _* guard and C-] must stay bound, or the leave
+      # key types into the agent's own pane -- the one place a stray key counts.
+      - name: tmux-agent-view
+        run: bash bin/tmux-agent-view.test.sh
+
+      # The autossh reconnect shim owns the screen between attempts. Getting its
+      # passthrough wrong breaks every first connection; getting the notice wrong
+      # leaves a dead remote frame and a flood of mouse reports. ssh is stubbed.
+      - name: autossh-ssh shim
+        run: bash bin/autossh-ssh.test.sh
+
       # The lock both review-pipeline programs take. Refusing to steal a dead
       # holder's lock stops the pipeline forever with no output, since both
       # programs exit 0 when they cannot take it; stealing a live one lets two
@@ -322,6 +334,13 @@ jobs:
       # wrong does not error -- the shell simply starts with no configuration.
       - name: zshrc module resolution
         run: zsh zsh/zshrc-resolve.test.zsh
+
+      # .zshenv's Linuxbrew probe must be guarded on $OSTYPE: on macOS a stat
+      # under /home wakes autofs and costs ~16ms on every zsh start, silently.
+      # The suite asserts both branches, so the Linux runner checks the guard
+      # as well as the Linux side.
+      - name: zshenv autofs guard
+        run: zsh zsh/zshenv-autofs.test.zsh
 
       # his() and gs() were one definition per platform until `sed -E` replaced
       # the gsed/sed split. This job runs them against GNU sed; the same file
