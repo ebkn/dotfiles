@@ -67,6 +67,17 @@ _git_worktree_for_branch() {
   return 1
 }
 
+# Print the main repository's root, not the current worktree's: --git-common-dir
+# is the .git directory every worktree shares, so its parent is the main
+# checkout. Assumes a non-bare repository whose git dir is named `.git`; written
+# once so the day that assumption breaks it is fixed in one place. Leaves
+# stderr alone -- the caller decides whether git's complaint is worth showing.
+_git_main_root() {
+  local common
+  common=$(git rev-parse --path-format=absolute --git-common-dir) || return
+  print -r -- "${common%/.git}"
+}
+
 # The settings both `git worktree add` call sites need, kept in one place
 # because the reasons are long enough that two copies would drift.
 #
@@ -83,8 +94,7 @@ _gw_worktree_add() {
 _gw_pick_worktree() {
   # Resolve the main repo root so worktree paths can be rendered relative to it.
   local main_root
-  main_root=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
-  main_root="${main_root%/.git}"
+  main_root=$(_git_main_root 2>/dev/null)
 
   # Build "<padded_branch>\t<rel_path>\t<abs_path>" lines from `git worktree
   # list`, skipping the main branch. The branch is the bracketed last token
@@ -259,10 +269,7 @@ function gw() {
     return
   fi
 
-  # Resolve the main repository root (not a worktree root).
-  # --git-common-dir returns the shared .git directory; its parent is the main repo root.
-  local root_dir=$(git rev-parse --path-format=absolute --git-common-dir)
-  root_dir="${root_dir%/.git}"
+  local root_dir=$(_git_main_root)
 
   # Run from the repository root so that worktree paths resolve correctly.
   if [[ "$PWD" != "$root_dir" ]]; then
