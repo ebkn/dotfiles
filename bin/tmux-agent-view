@@ -110,7 +110,7 @@ case $mode in
     session="_agent_${window_id#@}_$$"
 
     # The leading underscore is the same contract bin/tmux-popup relies on: the
-    # prefix + p/t/o/a/A bindings refuse to fire where .tmux.conf's @in_popup
+    # prefix + p/t/o/a/A/g/? bindings refuse to fire where .tmux.conf's @in_popup
     # holds, which is what stops a popup being opened from inside this one.
     # `_agent_` is a contract of its own: C-] leaves the view only where the
     # session name matches that binding's `_agent_*`, and is passed through to

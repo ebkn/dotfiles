@@ -133,7 +133,7 @@ What it asserts:
   argument is not honoured), so the whole table is listed and the row grepped
   out.
 - `@in_popup` evaluates to 1 against a `_`-named session and 0 against any other,
-  and `p`/`t`/`o`/`a`/`A` each refuse on it as the TRUE branch. It is checked as a
+  and `p`/`t`/`o`/`a`/`A`/`g`/`?` each refuse on it as the TRUE branch. It is checked as a
   format on the loaded server, not as text, because the glob only means anything
   once tmux expands it.
 - `C-]` leaves an agent view — read out of the **root** table, since a prefix

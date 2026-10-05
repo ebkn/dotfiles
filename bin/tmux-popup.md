@@ -16,7 +16,7 @@ one shell further down.
 ## The name is a contract split across two files
 
 The leading `_` is what `.tmux.conf`'s `@in_popup` (`#{m:_*,#{session_name}}`)
-matches; `prefix + p/t/o/a/A` refuse to open a popup inside a popup by asking it,
+matches; `prefix + p/t/o/a/A/g/?` refuse to open a popup inside a popup by asking it,
 and `prefix + d` skips its confirmation there. Renaming the scheme here without
 changing that one line makes `prefix + p` stack popups with no error. Both
 halves are pinned: `tmux-popup.test.sh` reads the glob from the `@in_popup` line
