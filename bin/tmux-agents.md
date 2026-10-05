@@ -289,9 +289,13 @@ mean different things, and a `ctrl-o` that quietly moved you to another tab is
 worse than one that does not fire. It is refused *inside fzf*, per row, rather
 than after the picker has closed — closing the popup and printing to the status
 line is itself something happening, and what is wanted is a warning and nothing
-else. So `ctrl-o` is a `transform` binding that reads the hidden key field and
-either returns `print(ctrl-o)+accept` or only rewrites the header, with a `focus`
-binding putting the hint back as soon as the cursor moves.
+else. So `ctrl-o` is a `transform` binding that re-enters the script as
+**`--answer-check <key field>`** — as `enter` does with `--jump-check` — which
+returns `print(ctrl-o)+accept` or only rewrites the header, with a `focus`
+binding putting the hint back as soon as the cursor moves. The decision is
+`answer_verdict` (`ok` / `remote` / `idle`), the one function `prefix + A` and
+the check after the picker also ask; "blocked" is `BLOCKED_STATES`, the one list
+the 🛑 glyph, the ranking and `correct_rows` read too.
 
 `print(...)+accept` reproduces exactly what `--expect` emitted (the key on its
 own first line, empty for `enter`), which is the documented idiom.
@@ -312,11 +316,13 @@ agent (rank, then age) on top, which is the row you would have picked. When more
 blocked nothing is lost by not starting at the list, because the answer view
 reopens the real picker on the way out ([tmux-agent-view.md](tmux-agent-view.md)).
 
-The row is chosen by the **same rule `ctrl-o` is offered by**, read off the
-hidden key field rather than re-derived: a local row whose state is one of the
-three the 🛑 glyph covers. That is the invariant worth keeping — if the two ever
+The row is chosen by the **same function `ctrl-o` is offered by**:
+`answer_verdict`, applied to each row's hidden key field in ranked order, and
+the first `ok` is the pick. That is the invariant worth keeping — if the two ever
 disagree, `A` becomes a key that does something `ctrl-o` on the same row refuses,
-with no list on screen to show what it picked.
+with no list on screen to show what it picked. Until both asked one function
+they each carried their own copy of the blocked set (an awk regex here, a
+`case` in the binding), which the code claimed could not drift.
 
 **The client is passed in**, unlike `prefix + a`. This does not run in a popup;
 it runs under `run-shell`, whose child's `$TMUX` names the **server**, not which
@@ -560,7 +566,9 @@ Two harness traps, both of which made these pass or fail for the wrong reason:
 `--jump-check` is pinned on its own, headlessly: it is the half that decides, it
 needs no pty, and each answer is a different silent failure — accepting a row
 that cannot be jumped to makes `enter` close the popup and do nothing, refusing
-one that can makes `enter` dead.
+one that can makes `enter` dead. `--answer-check` is pinned the same way, for
+every state in and out of the blocked set; it needs no tmux at all, since its
+decision is in the key field.
 
 One trap in driving the binding end to end: **fzf runs a `transform` through
 `$SHELL`, and `zsh -c` rebuilds `$PATH`**, so a stub placed on the test's PATH is

@@ -5,6 +5,7 @@
 #   tmux-agents                         the picker (prefix + a, in a display-popup)
 #   tmux-agents --answer-first <client> answer the first blocked agent (prefix + A)
 #   tmux-agents --jump-check <key>      fzf `enter`: jump, or say why not
+#   tmux-agents --answer-check <key>    fzf `ctrl-o`: answer here, or say why not
 #   tmux-agents --rows                  fzf reload: the corrected, ranked list
 #   tmux-agents --sync                  launchd pass: write corrections back
 #
@@ -65,6 +66,14 @@ readonly US=$'\037'
 # of the same control characters for the same reason: a note is arbitrary text,
 # and any printable sentinel would eventually arrive inside one.
 readonly SENTINEL=$'\036\037\036agents\036\037\036'
+
+# The states blocked on the human. One list, read by everything that has to
+# agree on it: the 🛑 glyph and the ranking (render_list), which disagreements
+# with the CLI are corrected (correct_rows), and which rows ctrl-o and prefix + A
+# will answer (answer_verdict). Each of those once kept its own copy, and the
+# copies drifted -- needs_input reached some and not others, and the one it was
+# missing from left that state stuck red. awk gets it with -v and builds a set.
+readonly BLOCKED_STATES='asking waiting needs_input'
 
 # Seconds between refreshes while the picker is open. Each one costs a collect
 # plus ~140ms of `claude agents --json`, so this is a comfort/cost dial, not a
@@ -194,6 +203,49 @@ if [ "${1:-}" = "--jump-check" ]; then
   else
     printf 'print()+accept\n'
   fi
+  exit 0
+fi
+
+is_blocked() { # <state>
+  local s
+  for s in $BLOCKED_STATES; do
+    [ "$s" = "${1:-}" ] && return 0
+  done
+  return 1
+}
+
+# answer_verdict <key field> — whether the answer view can open this row. Sets
+# av to "ok", "remote" (blocked, but in another host's tmux, which the mirror
+# cannot reach yet) or "idle" (nothing there is blocked on the human).
+#
+# ctrl-o in the picker (through --answer-check), the check after the picker,
+# and prefix + A all ask this one function, so they cannot disagree about a row.
+# A global rather than printed: prefix + A asks it once per row, and a command
+# substitution would be a fork each time.
+av=""
+answer_verdict() {
+  local host state
+  IFS='|' read -r host _ _ state <<<"$1"
+  if ! is_blocked "$state"; then
+    av=idle
+  elif [ -n "$host" ]; then
+    av=remote
+  else
+    av=ok
+  fi
+}
+
+# --answer-check <key field> — the ctrl-o binding's half, as --jump-check is
+# enter's: prints the fzf actions, accepting only a row the view can open and
+# otherwise leaving the picker standing with the reason in its header. Before
+# the listing for the same reason, so a keypress costs one process.
+if [ "${1:-}" = "--answer-check" ]; then
+  answer_verdict "${2:-}"
+  case $av in
+    ok) printf 'print(ctrl-o)+accept\n' ;;
+    remote) printf 'change-header(ctrl-o: a remote agent cannot be answered here yet)\n' ;;
+    *) printf 'change-header(ctrl-o: that session is not waiting on you)\n' ;;
+  esac
   exit 0
 fi
 
@@ -412,8 +464,12 @@ correct_rows() { # $1 rows
   # than a temp file: this runs on every refresh tick, and the rows cannot
   # contain a line equal to a string of control characters.
   printf '%s\n%s\n%s\n' "$map" "$SENTINEL" "$1" |
-    awk -F"$TAB" -v now="$now" -v sentinel="$SENTINEL" '
-      BEGIN { OFS = FS }
+    awk -F"$TAB" -v now="$now" -v sentinel="$SENTINEL" -v blocked="$BLOCKED_STATES" '
+      BEGIN {
+        OFS = FS
+        n = split(blocked, b, " ")
+        for (i = 1; i <= n; i++) bset[b[i]] = 1
+      }
       !past {
         if ($0 == sentinel) { past = 1; next }
         if (NF >= 2) { status[$1] = $2; reason[$1] = $3 }
@@ -441,11 +497,11 @@ correct_rows() { # $1 rows
         # agree, the hook data is kept whole: its note names the tool and its
         # per-actor listing names which subagent is blocked, and the CLI knows
         # neither.
-        # Every state that prints 🛑 counts as blocked here, which is the same
-        # rule ctrl-o is offered by. Leaving one out leaves exactly that state
-        # stuck red, and it is the kind of gap a merge opens quietly: this one
-        # arrived with needs_input, after the correction was written.
-        hook_blocked = ($6 == "asking" || $6 == "waiting" || $6 == "needs_input")
+        # Every state that prints 🛑 counts as blocked here: bset is built from
+        # BLOCKED_STATES, the list the glyph and ctrl-o read. A state left out
+        # of this test alone would stay stuck red, which is how needs_input
+        # once did when it arrived after the correction was written.
+        hook_blocked = ($6 in bset)
         cli_blocked = (s == "waiting")
         if (hook_blocked == cli_blocked) { print; next }
         if (cli_blocked) {
@@ -469,7 +525,11 @@ correct_rows() { # $1 rows
 # render_list <rows> — the finished, sorted list fzf reads. A function for the
 # same reason collect_rows is one: the picker renders again on every refresh.
 render_list() {
-  printf '%s\n' "$1" | awk -F"$TAB" -v now="$now" -v rsep="$RS" -v usep="$US" '
+  printf '%s\n' "$1" | awk -F"$TAB" -v now="$now" -v rsep="$RS" -v usep="$US" -v blocked="$BLOCKED_STATES" '
+    BEGIN {
+      n = split(blocked, b, " ")
+      for (i = 1; i <= n; i++) bset[b[i]] = 1
+    }
     function age(s,   d) {
       if (s == "") return "-"
       d = now - s
@@ -485,19 +545,20 @@ render_list() {
     function emit(st, since, note, label,   rank, glyph, where, name) {
       # asking/waiting share rank 0: both mean a dialog is open and nothing moves
       # until it is answered, and which one is more urgent is not for this script
-      # to guess. needs_input follows them rather than joining them: it is also
+      # to guess. needs_input (rank 1 is any other state in BLOCKED_STATES)
+      # follows them rather than joining them: it is also
       # blocked on the human, but a modal in front of you is answerable where
       # you already are, while this one is somewhere you have to go (the same
       # reason as rank_of in agent-state.sh). Everything else lands in the last rank,
       # where the age sort below floats the longest-untouched one up on its own.
       rank = (st == "asking" || st == "waiting") ? 0 \
-           : (st == "needs_input") ? 1 \
+           : (st in bset) ? 1 \
            : (st == "busy") ? 2 : 3
 
       # Same per-glyph spacing rule as agent-state.sh: the emoji ones are
       # already two cells wide, the narrow ▶ is padded to two, so the
       # columns after the glyph line up across rows.
-      glyph = (st == "asking" || st == "waiting" || st == "needs_input") \
+      glyph = (st in bset) \
               ? "🛑" \
             : (st == "busy") ? "▶ " : "🟢"
       where = ($1 == "") ? "local" : $1
@@ -639,15 +700,26 @@ list=$(render_list "$rows")
 # key is pressed: there is no popup here, so that would hang a backgrounded
 # run-shell job forever with nothing on screen to explain it.
 #
-# The row is chosen by the same rule ctrl-o is offered by — a local row whose
-# state is one of the three the 🛑 glyph covers — read off the hidden key field
-# rather than re-derived, so the two keys cannot drift apart. `sort` has already
-# put the highest-ranked, then oldest, one first, so "the first match" is the pick.
+# The row is chosen by answer_verdict, the function ctrl-o asks, applied to the
+# hidden key field of each row in turn -- so the two keys cannot drift apart.
+# `sort` has already put the highest-ranked, then oldest, one first, so "the
+# first ok" is the pick.
 if [ -n "$answer_client" ]; then
   outer_client=$answer_client
 
-  target=$(printf '%s\n' "$list" |
-    awk -F"$TAB" '$1 ~ /^\|/ && $1 ~ /\|(asking|waiting|needs_input)$/ { print $1; exit }')
+  target=""
+  remote_blocked=""
+  while IFS= read -r row; do
+    [ -n "$row" ] || continue
+    answer_verdict "${row%%"$TAB"*}"
+    case $av in
+      ok)
+        target=${row%%"$TAB"*}
+        break
+        ;;
+      remote) remote_blocked=1 ;;
+    esac
+  done <<<"$list"
 
   if [ -z "$target" ]; then
     # Three different silences, told apart: nothing running, something red that
@@ -655,8 +727,7 @@ if [ -n "$answer_client" ]; then
     # nothing and says nothing is indistinguishable from tmux having dropped it.
     if [ -z "$list" ]; then
       msg "no Claude agents running"
-    elif printf '%s\n' "$list" |
-      awk -F"$TAB" '$1 ~ /\|(asking|waiting|needs_input)$/ { found = 1 } END { exit !found }'; then
+    elif [ -n "$remote_blocked" ]; then
       msg "the blocked agent is remote — C-q a to see it"
     else
       msg "nothing is waiting on you"
@@ -747,11 +818,7 @@ picked=$(
       --bind="start:reload-sync($self --rows)" \
       --bind="load:reload-sync(sleep $REFRESH; $self --rows)" \
       --bind="enter:transform:$self --jump-check {1}" \
-      --bind='ctrl-o:transform:case {1} in
-                "|"*asking | "|"*waiting | "|"*needs_input) echo "print(ctrl-o)+accept" ;;
-                *asking | *waiting | *needs_input) echo "change-header(ctrl-o: a remote agent cannot be answered here yet)" ;;
-                *) echo "change-header(ctrl-o: that session is not waiting on you)" ;;
-              esac'
+      --bind="ctrl-o:transform:$self --answer-check {1}"
 ) || exit 0
 
 # The key that closed the picker is on its own first line, empty for enter.
@@ -767,7 +834,7 @@ if [ -n "${TMUX:-}" ]; then
   outer_client=$(tmux list-clients -F '#{client_name}' -t "\$${TMUX##*,}" 2>/dev/null | head -1) || true
 fi
 
-IFS='|' read -r host window_id pane_id state <<<"${selection%%$'\t'*}"
+IFS='|' read -r _ window_id pane_id _ <<<"${selection%%$'\t'*}"
 
 # --- answer here (ctrl-o) ----------------------------------------------------
 
@@ -776,24 +843,26 @@ IFS='|' read -r host window_id pane_id state <<<"${selection%%$'\t'*}"
 # tab is worse than one that does not fire: you asked to stay where you are.
 # Each refusal says why on the status line and stops there.
 if [ "$key" = "ctrl-o" ]; then
-  case "$state" in
-    asking | waiting | needs_input) ;;
-    *)
+  # The same verdict --answer-check gave inside the picker; asked again because
+  # this is the half a headless test reaches, and it must hold if a future fzf
+  # changes what a transform may return.
+  answer_verdict "${selection%%$'\t'*}"
+  case $av in
+    idle)
       # Only a session blocked on the human has anything to answer. For a busy
       # or a finished one there is nothing here to act on.
       msg "that session is not waiting on you"
       exit 0
       ;;
+    remote)
+      # A remote agent lives in the remote tmux, so the mirror would have to be
+      # a nested `ssh -t <host> tmux attach`. That is reachable from here — the
+      # listing already queries that host — but nothing on this machine
+      # exercises it, so it is left out rather than shipped untested.
+      msg "answering a remote agent here is not supported yet"
+      exit 0
+      ;;
   esac
-
-  if [ -n "$host" ]; then
-    # A remote agent lives in the remote tmux, so the mirror would have to be a
-    # nested `ssh -t <host> tmux attach`. That is reachable from here — the
-    # listing already queries that host — but nothing on this machine exercises
-    # it, so it is left out rather than shipped untested.
-    msg "answering a remote agent here is not supported yet"
-    exit 0
-  fi
 
   # No client means nowhere to put a popup, and no status line to say so on.
   [ -n "$outer_client" ] || exit 0

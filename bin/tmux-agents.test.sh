@@ -1510,7 +1510,7 @@ STUB
   # view is opened with `display-popup` against a window id from ANOTHER tmux
   # server, which does not fail -- @9 exists on this one too -- so the key would
   # quietly mirror whatever local window happens to carry that id. The rule is
-  # one anchor in one awk regex, and nothing else would notice it going.
+  # one host test in answer_verdict, and nothing else would notice it going.
   tmux -L "$socket" new-window -t tabB -n ssh-pane "$IDLE"
   ssh_pane=$(tmux -L "$socket" list-panes -t tabB:ssh-pane -F '#{pane_id}' | head -1)
   tmux -L "$socket" set-option -p -t "$ssh_pane" @ssh_my_machine 1
@@ -1615,6 +1615,43 @@ case "$out" in
   *accept*) fail "a refusal never accepts" "got: $out" ;;
   *) pass "a refusal never accepts" ;;
 esac
+
+# --- the ctrl-o decision, on its own --------------------------------------------
+
+# ctrl-o asks `--answer-check`, the same way enter asks --jump-check, so that
+# which rows it answers is decided by the one list of blocked states the glyph,
+# the ranking and prefix + A also read. It needs no tmux -- the decision is in
+# the key field -- so it is run directly. Accepting a row it cannot answer opens
+# the view on an agent that is not waiting; refusing one it can makes the key
+# dead on a row the tab bar just painted red.
+answer_check() {
+  "$PWD/bin/tmux-agents" --answer-check "$1" 2>&1
+}
+
+for st in asking waiting needs_input; do
+  out=$(answer_check "|@1|%1|$st")
+  if [ "$out" = "print(ctrl-o)+accept" ]; then
+    pass "--answer-check accepts a local $st row"
+  else
+    fail "--answer-check accepts a local $st row" "got: $out"
+  fi
+done
+
+out=$(answer_check "bakery|@9|%9|needs_input")
+if [ "$out" = "change-header(ctrl-o: a remote agent cannot be answered here yet)" ]; then
+  pass "--answer-check refuses a remote blocked row, saying why"
+else
+  fail "--answer-check refuses a remote blocked row, saying why" "got: $out"
+fi
+
+for st in busy idle stalled ""; do
+  out=$(answer_check "|@1|%1|$st")
+  if [ "$out" = "change-header(ctrl-o: that session is not waiting on you)" ]; then
+    pass "--answer-check refuses a local row in state [$st]"
+  else
+    fail "--answer-check refuses a local row in state [$st]" "got: $out"
+  fi
+done
 
 # --- the real fzf binding ------------------------------------------------------
 
@@ -1736,8 +1773,8 @@ else
   # needs_input is accepted too, and it gets its own run rather than riding on
   # the row above: it ranks BELOW asking/waiting, so with an asking row present
   # it is never the row under the cursor, and a gate that still excluded it
-  # would go unnoticed. The `case` in the ctrl-o transform is the only thing
-  # that distinguishes the two, and a missing branch there is silent -- the key
+  # would go unnoticed. The binding's --answer-check is the only thing that
+  # distinguishes the two, and a state missing from it is silent -- the key
   # simply does nothing on a row the tab bar has painted red. It matters because
   # prefix + A answers "the first red one", and red is all three states.
   tmux -L "$socket" kill-window -t bindB:b-ask 2>/dev/null
