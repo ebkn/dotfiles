@@ -147,7 +147,8 @@ jobs:
       # package from the archive on a security update, and the pin then fails
       # with "Version not found" instead of installing the wrong thing.
       #
-      # Keep the version in step with brewfiles/Brewfile-shell. The checksum is
+      # Keep the version in step with brewfiles/Brewfile-shell and with the same pin
+      # in bin/test-in-docker.Dockerfile -- all three together. The checksum is
       # of the release tarball as fetched (upstream publishes no digest beside
       # it).
       #
@@ -180,6 +181,7 @@ jobs:
       # same reason as tmux: the assertions read rendered output, so a version
       # that draws or binds differently is a green local run against a red CI
       # one. The checksum is upstream's own, from the release's checksums file.
+      # bin/test-in-docker.Dockerfile carries the same pin: bump all three.
       - name: Install fzf
         run: |
           version=0.74.3

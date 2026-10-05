@@ -2,7 +2,8 @@
 brew 'zsh'
 
 # tmux
-# Keep the version in step with the pin in .github/workflows/lint-and-test.yml.
+# Keep the version in step with the pin in .github/workflows/lint-and-test.yml
+# and bin/test-in-docker.Dockerfile (all three together).
 # agent-state.test.sh pins how values survive a round trip through `set-option`
 # and a `-F` format, and tmux has changed how it renders non-printable bytes
 # between releases -- so a version gap there is a green local run against a red
@@ -18,7 +19,8 @@ brew 'neovim'
 brew 'tree-sitter-cli' # required by nvim-treesitter to compile parsers
 
 # fuzzy finder
-# Keep the version in step with the pin in .github/workflows/lint-and-test.yml.
+# Keep the version in step with the pin in .github/workflows/lint-and-test.yml
+# and bin/test-in-docker.Dockerfile (all three together).
 # tmux-agents.test.sh drives the real fzf in a real pane and reads the rendered
 # screen back, so a version that draws or binds differently is a green local run
 # against a red CI one.

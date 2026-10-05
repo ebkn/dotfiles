@@ -203,9 +203,10 @@ between versions — an unpinned one was green locally and red in CI on code
 nobody had touched. `fzf` is pinned and installed for the same reason —
 `tmux-agents.test.sh` drives the real binary in a real pane and reads the
 rendered screen back — and the runner image does not carry it at all. Each such
-pin is cross-referenced from `brewfiles/Brewfile-shell`; bump both sides
-together, and the workflow prints each version so the next gap is visible in the
-log rather than only in its failures.
+pin lives in three places — the workflow, `bin/test-in-docker.Dockerfile` and
+`brewfiles/Brewfile-shell`, each naming the other two; bump all three together,
+and the workflow prints each version so the next gap is visible in the log
+rather than only in its failures.
 
 **A test that asserts a permission failure needs a non-root runner.** The
 container standing in for CI must therefore run as an ordinary user: as root the
