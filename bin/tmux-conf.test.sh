@@ -115,19 +115,20 @@ fi
 # the remote tmux -- so a mistyped `d` drops the local client out of everything.
 # It must ask first, and the confirmation must survive as a real binding on the
 # server rather than as a note tmux happened to parse. Popups are exempt, which
-# is what the if-shell is for, so the assertion is on the whole command.
+# is what the if-shell is for, so the assertion is on the whole command -- and
+# on WHICH branch is which. Matching the two words anywhere in the row passed
+# with the branches swapped too, which detaches every ordinary session at once
+# and asks only inside a popup: silent until the mistyped d it exists to catch.
 # `list-keys -T prefix d` returns nothing on 3.7 -- the key argument is not
 # honoured there -- so the whole table is listed and the row picked out. The
 # note sits between the table and the key, hence the optional group.
 d_binding=$(tmux -L "$socket" list-keys -T prefix 2>/dev/null |
   grep -E '^bind-key +(-N "[^"]*" +)?-T prefix +d ' | head -1)
 case "$d_binding" in
-  *confirm-before*detach-client*) pass "prefix + d asks before detaching" ;;
-  *) fail "prefix + d asks before detaching" "got: ${d_binding:-<unbound>}" ;;
-esac
-case "$d_binding" in
-  *'#{E:@in_popup}'*) pass "a popup is exempt from the detach confirmation" ;;
-  *) fail "a popup is exempt from the detach confirmation" "got: $d_binding" ;;
+  *'if-shell -F "#{E:@in_popup}" detach-client "confirm-before -p '*'detach-client"'*)
+    pass "prefix + d asks before detaching, except inside a popup"
+    ;;
+  *) fail "prefix + d asks before detaching, except inside a popup" "got: ${d_binding:-<unbound>}" ;;
 esac
 
 # "Am I in a popup?" is one option, @in_popup, because bin/tmux-popup and
@@ -136,7 +137,8 @@ esac
 # confirmation there. Written out per binding it was six copies of a glob, and a
 # seventh binding copied wrong would stack popups with no error anywhere. So the
 # value is checked as a FORMAT, against a popup-named session and an ordinary
-# one, and each binding is checked for asking it.
+# one, and each binding is checked for asking it with the refusal as the TRUE
+# branch (d is checked above, the other way round).
 tmux -L "$socket" new-session -d -s _popup_probe
 tmux -L "$socket" new-session -d -s plain_probe
 in_popup=$(tmux -L "$socket" display-message -p -t _popup_probe: '#{E:@in_popup}')
@@ -150,12 +152,14 @@ fi
 tmux -L "$socket" kill-session -t _popup_probe
 tmux -L "$socket" kill-session -t plain_probe
 prefix_keys=$(tmux -L "$socket" list-keys -T prefix 2>/dev/null)
-for k in p t o a A d; do
+for k in p t o a A; do
   row=$(printf '%s\n' "$prefix_keys" |
     grep -E "^bind-key +(-N \"[^\"]*\" +)?-T prefix +$k " | head -1)
   case "$row" in
-    *'#{E:@in_popup}'*) pass "prefix + $k asks @in_popup" ;;
-    *) fail "prefix + $k asks @in_popup" "got: ${row:-<unbound>}" ;;
+    *'if-shell -F "#{E:@in_popup}" "display-message \"already in a popup\""'*)
+      pass "prefix + $k refuses inside a popup, asking @in_popup"
+      ;;
+    *) fail "prefix + $k refuses inside a popup, asking @in_popup" "got: ${row:-<unbound>}" ;;
   esac
 done
 
