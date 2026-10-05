@@ -169,16 +169,21 @@ done
 # be ambiguous inside a view whose pane holds a nested tmux over ssh, which is
 # the whole reason it is not one; demoting it back to the prefix table would
 # leave the popup advertising a key that does nothing.
+#
+# Each branch is matched in its place, not as a word anywhere in the row: with
+# the branches swapped both words are still there, and C-] would then detach
+# the client from every ordinary pane on the server while doing nothing in the
+# one view it exists to leave.
 leave_binding=$(tmux -L "$socket" list-keys -T root 2>/dev/null |
   grep -E "^bind-key +(-N \"[^\"]*\" +)?-T root +C-\] " | head -1)
 case "$leave_binding" in
-  *'_agent_*'*detach-client*) pass "C-] leaves an agent view, with no prefix" ;;
+  *'_agent_*,#{session_name}}" detach-client '*) pass "C-] leaves an agent view, with no prefix" ;;
   *) fail "C-] leaves an agent view, with no prefix" "got: ${leave_binding:-<unbound>}" ;;
 esac
 # Outside a view the key belongs to whatever is running in the pane: a root
 # binding is taken from every pane on the server, so it has to hand it back.
 case "$leave_binding" in
-  *'send-keys C-]'*) pass "C-] is passed through outside a view" ;;
+  *'" detach-client "send-keys C-]"'*) pass "C-] is passed through outside a view" ;;
   *) fail "C-] is passed through outside a view" "got: $leave_binding" ;;
 esac
 
