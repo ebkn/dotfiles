@@ -15,13 +15,15 @@ one shell further down.
 
 ## The name is a contract split across two files
 
-The leading `_` is what the bindings' `#{m:_*,#{session_name}}` guard matches to
-refuse opening a popup from inside a popup. Renaming the scheme here without
-changing the guard makes `prefix + p` stack popups with no error.
-`tmux-popup.test.sh` pins the naming half against a hard-coded `_*`; it does
-not read the guard from `.tmux.conf`, so the guard half is unpinned except for
-`prefix + d` (`tmux-conf.test.sh`). `tmux-track-session adopt` also skips `_*`
-sessions as popups, so it is a third reader of the same rule.
+The leading `_` is what `.tmux.conf`'s `@in_popup` (`#{m:_*,#{session_name}}`)
+matches; `prefix + p/t/o/a/A` refuse to open a popup inside a popup by asking it,
+and `prefix + d` skips its confirmation there. Renaming the scheme here without
+changing that one line makes `prefix + p` stack popups with no error. Both
+halves are pinned: `tmux-popup.test.sh` reads the glob from the `@in_popup` line
+and matches every name it builds against it, and `tmux-conf.test.sh` evaluates
+`@in_popup` against a popup-named and an ordinary session and checks each
+guarded binding asks it. `tmux-track-session adopt` also skips `_*` sessions as
+popups — a third reader of the same rule, not yet tied to the line.
 
 [tmux-agent-view](tmux-agent-view.md) rides the same guard with its
 `_agent_<window>_<pid>` mirror sessions.

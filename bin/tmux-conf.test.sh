@@ -126,9 +126,38 @@ case "$d_binding" in
   *) fail "prefix + d asks before detaching" "got: ${d_binding:-<unbound>}" ;;
 esac
 case "$d_binding" in
-  *'_*'*) pass "a popup is exempt from the detach confirmation" ;;
+  *'#{E:@in_popup}'*) pass "a popup is exempt from the detach confirmation" ;;
   *) fail "a popup is exempt from the detach confirmation" "got: $d_binding" ;;
 esac
+
+# "Am I in a popup?" is one option, @in_popup, because bin/tmux-popup and
+# bin/tmux-agent-view name their sessions `_...` and six bindings have to agree
+# on what that means: p/t/o/a/A refuse to open a popup inside one, d skips its
+# confirmation there. Written out per binding it was six copies of a glob, and a
+# seventh binding copied wrong would stack popups with no error anywhere. So the
+# value is checked as a FORMAT, against a popup-named session and an ordinary
+# one, and each binding is checked for asking it.
+tmux -L "$socket" new-session -d -s _popup_probe
+tmux -L "$socket" new-session -d -s plain_probe
+in_popup=$(tmux -L "$socket" display-message -p -t _popup_probe: '#{E:@in_popup}')
+not_popup=$(tmux -L "$socket" display-message -p -t plain_probe: '#{E:@in_popup}')
+if [ "$in_popup" = 1 ] && [ "$not_popup" = 0 ]; then
+  pass "@in_popup is true in a popup session and false in any other"
+else
+  fail "@in_popup is true in a popup session and false in any other" \
+    "_popup_probe: [$in_popup], plain_probe: [$not_popup]"
+fi
+tmux -L "$socket" kill-session -t _popup_probe
+tmux -L "$socket" kill-session -t plain_probe
+prefix_keys=$(tmux -L "$socket" list-keys -T prefix 2>/dev/null)
+for k in p t o a A d; do
+  row=$(printf '%s\n' "$prefix_keys" |
+    grep -E "^bind-key +(-N \"[^\"]*\" +)?-T prefix +$k " | head -1)
+  case "$row" in
+    *'#{E:@in_popup}'*) pass "prefix + $k asks @in_popup" ;;
+    *) fail "prefix + $k asks @in_popup" "got: ${row:-<unbound>}" ;;
+  esac
+done
 
 # C-] is the way out of the answer view, and the footer that advertises it is
 # written by bin/tmux-agent-view -- so the binding has to exist here, be guarded

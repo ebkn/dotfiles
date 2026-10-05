@@ -200,14 +200,21 @@ case "$footer" in
   *) fail 'the footer is centred' "got: $footer" ;;
 esac
 
-# The cross-file half of the naming contract: .tmux.conf refuses prefix + p/t/o/a
-# when #{session_name} matches _*, which is what stops a popup being opened from
-# inside the mirror.
+# The cross-file half of the naming contract: .tmux.conf refuses prefix +
+# p/t/o/a/A when @in_popup holds, which is what stops a popup being opened from
+# inside the mirror. Its glob is read from the file, not restated here.
 session=$(sed -n 's/.*new-session -d -t work -s \([^ ]*\).*/\1/p' "$work/calls" | head -1)
-case "$session" in
-  _*) pass 'the mirror session name matches the _* guard in .tmux.conf' ;;
-  *) fail 'the mirror session name matches the _* guard in .tmux.conf' "got: $session" ;;
-esac
+guard_glob=$(sed -n "s/^set -g @in_popup '#{m:\([^,]*\),#{session_name}}'\$/\1/p" "$conf")
+if [ -z "$guard_glob" ]; then
+  fail 'the mirror session name matches the @in_popup glob in .tmux.conf' \
+    "no @in_popup line found in $conf"
+else
+  # shellcheck disable=SC2254 # the glob is the point: it is the guard's pattern
+  case "$session" in
+    $guard_glob) pass 'the mirror session name matches the @in_popup glob in .tmux.conf' ;;
+    *) fail 'the mirror session name matches the @in_popup glob in .tmux.conf' "got: $session" ;;
+  esac
+fi
 
 # --- list --------------------------------------------------------------------
 

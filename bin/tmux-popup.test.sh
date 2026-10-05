@@ -94,14 +94,19 @@ name_b=$(run '/tmp/s,1,1' popup | sed -n '4p')
 check 'different tmux sessions get different popup names' 'differ' \
   "$([ "$name_a" != "$name_b" ] && echo differ || echo "same: $name_a")"
 
-# The cross-file half of the contract: .tmux.conf guards with `#{m:_*,...}`, so
-# every name this produces must match that glob or the guard silently stops
-# recognising its own popups.
+# The cross-file half of the contract: .tmux.conf decides "in a popup" once, as
+# @in_popup, so every name this produces must match ITS glob or the guard
+# silently stops recognising its own popups. Read from the file rather than
+# restated here, which would only be a second copy of the rule to drift.
+guard_glob=$(sed -n "s/^set -g @in_popup '#{m:\([^,]*\),#{session_name}}'\$/\1/p" .tmux.conf)
+check 'the @in_popup glob can be read from .tmux.conf' 'yes' \
+  "$([ -n "$guard_glob" ] && echo yes || echo "no @in_popup line found")"
 matches_guard=yes
 for n in "$name_a" "$name_b" "$(run '/tmp/s,1,7' fzf_nvim | sed -n '4p')"; do
-  case "$n" in _*) ;; *) matches_guard="no: $n" ;; esac
+  # shellcheck disable=SC2254 # the glob is the point: it is the guard's pattern
+  case "$n" in $guard_glob) ;; *) matches_guard="no: $n" ;; esac
 done
-check 'every name matches the _* guard in .tmux.conf' 'yes' "$matches_guard"
+check 'every name matches the @in_popup glob in .tmux.conf' 'yes' "$matches_guard"
 
 # Failure modes are worth pinning too: a popup closes the instant its command
 # exits, so a silent exit 0 would look exactly like a working chord.
