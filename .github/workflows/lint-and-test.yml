@@ -68,6 +68,11 @@ jobs:
       - name: lint-shell target enumeration
         run: bash bin/lint-shell.test.sh
 
+      # This workflow lists its suites by hand, so a suite can be written and
+      # documented as gating CI while no step runs it -- three did. Static.
+      - name: every suite is run by CI
+        run: bash bin/ci-enrollment.test.sh
+
   test:
     runs-on: ubuntu-latest
     steps:
