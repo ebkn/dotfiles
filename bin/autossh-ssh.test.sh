@@ -10,7 +10,7 @@
 # `ssh` is stubbed -- nothing here may dial out -- and the stub records the argv
 # it was handed, which is the shim's real contract with autossh. The notice is
 # read off the shim's own stderr: with no controlling terminal the /dev/tty
-# write fails and `emit` falls back to stderr, and from attempt two onwards
+# write fails and the shim falls back to stderr, and from attempt two onwards
 # ssh's stderr goes to the log file, so stderr carries the notice alone.
 #
 # Run: bash bin/autossh-ssh.test.sh   (exit 0 = pass)

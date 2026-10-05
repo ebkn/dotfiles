@@ -87,7 +87,7 @@ case "${1:-}" in
     # remote that is a real window, not a theoretical one, and the damage lands
     # on a machine nobody is looking at.
     #
-    # bin/pr-review-lock.sh settles for `kill -0` because a recycled pid there
+    # bin/pr-review-common.sh settles for `kill -0` because a recycled pid there
     # only costs a missed steal. The mistake in this direction is destructive,
     # so liveness is not the question -- identity is. Matching on the monitor's
     # own argv (this script's name, the `monitor` mode, this conn_id) is what

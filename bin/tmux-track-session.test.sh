@@ -310,7 +310,7 @@ t "attach: starts the monitor, which records the session" "connG" \
 # free to hand the number to something else entirely. Signalling it blind kills
 # a bystander, on the remote, with nothing said anywhere.
 #
-# This is the opposite direction from bin/pr-review-lock.sh, where `kill -0` is
+# This is the opposite direction from bin/pr-review-common.sh, where `kill -0` is
 # enough: there a recycled pid costs a missed steal, here it costs somebody
 # else's process, so the pid has to be identified and not merely found alive.
 sleep 600 &

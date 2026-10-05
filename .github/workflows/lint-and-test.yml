@@ -260,10 +260,10 @@ jobs:
       - name: pr-review-watch
         run: bash bin/pr-review-watch.test.sh
 
-      # pr-review-dispatch types into live Claude sessions. Its failure mode is
-      # not "nothing happens" but "something happens at the wrong moment" -- a
-      # send-keys into a pane with a permission dialog open answers that dialog.
-      # The suite runs a throwaway tmux server, so tmux must be on the runner.
+      # pr-review-dispatch posts to a live Claude session's inbox socket. The
+      # message schema is undocumented and a rejected line is dropped in
+      # silence, so the suite asserts the exact bytes on a real socket (nc -lU):
+      # that is the only thing that goes red if the protocol moves.
       - name: pr-review-dispatch
         run: bash bin/pr-review-dispatch.test.sh
 
