@@ -66,7 +66,7 @@ be `sleep`, not the login shell.
 Confirmed red against a plain `switch-client`: four failures, including a session
 holding two clients.
 
-**Four lessons, each of which was a green test proving nothing:**
+**Three lessons, each of which was a green test proving nothing:**
 
 1. **Asserting on `$?` is worthless where the script ends in an unconditional
    `exit 0`** — the unarmed fallback did, so replacing that whole branch with `:`

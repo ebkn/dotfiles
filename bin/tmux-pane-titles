@@ -2,11 +2,12 @@
 #
 # tmux-pane-titles
 #
-# Collect unique directory basenames from all panes in the current tmux window
-# and set as the window name.
+# Label each pane in the current tmux window (ssh `≫` > `w:<worktree>` >
+# `b:<branch>` > directory basename), drop duplicates, and set the
+# comma-joined labels as the window name.
 #
 # Called only from zsh (chpwd and precmd hooks in zsh/directory.zsh, and the
-# ssh/myssh wrappers in zsh/alias.zsh), always with no arguments, so it acts on
+# ssh/myssh wrappers in zsh/ssh.zsh), always with no arguments, so it acts on
 # the caller's own window. It used to also run from tmux server-side hooks
 # (after-new-window / after-split-window / window-layout-changed), which passed
 # a window id and needed a debounce because a layout change fires them in

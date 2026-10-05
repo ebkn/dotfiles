@@ -18,7 +18,10 @@ one shell further down.
 The leading `_` is what the bindings' `#{m:_*,#{session_name}}` guard matches to
 refuse opening a popup from inside a popup. Renaming the scheme here without
 changing the guard makes `prefix + p` stack popups with no error.
-`tmux-popup.test.sh` pins both halves.
+`tmux-popup.test.sh` pins the naming half against a hard-coded `_*`; it does
+not read the guard from `.tmux.conf`, so the guard half is unpinned except for
+`prefix + d` (`tmux-conf.test.sh`). `tmux-track-session adopt` also skips `_*`
+sessions as popups, so it is a third reader of the same rule.
 
 [tmux-agent-view](tmux-agent-view.md) rides the same guard with its
 `_agent_<window>_<pid>` mirror sessions.

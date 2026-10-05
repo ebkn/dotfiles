@@ -93,7 +93,7 @@ silent: a `bind` line that lost its `-N` note simply vanishes, a mis-parsed key
 column shows a wrong-but-plausible chord, an awk subscript slip prints nothing at
 all, and a `set -e` slip does the same.
 
-Check a wide width (expect several columns of roughly equal height), a narrow one
+Check a wide width (expect two or three columns, filled in reading order), a narrow one
 (expect one), and `--all`.
 
 Geometry itself cannot be checked this way: confirm it in a real popup with

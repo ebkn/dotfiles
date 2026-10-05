@@ -34,7 +34,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --all) show_all=1 ;;
     # Pretend the popup is this wide. Exists so the column packing can be
-    # verified without a pty -- see the testing note in CLAUDE.md.
+    # verified without a pty -- bin/tmux-conf.test.sh (section 4) does this.
     --width)
       shift
       force_cols="${1:-}"
@@ -176,7 +176,7 @@ collect() {
 # land where, which depends on the count. The loop tries each candidate from
 # widest down, packs it for real, measures it, and takes the first that fits.
 #
-# Packing is balanced (columns filled to an even height) and never splits a
+# Packing fills columns in reading order (NOT levelled; see below) and never splits a
 # group across columns: a heading with its keys in the next column is worse
 # than an uneven page.
 layout() {
