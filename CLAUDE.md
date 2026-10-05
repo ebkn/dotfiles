@@ -120,7 +120,7 @@ the measurement and the reason live.
 - **`.zshrc` finds `zsh/` relative to itself** via `${(%):-%N}`, never `$0`, so a checkout anywhere loads its own modules. See [zsh/README.md](zsh/README.md); pinned by `zsh/zshrc-resolve.test.zsh`.
 - **Never `stat` a path under `/home` on macOS** — autofs makes it ~16ms per stat, on every zsh start. Guard on `$OSTYPE`. See [zsh/README.md](zsh/README.md).
 - **Tmux auto-start**: `.zshrc` starts tmux automatically and exits the shell when tmux closes.
-- **Lazy loading**: Language managers and CLI tools are lazy-loaded in `zsh/lang.zsh` for fast startup. Consequence: see the AWS note in Environment Notes below.
+- **Lazy loading**: `nvm`, `gcloud` and `kubectl` are lazy-loaded in `zsh/lang.zsh` for fast startup.
 - **Plugin managers**: Neovim uses lazy.nvim; Zsh uses Zinit.
 - **Everything clones over SSH, deliberately.** `.gitconfig` rewrites every `https://github.com/…` URL to SSH before git dials out, including zinit's plugin clones. So a brand-new machine can fetch **nothing** from GitHub until an SSH key is in place (key first, then first login), and **changing a URL here to HTTPS accomplishes nothing** — the rewrite converts it straight back, silently. Verify which transport a command really uses with `GIT_SSH_COMMAND=false git ls-remote https://github.com/…`; `GIT_CONFIG_GLOBAL=/dev/null` is the only switch that neutralizes it, at the cost of the credential helper.
 
@@ -169,10 +169,6 @@ Adopted from `tetsunavi-monorepo`'s `015_shell_scripts.md`, with the divergences
 - **`curl` that saves a response takes `-f`.** Without it a 4xx/5xx exits 0 and the error body is written as though it were the payload. `-sf` when silent, `-fsS` when the message is wanted.
 - **shellcheck runs at its default severity here, not the monorepo's `--severity=warning`.** The repo is small and already clean at style level, so there is nothing to gain by lowering the bar. Suppress a false positive on the **line above** it with a reason (`# shellcheck disable=SCxxxx`), never file-wide, and only after trying to satisfy the check instead. `external-sources` / `source-path` are set once in `/.shellcheckrc` so an editor and the gate agree.
 - **`set -eo pipefail` at the top of anything executed directly**; `-u` is optional and genuinely awkward around optional arguments and empty-array expansion on bash 3.2. **Sourced fragments get none of it** — `bin/init/common.sh`, `links.sh`, `bin/pr-review-common.sh` — because `set` mutates the caller's shell. Those three have no shebang either, so they are named inline in `bin/lint-shell` and carry `# shellcheck shell=bash`.
-
-## Environment Notes
-
-- **AWS CLI**: Use `/opt/homebrew/bin/aws` to invoke the AWS CLI. The `aws` command is lazy-loaded in zsh, so the bare `aws` may not resolve in non-interactive shells.
 
 ## Testing
 
