@@ -34,6 +34,11 @@ _uptime_reboot_warning() {
   print -u2 -- "         Outbound connections then fail. Reboot before that, or update to macOS 26.4+ (fixed)."
 }
 
+# Every tool here is named bare, never by absolute path. update.test.zsh runs
+# this whole function with an empty $path, which turns each line into "command
+# not found" so it reaches the warning at the end without touching the machine;
+# a line written as /opt/homebrew/bin/brew would really upgrade the machine the
+# test runs on.
 update-all() {
   brew upgrade
   brew upgrade --cask
