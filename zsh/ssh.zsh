@@ -285,7 +285,8 @@ myssh() {
 
   # After $?, never before: the notice state is per-connection scratch, and
   # cleaning it up ahead of the read would report rm's status as the
-  # connection's.
+  # connection's. ".log" is the file bin/autossh-ssh writes beside the state
+  # file; a scratch file it adds has to be named here too, or it leaks.
   [ -n "$notice_state" ] && rm -f "$notice_state" "$notice_state.log"
 
   _ssh_keepalive_stop

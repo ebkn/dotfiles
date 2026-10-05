@@ -41,6 +41,10 @@ esac
 attempt=$((attempt + 1))
 printf '%s' "$attempt" >"$state" 2>/dev/null
 
+# Named after the state file because myssh (zsh/ssh.zsh) owns both and removes
+# exactly "$state" and "$state.log" when the connection ends. A scratch file
+# added or renamed here leaks one temp file per connection unless that cleanup
+# line changes with it.
 log="$state.log"
 [ "$attempt" -eq 1 ] && exec "$ssh_bin" "$@"
 
