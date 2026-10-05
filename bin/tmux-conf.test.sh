@@ -165,6 +165,20 @@ for k in p t o a A g '?'; do
       ;;
     *) fail "prefix + $k refuses inside a popup, asking @in_popup" "got: ${row:-<unbound>}" ;;
   esac
+  # g and ? were wrapped in that guard after the fact, their command moved into
+  # its else block. That a config loads says nothing about whether the move kept
+  # the command intact, so the else block is checked to still open the same thing.
+  case $k in
+    g) want='gh pr view --web' ;;
+    '?') want='tmux-cheatsheet' ;;
+    *) continue ;;
+  esac
+  case "$row" in
+    *'already in a popup\"" { display-popup '*"$want"*'}'*)
+      pass "prefix + $k still opens its popup outside one"
+      ;;
+    *) fail "prefix + $k still opens its popup outside one" "want [$want] in the else block" "got: $row" ;;
+  esac
 done
 
 # C-] is the way out of the answer view, and the footer that advertises it is
