@@ -92,6 +92,9 @@ tmux new-session -d -s held "$IDLE"
 # restoring one would open a tab on a popup's shell. Skipped like `adopt` does.
 tmux new-session -d -s _popup_9 "$IDLE"
 tmux new-session -d -s _agent_3_99 "$IDLE"
+# Only a LEADING underscore marks a popup. A glob loosened to `*_*` would drop
+# an ordinary session like this one, silently.
+tmux new-session -d -s tidy_up "$IDLE"
 
 # A real client on `held`, so it counts as attached. script(1) differs between
 # BSD and util-linux; probe rather than branch on the platform.
@@ -118,7 +121,9 @@ t "a name with a space is attached exactly" "1" \
   "$(printf '%s\n' "$spawns" | grep -cx "cli spawn --pane-id 42 -- tmux attach -t =my work")"
 t "an attached session gets no tab" "0" "$(printf '%s\n' "$spawns" | grep -c 'held')"
 t "a popup session gets no tab" "0" "$(printf '%s\n' "$spawns" | grep -c -- '-t =_')"
-t "every tab goes into the focused client's window, never \$WEZTERM_PANE's" "2" \
+t "an underscore inside a name is not a popup" "1" \
+  "$(printf '%s\n' "$spawns" | grep -cx "cli spawn --pane-id 42 -- tmux attach -t =tidy_up")"
+t "every tab goes into the focused client's window, never \$WEZTERM_PANE's" "3" \
   "$(printf '%s\n' "$spawns" | grep -c -- '--pane-id 42 ')"
 t "focus returns to the focused pane" "cli activate-pane --pane-id 42" "$(tail -1 "$CALLS")"
 
@@ -130,6 +135,7 @@ t "focus returns to the focused pane" "cli activate-pane --pane-id 42" "$(tail -
 # must still reach the message rather than exit quietly.
 tmux kill-session -t "=$numeric"
 tmux kill-session -t '=my work'
+tmux kill-session -t '=tidy_up'
 : >"$CALLS"
 out=$(PATH="$DIR/stub:$PATH" "$SCRIPT" 2>&1)
 status=$?
