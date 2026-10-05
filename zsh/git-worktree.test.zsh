@@ -271,6 +271,18 @@ check 'accepting deletes the prompted branch as well' 'develop main unmerged ' "
 lacks 'gdmerged never offers a protected branch' "delete 'develop'" "$out"
 lacks 'gdmerged ignores unmerged branches' 'Processing branch: unmerged' "$out"
 
+# The trunk branches are one list, read by gpushf (refuses to force-push),
+# gdmerged (never deletes) and directory.zsh (shows no branch label for them).
+# It was four lists, and the two in directory.zsh had lost `master`. Whole
+# names only: a branch that merely contains one is an ordinary branch.
+trunk_of() { _git_is_trunk "$1" && print yes || print no; }
+for b in main master develop staging; do
+  check "$b is a trunk branch" yes "$(trunk_of "$b")"
+done
+for b in mainline feature/main xmaster ''; do
+  check "[$b] is not a trunk branch" no "$(trunk_of "$b")"
+done
+
 # A worktree on a merged branch goes with it.
 repo=$(merged_repo gd-worktree)
 git -C "$repo" worktree add -q "$repo/git-worktrees/gone-one" gone/one

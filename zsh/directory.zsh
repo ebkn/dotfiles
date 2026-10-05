@@ -24,11 +24,9 @@ if [[ -n "$SSH_CONNECTION" && -z "$TMUX" ]]; then
     local title="${PWD##*/}"
     local branch
     branch=$(git branch --show-current 2>/dev/null)
-    if [[ -n "$branch" ]]; then
-      case "$branch" in
-        main|develop|staging) ;;
-        *) title="b:$branch" ;;
-      esac
+    # Trunk branches carry no label (_git_is_trunk, zsh/git.zsh).
+    if [[ -n "$branch" ]] && ! _git_is_trunk "$branch"; then
+      title="b:$branch"
     fi
     printf '\e]2;%s\a' "$title"
   }
@@ -65,17 +63,14 @@ if [[ -n "$TMUX" ]]; then
       tmux set-option -p @git_worktree '' 2>/dev/null
     fi
 
-    # Branch: skip default-ish branches where the name carries no
-    # meaningful signal. tmux-pane-titles falls back to the directory
-    # basename when @git_branch is empty.
-    case "$branch" in
-      ''|main|develop|staging)
-        tmux set-option -p @git_branch '' 2>/dev/null
-        ;;
-      *)
-        tmux set-option -p @git_branch "$branch" 2>/dev/null
-        ;;
-    esac
+    # Branch: skip the trunk branches (_git_is_trunk, zsh/git.zsh), where the
+    # name carries no meaningful signal. tmux-pane-titles falls back to the
+    # directory basename when @git_branch is empty.
+    if [[ -z "$branch" ]] || _git_is_trunk "$branch"; then
+      tmux set-option -p @git_branch '' 2>/dev/null
+    else
+      tmux set-option -p @git_branch "$branch" 2>/dev/null
+    fi
   }
   _tmux_update_pane_titles() {
     _tmux_set_git_pane_options

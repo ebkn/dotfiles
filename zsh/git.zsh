@@ -31,10 +31,20 @@ gs() {
   git switch $(echo "$branch" | sed "s/.* //" | sed "s#remotes/[^/]*/##")
 }
 alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD` --recurse-submodules'
+# The trunk branches: never force-pushed (gpushf), never deleted (gdmerged),
+# and given no branch label in titles (directory.zsh, which is sourced earlier
+# but only calls _git_is_trunk from its hooks, after every module has loaded).
+# One list because it was four, and two of them had already lost `master`. An
+# ERE alternation, since gdmerged hands it to `grep -E`.
+typeset -g _TRUNK_BRANCHES='main|master|develop|staging'
+_git_is_trunk() { # <branch>
+  [[ "$1" =~ "^(${_TRUNK_BRANCHES})\$" ]]
+}
+
 alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
 gpushf() {
   local branch=$(git rev-parse --abbrev-ref HEAD)
-  if [[ "$branch" =~ ^(main|master|develop|staging)$ ]]; then
+  if _git_is_trunk "$branch"; then
     echo "Error: force-push to '$branch' is not allowed." >&2
     return 1
   fi
@@ -411,9 +421,8 @@ function gdmerged() {
   echo "Current branch: $current_branch"
   echo "Using base branch for merge check: $current_branch"
 
-  local protected='main|master|develop|staging'
   local merged_branches=$(git branch --merged "$current_branch" \
-    | sed 's/^[*+ ]*//' | grep -v -E "^($current_branch|$protected)$")
+    | sed 's/^[*+ ]*//' | grep -v -E "^($current_branch|$_TRUNK_BRANCHES)$")
 
   if [ -z "$merged_branches" ]; then
     echo "No merged branches found."
