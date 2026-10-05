@@ -39,8 +39,11 @@ if ! enrolled=$(awk '$1 == "run:" && ($2 == "bash" || $2 == "zsh") && NF == 3 { 
   fail "could not read $workflow"
 fi
 
+# A here-string, not `printf | grep -q`: under pipefail, grep -q exiting on its
+# match can SIGPIPE the writer and turn a match into status 141 -- which the
+# not_in_ci check below would read as "CI does not run it" and pass.
 listed() { # <needle> <newline-separated list>
-  printf '%s\n' "$2" | grep -qxF -- "$1"
+  grep -qxF -- "$1" <<<"$2"
 }
 
 count=0
