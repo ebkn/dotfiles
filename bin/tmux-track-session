@@ -209,6 +209,10 @@ $saved
         claim "$conn_id" "$session"
         prev="$session"
       fi
+      # The trap waits out this sleep, so a death or a switch can take up to one
+      # interval to show. tmux-track-session.test.sh polls for both with fixed
+      # ceilings sized against it (wait_record 6s, wait_gone 5s): raise this and
+      # those have to grow with it, or the suite fails on timing alone.
       sleep 2
     done
     rm -f "$PID_DIR/$conn_id"

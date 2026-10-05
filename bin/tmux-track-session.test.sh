@@ -101,7 +101,9 @@ read_record() { cat "$SESSION_DIR/$1" 2>/dev/null || echo '<none>'; }
 # Poll for a record to reach <expected> rather than sleeping a fixed amount and
 # reading once. Returns as soon as it matches, so a pass is immediate and only a
 # genuine failure pays the timeout -- and the value it echoes on timeout is the
-# real one, so the failure report names what was actually there.
+# real one, so the failure report names what was actually there. The 6s ceiling
+# (and wait_gone's 5s) is sized against the monitor's `sleep 2`, which a signal
+# or a switch has to wait out; the two move together.
 wait_record() { # wait_record <conn_id> <expected>
   for _ in $(seq 1 60); do
     [ "$(read_record "$1")" = "$2" ] && break
