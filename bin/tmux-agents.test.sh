@@ -1358,6 +1358,36 @@ STUB
     fail "a refused ctrl-o leaves the client where it was" "client moved to $on"
   fi
 
+  # The check after the picker, on a REMOTE blocked row. The binding refuses such
+  # a row inside fzf, so this half is reached only if a future fzf ignored that,
+  # and it has to hold on its own. Only here, with a client, is a missing refusal
+  # visible: the view would open on whichever LOCAL window carries the remote
+  # row's ids -- so the row is given ask-win's own ids to make that the outcome.
+  # The stub reads its stdin first: left unread, the script's printf into it can
+  # die of SIGPIPE, and pipefail then ends the run before the check is reached.
+  ask_win_id=$(tmux -L "$socket" list-windows -t tabB -F '#{window_name} #{window_id}' |
+    awk '$1 == "ask-win" { print $2 }')
+  ask_pane_id=$(tmux -L "$socket" list-panes -t tabB:ask-win -F '#{pane_id}' | head -1)
+  cp "$work/stub/fzf" "$work/fzf.pick"
+  cat >"$work/stub/fzf" <<STUB
+#!/bin/sh
+cat >/dev/null
+printf 'ctrl-o\n%s\t%s\n' "bakery|$ask_win_id|$ask_pane_id|asking" "remote row"
+exit 0
+STUB
+  refused=$(said_count "answering a remote agent here is not supported yet")
+  press_ctrl_o unused
+  if wait_said "$refused" "answering a remote agent here is not supported yet" &&
+    [ "$(mirrors)" = 0 ]; then
+    pass "ctrl-o on a remote row that got past the picker is still refused"
+  else
+    fail "ctrl-o on a remote row that got past the picker is still refused" \
+      "sessions: $(tmux -L "$socket" list-sessions -F '#{session_name}' | tr '\n' ' ')" \
+      "messages: $(msg_log | tail -3 | tr "\n" "|")" \
+      "$(cat "$work/out" 2>/dev/null)"
+  fi
+  cp "$work/fzf.pick" "$work/stub/fzf"
+
   press_ctrl_o ask-win
   wait_mirror
   # Both sizes come out of one list-clients, matched by name. `display-message
@@ -1503,6 +1533,33 @@ STUB
       "no mirror session appeared" "$(cat "$work/first" 2>/dev/null)"
   fi
   drop_mirrors
+
+  # Several blocked at once: A answers the most urgent, rank before age. Every
+  # case above has exactly one local blocked row, so a pick that kept going and
+  # took the LAST blocked row -- the least urgent -- would pass them all. The
+  # needs_input row is the OLDER one, so age alone would choose it instead.
+  tmux -L "$socket" new-window -t tabB -n need-win "$IDLE"
+  need_pane=$(tmux -L "$socket" list-panes -t tabB:need-win -F '#{pane_id}' | head -1)
+  tmux -L "$socket" set-option -p -t "$need_pane" @claude_state needs_input
+  tmux -L "$socket" set-option -p -t "$need_pane" @claude_since $((now - 3600))
+  tmux -L "$socket" set-option -p -t "$ask_pane" @claude_state asking
+  tmux -L "$socket" set-option -p -t "$ask_pane" @claude_since "$now"
+  answer_first
+  if wait_mirror; then
+    shown=$(tmux -L "$socket" list-clients -F '#{client_session} #{window_name}' |
+      awk '$1 ~ /^_agent_/ { print $2; exit }')
+    if [ "$shown" = ask-win ]; then
+      pass "prefix + A answers the most urgent of several blocked agents, rank before age"
+    else
+      fail "prefix + A answers the most urgent of several blocked agents, rank before age" \
+        "the view is showing [$shown]"
+    fi
+  else
+    fail "prefix + A answers the most urgent of several blocked agents, rank before age" \
+      "no mirror session appeared" "$(cat "$work/first" 2>/dev/null)"
+  fi
+  drop_mirrors
+  tmux -L "$socket" kill-window -t tabB:need-win 2>/dev/null
   tmux -L "$socket" set-option -pu -t "$ask_pane" @claude_state
 
   # A REMOTE blocked agent must be refused, not opened. This is the half of the
@@ -1642,6 +1699,16 @@ if [ "$out" = "change-header(ctrl-o: a remote agent cannot be answered here yet)
   pass "--answer-check refuses a remote blocked row, saying why"
 else
   fail "--answer-check refuses a remote blocked row, saying why" "got: $out"
+fi
+
+# "Not blocked" is decided before "remote". prefix + A reads the same verdict to
+# choose between "the blocked agent is remote" and "nothing is waiting on you",
+# so with the two tests swapped it would report a remote block that is not there.
+out=$(answer_check "bakery|@9|%9|busy")
+if [ "$out" = "change-header(ctrl-o: that session is not waiting on you)" ]; then
+  pass "--answer-check calls a remote row that is not blocked not waiting, not remote"
+else
+  fail "--answer-check calls a remote row that is not blocked not waiting, not remote" "got: $out"
 fi
 
 for st in busy idle stalled ""; do
