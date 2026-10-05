@@ -133,7 +133,7 @@ Pinned by `zsh/update.test.zsh`.
 | `his.test.zsh` | `his()` and `gs()` — see [alias.md](alias.md) |
 | `rm.test.zsh`, `fd.test.zsh` | the two `alias.zsh` wrappers |
 | `git-worktree.test.zsh` | `gw()` and `gdmerged()` — see [git.md](git.md) |
-| `update.test.zsh` | which releases and uptimes `update-all`'s warning speaks on |
+| `update.test.zsh` | which releases and uptimes `update-all`'s warning speaks on, and that `update-all` still ends with it |
 
 After changing shell config, verify with a new shell session or
 `source ~/.zshrc`. Startup profiling can be enabled by uncommenting the `zprof`
@@ -170,3 +170,29 @@ and the expectation is derived from the filesystem rather than hard-coded.
 
 Confirmed red by deleting the guard — only the xtrace case fails, which is the
 point of having it.
+
+### update.test.zsh
+
+`sysctl` and `date` are functions, so a case chooses the release and the uptime.
+The `sysctl` stub answers per OID — one value per line, in the order asked — so
+no case depends on whether the function reads its two values in one call.
+
+Most of the expectations are *silence*, which is also what a function that never
+ran produces. So every case captures stderr: a missing or crashing function
+prints `command not found` and fails them, rather than passing as quiet.
+
+Three cases earn their keep:
+
+- **`update-all` ends with the warning.** The function can pass every case of
+  its own while `update-all` no longer calls it — and a warning that stopped
+  firing looks exactly like a healthy machine. The case runs the real
+  `update-all` with an empty `path`: it names every tool bare, so each becomes
+  `command not found` and nothing on the machine is touched. **A line that named
+  a tool by absolute path would run for real there.** Confirmed red by deleting
+  the call.
+- **The real `kern.boottime` parses** (macOS only, and it says so when skipped
+  on the Linux runner). The stub is a hand copy of what one Mac printed, and the
+  first manual check proved nothing: on a machine up two days the function is
+  silent whether it parsed the boot time or failed to. So the case feeds the
+  real line through with the clock set to the year 2286.
+- **Both edges of the gate**: Darwin 25.0 and 25.3 warn, 24.x and 25.4 do not.

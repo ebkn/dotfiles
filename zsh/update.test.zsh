@@ -1,11 +1,13 @@
 #!/usr/bin/env zsh
-# Unit tests for _uptime_reboot_warning (zsh/update.zsh).
+# Unit tests for _uptime_reboot_warning and its place in update-all
+# (zsh/update.zsh).
 #
 # The warning predicts a failure that gives no notice of its own: on macOS
 # 26.0-26.3 the kernel's TCP clock stops 49.7 days after boot, TIME_WAIT sockets
 # are never reaped again, and days later every outbound connection fails at
 # once. A warning that quietly stopped firing looks exactly like a healthy
-# machine -- so the cases pin when it speaks and which releases it speaks on.
+# machine -- so the cases pin when it speaks, which releases it speaks on, and
+# that update-all still ends with it.
 #
 # sysctl and date are replaced by functions, so the release and the uptime are
 # whatever a case says. The sysctl stub answers per OID the way the real one
@@ -118,6 +120,17 @@ check 'silent on Linux, whatever sysctl would have said' \
   "$(warning_on $AFFECTED $LONG linux-gnu)"
 
 # A machine it cannot read must not come out as "up 20000 days".
+check 'silent when sysctl fails' \
+  '' \
+  "$(
+    (
+      OSTYPE=darwin25.0
+      sysctl() { return 1; }
+      date() { print -r -- "$NOW"; }
+      _uptime_reboot_warning 2>&1
+    )
+  )"
+
 check 'silent when kern.boottime is not in the shape it reads' \
   '' \
   "$(
@@ -127,6 +140,55 @@ check 'silent when kern.boottime is not in the shape it reads' \
       _uptime_reboot_warning 2>&1
     )
   )"
+
+# It is update-all's last statement, so its status is update-all's status.
+check 'a warning is not a failure: the status stays 0' \
+  '0' \
+  "$(
+    (
+      OSTYPE=darwin25.0
+      stub_machine $AFFECTED "$(boottime_at $LONG)"
+      _uptime_reboot_warning 2>/dev/null
+      print -r -- $?
+    )
+  )"
+
+# update-all names every tool bare, so an empty path turns each of them into
+# "command not found" and the function runs to its end without touching the
+# machine. (A line that named a tool by absolute path would run for real here.)
+# relink is a function so that there is something for the warning to follow.
+check 'update-all ends with the warning, after relink' \
+  "*relink ran"$'\n'"${(b)$(warning_on $AFFECTED $LONG)}" \
+  "$(
+    (
+      OSTYPE=darwin25.0
+      stub_machine $AFFECTED "$(boottime_at $LONG)"
+      relink() { print -r -- 'relink ran'; }
+      path=()
+      update-all 2>&1
+    )
+  )"
+
+# The stub is a hand copy of what one Mac printed. On a Mac, hold it against the
+# real thing: the release must have the shape the gate reads, and the real boot
+# time must parse. The clock is set to the year 2286 so that any real uptime is
+# past day 30, and the release is pinned because this Mac is probably fixed.
+if [[ "$OSTYPE" == darwin* ]]; then
+  real=("${(@f)$(command sysctl -n kern.osrelease kern.boottime)}")
+  check 'the real kern.osrelease is major.minor.patch' \
+    '<->.<->.<->' \
+    "$real[1]"
+  check 'the real kern.boottime parses' \
+    '*up <-> days*' \
+    "$(
+      (
+        stub_machine $AFFECTED "$real[2]" 9999999999
+        _uptime_reboot_warning 2>&1
+      )
+    )"
+else
+  printf 'skip the two cases that read the real sysctl (not macOS)\n'
+fi
 
 if (( failures )); then
   printf '\n%d test(s) failed\n' "$failures"

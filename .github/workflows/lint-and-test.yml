@@ -333,6 +333,7 @@ jobs:
       # update-all's uptime warning predicts a failure that gives no notice of
       # its own, so a warning that quietly stopped firing would look exactly
       # like a machine that is fine. The runner is Linux, so the kernel release
-      # and uptime are stubbed.
+      # and uptime are stubbed, and the two cases that hold the stub against a
+      # real Mac's sysctl are skipped here.
       - name: update-all uptime warning
         run: zsh zsh/update.test.zsh
