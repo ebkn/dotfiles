@@ -22,8 +22,9 @@ changing that one line makes `prefix + p` stack popups with no error. Both
 halves are pinned: `tmux-popup.test.sh` reads the glob from the `@in_popup` line
 and matches every name it builds against it, and `tmux-conf.test.sh` evaluates
 `@in_popup` against a popup-named and an ordinary session and checks each
-guarded binding asks it. `tmux-track-session adopt` also skips `_*` sessions as
-popups — a third reader of the same rule, not yet tied to the line.
+guarded binding asks it. `tmux-track-session adopt` and `tmux-restore-tabs` also
+skip `_*` sessions as popups — two more readers of the same rule, each pinned by
+its own suite but not tied to the `@in_popup` line.
 
 [tmux-agent-view](tmux-agent-view.md) rides the same guard with its
 `_agent_<window>_<pid>` mirror sessions.

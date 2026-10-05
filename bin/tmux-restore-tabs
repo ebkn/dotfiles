@@ -35,9 +35,17 @@ export WEZTERM_UNIX_SOCKET=~/.local/share/wezterm/default-org.wezfurlong.wezterm
 # found with awk's index($0, $3), which returns the name's FIRST occurrence on
 # the line -- inside the timestamp for a numeric name like "35" on
 # "1790660355 35" -- so the tab attached to a session that does not exist.
+#
+# Popup sessions (`_*`: bin/tmux-popup, bin/tmux-agent-view) are skipped. They
+# outlive their popup unattached but never had a tab, so restoring one would
+# open a tab on a popup's shell. Same glob as .tmux.conf's @in_popup and as
+# `tmux-track-session adopt`; dropped here, before the empty check, so a server
+# holding only popups reports nothing to restore.
 sessions=()
 for line in "${(@f)$(tmux list-sessions -f '#{==:#{session_attached},0}' -F '#{session_created} #{session_name}' 2>/dev/null | sort -s -n -k1,1)}"; do
-  [[ -n "$line" ]] && sessions+=("${line#* }")
+  [[ -n "$line" ]] || continue
+  [[ "${line#* }" == _* ]] && continue
+  sessions+=("${line#* }")
 done
 
 if [[ ${#sessions[@]} -eq 0 || -z "${sessions[1]}" ]]; then

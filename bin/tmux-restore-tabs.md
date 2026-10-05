@@ -1,7 +1,10 @@
 # tmux-restore-tabs
 
 Re-opens one WezTerm tab per unattached tmux session, oldest first, after WezTerm
-died while tmux survived. For the case where the *remote* sessions survived
+died while tmux survived. Popup sessions (`_*`, from `tmux-popup` and
+`tmux-agent-view`) are skipped: they outlive their popup unattached but never had
+a tab, and restoring one opened a tab on a popup's shell. A server holding only
+popups reports nothing to restore. For the case where the *remote* sessions survived
 instead, see [tmux-restore-ssh-tabs.md](tmux-restore-ssh-tabs.md).
 
 ## Which pane is "here"

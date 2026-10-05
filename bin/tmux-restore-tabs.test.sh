@@ -87,6 +87,11 @@ t "harness: the numeric name is three digits of its own timestamp" "yes" \
   "$(case "$numeric" in [0-9][0-9][0-9]) case "$created" in *"$numeric"*) echo yes ;; esac ;; esac)"
 tmux new-session -d -s 'my work' "$IDLE"
 tmux new-session -d -s held "$IDLE"
+# Popup sessions (bin/tmux-popup's `_<name>_<id>`, tmux-agent-view's
+# `_agent_...`) outlive their popup unattached, and never had a tab of their own:
+# restoring one would open a tab on a popup's shell. Skipped like `adopt` does.
+tmux new-session -d -s _popup_9 "$IDLE"
+tmux new-session -d -s _agent_3_99 "$IDLE"
 
 # A real client on `held`, so it counts as attached. script(1) differs between
 # BSD and util-linux; probe rather than branch on the platform.
@@ -112,12 +117,15 @@ t "a numeric name found inside the timestamp is attached exactly" "1" \
 t "a name with a space is attached exactly" "1" \
   "$(printf '%s\n' "$spawns" | grep -cx "cli spawn --pane-id 42 -- tmux attach -t =my work")"
 t "an attached session gets no tab" "0" "$(printf '%s\n' "$spawns" | grep -c 'held')"
+t "a popup session gets no tab" "0" "$(printf '%s\n' "$spawns" | grep -c -- '-t =_')"
 t "every tab goes into the focused client's window, never \$WEZTERM_PANE's" "2" \
   "$(printf '%s\n' "$spawns" | grep -c -- '--pane-id 42 ')"
 t "focus returns to the focused pane" "cli activate-pane --pane-id 42" "$(tail -1 "$CALLS")"
 
-# Nothing to restore: every remaining session has a client. This is what a
-# second run looks like, and the path the session loop's rewrite runs through
+# Nothing to restore: every remaining session has a client, or is a popup's --
+# the two popup sessions above are still there, unattached, so this is also
+# what proves they are dropped BEFORE the empty check rather than after it.
+# This is what a second run looks like, and the path the session loop's rewrite runs through
 # with empty input -- its last iteration ends non-zero, which under `set -e`
 # must still reach the message rather than exit quietly.
 tmux kill-session -t "=$numeric"
