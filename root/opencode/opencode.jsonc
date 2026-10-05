@@ -1,3 +1,21 @@
 {
-  "$schema": "https://opencode.ai/config.json"
+  "$schema": "https://opencode.ai/config.json",
+  // Keep MCP servers in this file, not in a sibling opencode.json: only
+  // opencode.jsonc is linked into ~/.config/opencode (bin/init/links.sh), so
+  // anything an installer writes to opencode.json reaches no other machine.
+  // The AWS CLI's MCP installer does write there — move the entry here.
+  "mcp": {
+    // Signs requests with the local AWS credential chain; with no credentials
+    // the proxy exits at startup and the server simply shows as failed.
+    "aws-mcp": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "mcp-proxy-for-aws@latest",
+        "https://aws-mcp.us-east-1.api.aws/mcp",
+        "--metadata",
+        "INSTALL_SOURCE=aws-cli"
+      ]
+    }
+  }
 }
