@@ -57,7 +57,7 @@ update-all() {
   go install tailscale.com/cmd/tailscale{,d}@main
   # --ignore-scripts=false overrides ~/.npmrc's global ignore-scripts=true: this
   # is a curated, trusted list, and some (e.g. @openai/codex) need postinstall
-  # to build/fetch a native binary. Keep in sync with bin/init/macos.sh.
+  # to build/fetch a native binary. Keep in sync with bin/init/{macos,ubuntu,wsl}.sh.
   npm update --location=global --ignore-scripts=false
   npm i -g --ignore-scripts=false diagnostic-languageserver
   npm i -g --ignore-scripts=false dockerfile-language-server-nodejs

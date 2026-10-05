@@ -183,7 +183,7 @@ install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-others"
 log_step "Skipping Docker CE (use Docker Desktop for Windows with WSL integration)"
 
 log_step "Installing Go tools"
-# Keep this list aligned with zsh/alias.zsh:update-all go installs.
+# Keep this list aligned with zsh/update.zsh:update-all go installs.
 # Tailscale is intentionally omitted: WSL2 uses the Windows-side Tailscale
 # app and shares the Windows network stack via mirrored networking mode.
 install_go_tool "golang.org/x/tools/...@latest"
@@ -254,7 +254,7 @@ install_or_upgrade_volta
 install_or_upgrade_node_with_volta
 # Link .npmrc before npm runs so min-release-age applies on first install.
 link_with_backup "${DOTFILES_DIR}/.npmrc" "${HOME}/.npmrc"
-# Keep this list aligned with zsh/alias.zsh:update-all npm global installs.
+# Keep this list aligned with zsh/update.zsh:update-all npm global installs.
 install_or_upgrade_npm_global "diagnostic-languageserver"
 install_or_upgrade_npm_global "dockerfile-language-server-nodejs"
 install_or_upgrade_npm_global "markdownlint-cli"

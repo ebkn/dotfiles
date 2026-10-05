@@ -5,9 +5,10 @@
 # things about it are easy to break and impossible to notice by using the shell
 # normally, because both failure modes look like a successful delete:
 #
-#   1. trash missing. It is macOS-only and absent until `brew bundle` has run,
-#      so the wrapper must fall back to the real rm rather than leaving the
-#      shell with no working rm at all.
+#   1. trash missing. There is none on Linux, nor on macOS old enough to
+#      predate /usr/bin/trash (Homebrew's formula is deliberately not a
+#      dependency; see zsh/alias.zsh), so the wrapper must fall back to the
+#      real rm rather than leaving the shell with no working rm at all.
 #   2. what actually reaches trash. The wrapper drops flags on purpose (so
 #      `rm -rf dir` still goes to the trash rather than being refused), and
 #      dropping the wrong thing silently deletes the wrong file.

@@ -226,8 +226,10 @@ myssh() {
   if $use_autossh; then
     # Interactive: auto-reconnect with per-pane remote tmux session.
     # Each local tmux pane gets its own remote session so multiple panes
-    # connecting to the same host stay independent. On reconnect, autossh
-    # reattaches to the same session via -A (attach-or-create).
+    # connecting to the same host stay independent. On reconnect, the remote
+    # command goes through tmux-track-session attach (the last session this
+    # connection visited, if no other client holds it); `new-session -A` is
+    # only the fallback when that script is not deployed.
     # NOTE: `exit` on the remote destroys the session (last window gone).
     # Closing the local pane or losing the network leaves the remote
     # session detached (shell still running), which autossh reattaches

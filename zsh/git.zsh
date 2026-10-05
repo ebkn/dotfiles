@@ -44,9 +44,10 @@ gpushf() {
 # --- worktree workflow -----------------------------------------------------
 #
 # gw() creates or picks a worktree; gdmerged() deletes the ones whose branches
-# are merged. Both used to be one long function each, which hid how much they
-# share -- notably the `git worktree list --porcelain` parse below, which
-# gdmerged open-coded through a temp file.
+# are merged. Both used to be one long function each; they are now split into
+# named helpers, such as the `git worktree list --porcelain` parse below, which
+# gdmerged used to open-code through a temp file. (open-worktree-tabs still
+# parses --porcelain on its own, and the picker reads the human format.)
 #
 # Everything named `_gw_*` / `_gdmerged_*` is an implementation detail of the
 # function it is named after; nothing else calls them.

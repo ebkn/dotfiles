@@ -190,7 +190,7 @@ install_or_upgrade_volta
 install_or_upgrade_node_with_volta
 # Link .npmrc before npm runs so min-release-age applies on first install.
 link_with_backup "${DOTFILES_DIR}/.npmrc" "${HOME}/.npmrc"
-# Keep this list aligned with zsh/alias.zsh:update-all npm global installs.
+# Keep this list aligned with zsh/update.zsh:update-all npm global installs.
 install_or_upgrade_npm_global "diagnostic-languageserver"
 install_or_upgrade_npm_global "dockerfile-language-server-nodejs"
 install_or_upgrade_npm_global "markdownlint-cli"
@@ -216,7 +216,7 @@ if [ "$CI" != "true" ]; then
 fi
 
 log_step "Installing Go tools"
-# Keep this list aligned with zsh/alias.zsh:update-all go installs.
+# Keep this list aligned with zsh/update.zsh:update-all go installs.
 install_go_tool "golang.org/x/tools/...@latest"
 install_go_tool "github.com/cweill/gotests/...@latest"
 install_go_tool "github.com/mattn/efm-langserver@latest"

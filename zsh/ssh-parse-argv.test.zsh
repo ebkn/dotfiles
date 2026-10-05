@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# Unit tests for _ssh_parse_argv (zsh/alias.zsh).
+# Unit tests for _ssh_parse_argv (zsh/ssh.zsh).
 #
 # The function walks an ssh argument list the same way ssh itself does, to find
 # which argument is the target host. Everything downstream depends on getting

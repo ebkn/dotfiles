@@ -112,10 +112,8 @@ Pinned by `zsh/update.test.zsh`.
 
 - **Tmux auto-start**: `.zshrc` starts tmux automatically and exits the shell
   when tmux closes.
-- **Lazy loading**: language managers and CLI tools (nvm, pyenv, rbenv, swiftenv,
-  gcloud, kubectl, npm, aws) are lazy-loaded via function-wrapping in
-  `zsh/lang.zsh` for fast shell startup. Consequence: the bare `aws` may not
-  resolve in a non-interactive shell — use `/opt/homebrew/bin/aws`.
+- **Lazy loading**: `nvm`, `gcloud` and `kubectl` are lazy-loaded via
+  function-wrapping in `zsh/lang.zsh` for fast shell startup.
 - **Plugin manager**: Zinit (`zsh/plugin.zsh`).
 
 ## Testing
