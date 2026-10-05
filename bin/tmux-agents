@@ -73,6 +73,9 @@ readonly SENTINEL=$'\036\037\036agents\036\037\036'
 # will answer (answer_verdict). Each of those once kept its own copy, and the
 # copies drifted -- needs_input reached some and not others, and the one it was
 # missing from left that state stuck red. awk gets it with -v and builds a set.
+# The producer decides the same set in root/.claude/hooks/agent-state.sh (the
+# states glyph_of paints 🛑, and unblock_actors) -- a blocked state added there
+# has to be added here too, or its tab goes red while this list shows it green.
 readonly BLOCKED_STATES='asking waiting needs_input'
 
 # Seconds between refreshes while the picker is open. Each one costs a collect

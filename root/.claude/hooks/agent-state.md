@@ -56,7 +56,11 @@ picker prints no state text, so a row's glyph no longer says *which* block it is
 reporting. It does say that `ctrl-o` applies — the key is offered for all three
 red states, which is what keeps "red" a single actionable category — but the
 state itself still travels in the row's hidden key field, so anything that needs
-to tell them apart reads that, never the rendering.
+to tell them apart reads that, never the rendering. **A new 🛑 state must also be
+added to `BLOCKED_STATES` in `bin/tmux-agents`** (and to the `case` in
+`unblock_actors` here): the picker's glyph, its ranking, `ctrl-o` and
+`prefix + A` all read "blocked" from that one list, so a state missing from it
+paints the tab red while the picker shows it green and `ctrl-o` refuses it.
 
 Both halves of this cost a revision to learn. 🔘 was worn by both `stalled` and
 what is now `needs_input`, so "a worker is blocked on you" and "your turn

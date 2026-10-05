@@ -371,7 +371,9 @@ glyph_of() {
   # the three blocked states it is (ctrl-o answers all three, and `prefix + A`
   # ranks `needs_input` below the other two). The state
   # itself still travels in the row's hidden key field, so anything that needs
-  # to distinguish them reads that, never the rendering.
+  # to distinguish them reads that, never the rendering. A new 🛑 state also
+  # goes into BLOCKED_STATES in bin/tmux-agents (and the case in
+  # unblock_actors): the picker, ctrl-o and prefix + A read "blocked" from there.
   #
   # Giving different meanings one colour is the mistake this replaced — 🔘 was
   # worn by both `stalled` and what is now `needs_input`, and being grey it read
