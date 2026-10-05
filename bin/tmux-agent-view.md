@@ -134,7 +134,8 @@ What earns its keep is everything whose absence is silent:
   in `.tmux.conf`, since the view is the only place that key is advertised;
 - the `-C` *before* the second `display-popup`, without which tmux modifies the
   picker's popup and `ctrl-o` looks like a dead key;
-- the `_*` session name that the `.tmux.conf` guard depends on;
+- the `_*` session name that the `.tmux.conf` guard depends on, matched against
+  the glob read from its `@in_popup` line;
 - the sweep killing only *unattached* mirrors;
 - the reopened list's geometry, which is duplicated in `.tmux.conf` because a
   binding cannot read it from the script.

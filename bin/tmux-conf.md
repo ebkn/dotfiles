@@ -14,7 +14,8 @@ tmux the way `p`/`t`/`o`/`u` are, so a mistyped `d` detaches the client in front
 of you and drops you out of everything local — the expensive direction of the
 mistake, and an easy one to make while working on a remote.
 
-Popups are exempt (`#{m:_*,#{session_name}}`): there `d` closes a popup, which is
+Popups are exempt (`#{E:@in_popup}`, the one place the `_*` glob is written; see
+[tmux-popup.md](tmux-popup.md)): there `d` closes a popup, which is
 what it looks like it does, and asking on the way out of a view is friction with
 nothing to protect.
 
@@ -126,9 +127,15 @@ equality, which is the comparison that was meant.
 
 What it asserts:
 
-- `prefix + d` asks before it detaches. Note `list-keys -T prefix d` returns
-  nothing on 3.7 (the key argument is not honoured), so the whole table is listed
-  and the row grepped out.
+- `prefix + d` asks before it detaches, except inside a popup — matched with the
+  branches in order, since the two words anywhere in the row also pass with the
+  branches swapped. Note `list-keys -T prefix d` returns nothing on 3.7 (the key
+  argument is not honoured), so the whole table is listed and the row grepped
+  out.
+- `@in_popup` evaluates to 1 against a `_`-named session and 0 against any other,
+  and `p`/`t`/`o`/`a`/`A` each refuse on it as the TRUE branch. It is checked as a
+  format on the loaded server, not as text, because the glob only means anything
+  once tmux expands it.
 - `C-]` leaves an agent view — read out of the **root** table, since a prefix
   chord there would reintroduce the nested-tmux ambiguity it exists to avoid —
   and `send-keys` the key through outside a view. Both are guarded on

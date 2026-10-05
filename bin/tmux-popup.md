@@ -53,8 +53,8 @@ which needs an attached client.
 
 So the stub records argv and the assertions are on the command line the script
 decides, which is the part it owns. The load-bearing case is that every name it
-produces matches `_*`: that glob is what the `.tmux.conf` guard tests, and a
-mismatch makes `prefix + p` stack popups silently.
+produces matches the glob in `.tmux.conf`'s `@in_popup` line — read from that
+line, not restated — and a mismatch makes `prefix + p` stack popups silently.
 
 **The end-to-end path cannot be automated here** — after changing `tmux-popup`,
 press `prefix + p`, then `prefix + p` again inside the popup and expect "already
