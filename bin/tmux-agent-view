@@ -3,8 +3,8 @@
 # session that is blocked -- on a permission prompt or on a question it asked --
 # can be answered without leaving the tab you are in.
 #
-# Reached from bin/tmux-agents (prefix + a) with ctrl-o. The picker owns the
-# decision of *which* agent and whether the geometry allows it; this script owns
+# Reached from bin/tmux-agents: ctrl-o in the picker (prefix + a), or
+# prefix + A. The caller owns the decision of *which* agent; this script owns
 # the popup and the mirror session.
 #
 # Usage: tmux-agent-view <mode> <args...>

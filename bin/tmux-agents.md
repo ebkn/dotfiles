@@ -4,8 +4,8 @@ Pick a Claude Code agent by state and jump to its WezTerm tab. Bound to
 `prefix + a`, with `prefix + A` as the picker-less shortcut described below.
 
 Rows come from the pane user options that `root/.claude/hooks/agent-state.sh`
-publishes (`@claude_state`, `@claude_glyph`, `@claude_since`, `@claude_note`,
-`@claude_agents`) — see [agent-state.md](../root/.claude/hooks/agent-state.md)
+publishes (`@claude_state`, `@claude_since`, `@claude_note`, `@claude_agents`,
+`@claude_session_id`) — see [agent-state.md](../root/.claude/hooks/agent-state.md)
 for what those mean and how they are derived. `ctrl-o` hands a blocked agent to
 [tmux-agent-view](tmux-agent-view.md).
 
@@ -26,7 +26,7 @@ It went from 13 external calls to 6 (45ms → 25ms) by:
   remote host actually exists;
 - folding rank and render into one awk pass;
 - deferring `tmux list-clients` until after something is picked (it feeds only
-  `msg()` and the `switch-client` fallback, both post-selection).
+  `msg()` and the answer view's client, both post-selection).
 
 Adding a convenient pipeline stage here is not free; it is ~2ms of visible lag.
 
@@ -44,7 +44,7 @@ which is why the awk version never had to know. Peel trailing columns off with
 glyph is pre-computed into `@claude_glyph` by the hook rather than derived with
 `#{?@claude_state,…}` in the format.
 
-**BSD sed does not expand `\t` in a replacement**, so the tab is built as a
+**tmux does not interpret `\t` in a `-F` format**, so the tab is built as a
 variable.
 
 **Glyph padding is baked into `@claude_glyph`, and this script mirrors the same
@@ -307,8 +307,8 @@ answer view on the top blocked row. No list is drawn and nothing is picked.
 It is a **separate key**, not an option on `prefix + a`, because the two answer
 different questions. `a` is "show me what is running"; `A` is "there is one
 thing to do, do it". Drawing a popup only to accept its own first row would be a
-flash of a list nobody reads — the ranking already puts the agent blocked
-longest on top, which is the row you would have picked. When more than one is
+flash of a list nobody reads — the ranking already puts the most urgent blocked
+agent (rank, then age) on top, which is the row you would have picked. When more than one is
 blocked nothing is lost by not starting at the list, because the answer view
 reopens the real picker on the way out ([tmux-agent-view.md](tmux-agent-view.md)).
 
@@ -374,7 +374,7 @@ of reaching you.
 Remote hosts need no transport of their own for the tab glyph — the same
 dotfiles run there, so the remote tmux's `set-titles` already embeds its glyph
 and it arrives inside the local `#{pane_title}` via OSC 2 (rendering as
-`host:🛑 name`, glyph after the host, since the remote sends one opaque string).
+`≫ 🛑 name`, glyph after the ssh marker, since the remote sends one opaque string).
 
 The cost is that a remote contributes only its client's *active* window. This
 picker sees all remote windows because it queries over ssh, restricted to

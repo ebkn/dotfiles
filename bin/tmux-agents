@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 # tmux-agents: list every Claude Code session by state and jump to the one you pick.
 #
-# Bound to prefix + a, which opens it in a display-popup. The state itself is
-# published by ~/.claude/hooks/agent-state.sh as tmux pane user options; this
-# script only reads them, so it stays correct as long as that contract holds.
+# Usage:
+#   tmux-agents                         the picker (prefix + a, in a display-popup)
+#   tmux-agents --answer-first <client> answer the first blocked agent (prefix + A)
+#   tmux-agents --jump-check <key>      fzf `enter`: jump, or say why not
+#   tmux-agents --rows                  fzf reload: the corrected, ranked list
+#   tmux-agents --sync                  launchd pass: write corrections back
 #
-# Takes no arguments. It derives the calling client from $TMUX because a popup
+# The state itself is published by ~/.claude/hooks/agent-state.sh as tmux pane
+# user options. Every mode reads them; only --sync writes, and it does so
+# through that hook (`agent-state.sh correct`) rather than set-option directly.
+#
+# The picker takes no arguments. It derives the calling client from $TMUX because a popup
 # has no attached client of its own and cannot be handed one: display-popup
 # expands #{...} formats only in -d, never in the shell-command, so
 # `#{client_name}` would arrive as that literal string and every tmux call
@@ -197,9 +204,9 @@ fi
 # It is a separate key rather than an option on prefix + a because the two
 # answer different questions. `a` is "show me what is running"; `A` is the one
 # move you make when the tab bar has gone red and there is nothing to choose
-# between — the ranking already puts the agent blocked longest on top, which is
-# the row you would have picked. Drawing a popup only to accept its first row
-# would be a flash of a list nobody reads.
+# between — the ranking already puts the most urgent blocked agent (rank, then
+# age) on top, which is the row you would have picked. Drawing a popup only to
+# accept its first row would be a flash of a list nobody reads.
 #
 # The client is passed in, unlike prefix + a, because this does not run in a
 # popup: `run-shell` DOES expand #{...} in its command, so the binding can hand
@@ -479,8 +486,9 @@ render_list() {
       # asking/waiting share rank 0: both mean a dialog is open and nothing moves
       # until it is answered, and which one is more urgent is not for this script
       # to guess. needs_input follows them rather than joining them: it is also
-      # blocked on the human, but somewhere you have to go rather than in a
-      # dialog this picker can answer. Everything else lands in the last rank,
+      # blocked on the human, but a modal in front of you is answerable where
+      # you already are, while this one is somewhere you have to go (the same
+      # reason as rank_of in agent-state.sh). Everything else lands in the last rank,
       # where the age sort below floats the longest-untouched one up on its own.
       rank = (st == "asking" || st == "waiting") ? 0 \
            : (st == "needs_input") ? 1 \
@@ -634,7 +642,7 @@ list=$(render_list "$rows")
 # The row is chosen by the same rule ctrl-o is offered by — a local row whose
 # state is one of the three the 🛑 glyph covers — read off the hidden key field
 # rather than re-derived, so the two keys cannot drift apart. `sort` has already
-# put the longest-blocked one first, so "the first match" is the pick.
+# put the highest-ranked, then oldest, one first, so "the first match" is the pick.
 if [ -n "$answer_client" ]; then
   outer_client=$answer_client
 

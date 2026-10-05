@@ -6,7 +6,7 @@
 # state is stored as tmux *pane user options* rather than files: formats can
 # read them directly (see set-titles-string in .tmux.conf), which keeps the
 # WezTerm tab glyph free of any #() subprocess. Same storage pattern as
-# @ssh_host / @git_branch (zsh/alias.zsh, zsh/directory.zsh).
+# @ssh_host / @git_branch (zsh/ssh.zsh, zsh/directory.zsh).
 #
 # Consumers:
 #   .tmux.conf  set-titles-string  → glyph in the WezTerm tab title
@@ -367,9 +367,9 @@ glyph_of() {
   # the first one harder to read.
   #
   # Consequence to know before adding a state: the glyph is no longer a key.
-  # The picker prints no state text, so a row's glyph no longer says whether
-  # ctrl-o can answer it (it can for `asking` and `waiting`, not for
-  # `needs_input`) — that now shows only when the key is refused. The state
+  # The picker prints no state text, so a row's glyph no longer says which of
+  # the three blocked states it is (ctrl-o answers all three, and `prefix + A`
+  # ranks `needs_input` below the other two). The state
   # itself still travels in the row's hidden key field, so anything that needs
   # to distinguish them reads that, never the rendering.
   #
@@ -388,10 +388,12 @@ glyph_of() {
 # Record separators for @claude_agents, the per-actor listing bin/tmux-agents
 # expands into one row each. ASCII RS/US rather than printable characters: a
 # note is arbitrary text from a permission prompt or a question, and any
-# printable delimiter would eventually appear inside one. They travel through
-# `tmux set-option` and back out of a `list-panes -F` format unchanged, which
-# agent-state.test.sh pins, because that round trip is the whole contract with
-# the picker — including over ssh, where the remote tmux expands the format.
+# printable delimiter would eventually appear inside one. That round trip
+# through `tmux set-option` and back out of a `list-panes -F` format is the
+# whole contract with the picker — including over ssh, where the remote tmux
+# expands the format. It is NOT byte-for-byte on every tmux: 3.4 stores them
+# escaped (`\036`), so collect_rows in bin/tmux-agents normalises them back
+# (agent-state.md). agent-state.test.sh pins the round trip on the pinned tmux.
 readonly RS=$'\036'
 readonly US=$'\037'
 

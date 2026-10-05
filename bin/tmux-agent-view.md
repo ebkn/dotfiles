@@ -139,12 +139,10 @@ What earns its keep is everything whose absence is silent:
 - the reopened list's geometry, which is duplicated in `.tmux.conf` because a
   binding cannot read it from the script.
 
-The stub answers `137x42` deliberately — not round, and not the size of anything
-else — so a percentage or a hard-coded geometry cannot pass.
-
-Two cases **do** attach a real pty client, via `script(1)` (whose argument order
-differs between BSD and GNU, so both spellings are tried), because they cannot be
-reached without one: `display-popup` needs a client, so with none the picker
+Two cases in `tmux-agents.test.sh` (not this suite) **do** attach a real pty
+client, via `script(1)` (whose argument order differs between BSD and GNU, so
+the spelling is chosen by `$OSTYPE`; see [tmux-agents.md](tmux-agents.md) for
+why probing both was dropped), because they cannot be reached without one: `display-popup` needs a client, so with none the picker
 refuses `ctrl-o` for the wrong reason and a missing state gate looks identical to
 a working one. They pin exactly the two things first noticed by eye — that a
 non-blocked row attaches nothing and does not jump either, and that the view is
