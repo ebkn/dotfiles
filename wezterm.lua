@@ -190,6 +190,10 @@ end)
 --
 -- Nothing is shown at zero. An indicator that is always there is one the eye
 -- stops seeing, which is the opposite of the point.
+--
+-- Must be the glyph root/.claude/hooks/agent-state.sh publishes for a blocked
+-- state: a mismatch reads as zero, and zero draws nothing. agent-state.test.sh
+-- reads this line and checks it.
 local BLOCKED_GLYPH = '🛑'
 -- Everforest red, matching what the glyph itself renders as.
 local BLOCKED_FG = '#e67e80'

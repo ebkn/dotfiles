@@ -4,8 +4,12 @@ Which Claude session is running, and which is blocked — on a question it asked
 on a permission prompt, or simply on nobody having looked — is published as
 **tmux pane user options** on the pane the session runs in.
 
-Consumers are `set-titles-string` in `.tmux.conf` and
-[bin/tmux-agents](../../../bin/tmux-agents.md).
+Consumers are `set-titles-string` in `.tmux.conf`,
+[bin/tmux-agents](../../../bin/tmux-agents.md), and `wezterm.lua`, whose
+`BLOCKED_GLYPH` counts 🛑 in the tab titles for the `🛑 N  C-q A` hint.
+`agent-state.test.sh` checks that every blocked state publishes that glyph and
+no other state does: change it on one side only and the count reads zero, which
+is a hint that silently stops being drawn.
 
 ## Published options
 

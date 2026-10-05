@@ -11,6 +11,9 @@
 # Consumers:
 #   .tmux.conf  set-titles-string  → glyph in the WezTerm tab title
 #   bin/tmux-agents                → popup dashboard / jump
+#   wezterm.lua BLOCKED_GLYPH      → counts 🛑 in those titles for the
+#                                    `🛑 N  C-q A` hint (agent-state.test.sh
+#                                    checks it is the glyph published here)
 #
 # ONE PANE HOLDS SEVERAL ACTORS. Hooks fire inside subagents too, and the input
 # then carries `agent_id` / `agent_type` identifying which one

@@ -765,6 +765,45 @@ run clear
 run 'done'
 check_no_vs16 stalled
 
+section "the tab bar's count looks for the glyph the hook publishes"
+# wezterm.lua draws its `🛑 N  C-q A` hint by counting BLOCKED_GLYPH in the pane
+# titles, which set-titles-string builds out of @claude_glyph. Nothing else ties
+# the two: give a blocked state another glyph here and the count reads zero, and
+# at zero the hint is not drawn at all -- the indicator simply stops appearing.
+# Give a running state one that contains it and the count lies upwards. So each
+# blocked state must carry exactly what wezterm.lua counts, and no other may.
+wez_glyph=$(sed -n "s/^local BLOCKED_GLYPH = '\(.*\)'\$/\1/p" \
+  "$(dirname "$HOOK")/../../../wezterm.lua")
+counted() { # <label> <want: yes|no>
+  local g got=no
+  g=$(get_opt @claude_glyph)
+  case "$g" in *"$wez_glyph"*) got=yes ;; esac
+  if [ "$got" = "$2" ]; then
+    ok "$1: counted by the tab bar = $2"
+  else
+    bad "$1: counted by the tab bar = $got, want $2 (glyph [$g], wezterm.lua counts [$wez_glyph])"
+  fi
+}
+if [ -z "$wez_glyph" ]; then
+  bad "BLOCKED_GLYPH can be read from wezterm.lua"
+else
+  run clear
+  run ask '{"tool_input":{"questions":[{"question":"q"}]}}'
+  counted asking yes
+  run clear
+  run notify "$(notify_json permission_prompt 'p')"
+  counted waiting yes
+  run clear
+  run notify "$(notify_json agent_needs_input 'w')"
+  counted needs_input yes
+  run clear
+  run busy
+  counted busy no
+  run clear
+  run 'done'
+  counted stalled no
+fi
+
 section "several actors in one pane"
 # Hooks fire inside subagents too, carrying agent_id/agent_type, so one pane can
 # hold the main thread plus one state per running subagent. These cases are the
