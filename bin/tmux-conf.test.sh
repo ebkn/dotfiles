@@ -340,9 +340,12 @@ else
   fail "the LOCAL item of F12 closes the window" "$(tmux -L "$socket" list-windows -t guard: 2>&1)"
 fi
 # And a window with no ssh pane closes on F12 with no menu, as it always did.
+# Gated on the window having existed and the client surviving it: with an
+# empty id window_gone holds trivially, and a dead client shows no menu either.
 plain_window=$(tmux -L "$socket" new-window -P -F '#{window_id}' -t guard: "$probe_cmd")
 $outer send-keys F12
-if window_gone "$plain_window" && ! screen | grep -qF 'LOCAL tmux'; then
+if [ -n "$plain_window" ] && window_gone "$plain_window" &&
+  [ "$(clients)" = 1 ] && ! screen | grep -qF 'LOCAL tmux'; then
   pass "F12 in a window with no ssh pane closes it without asking"
 else
   fail "F12 in a window with no ssh pane closes it without asking" "$(screen)"
