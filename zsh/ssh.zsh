@@ -63,11 +63,12 @@ _ssh_parse_argv() {
 
 # _ssh_decorate_on <host> [my_machine]
 #
-# @ssh_host is read by .tmux.conf (status-left, the purple pane border) and by
-# bin/tmux-agents (which local pane holds a given host). @ssh_my_machine is set
-# only for `myssh`, and means "tmux and these dotfiles are on the far end", which
-# is what makes .tmux.conf pass prefix + p/t/o/u through to the nested remote
-# tmux instead of running the local popup.
+# @ssh_host is read by .tmux.conf (status-left, the purple pane border, and the
+# host-naming menu that guards d / q / F12) and by bin/tmux-agents (which local
+# pane holds a given host). @ssh_my_machine is set only for `myssh`, and means
+# "tmux and these dotfiles are on the far end", which is what makes .tmux.conf
+# pass prefix + p/t/o/u through to the nested remote tmux instead of running the
+# local popup, and offer the "remote" item in that guard menu.
 _ssh_decorate_on() {
   local host=$1 my_machine=${2:-}
   [ -n "$TMUX" ] || return 0
