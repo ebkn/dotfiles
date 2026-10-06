@@ -238,6 +238,18 @@ if pane_has guard: '^Qq' && tmux -L "$socket" has-session -t guard 2>/dev/null; 
 else
   fail "the remote item sends C-q q to the pane and keeps it" "$(tmux -L "$socket" capture-pane -p -t guard:)"
 fi
+# Each binding carries its own copy of the cancel item, and a broken one in q
+# would kill the very pane the menu exists to protect.
+pane_alive() { tmux -L "$socket" list-panes -a -F '#{pane_id}' 2>/dev/null | grep -qxF "$1"; }
+$outer send-keys C-q q
+menu_seen=0
+screen_has 'kill this LOCAL pane' && menu_seen=1
+$outer send-keys c
+if [ "$menu_seen" = 1 ] && screen_lacks 'kill this LOCAL pane' && pane_alive "$ssh_pane"; then
+  pass "cancel on q's menu keeps the ssh pane"
+else
+  fail "cancel on q's menu keeps the ssh pane" "$(screen)"
+fi
 
 # F12 (Cmd+W): a root key, and it kills the WINDOW, so it guards when any pane
 # in the window is ssh -- including one that is not the active pane.
@@ -253,15 +265,23 @@ if pane_has guard: '^[[24~' && tmux -L "$socket" has-session -t guard 2>/dev/nul
 else
   fail "the remote item sends F12 to the pane and keeps the window" "$(tmux -L "$socket" capture-pane -p -t guard:)"
 fi
-tmux -L "$socket" split-window -t guard: "$probe_cmd"
+plain_pane=$(tmux -L "$socket" split-window -P -F '#{pane_id}' -t guard: "$probe_cmd")
 $outer send-keys F12
-if screen_has 'close this LOCAL window' && ! screen | grep -qF '(remote)'; then
+menu_seen=0
+screen_has 'close this LOCAL window' && menu_seen=1
+if [ "$menu_seen" = 1 ] && ! screen | grep -qF '(remote)'; then
   pass "F12 guards a window whose ssh pane is not the active one"
 else
   fail "F12 guards a window whose ssh pane is not the active one" "$(screen)"
 fi
+# Cancel keeps the whole window, both panes of it -- F12 kills windows.
 $outer send-keys c
-screen_lacks 'close this LOCAL window' >/dev/null
+if [ "$menu_seen" = 1 ] && screen_lacks 'close this LOCAL window' &&
+  pane_alive "$ssh_pane" && pane_alive "$plain_pane"; then
+  pass "cancel on F12's menu keeps the window"
+else
+  fail "cancel on F12's menu keeps the window" "$(tmux -L "$socket" list-panes -t guard: 2>&1)"
+fi
 
 # The LOCAL items still do what the keys always did. The split left the plain
 # pane active, so the ssh pane is selected first; killing it leaves the plain
