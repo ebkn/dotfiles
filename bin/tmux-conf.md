@@ -19,6 +19,37 @@ Popups are exempt (`#{E:@in_popup}`, the one place the `_*` glob is written; see
 what it looks like it does, and asking on the way out of a view is friction with
 nothing to protect.
 
+## In an ssh pane, `d` / `q` / `F12` ask which machine you meant
+
+In a pane with `@ssh_host` (set by `ssh` and `myssh`), these three local
+commands open a `display-menu` that names the host instead of a y/n:
+
+| Key | `r` (myssh only) | `l` | `c` / Esc |
+| --- | --- | --- | --- |
+| `prefix + d` | send `C-q d` to the remote | detach the local client | cancel |
+| `prefix + q` | send `C-q q` to the remote | kill the local pane (ends ssh) | cancel |
+| `F12` (Cmd+W) | send `F12` to the remote | close the local window (ends ssh) | cancel |
+
+**Why a menu rather than a stronger y/n:** the old `detach this client? (y/n)`
+read the same in every pane, so it got answered on reflex, and it was already
+in place when the mistake it exists to catch kept happening. The mistake is
+almost always "I meant the remote", so the menu's first item does that instead
+of only refusing.
+
+- The remote item appears only under `myssh` (`@ssh_my_machine`), where a nested
+  tmux is there to receive the chord. `display-menu` drops an item whose name
+  expands empty, and that is the whole mechanism. On the remote, the chord meets
+  the remote's own `d`/`q` guard (its session is not an ssh pane, so a y/n),
+  which is the remote's to keep.
+- `F12` guards the **window**, not the active pane, because the window is what
+  dies: `#{P:#{@ssh_host}}` is non-empty when any pane in it has `@ssh_host`. When
+  the ssh pane is not the active one there is no remote item, since `send-keys`
+  would go to the local pane.
+- **`Cmd+W` asks twice in an ssh tab:** WezTerm's own `Close tmux window? (y/n)`
+  and then this menu. WezTerm cannot tell an ssh tab from a local one, so only the
+  second prompt can name the host. Removing WezTerm's prompt for ssh tabs would
+  mean keying on the `≫` title marker, and that coupling was not judged worth it.
+
 ## The `prefix + w` tree format (`@tree_format`)
 
 `choose-tree -F` controls only the text after each row's `name:`. The `(n)` key,
@@ -127,11 +158,21 @@ equality, which is the comparison that was meant.
 
 What it asserts:
 
-- `prefix + d` asks before it detaches, except inside a popup — matched with the
-  branches in order, since the two words anywhere in the row also pass with the
-  branches swapped. Note `list-keys -T prefix d` returns nothing on 3.7 (the key
-  argument is not honoured), so the whole table is listed and the row grepped
-  out.
+- `prefix + d` detaches a popup without asking. This is checked on the binding
+  text with the popup branch first, because the rendered cases below never run in
+  a popup. Note `list-keys -T prefix d` returns nothing on 3.7 (the key argument
+  is not honoured), so the whole table is listed and the row grepped out.
+- The ssh-pane menus of `d` / `q` / `F12` are asserted **as rendered**, not as
+  binding text. A real client attaches to the test server from a pane of a
+  second, config-free server; keys are sent through that pane, and the menu is
+  read back with `capture-pane` on the outer one (a menu is a client overlay, not
+  pane content). The guarded pane runs `cat -v` with `stty -ixon`, so what the
+  remote item sends shows up as `^Qd` / `^Qq` / `^[[24~`. Without `-ixon` the
+  `^Q` is eaten as XON. Each LOCAL item and `cancel` are checked by effect
+  (client count, pane or window gone), and each of those checks is gated on the
+  menu having been seen first, because "nothing detached" also holds when no
+  menu ever opened. Panes are targeted by id: the config sets
+  `pane-base-index`, so `.0` names nothing.
 - `@in_popup` evaluates to 1 against a `_`-named session and 0 against any other,
   and `p`/`t`/`o`/`a`/`A`/`g`/`?` each refuse on it as the TRUE branch. It is checked as a
   format on the loaded server, not as text, because the glob only means anything

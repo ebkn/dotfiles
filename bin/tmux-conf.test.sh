@@ -35,6 +35,7 @@ fi
 socket="conf-test-$$"
 work=$(mktemp -d)
 cleanup() {
+  tmux -L "$socket-outer" kill-server 2>/dev/null
   tmux -L "$socket" kill-server 2>/dev/null
   rm -rf "$work"
 }
@@ -111,25 +112,240 @@ else
   pass "every non-root binding in .tmux.conf has -N"
 fi
 
-# prefix + d detaches, and inside an ssh pane the chord is not passed through to
-# the remote tmux -- so a mistyped `d` drops the local client out of everything.
-# It must ask first, and the confirmation must survive as a real binding on the
-# server rather than as a note tmux happened to parse. Popups are exempt, which
-# is what the if-shell is for, so the assertion is on the whole command -- and
-# on WHICH branch is which. Matching the two words anywhere in the row passed
-# with the branches swapped too, which detaches every ordinary session at once
-# and asks only inside a popup: silent until the mistyped d it exists to catch.
-# `list-keys -T prefix d` returns nothing on 3.7 -- the key argument is not
-# honoured there -- so the whole table is listed and the row picked out. The
-# note sits between the table and the key, hence the optional group.
+# Popups are exempt from d's guard: there d closes a popup, which is what it
+# looks like it does. Checked as the FIRST branch, because the guard's own cases
+# below never run in a popup -- with the branches swapped, every ordinary pane
+# would detach at once and only popups would ask. `list-keys -T prefix d`
+# returns nothing on 3.7 -- the key argument is not honoured there -- so the
+# whole table is listed and the row picked out. The note sits between the table
+# and the key, hence the optional group.
 d_binding=$(tmux -L "$socket" list-keys -T prefix 2>/dev/null |
   grep -E '^bind-key +(-N "[^"]*" +)?-T prefix +d ' | head -1)
 case "$d_binding" in
-  *'if-shell -F "#{E:@in_popup}" detach-client "confirm-before -p '*'detach-client"'*)
-    pass "prefix + d asks before detaching, except inside a popup"
+  *'if-shell -F "#{E:@in_popup}" detach-client '*)
+    pass "prefix + d detaches a popup without asking"
     ;;
-  *) fail "prefix + d asks before detaching, except inside a popup" "got: ${d_binding:-<unbound>}" ;;
+  *) fail "prefix + d detaches a popup without asking" "got: ${d_binding:-<unbound>}" ;;
 esac
+
+# --- 2b. local d/q/F12 ask which machine you meant, in an ssh pane ----------
+
+# In an ssh pane, d / q / F12 act on THIS tmux, not the remote one, and each of
+# them ends the ssh session or drops the local client -- a re-login to undo. So
+# there they open a menu naming the host instead of a generic y/n, which is easy
+# to answer on reflex because it reads the same everywhere.
+#
+# Asserted on a rendered menu, not on the binding text: what matters is what
+# shows up and what each item does, and display-menu drops an item whose name
+# expands empty -- the mechanism that hides "remote" on a plain ssh pane -- only
+# at draw time. A menu needs a real client, so one is attached from a pane of a
+# second, config-free server: keys sent to that pane reach our server as typed,
+# and the menu is drawn into it where capture-pane can read it.
+#
+# The guarded pane runs cat -v with flow control off, so the keys a "remote"
+# item sends arrive visibly (^Q would otherwise be eaten as XON) -- standing in
+# for the nested tmux that would receive them over ssh.
+outer="tmux -L $socket-outer"
+probe_cmd="sh -c 'stty -ixon; exec cat -v'"
+# By id, not index: the config sets pane-base-index, so `.0` names no pane.
+ssh_pane=$(tmux -L "$socket" new-session -d -P -F '#{pane_id}' -s guard -x 100 -y 30 "$probe_cmd")
+tmux -L "$socket" set-option -p -t guard: @ssh_host devbox
+tmux -L "$socket" set-option -p -t guard: @ssh_my_machine 1
+$outer -f /dev/null new-session -d -x 100 -y 30 "env -u TMUX tmux -L $socket attach -t guard"
+
+# Polls: menus and prompts are drawn asynchronously. screen_has is the client's
+# view (menus are overlays, not pane content); pane_has is the guarded pane's.
+screen_has() {
+  local _
+  for _ in $(seq 25); do
+    $outer capture-pane -p 2>/dev/null | grep -qF -- "$1" && return 0
+    sleep 0.2
+  done
+  return 1
+}
+screen_lacks() {
+  local _
+  for _ in $(seq 25); do
+    $outer capture-pane -p 2>/dev/null | grep -qF -- "$1" || return 0
+    sleep 0.2
+  done
+  return 1
+}
+pane_has() {
+  local _
+  for _ in $(seq 25); do
+    tmux -L "$socket" capture-pane -p -t "$1" 2>/dev/null | grep -qF -- "$2" && return 0
+    sleep 0.2
+  done
+  return 1
+}
+clients() { tmux -L "$socket" list-clients 2>/dev/null | wc -l | tr -d ' '; }
+screen() { $outer capture-pane -p 2>/dev/null; }
+
+if screen_has 'SSH: devbox'; then
+  pass "a client attaches for the guard cases"
+else
+  fail "a client attaches for the guard cases" "$(screen)"
+fi
+
+# d in a myssh pane: the host is named, and both machines are offered.
+$outer send-keys C-q d
+if screen_has 'this pane is ssh to devbox' &&
+  screen_has 'detach on devbox (remote)' &&
+  screen_has 'detach the LOCAL client'; then
+  pass "prefix + d in a myssh pane opens a menu naming the host"
+else
+  fail "prefix + d in a myssh pane opens a menu naming the host" "$(screen)"
+fi
+# "remote" passes the chord down, and must not detach here.
+$outer send-keys r
+if pane_has guard: '^Qd' && screen_lacks 'this pane is ssh to' && [ "$(clients)" = 1 ]; then
+  pass "the remote item sends C-q d to the pane and keeps this client"
+else
+  fail "the remote item sends C-q d to the pane and keeps this client" \
+    "clients: $(clients)" "$(tmux -L "$socket" capture-pane -p -t guard:)"
+fi
+
+# On a plain ssh pane there is no nested tmux to send it to, so no remote item.
+tmux -L "$socket" set-option -p -u -t guard: @ssh_my_machine
+$outer send-keys C-q d
+menu_seen=0
+screen_has 'detach the LOCAL client' && menu_seen=1
+if [ "$menu_seen" = 1 ] && ! screen | grep -qF '(remote)'; then
+  pass "prefix + d in a plain ssh pane offers no remote item"
+else
+  fail "prefix + d in a plain ssh pane offers no remote item" "$(screen)"
+fi
+$outer send-keys c
+# Gated on the menu having been up, or this passes with no menu at all.
+if [ "$menu_seen" = 1 ] && screen_lacks 'detach the LOCAL client' && [ "$(clients)" = 1 ]; then
+  pass "cancel closes the menu and detaches nothing"
+else
+  fail "cancel closes the menu and detaches nothing" "clients: $(clients)" "$(screen)"
+fi
+tmux -L "$socket" set-option -p -t guard: @ssh_my_machine 1
+
+# q: same menu shape; "remote" sends C-q q down.
+$outer send-keys C-q q
+if screen_has 'kill the pane on devbox (remote)' && screen_has 'kill this LOCAL pane'; then
+  pass "prefix + q in a myssh pane opens a menu naming the host"
+else
+  fail "prefix + q in a myssh pane opens a menu naming the host" "$(screen)"
+fi
+$outer send-keys r
+if pane_has guard: '^Qq' && tmux -L "$socket" has-session -t guard 2>/dev/null; then
+  pass "the remote item sends C-q q to the pane and keeps it"
+else
+  fail "the remote item sends C-q q to the pane and keeps it" "$(tmux -L "$socket" capture-pane -p -t guard:)"
+fi
+
+# F12 (Cmd+W): a root key, and it kills the WINDOW, so it guards when any pane
+# in the window is ssh -- including one that is not the active pane.
+$outer send-keys F12
+if screen_has 'close the window on devbox (remote)' && screen_has 'close this LOCAL window'; then
+  pass "F12 in a myssh window opens a menu naming the host"
+else
+  fail "F12 in a myssh window opens a menu naming the host" "$(screen)"
+fi
+$outer send-keys r
+if pane_has guard: '^[[24~' && tmux -L "$socket" has-session -t guard 2>/dev/null; then
+  pass "the remote item sends F12 to the pane and keeps the window"
+else
+  fail "the remote item sends F12 to the pane and keeps the window" "$(tmux -L "$socket" capture-pane -p -t guard:)"
+fi
+tmux -L "$socket" split-window -t guard: "$probe_cmd"
+$outer send-keys F12
+if screen_has 'close this LOCAL window' && ! screen | grep -qF '(remote)'; then
+  pass "F12 guards a window whose ssh pane is not the active one"
+else
+  fail "F12 guards a window whose ssh pane is not the active one" "$(screen)"
+fi
+$outer send-keys c
+screen_lacks 'close this LOCAL window' >/dev/null
+
+# The LOCAL items still do what the keys always did. The split left the plain
+# pane active, so the ssh pane is selected first; killing it leaves the plain
+# one for the unguarded cases after.
+tmux -L "$socket" select-pane -t "$ssh_pane"
+$outer send-keys C-q q
+screen_has 'kill this LOCAL pane' >/dev/null
+$outer send-keys l
+for _ in $(seq 25); do
+  tmux -L "$socket" list-panes -t guard: -F '#{pane_id}' 2>/dev/null | grep -qxF "$ssh_pane" || break
+  sleep 0.2
+done
+if ! tmux -L "$socket" list-panes -t guard: -F '#{pane_id}' 2>/dev/null | grep -qxF "$ssh_pane" &&
+  tmux -L "$socket" has-session -t guard 2>/dev/null; then
+  pass "the LOCAL item of q kills the ssh pane"
+else
+  fail "the LOCAL item of q kills the ssh pane" "$(tmux -L "$socket" list-panes -t guard: 2>&1)"
+fi
+
+# Outside an ssh pane nothing changes: d and q keep their y/n prompts.
+$outer send-keys C-q d
+if screen_has 'detach this client? (y/n)'; then
+  pass "prefix + d in a local pane keeps its y/n prompt"
+else
+  fail "prefix + d in a local pane keeps its y/n prompt" "$(screen)"
+fi
+$outer send-keys n
+$outer send-keys C-q q
+if screen_has 'kill-pane? (y/n)'; then
+  pass "prefix + q in a local pane keeps its y/n prompt"
+else
+  fail "prefix + q in a local pane keeps its y/n prompt" "$(screen)"
+fi
+$outer send-keys n
+
+# F12's LOCAL item is the most deeply quoted command here -- run-shell inside a
+# menu item inside a brace block -- and a quote lost there makes it do nothing,
+# silently. A second window keeps the session (and the client) alive after.
+window_gone() {
+  local _
+  for _ in $(seq 25); do
+    tmux -L "$socket" list-windows -a -F '#{window_id}' 2>/dev/null | grep -qxF "$1" || return 0
+    sleep 0.2
+  done
+  return 1
+}
+ssh_window=$(tmux -L "$socket" new-window -P -F '#{window_id}' -t guard: "$probe_cmd")
+tmux -L "$socket" set-option -p -t "$ssh_window" @ssh_host devbox
+$outer send-keys F12
+menu_seen=0
+screen_has 'close this LOCAL window' && menu_seen=1
+$outer send-keys l
+if [ "$menu_seen" = 1 ] && window_gone "$ssh_window"; then
+  pass "the LOCAL item of F12 closes the window"
+else
+  fail "the LOCAL item of F12 closes the window" "$(tmux -L "$socket" list-windows -t guard: 2>&1)"
+fi
+# And a window with no ssh pane closes on F12 with no menu, as it always did.
+plain_window=$(tmux -L "$socket" new-window -P -F '#{window_id}' -t guard: "$probe_cmd")
+$outer send-keys F12
+if window_gone "$plain_window" && ! screen | grep -qF 'LOCAL tmux'; then
+  pass "F12 in a window with no ssh pane closes it without asking"
+else
+  fail "F12 in a window with no ssh pane closes it without asking" "$(screen)"
+fi
+
+# Last, because it ends the client: the LOCAL item of d detaches.
+tmux -L "$socket" set-option -p -t guard: @ssh_host devbox
+$outer send-keys C-q d
+menu_seen=0
+screen_has 'detach the LOCAL client' && menu_seen=1
+$outer send-keys l
+for _ in $(seq 25); do
+  [ "$(clients)" = 0 ] && break
+  sleep 0.2
+done
+# Gated on the menu: with none, a client that died for any other reason passes.
+if [ "$menu_seen" = 1 ] && [ "$(clients)" = 0 ]; then
+  pass "the LOCAL item of d detaches this client"
+else
+  fail "the LOCAL item of d detaches this client" "clients: $(clients)"
+fi
+$outer kill-server 2>/dev/null
+tmux -L "$socket" kill-session -t guard 2>/dev/null
 
 # "Am I in a popup?" is one option, @in_popup, because bin/tmux-popup and
 # bin/tmux-agent-view name their sessions `_...` and eight bindings have to agree
