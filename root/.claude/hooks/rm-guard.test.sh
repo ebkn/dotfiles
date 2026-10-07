@@ -106,6 +106,8 @@ check DEFER 'rm -rf tmp/escape/.env'
 # it rather than descending, so it is in scope like the bare form above.
 check ALLOW 'rm -rf tmp/escape/'
 check DEFER "rm -rf /tmp/claude-$(id -u)"
+# One level down is a <project> dir holding every session of that project.
+check DEFER "rm -rf /tmp/claude-$(id -u)/rm-guard-test-$$"
 
 echo "-- must DEFER (root boundary: prefix match is not containment) --"
 # The one-character regression these pin: `== "$root"*` instead of
