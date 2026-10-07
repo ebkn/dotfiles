@@ -133,9 +133,10 @@ purpose: `rm` unlinks the name, and `rm -r` on a symlink removes the link rather
 than descending into it.
 
 Two scratch roots qualify: `<cwd>/tmp` (the dir `CLAUDE.md` mandates for temp
-files, removable whole) and anything strictly under `/tmp/claude-<uid>/` (Claude
-Code's per-session scratchpad tree — never the tree root, which holds every
-session's).
+files, removable whole) and anything at least two levels under
+`/tmp/claude-<uid>/` (Claude Code's scratchpad tree, laid out as
+`<project>/<session>/…` — never the tree root, which holds every project, nor a
+`<project>` dir, which holds every session of it).
 
 Like `curl-guard.sh` the hook only ever emits `allow`. A glob, a redirection, a
 shell expansion, an unknown flag or a non-`rm` segment all defer — and with the

@@ -61,8 +61,9 @@ ROOTS=()
 PROJECT_TMP="${CWD_P}/tmp"
 ROOTS+=("$PROJECT_TMP")
 
-# Claude Code's own per-session scratchpad tree for this uid. Only paths *under*
-# it qualify: the tree root itself holds every session's scratchpad.
+# Claude Code's own scratchpad tree for this uid, laid out as
+# <root>/<project>/<session>/... Only paths two levels down qualify: the root
+# holds every project, and each <project> dir holds every session of it.
 uid=$(id -u)
 for candidate in "/tmp/claude-${uid}" "/private/tmp/claude-${uid}"; do
   if resolved=$(canon_dir "$candidate"); then
@@ -97,7 +98,7 @@ operand_is_safe() {
   for root in "${ROOTS[@]}"; do
     [[ "$resolved" == "$root"/* ]] && return 0
   done
-  # Strictly under the session scratchpad tree, never the tree root.
+  # A session dir or below, never the tree root or a whole <project> dir.
   if [[ -n "${SCRATCH_ROOT:-}" ]]; then
     [[ "$resolved" == "$SCRATCH_ROOT"/*/* ]] && return 0
   fi
