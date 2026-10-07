@@ -1,7 +1,8 @@
 #!/bin/bash
 # Exercises curl-guard.sh against the cases that decide whether it is safe.
-# ALLOW = hook emits an allow decision. DEFER = hook stays silent, so the
-# permission mode decides (a prompt in default mode, the classifier in auto).
+# ALLOW = hook emits an allow decision. DEFER = hook exits 0 with no output, so
+# the permission mode decides (a prompt in default mode, the classifier in
+# auto). A crash is neither: a PreToolUse hook exiting 2 blocks the call.
 set -uo pipefail
 
 HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/curl-guard.sh"
@@ -36,11 +37,16 @@ pass=0
 fail=0
 
 check() {
-  local expect=$1 cmd=$2 out got
-  out=$(printf '%s' "$cmd" | jq -Rn --arg c "$cmd" \
-    '{tool_name:"Bash", tool_input:{command:$c}}' | HOME="$REPO_HOME" "$HOOK" 2>/dev/null)
-  if printf '%s' "$out" | grep -q '"permissionDecision": *"allow"'; then
+  local expect=$1 cmd=$2 home=${3-$REPO_HOME} out status got
+  out=$(jq -n --arg c "$cmd" \
+    '{tool_name:"Bash", tool_input:{command:$c}}' | HOME="$home" "$HOOK" 2>/dev/null)
+  status=$?
+  if ((status != 0)); then
+    got="EXIT$status"
+  elif printf '%s' "$out" | grep -q '"permissionDecision": *"allow"'; then
     got=ALLOW
+  elif [[ -n "$out" ]]; then
+    got=OUTPUT
   else
     got=DEFER
   fi

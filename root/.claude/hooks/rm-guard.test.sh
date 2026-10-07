@@ -1,8 +1,9 @@
 #!/bin/bash
 # Exercises rm-guard.sh against the cases that decide whether it is safe.
-# ALLOW = hook emits an allow decision. DEFER = hook stays silent, so the call
-# falls through to the normal permission path (the `deny` literals, then the
-# auto-mode classifier, then a prompt).
+# ALLOW = hook emits an allow decision. DEFER = hook exits 0 with no output, so
+# the call falls through to the normal permission path (the `deny` literals,
+# then the auto-mode classifier, then a prompt). A crash is neither: a
+# PreToolUse hook exiting 2 blocks the call.
 #
 # Written for bash 3.2 (see CLAUDE.md): no mapfile, no associative arrays.
 set -uo pipefail
@@ -45,11 +46,16 @@ pass=0
 fail=0
 
 check() {
-  local expect=$1 cmd=$2 cwd=${3-$CWD} out got
-  out=$(jq -Rn --arg c "$cmd" --arg d "$cwd" \
+  local expect=$1 cmd=$2 cwd=${3-$CWD} out status got
+  out=$(jq -n --arg c "$cmd" --arg d "$cwd" \
     '{tool_name:"Bash", cwd:$d, tool_input:{command:$c}}' | "$HOOK" 2>/dev/null)
-  if printf '%s' "$out" | grep -q '"permissionDecision": *"allow"'; then
+  status=$?
+  if ((status != 0)); then
+    got="EXIT$status"
+  elif printf '%s' "$out" | grep -q '"permissionDecision": *"allow"'; then
     got=ALLOW
+  elif [[ -n "$out" ]]; then
+    got=OUTPUT
   else
     got=DEFER
   fi
