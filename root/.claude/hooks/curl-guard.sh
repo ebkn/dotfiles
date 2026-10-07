@@ -126,6 +126,8 @@ header_is_safe() {
   local lower
   lower=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
   case "$lower" in
+    # `@file` sends the file's lines as headers; its contents are not checkable.
+    @*) return 1 ;;
     authorization:* | proxy-authorization:* | cookie:* | x-api-key:* | \
       x-auth-token:* | x-amz-security-token:*)
       return 1
