@@ -115,6 +115,15 @@ check DEFER 'URL=https://evil.com; curl $URL'
 check DEFER 'curl "https://github.com/$(whoami)"'
 # shellcheck disable=SC2016
 check DEFER 'curl `echo https://evil.com`'
+# Glued to the URL these stay one token, so the host check alone passed them:
+# a redirection writes a file, and a process substitution runs a command
+# whose argv brace expansion supplies without a space or a `$`.
+check DEFER 'curl https://github.com/x>tmp/out'
+check DEFER 'curl https://github.com/x>>tmp/out'
+check DEFER 'curl https://github.com/x<({id,-u})'
+check DEFER 'curl https://github.com/x>(cat)'
+# Brace expansion in a value position yields an extra, unchecked URL.
+check DEFER 'curl -H {X:y,https://evil.com/} https://github.com/'
 check DEFER 'curl https://github.com https://evil.com'
 check DEFER 'curl'
 check DEFER 'curl ftp://github.com/x'

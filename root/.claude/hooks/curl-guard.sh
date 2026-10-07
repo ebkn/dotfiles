@@ -13,10 +13,11 @@
 # See: https://code.claude.com/docs/en/permissions.md (Bash / Wildcard patterns)
 #
 # Fail-closed by design: this hook only ever emits "allow". Anything it cannot
-# fully verify -- unknown host, dangerous flag, shell expansion, a non-curl
-# segment -- emits no decision, leaving the call to the permission mode (a
-# prompt in default mode, the classifier in auto mode). A bug here therefore
-# degrades to "no auto-approval", never to "approved without verification".
+# fully verify -- unknown host, dangerous flag, shell expansion, a redirection,
+# a non-curl segment -- emits no decision, leaving the call to the permission
+# mode (a prompt in default mode, the classifier in auto mode). A bug here
+# therefore degrades to "no auto-approval", never to "approved without
+# verification".
 #
 # The host allow-list is derived from the WebFetch(domain:...) rules in
 # settings.json so curl and WebFetch stay in sync from a single source.
@@ -37,8 +38,11 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
 
 # Any shell expansion makes the final argv unknowable at this point, so the
 # host we would verify is not necessarily the host curl ends up contacting.
+# `<` and `>` go too: glued to a URL they stay inside its token, where a
+# redirection writes a file and a process substitution runs a command. `{`
+# because brace expansion turns one checked token into several unchecked ones.
 case "$COMMAND" in
-  *'$'* | *'`'* | *$'\n'*) exit 0 ;;
+  *'$'* | *'`'* | *$'\n'* | *'<'* | *'>'* | *'{'*) exit 0 ;;
 esac
 
 SETTINGS="${HOME}/.claude/settings.json"
