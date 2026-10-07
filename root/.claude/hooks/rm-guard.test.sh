@@ -28,6 +28,9 @@ mkdir -p "$FIXTURE/proj/tmp/sub" "$FIXTURE/proj/src" "$FIXTURE/outside" \
 : >"$FIXTURE/outside/tmp/keep"
 # A symlinked ancestor is the case a raw-string permission pattern cannot see.
 ln -s "$FIXTURE/outside" "$FIXTURE/proj/tmp/escape"
+# A project whose scratch dir is itself a link out of it.
+mkdir -p "$FIXTURE/linked"
+ln -s "$FIXTURE/outside" "$FIXTURE/linked/tmp"
 
 CWD="$FIXTURE/proj"
 
@@ -83,6 +86,9 @@ check ALLOW 'rm tmp/pr-body.md tmp/sub'
 # target. So removing the link is in scope, and only a path *through* it
 # (the case below) escapes the scratch dir.
 check ALLOW 'rm -rf tmp/escape'
+# A trailing slash on a real directory reaches nothing new.
+check ALLOW 'rm -rf tmp/sub/'
+check ALLOW 'rm -rf tmp/'
 
 echo "-- must ALLOW (inside the session scratchpad tree) --"
 check ALLOW "rm -rf $SCRATCH"
@@ -102,9 +108,11 @@ echo "-- must DEFER (the documented raw-string bypass) --"
 check DEFER 'rm tmp/../src/main.go'
 check DEFER 'rm ./tmp/../../outside/.env'
 check DEFER 'rm -rf tmp/escape/.env'
-# A trailing slash is only a different spelling of the same link; rm errors on
-# it rather than descending, so it is in scope like the bare form above.
-check ALLOW 'rm -rf tmp/escape/'
+# A trailing slash makes rm resolve the link: GNU rm then deletes the target's
+# contents and exits 0 (BSD rm only unlinks it, so macOS alone cannot show it).
+check DEFER 'rm -rf tmp/escape/'
+# The scratch dir itself, reached through a symlink, is the same case.
+check DEFER 'rm -rf tmp/' "$FIXTURE/linked"
 check DEFER "rm -rf /tmp/claude-$(id -u)"
 # One level down is a <project> dir holding every session of that project.
 check DEFER "rm -rf /tmp/claude-$(id -u)/rm-guard-test-$$"

@@ -130,7 +130,10 @@ auto-approved by `root/.claude/hooks/rm-guard.sh`, which parses the argv and
 resolves each operand's *parent* physically (`cd -P`), so a symlinked ancestor
 cannot smuggle the target elsewhere. The final component stays unresolved on
 purpose: `rm` unlinks the name, and `rm -r` on a symlink removes the link rather
-than descending into it.
+than descending into it — **unless the operand ends in `/`**, which makes `rm`
+resolve the link: GNU `rm -rf link/` deletes the target's contents and exits 0
+(BSD `rm` on macOS only unlinks it, so a Mac cannot show the difference). Such
+an operand is resolved whole.
 
 Two scratch roots qualify: `<cwd>/tmp` (the dir `CLAUDE.md` mandates for temp
 files, removable whole) and anything at least two levels under

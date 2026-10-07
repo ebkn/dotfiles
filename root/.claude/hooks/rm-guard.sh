@@ -83,6 +83,13 @@ resolve_operand() {
   dir=$(dirname "$p")
   base=$(basename "$p")
   [[ "$base" == "." || "$base" == ".." || -z "$base" ]] && return 1
+  # Except with a trailing slash: then rm resolves the final component too, so
+  # `link/` reaches the link's target -- GNU rm deletes its contents -- and the
+  # operand is resolved whole.
+  if [[ "$p" == */ ]]; then
+    canon_dir "$p"
+    return
+  fi
   rdir=$(canon_dir "$dir") || return 1
   printf '%s/%s' "${rdir%/}" "$base"
 }
