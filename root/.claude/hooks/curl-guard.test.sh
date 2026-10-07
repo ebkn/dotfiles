@@ -12,8 +12,8 @@ HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/curl-guard.sh"
 # whatever happens to be installed on the machine. Without this the test is not
 # hermetic: on a provisioned Mac ~/.claude/settings.json is symlinked here and
 # everything passes, but anywhere else (CI) the file is absent, the hook exits
-# early, and every case defers -- which fails the 8 ALLOW cases and silently
-# turns all 33 DEFER cases into vacuous passes.
+# early, and every case defers -- which fails the ALLOW cases and silently
+# turns every DEFER case into a vacuous pass.
 REPO_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SETTINGS="${REPO_HOME}/.claude/settings.json"
 
@@ -75,6 +75,15 @@ check DEFER 'curl https://github.com.evil.com/'
 check DEFER 'curl https://github.com@evil.com/'
 check DEFER 'curl https://user:pw@evil.com/@github.com'
 check DEFER 'curl https://notallowed.example.com'
+
+echo "-- must DEFER (exact host: no suffix or subdomain match) --"
+# Each passes if host matching ever loosens to a suffix test, which none of the
+# bypass spellings above would notice.
+check DEFER 'curl https://evilgithub.com/'
+check DEFER 'curl https://foo.github.com/'
+
+echo "-- must DEFER (no allow-list to read) --"
+check DEFER 'curl https://github.com/foo' "${REPO_HOME}/does-not-exist"
 
 echo "-- must DEFER (dangerous flags) --"
 check DEFER 'curl -k https://github.com'
