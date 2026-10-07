@@ -168,6 +168,10 @@ check DEFER 'rm -rf `echo src`'
 # A newline is the third expansion guard: a heredoc or a multi-line script can
 # carry an unverifiable second command that the segment split does not see.
 check DEFER $'rm -rf tmp\nrm -rf src'
+# Brace expansion rewrites the operand after the check: with a directory named
+# `tmp/{a,..` present, `tmp/{a,../../x}` verifies as one path inside tmp/ and
+# runs as two, the second outside the project.
+check DEFER 'rm -rf tmp/{a,b}'
 
 echo "-- must DEFER (not an rm call at all) --"
 check DEFER 'echo hello'

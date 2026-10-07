@@ -151,10 +151,10 @@ segment_is_safe() {
       continue
     fi
 
-    # A glob's expansion is decided by the shell after this hook runs, and a
-    # redirection is not an operand at all. Neither is verifiable here.
+    # A glob's or a brace's expansion is decided by the shell after this hook
+    # runs, and a redirection is not an operand at all. None is verifiable here.
     case "$tok" in
-      *'*'* | *'?'* | *'['* | *'<'* | *'>'*) return 1 ;;
+      *'*'* | *'?'* | *'['* | *'{'* | *'<'* | *'>'*) return 1 ;;
     esac
 
     if [[ "$tok" == "--" && $end_of_flags -eq 0 ]]; then
