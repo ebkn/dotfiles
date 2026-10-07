@@ -61,8 +61,10 @@ host_is_allowed() {
 }
 
 # Extract the hostname from a URL the way curl resolves it: strip the scheme,
-# drop any userinfo before '@', then cut at the first '/', '?' or '#', and drop
-# a trailing :port. Rejects anything that is not a plain http(s) URL.
+# cut the authority at the first '/', '?' or '#', only then drop any userinfo
+# before the last '@', and drop a trailing :port. The order is the security
+# property: dropping userinfo first would read `https://evil.com/@github.com`
+# as github.com. Rejects anything that is not a plain http(s) URL.
 url_host() {
   local url=$1 rest host
   case "$url" in
