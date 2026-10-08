@@ -53,6 +53,10 @@ lacks() { case "$2" in *"$3"*) no "$1" "[$2] unexpectedly contains [$3]" ;; *) o
 
 TMP=$(mktemp -d)
 TMP=$(cd "$TMP" && pwd -P)
+# The program runs in the caller's working directory, and its prompt heredocs
+# name git fetch/merge/push: one dropped backslash there executes them. Running
+# from the temp tree keeps such a regression away from the developer's checkout.
+cd "$TMP" || exit 1
 KILL_PIDS=""
 leaked=0
 cleanup() {
@@ -123,9 +127,12 @@ git init -q "$REPO"
 git -C "$REPO" -c user.email=t@e -c user.name=t commit -q --allow-empty -m init
 git -C "$REPO" worktree add -q -b feature/x "$WT" >/dev/null 2>&1
 
+# The working directory is logged with the argv: `--bg` and the cwd are what make
+# the resume land in the right conversation, in the background.
 cat >"$STUB/claude" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >> "$RESUMELOG"
+printf 'cwd=%s\n' "$PWD" >> "$RESUMELOG"
 [ -f "$RESUMEFAIL" ] && exit 1
 exit 0
 EOF
@@ -636,6 +643,11 @@ has "and the prompt text as claude's argument" "$(cat "$TMP/resume.log")" "[pr-r
 eq "and writes the prompt file it points at" "present" \
   "$([ -f "$STATE/jobs/acme__widget__42.prompt.md" ] && echo present)"
 has "which carries the feedback" "$(cat "$STATE/jobs/acme__widget__42.prompt.md" 2>/dev/null)" "CHANGES_REQUESTED"
+# --bg is what keeps the resume from opening a TUI nobody is looking at, and the
+# cwd is what makes claude find the conversation: sessions are stored per project
+# directory, so a resume from anywhere else does not find sess-1 at all.
+has "the resume runs in the background" "$(head -n 1 "$TMP/resume.log")" "--bg --resume sess-1"
+eq "from the job's worktree" "cwd=$WT" "$(grep '^cwd=' "$TMP/resume.log")"
 
 # A branch that was merged and cleaned up takes its worktree with it (`gdmerged`
 # removes it), and the job outlives that -- nothing in this pipeline expires one.
@@ -681,11 +693,18 @@ SOCKP="$TMP/s8.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session live "$PID" "$WT" "$SOCKP" 100
 make_job
-chmod 500 "$STATE/jobs" # writable job file, unwritable directory
+# The prompt file already exists and stays writable, so marking -- the rename of
+# the job's .tmp into the directory -- is the ONLY write that fails. Without it
+# the prompt write failed too and the case asserted a message pointing at a
+# file that was never written.
+: >"$STATE/jobs/acme__widget__42.prompt.md"
+chmod 500 "$STATE/jobs" # writable job and prompt files, unwritable directory
 out=$(run 2>&1)
 settle "$WIRE"
 chmod 700 "$STATE/jobs"
 eq "the message still went out" "user" "$(jq -r .type <"$WIRE" 2>/dev/null)"
+has "pointing at a prompt that was written" \
+  "$(cat "$STATE/jobs/acme__widget__42.prompt.md")" "CHANGES_REQUESTED"
 has "the failure is reported" "$out" "could not be marked"
 has "it names the consequence" "$out" "WILL be sent again"
 eq "no .tmp file is left behind" "" "$(ls "$STATE"/jobs/*.tmp 2>/dev/null)"
@@ -845,7 +864,13 @@ has "the run reports the send" "$out" "send  acme/widget#42"
 # An explicit choice that is not installed must fail loudly, not fall back to the
 # other tool: a silent fallback would make the override look honoured when it was
 # not, which is the whole reason to set it.
-out=$(PATH="$STUB:$PATH" PR_REVIEW_WATCH_STATE_DIR="$STATE" \
+#
+# "Not installed" is made true rather than assumed: socat is in Brewfile-others
+# for every non-mac machine, so the developer's PATH may well carry one.
+no_socat_path=$(printf '%s' "$PATH" | tr ':' '\n' | while IFS= read -r d; do
+  [ -n "$d" ] && [ ! -x "$d/socat" ] && printf '%s:' "$d"
+done)
+out=$(PATH="$STUB:${no_socat_path%:}" PR_REVIEW_WATCH_STATE_DIR="$STATE" \
   PR_REVIEW_DISPATCH_SOCK_TOOL=socat "$DISPATCH" 2>&1)
 rc=$?
 eq "an uninstalled override exits non-zero" "1" "$rc"
