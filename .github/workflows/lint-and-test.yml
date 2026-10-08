@@ -136,6 +136,18 @@ jobs:
       - name: fzf-files
         run: bash bin/fzf-files.test.sh
 
+      # Which launchctl calls launchd-load makes, with launchctl stubbed: load
+      # through the linked path, never restart a running agent, change nothing
+      # under --status. Plus every plist's Label matching its file name.
+      - name: launchd-load
+        run: bash bin/launchd-load.test.sh
+
+      # textlint-docs' own decisions with npm stubbed: when to install, that a
+      # failed install is not mistaken for a finished one, and which ignore
+      # list textlint gets -- a wrong one skips files without a word.
+      - name: textlint-docs
+        run: bash bin/textlint-docs.test.sh
+
       # The grader of one eval case, plus the Makefile that case grades: the
       # test extracts it from references/swift.md and runs it, so a TAB lost in
       # the documentation fails here. Same reasoning as the runner above -- an

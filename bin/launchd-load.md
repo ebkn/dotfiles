@@ -39,3 +39,12 @@ So `link_dotfiles` links `launchd-load` but never calls it.
 
 A machine with no Aqua session (ssh-only) has no `gui/<uid>` domain to load into.
 That is reported per agent and sets a non-zero exit, without aborting the rest.
+
+## Testing
+
+`bin/launchd-load.test.sh`, with launchctl and uname stubbed: a linked agent
+that is not running is bootstrapped through its **linked** path, a running one is
+never restarted, an unlinked one is reported, `--status` loads nothing, a failed
+load exits 1 without stopping the rest, and every plist in `launchd/` is named
+after its `Label` -- the script derives the label from the file name, so a
+mismatch would make `print` miss and re-bootstrap a running agent on every run.
