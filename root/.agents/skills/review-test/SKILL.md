@@ -1,17 +1,30 @@
 ---
 name: review-test
-description: Review test code. Start from the module's public contract (inputs and outputs, error conditions, guaranteed side effects) and judge whether the tests hold as a specification of behavior, then report what to improve, ranked P1/P2/P3. Use when asked to review the tests themselves — "テストをレビューして", "テストのレビューをお願い", "test review", "review the tests" — or via the /review-test command. Use it proactively as well — once test files (`*.test.*`, `*.spec.*`, `*_test.*`, `*_spec.*`) have been written or changed, start without being asked.
+description: Review test code. Start from the module's public contract (inputs and outputs, error conditions, guaranteed side effects) and judge whether the tests hold as a specification of behavior, then report what to improve, ranked P1/P2/P3. Use when asked to review the tests themselves — "テストをレビューして", "テストのレビューをお願い", "test review", "review the tests" — or via the /review-test command. Use it proactively as well — once test files (`*.test.*`, `*.spec.*`, `*_test.*`, `*_spec.*`) have been written or changed, start without being asked. It runs in a fresh context that sees none of the conversation, so pass it a brief as the arguments: the test files and the module they test, what the change set out to do, the user's language, and on a later round what the last one fixed.
 effort: max
 allowed-tools: Read, Glob, Grep
+context: fork
+agent: general-purpose
+background: false
 ---
 
 Review test code and report what to improve, ranked P1/P2/P3.
 
-**Match the user's language.** Answer a Japanese request in Japanese, an English one in English. Quote code, file paths, and command output verbatim.
+## A fresh context, on purpose
+
+On hosts that honour `context: fork`, this review runs in a subagent of its own. **You did not write these tests**, and nothing of the conversation that produced them reaches you except the brief below. That is the point: an author re-reading their own work brings their reasons with them and confirms instead of questioning. Judge the tests by what the code promises, not by what anyone meant them to do.
+
+The brief from the caller:
+
+$ARGUMENTS
+
+Take the targets from the brief. If it names none, ask for them in your report rather than guessing — a review of the wrong files looks exactly like a review of the right ones. Where this skill says "the caller", it means the agent that invoked you; "After the review" is its part, not yours.
+
+**Match the user's language** — the brief says which; with no brief, the language of the request. Quote code, file paths, and command output verbatim.
 
 **Boundary of this skill: reading, plus running tests.** Never edit a file, never run git (`git add` / `git commit` / `git push`) or `gh pr create` / `gh pr edit`. `Bash` is for the project's test and coverage commands and for the reading a review needs — checking a config file, say — never for writing or destructive operations. Acting on the findings happens outside the skill (see "After the review").
 
-**`Bash` is deliberately absent from `allowed-tools`.** That field grants pre-approval; it does not impose a limit. A bare `Bash` entry would therefore widen the session's normal permissions for as long as this skill runs, and the operations this body forbids would go through in silence. A test command is arbitrary code execution, and nothing can enumerate in advance what a given project runs, so a prompt is the right outcome. **Expect to be asked before tests run**, and do not work around it.
+**`Bash` is deliberately absent from `allowed-tools`.** That field grants pre-approval; it does not impose a limit. A bare `Bash` entry would therefore widen the session's normal permissions for as long as this skill runs, and the operations this body forbids would go through in silence. A test command is arbitrary code execution, and nothing can enumerate in advance what a given project runs, so a prompt is the right outcome. **Expect to be asked before tests run**, and do not work around it. Forked, the subagent's `Bash` calls go through the session's own permission checks, so the same holds there.
 
 **The boundary is this skill's own contract, not something the host enforces.** Some hosts ignore `allowed-tools` outright — Codex reads only `name` and `description` — and there the git and gh commands above are already pre-approved and execute without confirmation. **The absence of a prompt is not permission.** What matters is not what can run but what this skill promises not to do.
 
@@ -29,10 +42,10 @@ Do not leave this condition to the caller's configuration alone (a `CLAUDE.md` o
 
 ## After the review
 
-This skill changes no files while it runs, per the boundary above. Once it reports, the caller takes over.
+This skill changes no files while it runs, per the boundary above. Once it reports, the caller takes over. When the review ran forked, the report arrives as the skill's result, which the user does not necessarily see: **write it out to the user first**, then go on.
 
 1. **Fix the P1 and P2 findings, without asking first.** P1 means "deal with this before merging" and P2 decides how far the tests can be trusted; reporting and stopping discharges neither. Asking for permission to act on a review the caller already asked for is the failure mode this step exists to prevent.
-2. **Review again** with this skill. A fix can break another part of the test or introduce a new P1, and this is where that surfaces.
+2. **Review again** with this skill, in a fresh run, with a brief that says what this round fixed. A fix can break another part of the test or introduce a new P1, and this is where that surfaces.
 3. **Repeat 1–2 until no P1 is left, for at most three rounds.** If P1 survives three rounds, report what remains and why, then let the user decide. Stop on the same terms when one finding survives two rounds — an LLM's findings wobble, and grinding on it mechanically is not convergence.
 4. **The loop gate is P1 only.** Fix the P2 of the **first** report; P2 that a later round raises is reported, not chased. P2 is where the findings wobble most (a "missing boundary case" can always be claimed again), so gating the loop on it would never terminate.
 5. **Never auto-fix P3.** Report it; acting on it is the user's call.
@@ -134,6 +147,12 @@ Use this format. Translate the headings into the language of the report.
 ```
 
 Drop any priority section with nothing in it, and the implementation section too.
+
+**End the report with this line, untranslated**, because a forked caller never read this file and needs to be told what its part is:
+
+```
+Caller: show this report to the user, then act on it per "After the review" in ${CLAUDE_SKILL_DIR}/SKILL.md.
+```
 
 ## How to assign priority
 

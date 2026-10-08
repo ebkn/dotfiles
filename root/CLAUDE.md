@@ -35,6 +35,7 @@
 # Test Review
 
 - Use the `review-test` skill whenever a batch of test-file changes is complete, without waiting to be asked, and before the `commit` skill runs. Tests are the specification of behavior; the moment just after writing them is the cheapest time to fix them.
+- It runs in a forked, fresh context, so it knows only what you pass as its arguments: the test files, the module they test, what the change set out to do, and the language to answer in. Write the brief as intent, not as a defence of the code — the fresh context exists so the reviewer does not inherit your reasons.
 - Skip it when the user says review is unnecessary, when nothing under test changed, or when the change cannot alter what the tests assert (typos, formatting, import order).
 - Fix the P1 and P2 findings without asking first — a review that only reports leaves the work undone. Then re-run the review, at most three rounds, and report what is left instead of looping.
 - **The loop gate is P1 only.** Fix the P2 findings of the first report, but do not chase P2 raised by a later round: those wobble between runs, and grinding on them never converges. P3 is reported, never auto-fixed.
