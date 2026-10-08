@@ -152,9 +152,14 @@ A consequence to know before reading a surprising column count below: **the
 throwaway server is now deliberately plugin-free on every machine.** It was not
 before — a real `tpm` loaded the developer's plugins into it while CI, where the
 load failed, had none, so the cheatsheet cases were measuring a different set of
-bindings depending on where they ran. `tagged notes reach the running server`
-compares `server >= file`, which plugins could only pad; with none it sits at
-equality, which is the comparison that was meant.
+bindings depending on where they ran.
+
+`tagged notes reach the running server` compares the notes **as a set**: every
+note on a prefix-table `bind` in the file must end a row of `list-keys -N -T
+prefix`. It used to compare counts, and the file-side regex only matched the four
+lines where `-N` is not the first flag — so it passed whenever the server held
+four notes, and the "equality" this paragraph once claimed was never being
+checked. Plain `list-keys -T prefix` prints no notes at all; only `-N` does.
 
 What it asserts:
 
