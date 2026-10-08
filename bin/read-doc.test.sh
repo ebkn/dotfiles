@@ -94,6 +94,32 @@ t "a symlink inside the tree pointing out of it is refused too" "1" \
 t "and nothing of the outside file reaches the page" "0" \
   "$(count "$(printf 'GIF89a-secret' | base64 | tr -d '\n')" "$TMP/b.html")"
 
+# --- a document with no local tree inlines nothing -----------------------------
+# Only a document this machine named on the command line has neighbours. A
+# pulled one is read from a temp file, so a relative image would resolve into
+# $TMPDIR; one on stdin, into whatever directory read-doc was run from. Both
+# would hand the page files the document never shipped.
+mkdir -p "$TMP/tmpd" "$TMP/cwd" "$TMP/stub"
+printf 'GIF89a-neighbour' >"$TMP/tmpd/secret.gif"
+printf 'GIF89a-neighbour' >"$TMP/cwd/secret.gif"
+printf '![x](secret.gif)\n' >"$TMP/pulled.md"
+cat >"$TMP/stub/ssh" <<STUB
+#!/bin/sh
+printf '%s\n' "\$@" >"$TMP/ssh.argv"
+cat "$TMP/pulled.md"
+STUB
+chmod +x "$TMP/stub/ssh"
+neighbour_b64=$(printf 'GIF89a-neighbour' | base64 | tr -d '\n')
+env -u SSH_CONNECTION TMPDIR="$TMP/tmpd" PATH="$TMP/stub:$PATH" \
+  "$RD" --print "farhost:notes/doc's.md" >"$TMP/pulled.html" 2>/dev/null
+t "a pulled document is fetched with the path quoted for the remote shell" \
+  "$(printf '%s\n' farhost "cat -- 'notes/doc'\\''s.md'")" "$(cat "$TMP/ssh.argv")"
+t "and inlines nothing from beside its temp file" "0" "$(count "$neighbour_b64" "$TMP/pulled.html")"
+(cd "$TMP/cwd" && env -u SSH_CONNECTION "$RD" --print <"$TMP/pulled.md" >"$TMP/stdin.html" 2>/dev/null)
+t "a document on stdin inlines nothing from the current directory" "0" \
+  "$(count "$neighbour_b64" "$TMP/stdin.html")"
+t "while both still render" "2" "$(cat "$TMP/pulled.html" "$TMP/stdin.html" | grep -c '<img')"
+
 # --- source files are fenced by their shebang ------------------------------------
 # Extensionless executables are the norm in bin/, and matching on the name alone
 # rendered them as prose.
