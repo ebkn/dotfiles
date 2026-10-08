@@ -44,10 +44,19 @@ handed, which is the shim's real contract with autossh: drop an argument and the
 reconnect itself breaks, on a path that only runs once the network has already
 gone wrong.
 
-The notice is read off the shim's **own stderr**, which works because with no
-controlling terminal the `/dev/tty` write fails and falls back to stderr, while
-ssh's stderr is going to the log from attempt two onwards — so stderr carries the
-notice alone.
+The notice is drawn on **`AUTOSSH_NOTICE_TTY`** (default `/dev/tty`; only the
+test sets it), pointed at a plain file so the frame is read back whole. The suite
+used to read the notice off the shim's stderr instead, which only works with no
+controlling terminal: run from an interactive shell it failed five cases and left
+that terminal cleared with its cursor hidden. A plain file has no size, so the
+shim falls back to 24x80 and the columns are fixed. The stderr fallback is still
+tested, by pointing the variable at a path that cannot be opened.
+
+Each attempt is checked on argv (the reconnect is the attempt that matters most),
+on the whole visible text rather than a substring — a stray "Device not
+configured" in front of the notice is the mess this exists to remove — and with a
+different ssh message per attempt, so "the previous attempt's message" cannot be
+satisfied by the current one.
 
 It caught the `/dev/tty` trap [read-doc](read-doc.md) documents on its first run:
 `stty size </dev/tty 2>/dev/null` does **not** suppress "Device not configured",

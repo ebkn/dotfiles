@@ -24,6 +24,9 @@
 
 state="${AUTOSSH_NOTICE_STATE:-}"
 host="${AUTOSSH_NOTICE_HOST:-the remote}"
+# The terminal the notice is drawn on. Only the test sets it: run from a real
+# terminal, the suite would otherwise clear it and hide its cursor.
+tty="${AUTOSSH_NOTICE_TTY:-/dev/tty}"
 
 ssh_bin=$(command -v ssh 2>/dev/null)
 [ -n "$ssh_bin" ] || ssh_bin=/usr/bin/ssh
@@ -60,7 +63,7 @@ cols=80
 # Braced, for the reason spelled out at the terminal write below: with no
 # controlling terminal the "Device not configured" comes from the redirection,
 # so `stty ... 2>/dev/null` does not suppress it.
-{ size=$(stty size </dev/tty); } 2>/dev/null
+{ size=$(stty size <"$tty"); } 2>/dev/null
 case "$size" in
   [0-9]*' '[0-9]*) rows=${size%% *} cols=${size##* } ;;
 esac
@@ -91,7 +94,7 @@ frame="${frame}$(centred $((rows / 2)) "reconnecting to ${host} … (${attempt})
 # then fails with ENXIO. The braces matter too -- "Device not configured" comes
 # from the redirection rather than from printf, so a bare 2>/dev/null on the
 # command would not suppress it. Same idiom as bin/read-doc.
-{ printf '%s' "$frame" >/dev/tty; } 2>/dev/null || printf '%s' "$frame" >&2
+{ printf '%s' "$frame" >"$tty"; } 2>/dev/null || printf '%s' "$frame" >&2
 
 # stderr to the log so the next attempt can quote it. stdout is left alone: it
 # is the session itself.
