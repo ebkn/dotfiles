@@ -189,5 +189,40 @@ bg=$(jq -n --arg r "$REPO" '[
 eq 'a background session is not a delivery target' 'none' \
   "$(sid "$bg" "$REPO/git-worktrees/a" "$WTS2")"
 
+# --- repo_path ---------------------------------------------------------------
+# The extra-repos branch is the ONLY route for a checkout ghq does not own --
+# this repository's own PRs among them -- and both detector suites run with it
+# pointed at nothing, so it is pinned here. ghq is a shell function standing in
+# for the binary: the contract under test is the fallback, not ghq.
+echo
+echo "== repo_path =="
+GHQ_ANSWER=""
+ghq() { [ -n "$GHQ_ANSWER" ] && printf '%s\n' "$GHQ_ANSWER"; return 0; }
+checkout() { # checkout <dir> <origin-url>
+  git init -q "$1"
+  git -C "$1" remote add origin "$2"
+}
+checkout "$TMP/x-ssh" git@github.com:acme/widget.git
+checkout "$TMP/x-https" https://github.com/acme/gadget
+checkout "$TMP/x-other" git@github.com:xacme/thing.git
+rp() { repo_path "$@" || echo none; }
+
+GHQ_ANSWER="$TMP/x-https"
+eq 'a ghq checkout is returned first' "$TMP/x-https" "$(rp acme/widget "$TMP/x-ssh")"
+GHQ_ANSWER=""
+eq 'otherwise an extra checkout is matched by its ssh origin' "$TMP/x-ssh" \
+  "$(rp acme/widget "$TMP/x-https:$TMP/x-ssh")"
+eq 'or by an https origin without .git' "$TMP/x-https" \
+  "$(rp acme/gadget "$TMP/x-ssh:$TMP/x-https")"
+eq 'a missing extra dir is skipped, not fatal' "$TMP/x-ssh" \
+  "$(rp acme/widget "$TMP/no-such-dir:$TMP/x-ssh")"
+eq 'nothing matching is non-zero' 'none' "$(rp acme/nothing "$TMP/x-ssh:$TMP/x-https")"
+# The owner/name tail is matched after a separator, or `acme/thing` would claim
+# the checkout of `xacme/thing` -- the same /a vs /ab class session_in_worktree
+# pins above.
+eq 'an owner that merely ends in the name does not match' 'none' \
+  "$(rp acme/thing "$TMP/x-other")"
+eq 'while the real owner does' "$TMP/x-other" "$(rp xacme/thing "$TMP/x-other")"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
