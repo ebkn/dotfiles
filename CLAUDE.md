@@ -198,7 +198,8 @@ and a `-F` format, and tmux has changed how it renders non-printable bytes
 between versions — an unpinned one was green locally and red in CI on code
 nobody had touched. `fzf` is pinned and installed for the same reason —
 `tmux-agents.test.sh` drives the real binary in a real pane and reads the
-rendered screen back — and the runner image does not carry it at all. Each such
+rendered screen back — and the runner image does not carry it at all. `pandoc`
+likewise, for `read-doc.test.sh`, which asserts on the HTML it renders. Each such
 pin lives in three places — the workflow, `bin/test-in-docker.Dockerfile` and
 `brewfiles/Brewfile-shell`, each naming the other two; bump all three together,
 and the workflow prints each version so the next gap is visible in the log
@@ -256,7 +257,7 @@ silent.
 | `root/.codex/rules/default.rules.test.sh` | [root/README.md](root/README.md) — local only, not in CI |
 | `root/.agents/skills/retrospective/*.test.sh` | [NOTES.md](root/.agents/skills/retrospective/NOTES.md) |
 | `zsh/*.test.zsh` | [zsh/README.md](zsh/README.md) |
-| `bin/read-doc.test.sh` | [read-doc.md](bin/read-doc.md) — needs pandoc, local only, not in CI |
+| `bin/read-doc.test.sh` | [read-doc.md](bin/read-doc.md) — needs pandoc (pinned in CI) |
 | `bin/textlint-docs.test.sh` | [textlint-docs.md](bin/textlint-docs.md) (the rules themselves are checked by using them) |
 | `bin/launchd-load.test.sh` | [launchd-load.md](bin/launchd-load.md) |
 | `bin/git-generated.test.sh`, `bin/fzf-files.test.sh` | their headers |

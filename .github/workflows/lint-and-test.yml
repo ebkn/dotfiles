@@ -221,6 +221,24 @@ jobs:
           tar -xzf fzf.tar.gz
           sudo install -m 0755 fzf /usr/local/bin/fzf
 
+      # pandoc is what read-doc runs, and read-doc.test.sh asserts on the HTML
+      # it renders, so it is the subject under test in the same sense as tmux
+      # and fzf above. The runner has none, and the distro package predates
+      # --syntax-highlighting, which read-doc passes. Pinned for the same
+      # reason as the others; the checksum is of the release tarball as
+      # fetched (upstream publishes no digest beside it). bin/test-in-docker.
+      # Dockerfile and brewfiles/Brewfile-shell carry the same pin: bump all
+      # three.
+      - name: Install pandoc
+        run: |
+          version=3.12
+          expected=67d7d011fed8c8543306022b985b9b2499ab9b74818df91d8727c7e9ebc5ba06
+          curl -fsSL -o pandoc.tar.gz \
+            "https://github.com/jgm/pandoc/releases/download/${version}/pandoc-${version}-linux-amd64.tar.gz"
+          echo "${expected}  pandoc.tar.gz" | sha256sum --check --strict
+          tar -xzf pandoc.tar.gz
+          sudo install -m 0755 "pandoc-${version}/bin/pandoc" /usr/local/bin/pandoc
+
       # Printed, not assumed. The version is the one thing that explains a
       # failure in the round-trip cases below, and the run that found that out
       # had no record of it.
@@ -229,6 +247,13 @@ jobs:
           tmux -V
           zsh --version
           fzf --version
+          pandoc --version | head -n 1
+
+      # read-doc renders UNTRUSTED documents: the page must load nothing and an
+      # image may only come from the document's own tree. Needs the pinned
+      # pandoc installed above.
+      - name: read-doc
+        run: bash bin/read-doc.test.sh
 
       # Every tmux suite must refuse to run on a developer machine, where one
       # missed `unset TMUX` killed the real server. Static: it runs nothing.
