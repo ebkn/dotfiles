@@ -188,6 +188,13 @@ check "the caller's own window is named" 'bravo' \
 check 'the active window is left alone' 'before-active' \
   "$(tmux -L "$socket" display-message -p -t "$active" '#{window_name}')"
 
+# --- a label is text, never a format ----------------------------------------
+# Labels come from directory and branch names, and awk's printf reads its first
+# argument as a format: a directory called 100% must not break the name.
+mkdir -p "$work/100%"
+t11=$(new_window "$work/100%")
+check 'a % in a directory name is shown as is' '100%' "$(title_of "$t11")"
+
 if [ "$failures" -ne 0 ]; then
   printf '\n%d test(s) failed\n' "$failures"
   exit 1

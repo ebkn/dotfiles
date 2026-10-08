@@ -51,7 +51,9 @@ function strip_type(b,   n) {
   else if (wt != "") label = "w:" strip_type(wt)
   else if (br != "") label = "b:" strip_type(br)
   else               label = dir
-  if (!seen[label]++) { printf sep label; sep = "," }
+  # The label is an argument, never the format: a directory called 100% was
+  # read as a conversion and lost its percent sign.
+  if (!seen[label]++) { printf "%s%s", sep, label; sep = "," }
 }')
 [[ -n "$title" ]] && tmux rename-window "${target[@]}" -- "$title" 2>/dev/null
 exit 0
