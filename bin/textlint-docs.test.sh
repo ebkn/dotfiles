@@ -62,6 +62,16 @@ t "and then runs textlint on the target" "doc.md" "$(printf '%s\n' "$out" | tail
 td doc.md >/dev/null
 t "a second run does not reinstall" "" "$(cat "$NPM_LOG")"
 
+# A dependency change is what DOES reinstall: the cached manifests are compared
+# with textlint/'s, so a bumped version is not silently ignored in favour of the
+# toolchain already sitting in the cache.
+for manifest in package.json package-lock.json; do
+  printf '\n' >>"$TMP/cache/$manifest"
+  : >"$NPM_LOG"
+  td doc.md >/dev/null
+  t "a changed $manifest reinstalls" "1" "$(grep -c ' ci ' "$NPM_LOG")"
+done
+
 # A failed install must not leave the manifest behind: the next run decides
 # whether to install by comparing it, and would take a half-built tree for a
 # finished one.
