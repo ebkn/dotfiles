@@ -28,7 +28,15 @@ backup_path() {
   dest="${BACKUP_DIR}/$(basename "$src")"
   if [ -e "$dest" ] || [ -L "$dest" ]; then
     suffix="$(date +%Y%m%d%H%M%S)"
-    dest="${dest}.${suffix}"
+    # The timestamp has one-second resolution, and setup backs up files with
+    # the same basename back to back (two settings.json, two AGENTS.md): a
+    # second collision within the second used to `mv` over the first backup.
+    local base="${dest}.${suffix}" n=1
+    dest=$base
+    while [ -e "$dest" ] || [ -L "$dest" ]; do
+      dest="${base}.${n}"
+      n=$((n + 1))
+    done
   fi
 
   printf "backup: %s -> %s\n" "$src" "$dest"

@@ -146,6 +146,25 @@ t "a dangling link is reported as drift" "1" "$(printf '%s' "$out" | grep -c '^d
 lib link_with_backup "$R/conf" "$H/.local/bin/tool" >/dev/null
 t "and re-pointed when applied" "link -> $R/conf" "$(kind "$H/.local/bin/tool")"
 
+# --- backup_path ------------------------------------------------------------------
+# A name already in ~/backup gets a timestamped copy rather than overwriting it.
+# Within one second the timestamp repeats -- and setup backs up two files with
+# one basename back to back (two settings.json, two AGENTS.md) -- so a second
+# collision in the same second must not overwrite the first either.
+both_backups() {
+  backup_path "$H/a/settings.json"
+  backup_path "$H/b/settings.json"
+}
+fresh
+mkdir -p "$B" "$H/a" "$H/b"
+printf 'oldest' >"$B/settings.json"
+printf 'first' >"$H/a/settings.json"
+printf 'second' >"$H/b/settings.json"
+lib both_backups >/dev/null
+t "an existing backup is never overwritten" "file:oldest" "$(kind "$B/settings.json")"
+t "and every later backup of the same name is kept" "first second" \
+  "$(for f in "$B"/settings.json.*; do [ -f "$f" ] && cat "$f" && echo; done | sort | tr '\n' ' ' | sed 's/ $//')"
+
 # --- link_dotfiles over a fresh $HOME ---------------------------------------------
 # The real list, against this checkout. Check mode on an empty home must only
 # report: the one missing source it may warn about is ~/CLAUDE.md, the source of
