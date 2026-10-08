@@ -15,7 +15,7 @@ ends up holding (which branches exist, which worktrees are registered). Only `gh
 and `fzf` are stubbed, **never git**, because a stubbed git would keep passing if
 git changed what these commands mean.
 
-Three things are worth knowing before editing it:
+Four things are worth knowing before editing it:
 
 1. **The `mktemp -d` path must be resolved with `:A`** — macOS hands back
    `/var/…`, git reports `/private/var/…`, and without that every path comparison
@@ -28,6 +28,10 @@ Three things are worth knowing before editing it:
    list already occupies stdin — so **no redirection can answer it**.
    `_gdmerged_confirm` exists purely as the seam a test can override, and both
    answers are exercised through it.
+4. **`run` reports the exit status as well as the final `PWD`**, because agents
+   run `gw` and act on its status — a failure returning 0 would leave them working
+   in the main checkout. "No `gh`" is a `PATH` holding only a symlink to git,
+   since on the CI runner a real `gh` shares `/usr/bin` with git.
 
 The picker's menu is asserted on its **visible columns only**: the hidden third
 column is the absolute path, which contains both the branch name and the relative

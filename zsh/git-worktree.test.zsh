@@ -101,8 +101,11 @@ lacks() {
 }
 
 # run <dir> <command...> -- run in a subshell rooted at <dir> with the stubs on
-# PATH. Output is stdout+stderr, with a final "PWD=<dir>" line so tests can see
-# where the function left the shell (gw's whole no-arg contract).
+# PATH. Output is stdout+stderr, then a "STATUS=<n>" line and a final
+# "PWD=<dir>" line, so tests can see what the function returned and where it
+# left the shell (gw's whole no-arg contract). The status is part of the
+# contract because agents run gw and act on it: a failure that returned 0
+# would leave them working in the main checkout.
 run() {
   local dir="$1"; shift
   (
@@ -115,12 +118,24 @@ run() {
       _gdmerged_confirm() { [[ "$CONFIRM" == yes ]] }
     fi
     "$@"
+    printf 'STATUS=%s\n' "$?"
     printf 'PWD=%s\n' "$PWD"
   ) 2>&1
 }
 
-# Pick the final PWD line back out of run's output.
+# Pick the two trailer lines back out of run's output.
 pwd_of() { print -r -- "${1##*$'\n'}"; }
+# The leading newline lets the pattern match when STATUS is the first line,
+# as it is for a call that printed nothing.
+status_of() { local s=$'\n'"$1"; s="${s##*$'\n'STATUS=}"; print -r -- "${s%%$'\n'*}"; }
+
+# without_gh <command...> -- run with nothing but git on PATH, standing for a
+# machine without the gh CLI. Removing the stub dir is not enough: a real gh
+# shares /usr/bin with git on the CI runner.
+nogh_bin="$work/nogh"
+mkdir -p "$nogh_bin"
+ln -s "${commands[git]}" "$nogh_bin/git"
+without_gh() { PATH="$nogh_bin"; "$@"; }
 
 # new_repo <name> -- a repository with one commit on main and no remote.
 new_repo() {
@@ -142,6 +157,7 @@ new_repo() {
 
 out=$(run "$work" gw some-branch)
 contains 'gw outside a repository refuses' 'not inside a git repository' "$out"
+check 'and fails' 1 "$(status_of "$out")"
 
 repo=$(new_repo gw-basic)
 out=$(run "$repo" gw feature/thing)
@@ -149,6 +165,20 @@ check 'gw creates the worktree under git-worktrees/, slashes flattened' \
   "PWD=$repo/git-worktrees/feature-thing" "$(pwd_of "$out")"
 check 'gw creates the branch' 'feature/thing' \
   "$(git -C "$repo" branch --list --format='%(refname:short)' feature/thing)"
+
+# A name that is already a branch must fail outright. The danger is the
+# opposite: carrying on past the failed `worktree add` would copy .env into a
+# plain directory, cd into it and return 0, and the caller would go on working
+# in something that is not a worktree at all.
+repo=$(new_repo gw-taken)
+git -C "$repo" branch taken
+printf 'secret\n' > "$repo/.env"
+print -r -- .env > "$repo/.worktree-copy"
+out=$(run "$repo" gw taken)
+check 'gw on an existing branch name fails' 1 "$(status_of "$out")"
+check 'and leaves no directory behind' 'absent' \
+  "$([[ -e "$repo/git-worktrees/taken" ]] && echo present || echo absent)"
+check 'and does not move into one' "PWD=$repo" "$(pwd_of "$out")"
 
 # gw run from inside a linked worktree -- how an agent working in one calls it
 # -- still files the new worktree under the MAIN checkout and copies from the
@@ -189,6 +219,7 @@ lacks 'gw ignores comment lines' 'a comment not found' "$out"
 repo=$(new_repo gw-pick)
 out=$(run "$repo" gw)
 contains 'gw with no worktrees says so' 'No worktrees to pick' "$out"
+check 'and that is not an error' 0 "$(status_of "$out")"
 
 run "$repo" gw one >/dev/null
 run "$repo" gw two >/dev/null
@@ -204,6 +235,11 @@ check 'the picker offers each linked worktree by branch and path relative to the
   "one | git-worktrees/one"$'\n'"two | git-worktrees/two" "$visible"
 unset FZF_MENU
 
+out=$(run "$repo/git-worktrees/one" gw)
+check 'cancelling the picker leaves the shell where it was' \
+  "PWD=$repo/git-worktrees/one" "$(pwd_of "$out")"
+check 'and is not an error' 0 "$(status_of "$out")"
+
 # PR URLs. The guard that matters is the origin check: without it,
 # `git fetch origin pull/<n>/head` reaches into whatever origin happens to be.
 repo=$(new_repo gw-pr)
@@ -211,12 +247,26 @@ out=$(GH_PR_REPO=someone/other GH_PR_BRANCH=pr-branch \
       run "$repo" gw https://github.com/me/mine/pull/7)
 contains 'gw refuses a PR from another repository' \
   "PR belongs to 'me/mine' but current repo is 'someone/other'" "$out"
+check 'and fails' 1 "$(status_of "$out")"
+check 'and creates no branch' '' \
+  "$(git -C "$repo" branch --list --format='%(refname:short)' pr-branch)"
+
+out=$(GH_PR_REPO=me/mine run "$repo" gw https://github.com/me/mine/pull/7)
+contains 'gw reports a PR it cannot look up' 'failed to fetch PR info' "$out"
+check 'and fails' 1 "$(status_of "$out")"
+
+out=$(run "$repo" without_gh gw https://github.com/me/mine/pull/7)
+contains 'gw needs gh for a PR URL' 'gh CLI is required' "$out"
+check 'and fails' 1 "$(status_of "$out")"
 
 git -C "$repo" branch existing-pr-branch
 out=$(GH_PR_REPO=me/mine GH_PR_BRANCH=existing-pr-branch \
       run "$repo" gw https://github.com/me/mine/pull/7)
 contains 'gw refuses to reuse an existing local branch' \
   "local branch 'existing-pr-branch' already exists" "$out"
+check 'and fails' 1 "$(status_of "$out")"
+check 'and creates no worktree for it' 'absent' \
+  "$([[ -e "$repo/git-worktrees/existing-pr-branch" ]] && echo present || echo absent)"
 
 # The happy path actually fetches: origin gets a refs/pull/7/head, which is the
 # ref GitHub exposes for a PR and the only thing gw asks for.
