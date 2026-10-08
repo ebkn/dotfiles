@@ -493,6 +493,41 @@ check_fails "an unparsable max_turns says why, before spending anything" \
   "case case-d: max_turns takes an integer" $RUN "$bad" case-d
 check_fails "an unparsable budget_usd says why, before spending anything" \
   "case case-e: budget_usd takes a number" $RUN "$bad" case-e
+# An option given no value used to die on `shift 2` under set -e: exit 1 and
+# not a word about why.
+check_fails "--runs with no value says why" "--runs needs a value" $RUN "$skill" case-a --runs
+check_fails "--model with no value says why" "--model needs a value" $RUN "$skill" case-a --model
+
+# --- an assert.sh that never calls skill_eval_finish ---
+# Its FAIL lines are in the log while the script exits 0, and the runner used
+# to grade on the exit status alone: [PASS], with the failures visible only to
+# someone who opened assert.log.
+rm -rf "$STUB_CLAUDE_OUT"
+if output="$(STUB_ASSERT_FAIL=1 STUB_NO_FINISH=1 $RUN "$skill" case-a 2>&1)"; then
+  printf 'FAIL a FAIL line without skill_eval_finish still exited 0\n'
+  fails=$((fails + 1))
+else
+  printf 'ok   a FAIL line fails the run even without skill_eval_finish\n'
+fi
+contains "and the run is reported as FAIL" "[FAIL] $skill/case-a run-1" "$output"
+
+# --- a scaffold that fails ---
+# It used to abort the whole run under set -e, naming no case and leaving the
+# working directory behind.
+rm -rf "$STUB_CLAUDE_OUT"
+check_fails "a failing scaffold names the case" "case case-a: scaffold.sh exited 4" \
+  env STUB_SCAFFOLD_FAIL=1 $RUN "$skill" case-a
+t "and claude is never called" "absent" "$([ -e "$STUB_CLAUDE_OUT/args" ] && echo present || echo absent)"
+
+# --- allowed-tools is read from the frontmatter only ---
+# A body line that happens to start with the key -- an example in the skill's
+# own documentation, say -- must not widen what the run may do.
+printf '\nallowed-tools: Write, Edit\n' >>"$skills_dir/$skill/SKILL.md"
+rm -rf "$STUB_CLAUDE_OUT"
+$RUN "$skill" case-a >/dev/null
+absent "a body line is not read as allowed-tools" "Write" "$(cat "$STUB_CLAUDE_OUT/args")"
+contains "while the frontmatter's still is" "Bash(git status *)" "$(cat "$STUB_CLAUDE_OUT/args")"
+
 if [ "$fails" -eq 0 ]; then
   printf '\nall skill-eval tests passed\n'
   exit 0
