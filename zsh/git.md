@@ -29,6 +29,11 @@ Three things are worth knowing before editing it:
    `_gdmerged_confirm` exists purely as the seam a test can override, and both
    answers are exercised through it.
 
+The picker's menu is asserted on its **visible columns only**: the hidden third
+column is the absolute path, which contains both the branch name and the relative
+path, so a substring match on the whole menu passes whatever the first two
+columns say.
+
 The `[gone]` upstream that `gdmerged` treats as consent is set up for real: push
 the branch, delete it in the bare origin, `fetch -p`.
 

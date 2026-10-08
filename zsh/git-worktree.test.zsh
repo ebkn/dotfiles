@@ -178,12 +178,14 @@ run "$repo" gw one >/dev/null
 run "$repo" gw two >/dev/null
 export FZF_MENU="$work/menu"
 out=$(FZF_PICK=two run "$repo" gw)
-menu=$(cat "$work/menu")
+# Only the visible columns: the hidden third one is the absolute path, which
+# contains both the branch name and the relative path, so a substring match
+# on the whole menu would pass whatever the first two columns said.
+visible=$(awk -F'\t' '{ sub(/ +$/, "", $1); print $1 " | " $2 }' "$work/menu")
 check 'gw picks the worktree by its absolute path' \
   "PWD=$repo/git-worktrees/two" "$(pwd_of "$out")"
-contains 'the picker offers the branch name' 'one' "$menu"
-contains 'the picker offers the path relative to the main repo' 'git-worktrees/one' "$menu"
-lacks 'the picker excludes main' 'main' "${menu//git-worktrees/}"
+check 'the picker offers each linked worktree by branch and path relative to the main checkout, not main' \
+  "one | git-worktrees/one"$'\n'"two | git-worktrees/two" "$visible"
 unset FZF_MENU
 
 # PR URLs. The guard that matters is the origin check: without it,
