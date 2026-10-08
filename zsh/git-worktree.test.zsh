@@ -210,10 +210,16 @@ printf 'pointer\n' > "$repo/asset.bin"
 printf 'spaced\n' > "$repo/spaced.txt"
 printf 'last\n' > "$repo/last.txt"
 ln -s config "$repo/config-link"
+# models/ holds its only LFS file in a hidden subdirectory, and a dotfile of its
+# own: whether a directory holds LFS files, and which entries are walked when it
+# does, both depend on the walk seeing hidden entries at any depth.
+mkdir -p "$repo/models/.hidden"
+printf 'pointer\n' > "$repo/models/.hidden/weights.bin"
+printf 'models-env\n' > "$repo/models/.env"
 printf '*.bin filter=lfs\n' > "$repo/.gitattributes"
 # The last entry has no trailing newline, as an editor may well leave it.
 printf '%s\n' '# a comment' '' .env config '  spaced.txt  ' config-link \
-  asset.bin missing-file > "$repo/.worktree-copy"
+  models asset.bin missing-file > "$repo/.worktree-copy"
 printf 'last.txt' >> "$repo/.worktree-copy"
 out=$(run "$repo" gw copied)
 wt="$repo/git-worktrees/copied"
@@ -227,8 +233,42 @@ check 'gw skips a listed LFS file' 'absent' \
   "$([[ -e "$wt/asset.bin" ]] && echo present || echo absent)"
 check 'gw skips an LFS file inside a listed directory' 'absent' \
   "$([[ -e "$wt/config/model.bin" ]] && echo present || echo absent)"
+check 'gw skips an LFS file in a hidden subdirectory of a listed directory' 'absent' \
+  "$([[ -e "$wt/models/.hidden/weights.bin" ]] && echo present || echo absent)"
+check 'and still copies the dotfiles beside it' 'models-env' "$(cat "$wt/models/.env" 2>&1)"
 contains 'gw warns about a missing entry' 'missing-file not found' "$out"
 lacks 'gw ignores comment lines' 'a comment not found' "$out"
+
+# A listed directory with no LFS file in it, the common case (build output,
+# generated code). Its shape must arrive whole -- nesting, an empty directory,
+# a symlink inside -- and it must land IN the checkout's copy of the directory
+# when the checkout already has one (tracked files beside untracked output),
+# not nested one level below it as gen/gen. out/dist is the opposite case: the
+# checkout has neither it nor its parent.
+repo=$(new_repo gw-copy-dir)
+mkdir -p "$repo/gen/deep" "$repo/gen/empty"
+printf 'kept\n' > "$repo/gen/tracked"
+git -C "$repo" add gen/tracked
+git -C "$repo" commit -qm 'track part of gen'
+printf 'out\n' > "$repo/gen/out.js"
+printf 'deep\n' > "$repo/gen/deep/more.js"
+ln -s out.js "$repo/gen/alias.js"
+mkdir -p "$repo/out/dist"
+printf 'built\n' > "$repo/out/dist/index.js"
+printf '%s\n' gen out/dist > "$repo/.worktree-copy"
+run "$repo" gw dir-copied >/dev/null
+wt="$repo/git-worktrees/dir-copied"
+check 'gw copies a directory whose parent the checkout lacks' 'built' \
+  "$(cat "$wt/out/dist/index.js" 2>&1)"
+check 'gw copies a directory into the one the checkout already has' 'out' \
+  "$(cat "$wt/gen/out.js" 2>&1)"
+check 'and not nested below it' 'absent' \
+  "$([[ -e "$wt/gen/gen" ]] && echo present || echo absent)"
+check 'and keeps its nesting' 'deep' "$(cat "$wt/gen/deep/more.js" 2>&1)"
+check 'and its empty directories' 'dir' \
+  "$([[ -d "$wt/gen/empty" ]] && echo dir || echo missing)"
+check 'and a symlink inside it as a link' 'link' \
+  "$([[ -L "$wt/gen/alias.js" ]] && echo link || echo not-a-link)"
 
 # The worktree is created with hooks off: a post-checkout hook (git lfs, dedup)
 # would replace LFS pointers behind the index's back and leave the new worktree
