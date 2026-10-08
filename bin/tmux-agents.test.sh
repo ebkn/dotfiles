@@ -630,6 +630,76 @@ else
   esac
 fi
 
+# The quieter break: a CLI that exits 0 with something that is not JSON -- a
+# changed output format, a warning on stdout. jq failing must degrade the same
+# way, not turn into an empty correction map that the awk then applies.
+stub_claude 'Warning: agents is now "claude sessions" {'
+if ! run_rows; then
+  fail "--rows survives a CLI that answers with non-JSON" "stderr: $(cat "$work/rows.err" 2>/dev/null)"
+else
+  case "$(row_of corr-late)" in
+    '▶ '*) pass "non-JSON from the CLI leaves the rows as the hooks published them" ;;
+    *) fail "non-JSON from the CLI leaves the rows as the hooks published them" "row: $(row_of corr-late)" ;;
+  esac
+fi
+
+# When the two sides AGREE that a session is blocked, the hook's data is kept
+# whole: its note names the tool, and its per-actor listing names which
+# subagent is blocked -- the CLI knows neither. A correction that rewrote every
+# bound row would replace both with the CLI's vaguer waitingFor.
+add_bound_pane corr-agree waiting "Bash: rm -rf build" sid-agree
+agree_pane=$(tmux -L "$socket" list-panes -t work:corr-agree -F '#{pane_id}' | head -1)
+tmux -L "$socket" set-option -p -t "$agree_pane" @claude_agents \
+  "waiting${US}${now}${US}Explore${US}Bash: rm -rf build${RS}busy${US}${now}${US}${US}${RS}"
+# A state the hooks never published before, on a pane of its own: the list must
+# show it rather than drop the pane, since a new state is still an agent.
+add_bound_pane corr-newstate teleporting "" ""
+stub_claude '[{"sessionId":"sid-agree","status":"waiting","waitingFor":"permission prompt"}]'
+if ! run_rows; then
+  fail "--rows produces a list (agreement case)" "stderr: $(cat "$work/rows.err" 2>/dev/null)"
+else
+  case "$(grep -F 'corr-agree [Explore]' "$work/rows" | head -1 | cut -f2-)" in
+    '🛑'*'Bash: rm -rf build'*) pass "agreement keeps the hook's note and per-actor rows" ;;
+    *) fail "agreement keeps the hook's note and per-actor rows" "rows: $(grep -F corr-agree "$work/rows" | cut -f2- | tr '\n' '|')" ;;
+  esac
+  if grep -F corr-agree "$work/rows" | grep -qF 'permission prompt'; then
+    fail "and does not replace it with the CLI's waitingFor" "$(grep -F corr-agree "$work/rows" | cut -f2-)"
+  else
+    pass "and does not replace it with the CLI's waitingFor"
+  fi
+  if [ "$(rows_for corr-newstate)" -ge 1 ]; then
+    pass "a state the script does not know is still listed"
+  else
+    fail "a state the script does not know is still listed" "no row for corr-newstate"
+  fi
+fi
+tmux -L "$socket" kill-window -t work:corr-agree 2>/dev/null
+tmux -L "$socket" kill-window -t work:corr-newstate 2>/dev/null
+
+# The picker's FIRST list comes from the pane options alone: `claude agents
+# --json` costs ~140ms, the whole latency budget before the popup paints, so it
+# is paid on the first refresh instead. Bound panes exist at this point, so a
+# picker that corrected up front would have every reason to call the CLI -- and
+# the stub fzf exits before any refresh could, so any call here is the first
+# list's.
+cat >"$work/stub/claude" <<STUB
+#!/bin/sh
+echo called >>"$work/claude-first.log"
+echo '[]'
+STUB
+chmod +x "$work/stub/claude"
+rm -f "$work/claude-first.log"
+if run_picker; then
+  if [ -s "$work/claude-first.log" ]; then
+    fail "the first list is drawn without running the CLI" \
+      "$(wc -l <"$work/claude-first.log" | tr -d ' ') call(s)"
+  else
+    pass "the first list is drawn without running the CLI"
+  fi
+else
+  fail "the first list is drawn without running the CLI" "fzf stub was never reached"
+fi
+
 # --- the same correction, written back onto the panes -------------------------
 
 # --rows fixes the picker and nothing else: the WezTerm tab glyph is read from
@@ -753,15 +823,23 @@ fi
 # Asserted in both directions, because "no longer says waiting" is also what an
 # empty option says, and clearing the listing would be a different bug wearing
 # the same result.
+#
+# What this case CAN see is the end state of the option: the correction is
+# republished, and the waiting record is not in it. It cannot see the hook's
+# unblock_actors at work. The fixture wrote @claude_agents with set-option, so
+# the hook's own record store never held the waiting Explore record, and the
+# republish comes out clean whether or not that function ran. Turning a stale
+# record in the STORE into busy is pinned by agent-state.test.sh, which drives
+# the hook through its events.
 stale_listing=$(opt_of corr-stale @claude_agents)
 case $stale_listing in
   *waiting*)
-    fail "a corrected pane's listing drops the stale blocked record" \
+    fail "a corrected pane's republished listing holds no blocked record" \
       "listing: [$stale_listing]"
     ;;
-  *busy*) pass "a corrected pane's listing drops the stale blocked record" ;;
+  *busy*) pass "a corrected pane's republished listing holds no blocked record" ;;
   *)
-    fail "a corrected pane's listing drops the stale blocked record" \
+    fail "a corrected pane's republished listing holds no blocked record" \
       "the listing was cleared rather than rebuilt: [$stale_listing]"
     ;;
 esac
@@ -1063,6 +1141,43 @@ else
   fail "a remote agent is listed when the remote shell has no locale" "fzf stub was never reached"
 fi
 bare_tmux "$rt_dir" kill-server 2>/dev/null
+
+# Which hosts are asked at all. @ssh_my_machine marks a myssh pane -- a machine
+# running these dotfiles, with a tmux this script can query. A pane that is
+# merely ssh'd somewhere carries @ssh_host alone, and querying it would open a
+# connection to a machine with no such tmux, on every picker open.
+tmux -L "$socket" new-window -t work -n ssh-plain "$IDLE"
+plain_ssh_pane=$(tmux -L "$socket" list-panes -t work:ssh-plain -F '#{pane_id}' | head -1)
+tmux -L "$socket" set-option -p -t "$plain_ssh_pane" @ssh_host plainhost
+# And a myssh host that does not answer: ssh failing outright, as it does for a
+# host that is asleep. Its rows are absent; everything local must still be there.
+cat >"$work/stub/ssh" <<STUB
+#!/bin/sh
+echo "\$@" >>"$work/ssh-calls"
+exit 255
+STUB
+chmod +x "$work/stub/ssh"
+: >"$work/ssh-calls"
+if run_picker; then
+  if grep -q plainhost "$work/ssh-calls"; then
+    fail "a pane ssh'd somewhere without myssh is never queried" "$(cat "$work/ssh-calls")"
+  else
+    pass "a pane ssh'd somewhere without myssh is never queried"
+  fi
+  if grep -q bakery "$work/ssh-calls"; then
+    pass "while a myssh host is"
+  else
+    fail "while a myssh host is" "ssh calls: [$(tr '\n' '|' <"$work/ssh-calls")]"
+  fi
+  if cut -f2- "$work/list" | grep -q 'waiting-old'; then
+    pass "an unreachable host leaves the local rows in place"
+  else
+    fail "an unreachable host leaves the local rows in place" "$(cut -f2- "$work/list")"
+  fi
+else
+  fail "an unreachable host leaves the local rows in place" "fzf stub was never reached"
+fi
+tmux -L "$socket" kill-window -t work:ssh-plain 2>/dev/null
 
 # Back to a local-only fixture so the empty case below starts from a known state.
 tmux -L "$socket" kill-window -t work:ssh-pane-a 2>/dev/null
@@ -1620,7 +1735,48 @@ STUB
       "$(cat "$work/first" 2>/dev/null)"
   fi
   drop_mirrors
+
+  # A remote blocked row that is OLDER than a local one sorts first, and must
+  # not end the scan: it is skipped, and the local one is still answered. Every
+  # case above had the remote row as the only blocked one, so a scan that
+  # stopped at the first blocked row of any kind passed them all.
+  tmux -L "$socket" set-option -p -t "$ask_pane" @claude_state asking
+  tmux -L "$socket" set-option -p -t "$ask_pane" @claude_since "$now"
+  answer_first "$work/sshstub"
+  if wait_mirror; then
+    shown=$(tmux -L "$socket" list-clients -F '#{client_session} #{window_name}' |
+      awk '$1 ~ /^_agent_/ { print $2; exit }')
+    if [ "$shown" = ask-win ]; then
+      pass "prefix + A skips an older remote blocked row and answers the local one"
+    else
+      fail "prefix + A skips an older remote blocked row and answers the local one" \
+        "the view is showing [$shown]"
+    fi
+  else
+    fail "prefix + A skips an older remote blocked row and answers the local one" \
+      "no mirror session appeared" "$(cat "$work/first" 2>/dev/null)"
+  fi
+  drop_mirrors
   tmux -L "$socket" kill-window -t tabB:ssh-pane 2>/dev/null
+
+  # The third of the three silences: no agent on the server at all. Every pane's
+  # state is set aside for the one run and put back after, since the cases that
+  # follow read them.
+  agent_panes=$(tmux -L "$socket" list-panes -a -F '#{pane_id} #{@claude_state}' | awk 'NF == 2')
+  while read -r p st; do
+    [ -n "$p" ] && tmux -L "$socket" set-option -pu -t "$p" @claude_state
+  done <<<"$agent_panes"
+  refused=$(said_count "no Claude agents running")
+  answer_first
+  if wait_said "$refused" "no Claude agents running" && [ "$(mirrors)" = 0 ]; then
+    pass "prefix + A with no agent anywhere says so, rather than 'nothing is waiting'"
+  else
+    fail "prefix + A with no agent anywhere says so, rather than 'nothing is waiting'" \
+      "messages: $(msg_log | tail -3 | tr "\n" "|")" "$(cat "$work/first" 2>/dev/null)"
+  fi
+  while read -r p st; do
+    [ -n "$p" ] && tmux -L "$socket" set-option -p -t "$p" @claude_state "$st"
+  done <<<"$agent_panes"
   tmux -L "$socket" set-option -p -t "$ask_pane" @claude_state asking
 fi
 
@@ -1845,16 +2001,19 @@ else
 
   # And the eligible row still accepts. There is no client here, so the script
   # stops at its own no-client guard -- but fzf having accepted is what makes
-  # the pane exit at all, and exit 0 is what says it got that far.
+  # the pane exit at all. Dead AND silent, as the needs_input case below
+  # explains: the pane also dies when the script errors out, so "it exited"
+  # alone would report a crash as an accepted key.
   tmux -L "$socket" send-keys -t "$fzf_pane" C-o
   for _ in $(seq 1 40); do
     [ "$(dead)" = 1 ] && break
     sleep 0.25
   done
-  if [ "$(dead)" = 1 ]; then
+  if [ "$(dead)" = 1 ] && [ ! -s "$work/real" ]; then
     pass "ctrl-o on a blocked row is accepted"
   else
-    fail "ctrl-o on a blocked row is accepted" "picker still running" "$(screen)"
+    fail "ctrl-o on a blocked row is accepted" "pane_dead=$(dead)" \
+      "log: $(cat "$work/real" 2>/dev/null)" "$(screen)"
   fi
 
   # needs_input is accepted too, and it gets its own run rather than riding on
