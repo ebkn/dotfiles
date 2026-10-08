@@ -281,7 +281,11 @@ function gw() {
 
   local root_dir=$(_git_main_root)
 
-  # Run from the repository root so that worktree paths resolve correctly.
+  # Work from the main checkout's root. Not for the paths below, which are all
+  # absolute: `worktree add -b` with no start point branches from the HEAD of
+  # the worktree it runs in, so this is what makes a new branch start from the
+  # main checkout's HEAD rather than whichever worktree gw was called from. It
+  # also leaves the caller at the root when a later step fails.
   if [[ "$PWD" != "$root_dir" ]]; then
     echo "Changing directory to repository root: $root_dir"
     cd "$root_dir" || return 1
