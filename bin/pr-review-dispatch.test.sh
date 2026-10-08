@@ -64,7 +64,7 @@ cleanup() {
   # sessions, and the `nc -lU` listeners, which outlive the run whenever a case
   # asserts that nothing was sent -- a listener nobody connects to waits forever,
   # and `-w` does not bound one (verified: still alive after 3.5s with -w 2).
-  for p in $KILL_PIDS; do kill "$p" 2>/dev/null; done
+  for p in $KILL_PIDS $(cat "$TMP/holders" 2>/dev/null); do kill "$p" 2>/dev/null; done
   # Reap them so job control cannot print "Terminated" over the results.
   wait 2>/dev/null
 
@@ -157,9 +157,15 @@ chmod +x "$STUB"/*
 # that pipe open and the assignment blocks for the full five minutes, with no
 # output and no error to say why. Detaching all three streams is what makes the
 # substitution return as soon as the function does.
+#
+# The pid goes to a file as well as to stdout. Called as `$(spawn_holder)`, this
+# runs in a subshell, so appending to KILL_PIDS here never reached the parent:
+# cleanup killed no holder at all, and every run left ~30 `sleep 300` behind
+# (counted). Nor does the straggler sweep find them -- their argv does not name
+# $TMP. The file is the one place both sides can see.
 spawn_holder() {
   sleep 300 >/dev/null 2>&1 &
-  KILL_PIDS="$KILL_PIDS $!"
+  printf '%s\n' "$!" >>"$TMP/holders"
   printf '%s' "$!"
 }
 
