@@ -229,6 +229,23 @@ check 'gw skips an LFS file inside a listed directory' 'absent' \
 contains 'gw warns about a missing entry' 'missing-file not found' "$out"
 lacks 'gw ignores comment lines' 'a comment not found' "$out"
 
+# The worktree is created with hooks off: a post-checkout hook (git lfs, dedup)
+# would replace LFS pointers behind the index's back and leave the new worktree
+# dirty. The control proves the fixture hook fires at all; without it, a hook
+# that never ran would pass the real assertion for nothing.
+repo=$(new_repo gw-hooks)
+hook_log="$work/gw-hooks.log"
+printf '#!/bin/sh\necho ran >> "%s"\n' "$hook_log" > "$repo/.git/hooks/post-checkout"
+chmod +x "$repo/.git/hooks/post-checkout"
+# Repository-local, so a core.hooksPath in the global config cannot hide it.
+git -C "$repo" config core.hooksPath "$repo/.git/hooks"
+git -C "$repo" worktree add -q "$work/gw-hooks-control" -b control 2>/dev/null
+check 'control: the fixture hook fires on a plain worktree add' 'ran' "$(cat "$hook_log" 2>&1)"
+/bin/rm -f "$hook_log"
+run "$repo" gw hookless >/dev/null
+check 'gw creates the worktree without running checkout hooks' 'not run' \
+  "$([[ -e "$hook_log" ]] && echo ran || echo 'not run')"
+
 # No-argument picker.
 repo=$(new_repo gw-pick)
 out=$(run "$repo" gw)

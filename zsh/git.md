@@ -15,7 +15,7 @@ ends up holding (which branches exist, which worktrees are registered). Only `gh
 and `fzf` are stubbed, **never git**, because a stubbed git would keep passing if
 git changed what these commands mean.
 
-Four things are worth knowing before editing it:
+Five things are worth knowing before editing it:
 
 1. **The `mktemp -d` path must be resolved with `:A`** — macOS hands back
    `/var/…`, git reports `/private/var/…`, and without that every path comparison
@@ -32,6 +32,9 @@ Four things are worth knowing before editing it:
    run `gw` and act on its status — a failure returning 0 would leave them working
    in the main checkout. "No `gh`" is a `PATH` holding only a symlink to git,
    since on the CI runner a real `gh` shares `/usr/bin` with git.
+5. **A case whose assertion is an absence needs a control.** The hook case first
+   shows its fixture `post-checkout` hook firing on a plain `git worktree add`;
+   without that, a hook that never ran would pass for nothing.
 
 The picker's menu is asserted on its **visible columns only**: the hidden third
 column is the absolute path, which contains both the branch name and the relative
