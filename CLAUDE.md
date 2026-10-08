@@ -230,6 +230,7 @@ silent.
 | --- | --- |
 | `bin/lint-shell.test.sh` | [lint-shell.md](bin/lint-shell.md) |
 | `bin/ci-enrollment.test.sh` | its header (the not-in-CI list and each reason) |
+| `bin/init/links.test.sh` (`link_with_backup`, `link_dotfiles`, `relink`) | its header |
 | `bin/skill-eval.test.sh` | [skill-eval.md](bin/skill-eval.md) |
 | `root/.agents/skills/init-project/evals/*/assert.test.sh` | [skill-eval.md](bin/skill-eval.md) |
 | `bin/tmux-agents.test.sh` | [tmux-agents.md](bin/tmux-agents.md) |
