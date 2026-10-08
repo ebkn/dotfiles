@@ -119,6 +119,9 @@ run() {
   ) 2>&1
 }
 
+# Pick the final PWD line back out of run's output.
+pwd_of() { print -r -- "${1##*$'\n'}"; }
+
 # new_repo <name> -- a repository with one commit on main and no remote.
 new_repo() {
   local root="$work/$1"
@@ -143,7 +146,7 @@ contains 'gw outside a repository refuses' 'not inside a git repository' "$out"
 repo=$(new_repo gw-basic)
 out=$(run "$repo" gw feature/thing)
 check 'gw creates the worktree under git-worktrees/, slashes flattened' \
-  "PWD=$repo/git-worktrees/feature-thing" "$(print -r -- "${out##*$'\n'}")"
+  "PWD=$repo/git-worktrees/feature-thing" "$(pwd_of "$out")"
 check 'gw creates the branch' 'feature/thing' \
   "$(git -C "$repo" branch --list --format='%(refname:short)' feature/thing)"
 
@@ -177,7 +180,7 @@ export FZF_MENU="$work/menu"
 out=$(FZF_PICK=two run "$repo" gw)
 menu=$(cat "$work/menu")
 check 'gw picks the worktree by its absolute path' \
-  "PWD=$repo/git-worktrees/two" "$(print -r -- "${out##*$'\n'}")"
+  "PWD=$repo/git-worktrees/two" "$(pwd_of "$out")"
 contains 'the picker offers the branch name' 'one' "$menu"
 contains 'the picker offers the path relative to the main repo' 'git-worktrees/one' "$menu"
 lacks 'the picker excludes main' 'main' "${menu//git-worktrees/}"
@@ -212,7 +215,7 @@ git -C "$repo" branch -qD contributor-work
 out=$(GH_PR_REPO=me/mine GH_PR_BRANCH=contributor-work \
       run "$repo" gw https://github.com/me/mine/pull/7)
 check 'gw checks a PR out into its own worktree' \
-  "PWD=$repo/git-worktrees/contributor-work" "$(print -r -- "${out##*$'\n'}")"
+  "PWD=$repo/git-worktrees/contributor-work" "$(pwd_of "$out")"
 check 'and the worktree holds the PR head commit' 'from the PR' \
   "$(git -C "$repo/git-worktrees/contributor-work" log -1 --format=%s 2>&1)"
 
