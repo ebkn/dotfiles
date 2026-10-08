@@ -63,17 +63,20 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
 # Stub the three checkers. Each records the argv it was handed so a case can
-# assert on the target list, and succeeds, so only enumeration decides the
-# outcome.
-make_stubs() {
-  local dir=$1
+# assert on the target list, and succeeds -- unless it is named as the one to
+# fail, which is how the verdict itself is tested: a gate that swallowed every
+# checker failure would pass every enumeration case below.
+make_stubs() { # make_stubs <dir> [failing-tool]
+  local dir=$1 failing=${2:-}
   mkdir -p "$dir"
-  local tool
+  local tool code
   for tool in shellcheck shfmt zsh; do
+    code=0
+    [ "$tool" = "$failing" ] && code=1
     cat >"$dir/$tool" <<STUB
 #!/usr/bin/env bash
 printf '%s\n' "\$@" >>"$dir/$tool.argv"
-exit 0
+exit $code
 STUB
     chmod +x "$dir/$tool"
   done
@@ -106,8 +109,12 @@ run_lint() {
 
 # --- a failed listing must reach the exit status -----------------------------
 # The regression this file exists for.
+# The failing listing still prints a file, the way a git that dies part-way
+# does: an empty one would be caught by the emptiness check below anyway, and
+# leave the status check itself unpinned.
 make_stubs "$work/failed"
-make_git_stub "$work/failed" 1 ""
+make_git_stub "$work/failed" 1 "bin/lint-shell
+"
 assert_nonzero "a failed git ls-files exits non-zero" "$(run_lint "$work/failed")"
 assert_contains "a failed git ls-files says so" "$(cat "$work/failed/out")" "git ls-files"
 
@@ -120,8 +127,11 @@ make_git_stub "$work/empty" 0 ""
 assert_nonzero "an empty git ls-files exits non-zero" "$(run_lint "$work/empty")"
 
 # --- a normal listing checks the files it was given --------------------------
+# bin/init/macos.sh is a real `#!/bin/zsh` script, the case a loosened shebang
+# pattern (`^#!.*sh`) would wrongly hand to shellcheck.
 make_stubs "$work/normal"
 make_git_stub "$work/normal" 0 "bin/lint-shell
+bin/init/macos.sh
 zsh/alias.zsh
 README.md
 "
@@ -130,6 +140,68 @@ assert_contains "the bash script reaches shellcheck" \
   "$(cat "$work/normal/shellcheck.argv")" "bin/lint-shell"
 assert_contains "the zsh module reaches zsh -n" \
   "$(cat "$work/normal/zsh.argv")" "zsh/alias.zsh"
+assert_contains "a zsh-shebang script reaches zsh -n" \
+  "$(cat "$work/normal/zsh.argv")" "bin/init/macos.sh"
+case "$(cat "$work/normal/shellcheck.argv")" in
+  *bin/init/macos.sh*) fail "a zsh-shebang script does not reach shellcheck" "it was passed" ;;
+  *) ok "a zsh-shebang script does not reach shellcheck" ;;
+esac
+# The entrypoints have no shebang and live outside zsh/, so only their inline
+# names put them in front of zsh -n.
+for f in .zshrc .zshenv; do
+  if grep -qxF "$f" "$work/normal/zsh.argv"; then
+    ok "$f reaches zsh -n"
+  else
+    fail "$f reaches zsh -n" "zsh argv: $(tr '\n' ' ' <"$work/normal/zsh.argv")"
+  fi
+done
+case "$(cat "$work/normal/shellcheck.argv" "$work/normal/shfmt.argv" "$work/normal/zsh.argv")" in
+  *README.md*) fail "a non-script reaches no checker" "README.md was passed" ;;
+  *) ok "a non-script reaches no checker" ;;
+esac
+
+# --- every sourced fragment is a target --------------------------------------
+# Fragments carry no shebang, so discovery cannot find them and they are named
+# inline. A new fragment that is not added to that list is checked by nobody,
+# silently. The invariant is read from the real repository: every tracked file
+# declaring `# shellcheck shell=` without a shebang must reach shellcheck.
+if ! fragments=$(git grep -l -E '^# shellcheck shell=(bash|sh)' -- . ':!*.md'); then
+  fail "the fragment listing worked" "git grep failed"
+fi
+nfrag=0
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  case "$(head -n 1 "$f")" in '#!'*) continue ;; esac
+  nfrag=$((nfrag + 1))
+  grep -qxF "$f" "$work/normal/shellcheck.argv" ||
+    fail "sourced fragment $f reaches shellcheck" "it is not named in bin/lint-shell"
+done <<<"$fragments"
+# A listing that found nothing would make the loop vacuous.
+if [ "$nfrag" -ge 5 ]; then
+  ok "all $nfrag sourced fragments reach shellcheck"
+else
+  fail "the fragment listing found the fragments" "found only $nfrag"
+fi
+
+# --- a checker that fails fails the run --------------------------------------
+# The verdict path. Each checker in turn, and the others must still run: a
+# shellcheck failure that skipped the formatter would hide a second class of
+# problem until the first was fixed.
+for tool in shellcheck shfmt zsh; do
+  make_stubs "$work/fail-$tool" "$tool"
+  make_git_stub "$work/fail-$tool" 0 "bin/lint-shell
+zsh/alias.zsh
+"
+  assert_nonzero "a failing $tool fails the run" "$(run_lint "$work/fail-$tool")"
+  for other in shellcheck shfmt zsh; do
+    [ "$other" = "$tool" ] && continue
+    if [ -s "$work/fail-$tool/$other.argv" ]; then
+      ok "with $tool failing, $other still runs"
+    else
+      fail "with $tool failing, $other still runs" "$other was never called"
+    fi
+  done
+done
 
 # --- zsh never reaches shfmt -------------------------------------------------
 # shfmt parses as bash. Handing it a zsh module would reformat constructs it
@@ -145,14 +217,17 @@ esac
 # --- the formatter defaults to reporting, not rewriting ----------------------
 # A lint command that edits the working tree as a side effect of being run is
 # a surprise; --write is the opt-in.
-assert_contains "the default run asks shfmt for a diff" \
-  "$(cat "$work/normal/shfmt.argv")" "-d"
+# The flag is the first argument, compared whole: `-d` as a substring also
+# matches a target path such as review-design/evals/lib.sh, which is in every
+# argv, so a run that defaulted to -w used to pass this.
+assert_eq "the default run asks shfmt for a diff" \
+  "-d" "$(head -n 1 "$work/normal/shfmt.argv")"
 make_stubs "$work/write"
 make_git_stub "$work/write" 0 "bin/lint-shell
 "
 assert_eq "--write exits 0" "0" "$(run_lint "$work/write" --write)"
-assert_contains "--write asks shfmt to rewrite" \
-  "$(cat "$work/write/shfmt.argv")" "-w"
+assert_eq "--write asks shfmt to rewrite" \
+  "-w" "$(head -n 1 "$work/write/shfmt.argv")"
 
 # --- an unknown argument is rejected -----------------------------------------
 make_stubs "$work/badarg"
