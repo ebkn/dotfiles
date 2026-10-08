@@ -24,9 +24,10 @@ DOTFILES="${${(%):-%N}:A:h}"
 # move. ssh-agent/gpg/path come first because later modules and the prompt need
 # what they export. And alias.zsh must precede git.zsh: zsh expands aliases when
 # it *parses* a function body, so `alias mkdir='mkdir -p'` is what turns the
-# `mkdir -p` calls inside gw() into `mkdir -p -p`. Load git.zsh first and those
-# functions are defined differently -- silently, and only visible in
-# `print -r -- $functions[gw]`.
+# `mkdir -p` calls inside gw's copy helpers (_gw_copy_files, _gw_copy_entry)
+# into `mkdir -p -p`. Load git.zsh first and those functions are defined
+# differently -- silently, and only visible in
+# `print -r -- $functions[_gw_copy_files]`.
 source "$DOTFILES/zsh/ssh-agent.zsh"
 source "$DOTFILES/zsh/gpg.zsh"
 source "$DOTFILES/zsh/path.zsh"

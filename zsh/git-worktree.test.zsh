@@ -21,7 +21,8 @@
 set -u
 
 # alias.zsh first, exactly as .zshrc loads it: zsh expands aliases when it
-# parses a function body, so `alias mkdir='mkdir -p'` is part of what gw() is.
+# parses a function body, so `alias mkdir='mkdir -p'` is part of what gw()'s
+# copy helpers are.
 source "${0:A:h}/alias.zsh"
 source "${0:A:h}/git.zsh"
 

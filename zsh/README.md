@@ -12,10 +12,11 @@ zsh expands aliases when it *parses* a function body, so **a module defining an
 alias must be sourced before any module whose functions use that name.**
 
 Concretely `alias.zsh` must precede `git.zsh`: `alias mkdir='mkdir -p'` is what
-makes the `mkdir -p` calls inside `gw()` become `mkdir -p -p`.
+makes the `mkdir -p` calls inside `gw()`'s copy helpers (`_gw_copy_files`,
+`_gw_copy_entry`) become `mkdir -p -p`.
 
 Reordering changes the stored function body with no error and no output; the only
-way to see it is `print -r -- $functions[gw]`. The comment at the top of `.zshrc`
+way to see it is `print -r -- $functions[_gw_copy_files]`. The comment at the top of `.zshrc`
 names the three lines that cannot move.
 
 ## `.zshrc` finds `zsh/` relative to itself
