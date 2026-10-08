@@ -40,11 +40,15 @@ src_attr="${toplevel}/.gitattributes"
 # skipping comments, `linguist-generated=false`, and `-linguist-generated`.
 generated_patterns() {
   [[ -f "$src_attr" ]] || return 0
+  # `|| true`: a grep that matches nothing exits 1, and under pipefail that
+  # used to fail the `patterns=$(...)` assignment -- set -e then exited 1 with
+  # no message, before the "no entries" one below could be printed. An empty
+  # result is the answer here, not an error.
   grep -v -E '^[[:space:]]*#' "$src_attr" |
     grep -E '(^|[[:space:]])-?linguist-generated' |
     grep -v -E 'linguist-generated=false' |
     grep -v -E '(^|[[:space:]])-linguist-generated' |
-    awk '{ print $1 }'
+    awk '{ print $1 }' || true
 }
 
 # Drop the managed block (inclusive) from the info/attributes file.

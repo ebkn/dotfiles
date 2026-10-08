@@ -73,6 +73,22 @@ t "status says hidden" "1" "$(printf '%s\n' "$out" | grep -c '^state: HIDDEN')"
 t "show removes only the block" "mine.txt text" "$(cat "$attr")"
 t "after which the diff is back" "1" "$(git diff -- gen/out.js | grep -c '^+two$')"
 
+# --- nothing to hide -----------------------------------------------------------------
+# Both shapes must say why. A .gitattributes with no generated entry used to make
+# the pipeline's last grep fail, and set -e exit 1 with nothing printed at all.
+printf 'keep.js linguist-generated=false\n' >.gitattributes
+out=$("$GG" 2>&1)
+rc=$?
+t "no generated entries exits 1" "1" "$rc"
+t "and says so" "1" "$(printf '%s\n' "$out" | grep -c 'no linguist-generated entries found')"
+out=$("$GG" status 2>&1)
+rc=$?
+t "status with no generated entries succeeds" "0" "$rc"
+t "and says there are none" "1" "$(printf '%s\n' "$out" | grep -c '^no linguist-generated patterns')"
+rm .gitattributes
+out=$("$GG" 2>&1)
+t "no .gitattributes at all says so too" "1" "$(printf '%s\n' "$out" | grep -c 'no linguist-generated entries found')"
+
 out=$("$GG" bogus 2>&1)
 rc=$?
 t "an unknown command exits 1" "1" "$rc"
