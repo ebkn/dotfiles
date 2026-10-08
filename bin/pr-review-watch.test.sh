@@ -69,9 +69,18 @@ while [ $# -gt 0 ]; do
     *) endpoint=$1; shift ;;
   esac
 done
+# Every request is logged with whether it was conditional, so a case can assert
+# what was ASKED, not only what came back.
+printf '%s cond=%s\n' "$endpoint" "$cond" >>"$FIX/gh.log"
 case "$endpoint" in
   user) fixture="$FIX/user.json" ;;
   notifications*)
+    # A status other than 200/304, or no response at all, on request.
+    if [ -f "$FIX/notifications-status" ]; then
+      printf 'HTTP/2.0 %s Error\r\n\r\n{}\n' "$(cat "$FIX/notifications-status")"
+      exit 1
+    fi
+    [ -f "$FIX/no-response" ] && exit 1
     if [ "$cond" -eq 1 ] && [ -f "$FIX/not-modified" ]; then
       printf 'HTTP/2.0 304 Not Modified\r\nX-Poll-Interval: 60\r\n\r\n'
       exit 1
@@ -183,14 +192,49 @@ EOF
 
 STATE="$TMP/state"
 
+# EXTRA_REPOS names a directory that does not exist. An empty value is NOT
+# "none": the script defaults it with `:-`, so "" meant the developer's real
+# ~/dotfiles was consulted on every run. The extra-repos lookup itself is pinned
+# in pr-review-common.test.sh.
 run() { # run [args...] -> stdout+stderr
   PATH="$STUB:$PATH" FIX="$FIX" \
     PR_REVIEW_WATCH_STATE_DIR="$STATE" \
-    PR_REVIEW_WATCH_EXTRA_REPOS="" \
+    PR_REVIEW_WATCH_EXTRA_REPOS="$TMP/no-extra-repos" \
     "$WATCH" "$@" 2>&1
 }
 
 job() { jq -r "$1" "$STATE/jobs/acme__widget__42.json" 2>/dev/null; }
+
+# arrange_pr42 <notification-updated_at> -- PR 42 on feature/x, checked out in
+# $WT with a session in it, notified once at the given time. The cases from the
+# lagged notification on each call this rather than inheriting the fixtures the
+# case before them happened to leave behind.
+arrange_pr42() {
+  cat >"$FIX/pull.json" <<'EOF'
+{"head":{"ref":"feature/x"},"html_url":"https://github.com/acme/widget/pull/42","title":"a title"}
+EOF
+  cat >"$FIX/agents.json" <<EOF
+[{"pid":1,"cwd":"$WT","kind":"interactive","sessionId":"sess-1","startedAt":1,"status":"idle"}]
+EOF
+  cat >"$FIX/notifications.json" <<EOF
+[
+ {"reason":"author","updated_at":"$1",
+  "repository":{"full_name":"acme/widget"},
+  "subject":{"type":"PullRequest","title":"a title","url":"https://api.github.com/repos/acme/widget/pulls/42"}}
+]
+EOF
+  printf '%s' "$REPO" >"$FIX/ghq-github.com_acme_widget"
+  /bin/rm -f "$FIX/not-modified" "$FIX/notifications-status" "$FIX/no-response"
+  # A failure here would surface as an unrelated assertion failure further
+  # down, so it is fatal -- the same reason bin/lint-shell refuses to report ok
+  # on a failed listing.
+  if [ ! -d "$WT" ]; then
+    git -C "$REPO" worktree add -q "$WT" feature/x || {
+      no 'setup: could not re-add the feature/x worktree'
+      exit 1
+    }
+  fi
+}
 
 echo "-- first poll: history is seeded, only post-cutoff feedback is queued --"
 out=$(run)
@@ -255,9 +299,22 @@ eq '304 leaves the job untouched' "$sig_before" "$(job .updatedAt)"
 /bin/rm -f "$FIX/not-modified"
 
 echo "-- --force ignores the stored Last-Modified --"
+# A new item only an UNCONDITIONAL request can reach: with not-modified set, any
+# request carrying If-Modified-Since gets the 304 and queues nothing, which is
+# exactly the regression --force exists to get past.
+cat >"$FIX/issue_comments.json" <<'EOF'
+[
+ {"id":31,"user":{"login":"coderabbitai[bot]"},"body":"nit: typo","created_at":"2026-09-07T10:00:08Z"},
+ {"id":32,"user":{"login":"bob"},"body":"one more thing","created_at":"2026-09-07T10:05:00Z"},
+ {"id":38,"user":{"login":"bob"},"body":"after the 304","created_at":"2026-09-07T10:06:00Z"}
+]
+EOF
 touch "$FIX/not-modified"
+: >"$FIX/gh.log"
 run --force >/dev/null
-eq '--force still reaches the API' "$((before + 1))" "$(job '.pending|length')"
+eq '--force polls without If-Modified-Since' 'notifications?all=true&per_page=50 cond=0' \
+  "$(grep '^notifications' "$FIX/gh.log")"
+eq '--force queues what the 304 would have hidden' 'true' "$(job '[.pending[].id]|index("issue:38")!=null')"
 /bin/rm -f "$FIX/not-modified"
 
 echo "-- --pr adopts a PR with no notification at all --"
@@ -266,12 +323,19 @@ echo "-- --pr adopts a PR with no notification at all --"
 # predates the tool. It must NOT seed history as seen the way first sight does,
 # or asking for a PR by name would queue nothing.
 STATE="$TMP/state3"
-: >"$FIX/not-modified" # prove the notification poll is skipped entirely
+# A stored Last-Modified plus not-modified: a notification poll, had one been
+# made, would be conditional and get the 304. Without the stored value the poll
+# would be unconditional and the 304 branch unreachable.
+mkdir -p "$STATE"
+printf 'Mon, 07 Sep 2026 09:00:00 GMT' >"$STATE/poll.last-modified"
+: >"$FIX/not-modified"
+: >"$FIX/gh.log"
 out=$(run --pr acme/widget#42)
-eq 'queues despite the 304' 'yes' "$(printf '%s' "$out" | grep -q '^queue acme/widget#42' && echo yes || echo no)"
+eq 'makes no notification request at all' '' "$(grep '^notifications' "$FIX/gh.log")"
+eq 'queues despite the 304 a poll would have got' 'yes' "$(printf '%s' "$out" | grep -q '^queue acme/widget#42' && echo yes || echo no)"
 eq 'queues the pre-cutoff review too' 'true' "$(job '[.pending[].id]|index("review:11")!=null')"
 eq 'still drops own comments' 'false' "$(job '[.pending[].id]|index("inline:22")!=null')"
-eq 'leaves Last-Modified alone' 'no' "$([ -f "$STATE/poll.last-modified" ] && echo yes || echo no)"
+eq 'leaves Last-Modified alone' 'Mon, 07 Sep 2026 09:00:00 GMT' "$(cat "$STATE/poll.last-modified")"
 out=$(run --pr 'nonsense')
 eq 'rejects a malformed --pr' 'yes' "$(printf '%s' "$out" | grep -q 'owner/repo#number' && echo yes || echo no)"
 /bin/rm -f "$FIX/not-modified"
@@ -344,35 +408,15 @@ echo "-- first sight: a notification that LAGS its own review still queues it --
 # The first-sight cutoff is therefore the PREVIOUS poll's Last-Modified, the
 # value the conditional request was made against: everything the poll returns is
 # by definition newer than it, and no amount of thread-bumping can move it.
-cat >"$FIX/pull.json" <<EOF
-{"head":{"ref":"feature/x"},"html_url":"https://github.com/acme/widget/pull/42","title":"a title"}
-EOF
-cat >"$FIX/agents.json" <<EOF
-[{"pid":1,"cwd":"$WT","kind":"interactive","sessionId":"sess-1","startedAt":1,"status":"idle"}]
-EOF
-# The previous case removed it; the branch itself survived the removal. A failure
-# here would surface as an unrelated assertion failure three lines down, so it is
-# fatal rather than silenced -- the same reason bin/lint-shell refuses to report
-# ok on a failed listing.
-git -C "$REPO" worktree add -q "$WT" feature/x ||
-  {
-    no 'setup: could not re-add the feature/x worktree'
-    exit 1
-  }
 # updated_at is 115s AFTER review 12, the shape the live API actually returns.
+# (The previous case removed $WT; arrange_pr42 re-adds it.)
 #
 # The cutoff must be the Last-Modified this poll was made CONDITIONAL ON, never
 # the one it receives back. That is pinned here rather than stated: the response
 # carries 10:00:10, which is later than review 12 at 10:00:05, so an
 # implementation reading the fresh value files the review as history and the
 # first assertion below goes red.
-cat >"$FIX/notifications.json" <<'EOF'
-[
- {"reason":"author","updated_at":"2026-09-07T10:02:00Z",
-  "repository":{"full_name":"acme/widget"},
-  "subject":{"type":"PullRequest","title":"a title","url":"https://api.github.com/repos/acme/widget/pulls/42"}}
-]
-EOF
+arrange_pr42 2026-09-07T10:02:00Z
 STATE="$TMP/state7"
 mkdir -p "$STATE"
 printf 'Mon, 07 Sep 2026 09:59:00 GMT' >"$STATE/poll.last-modified"
@@ -389,6 +433,7 @@ echo "-- an item exactly AT the cutoff is owed, not history --"
 # saw everything UP TO that instant, so an item stamped with the instant itself
 # has not been seen. One character (`<` for `<=`) inverts that, and the only
 # symptom is a review that never arrives.
+arrange_pr42 2026-09-07T10:02:00Z
 cat >"$FIX/issue_comments.json" <<'EOF'
 [
  {"id":33,"user":{"login":"bob"},"body":"right on the boundary","created_at":"2026-09-07T09:59:00Z"}
@@ -414,6 +459,7 @@ echo "-- an unparseable stored Last-Modified falls back, it does not kill the po
 # issue 34, so a job file existing at all proves the poll ran to completion, and
 # an unparsed date leaking through as a literal would sort every ISO timestamp
 # below it and queue nothing.
+arrange_pr42 2026-09-07T10:02:00Z
 cat >"$FIX/issue_comments.json" <<'EOF'
 [
  {"id":34,"user":{"login":"bob"},"body":"after the notification","created_at":"2026-09-07T10:05:00Z"}
@@ -431,6 +477,14 @@ echo "-- --force sends no conditional request, so it falls back too --"
 # previous poll to anchor on. Documented in pr-review-watch.md, so it is pinned:
 # the stored value must be ignored for the cutoff exactly as it is for the
 # request, or --force would seed history against a date it never sent.
+# Review 12 (10:00:05) is after the stored value but before the notification;
+# issue 34 (10:05:00) is after both.
+arrange_pr42 2026-09-07T10:02:00Z
+cat >"$FIX/issue_comments.json" <<'EOF'
+[
+ {"id":34,"user":{"login":"bob"},"body":"after the notification","created_at":"2026-09-07T10:05:00Z"}
+]
+EOF
 STATE="$TMP/state9"
 mkdir -p "$STATE"
 printf 'Mon, 07 Sep 2026 09:59:00 GMT' >"$STATE/poll.last-modified"
@@ -454,6 +508,100 @@ cat >"$FIX/issue_comments.json" <<'EOF'
 EOF
 run >/dev/null
 eq 'walkthrough queued once the placeholder is gone' 'true' "$(job '[.pending[].id]|index("issue:33")!=null')"
+
+# --- the reason filter -------------------------------------------------------
+# REASONS is hand-copied from GitHub's docs, and a reason dropped or misspelt
+# there means that PR is never queued, silently. One case per entry, plus the
+# two excluded on purpose.
+echo "-- every listed reason is queued; ci_activity and subscribed are not --"
+cat >"$FIX/issue_comments.json" <<'EOF'
+[
+ {"id":40,"user":{"login":"bob"},"body":"after the notification","created_at":"2026-09-07T10:05:00Z"}
+]
+EOF
+for reason in assign author comment mention review_requested team_mention ci_activity subscribed; do
+  arrange_pr42 2026-09-07T10:02:00Z
+  jq --arg r "$reason" '.[0].reason = $r' "$FIX/notifications.json" >"$FIX/n.tmp" &&
+    mv "$FIX/n.tmp" "$FIX/notifications.json"
+  STATE="$TMP/state-reason-$reason"
+  run >/dev/null
+  case "$reason" in
+    ci_activity | subscribed) want=no ;;
+    *) want=yes ;;
+  esac
+  eq "reason $reason: queued=$want" "$want" \
+    "$([ -f "$STATE/jobs/acme__widget__42.json" ] && echo yes || echo no)"
+done
+
+echo "-- --dry-run reports, and writes neither the job nor the cursor --"
+arrange_pr42 2026-09-07T10:02:00Z
+STATE="$TMP/state-dry"
+out=$(run --dry-run)
+eq 'it reports what it would queue' 'yes' "$(printf '%s' "$out" | grep -q '^queue acme/widget#42' && echo yes || echo no)"
+eq 'it writes no job' 'no' "$([ -f "$STATE/jobs/acme__widget__42.json" ] && echo yes || echo no)"
+# The cursor matters more than the job: advancing it would make the next real
+# poll's 304 hide everything the dry run only looked at.
+eq 'it does not advance Last-Modified' 'no' "$([ -f "$STATE/poll.last-modified" ] && echo yes || echo no)"
+
+echo "-- --print dumps the queue and polls nothing --"
+STATE="$TMP/state-reason-author" # holds one job, queued above
+: >"$FIX/gh.log"
+out=$(run --print)
+eq 'it prints the queued jobs as one array' 'acme/widget#42' "$(printf '%s' "$out" | jq -r '.[] | .repo + "#" + (.pr|tostring)')"
+eq 'it makes no request' '' "$(cat "$FIX/gh.log")"
+STATE="$TMP/state-print-empty"
+eq 'an empty queue prints []' '[]' "$(run --print | jq -c .)"
+
+echo "-- a failed poll dies loudly and keeps the cursor --"
+# Advancing the cursor past a poll that was never read would make the next 304
+# hide its notifications for good.
+arrange_pr42 2026-09-07T10:02:00Z
+STATE="$TMP/state-err"
+mkdir -p "$STATE"
+printf 'Mon, 07 Sep 2026 09:00:00 GMT' >"$STATE/poll.last-modified"
+printf '502' >"$FIX/notifications-status"
+out=$(run)
+rc=$?
+eq 'a non-200 exits 1' '1' "$rc"
+eq 'and names the status' 'yes' "$(printf '%s' "$out" | grep -q 'returned HTTP 502' && echo yes || echo no)"
+eq 'and leaves Last-Modified as it was' 'Mon, 07 Sep 2026 09:00:00 GMT' "$(cat "$STATE/poll.last-modified")"
+/bin/rm -f "$FIX/notifications-status"
+: >"$FIX/no-response"
+out=$(run)
+rc=$?
+eq 'no response at all exits 1' '1' "$rc"
+eq 'and says so' 'yes' "$(printf '%s' "$out" | grep -q 'no response from the notifications API' && echo yes || echo no)"
+/bin/rm -f "$FIX/no-response"
+
+echo "-- PRs that cannot be routed are skipped by name --"
+arrange_pr42 2026-09-07T10:02:00Z
+STATE="$TMP/state-skip"
+/bin/rm -f "$FIX/ghq-github.com_acme_widget"
+out=$(run)
+eq 'no local checkout is reported' 'skip acme/widget#42: no local checkout' "$out"
+arrange_pr42 2026-09-07T10:02:00Z
+/bin/rm -f "$FIX/pull.json"
+out=$(run)
+eq 'an unreadable PR is reported' 'skip acme/widget#42: could not read the PR' "$out"
+eq 'and neither writes a job' '0' "$(find "$STATE/jobs" -name '*.json' | wc -l | tr -d ' ')"
+
+echo "-- a live lock holder means this run does nothing --"
+# launchd fires every 60s whether or not the last run finished; two polls
+# interleaving writes to one job file queue a review twice.
+arrange_pr42 2026-09-07T10:02:00Z
+STATE="$TMP/state-lock"
+mkdir -p "$STATE/.lock"
+sleep 300 >/dev/null 2>&1 &
+holder=$!
+printf '%s' "$holder" >"$STATE/.lock/pid"
+: >"$FIX/gh.log"
+out=$(run)
+rc=$?
+eq 'it exits 0 silently' '0:' "$rc:$out"
+eq 'it makes no request' '' "$(cat "$FIX/gh.log")"
+eq "and leaves the holder's lock" "$holder" "$(cat "$STATE/.lock/pid")"
+kill "$holder" 2>/dev/null
+wait "$holder" 2>/dev/null
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
