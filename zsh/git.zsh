@@ -219,15 +219,12 @@ _gw_copy_entry() {
 
 # Copy the untracked local files a fresh worktree needs to be usable (.env and
 # friends), as listed in .worktree-copy at the main repo root.
-#
-# The cost is process count, not bytes: a check-attr, dirname, mkdir and cp per
-# file took ~1.8s on a list expanding to ~200 files (tetsunavi-monorepo), longer
-# than the checkout itself. So LFS is asked about every path in ONE check-attr
-# call, and a directory holding no LFS file is copied by one cp.
 _gw_copy_files() {
   local root_dir=$1 worktree_path=$2
   local list="$root_dir/.worktree-copy"
   [ -f "$list" ] || return 0
+  # For the `#` (zero or more) in the trim below; without it `#` is a literal
+  # character, and the trim silently leaves every entry as it was.
   setopt localoptions extendedglob
 
   echo "Copying files..."
@@ -256,7 +253,10 @@ _gw_copy_files() {
     fi
   done
 
-  # -z output is <path> NUL <attribute> NUL <value> NUL, per path.
+  # One check-attr for every path, and below, one cp per directory that holds
+  # no LFS file: the cost here is process count, not bytes, and a few processes
+  # per file was most of gw's time on a large list (zsh/git.md has the
+  # numbers). -z output is <path> NUL <attribute> NUL <value> NUL, per path.
   local -A lfs
   if (( $#paths )); then
     local -a attrs
