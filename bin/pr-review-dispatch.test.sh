@@ -129,10 +129,19 @@ git -C "$REPO" worktree add -q -b feature/x "$WT" >/dev/null 2>&1
 
 # The working directory is logged with the argv: `--bg` and the cwd are what make
 # the resume land in the right conversation, in the background.
+#
+# $RESUMEAPPEND, when it names a job file, has the stub append an item to that
+# job while the delivery is in flight -- what pr-review-watch does when a poll
+# lands mid-delivery. The two programs write the same file under different
+# locks, so this is the deterministic form of a race that does happen.
 cat >"$STUB/claude" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >> "$RESUMELOG"
 printf 'cwd=%s\n' "$PWD" >> "$RESUMELOG"
+if [ -n "${RESUMEAPPEND:-}" ]; then
+  jq '.pending += [{id:"issue:99", kind:"issue", author:"dave", body:"late", at:"2026-09-07T10:01:00Z"}]
+      | .seen += ["issue:99"]' "$RESUMEAPPEND" >"$RESUMEAPPEND.tmp" && mv "$RESUMEAPPEND.tmp" "$RESUMEAPPEND"
+fi
 [ -f "$RESUMEFAIL" ] && exit 1
 exit 0
 EOF
@@ -240,6 +249,7 @@ reset() { /bin/rm -f "$STATE"/jobs/* "$SESS"/*.json "$TMP"/wire-* "$TMP/resume.l
 run() {
   PATH="$STUB:$PATH" \
     RESUMELOG="$TMP/resume.log" RESUMEFAIL="$TMP/resume.fail" \
+    RESUMEAPPEND="${RESUMEAPPEND:-}" \
     PR_REVIEW_WATCH_STATE_DIR="$STATE" CLAUDE_SESSIONS_DIR="$SESS" \
     PR_REVIEW_DISPATCH_RESUME="${RESUME:-0}" \
     "$DISPATCH" "$@" 2>&1
@@ -649,6 +659,42 @@ has "which carries the feedback" "$(cat "$STATE/jobs/acme__widget__42.prompt.md"
 has "the resume runs in the background" "$(head -n 1 "$TMP/resume.log")" "--bg --resume sess-1"
 eq "from the job's worktree" "cwd=$WT" "$(grep '^cwd=' "$TMP/resume.log")"
 
+# --- feedback that arrives while a delivery is in flight --------------------
+# pr-review-watch appends to the same job file under its own lock, not this
+# program's, so a poll can land between the prompt being written and the job
+# being marked. Marking used to empty `pending` outright: the late item was in
+# no prompt, yet left the queue with its id already in `seen`, so no later poll
+# would ever queue it again -- feedback lost with nothing said anywhere.
+printf 'feedback arriving mid-delivery\n'
+reset
+make_job
+out=$(RESUME=1 RESUMEAPPEND="$STATE/jobs/acme__widget__42.json" run)
+lacks "the late item was not in this delivery" "$(cat "$STATE/jobs/acme__widget__42.prompt.md" 2>/dev/null)" "dave"
+has "which did carry the earlier items" "$(cat "$STATE/jobs/acme__widget__42.prompt.md" 2>/dev/null)" "carol"
+eq "it stays pending for the next run" "issue:99" "$(job '[.pending[].id] | join(" ")')"
+eq "the job is still queued" "pending" "$(job .status)"
+eq "only what was delivered is counted" "2" "$(job .deliveredCount)"
+
+# The next run delivers it, so the item is late rather than lost.
+out=$(RESUME=1 run)
+has "the next run delivers it" "$(cat "$STATE/jobs/acme__widget__42.prompt.md" 2>/dev/null)" "late"
+eq "and the queue is then empty" "0" "$(job '.pending | length')"
+
+# --- a prompt file that cannot be written ------------------------------------
+# The message is only a pointer to the prompt file, so sending it after a failed
+# write points the session at a file that is missing -- or, worse, at the
+# previous delivery's file, read as if it were this one's feedback.
+printf 'unwritable prompt file\n'
+reset
+make_job
+mkdir "$STATE/jobs/acme__widget__42.prompt.md" # a directory: the write fails
+out=$(RESUME=1 run)
+eq "nothing is sent" "absent" "$([ -f "$TMP/resume.log" ] || echo absent)"
+eq "the job stays queued" "pending" "$(job .status)"
+eq "with its items" "2" "$(job '.pending | length')"
+has "and the hold is reported" "$out" "hold  acme/widget#42: could not write"
+rmdir "$STATE/jobs/acme__widget__42.prompt.md"
+
 # A branch that was merged and cleaned up takes its worktree with it (`gdmerged`
 # removes it), and the job outlives that -- nothing in this pipeline expires one.
 # The generic "no live session" line was wrong for it in a way that wasted the
@@ -667,6 +713,16 @@ case "$out" in
   *PR_REVIEW_DISPATCH_RESUME=1*) no "it does not repeat advice that cannot apply" "[$out]" ;;
   *) ok "it does not repeat advice that cannot apply" ;;
 esac
+
+# Both detectors queue with a null sessionId when no session was live, so this
+# is the common shape under RESUME=1 -- where advice to set RESUME=1 is circular.
+reset
+make_job
+jq '.sessionId = null' "$STATE/jobs/acme__widget__42.json" >"$TMP/j" && mv "$TMP/j" "$STATE/jobs/acme__widget__42.json"
+out=$(RESUME=1 run)
+eq "a job naming no session holds under RESUME=1" "pending" "$(job .status)"
+has "it says there is no session to resume" "$out" "the job names none to resume"
+lacks "and does not point at the variable already set" "$out" "set PR_REVIEW_DISPATCH_RESUME=1"
 
 # A failed resume must leave the job queued -- it is the only copy.
 reset
