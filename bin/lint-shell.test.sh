@@ -185,7 +185,7 @@ fi
 
 # --- a checker that fails fails the run --------------------------------------
 # The verdict path. Each checker in turn, and the others must still run: a
-# shellcheck failure that skipped the formatter would hide a second class of
+# failing first checker that skipped the formatter would hide a second class of
 # problem until the first was fixed.
 for tool in shellcheck shfmt zsh; do
   make_stubs "$work/fail-$tool" "$tool"

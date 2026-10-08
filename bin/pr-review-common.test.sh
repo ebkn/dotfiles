@@ -197,7 +197,10 @@ eq 'a background session is not a delivery target' 'none' \
 echo
 echo "== repo_path =="
 GHQ_ANSWER=""
-ghq() { [ -n "$GHQ_ANSWER" ] && printf '%s\n' "$GHQ_ANSWER"; return 0; }
+ghq() {
+  [ -n "$GHQ_ANSWER" ] && printf '%s\n' "$GHQ_ANSWER"
+  return 0
+}
 checkout() { # checkout <dir> <origin-url>
   git init -q "$1"
   git -C "$1" remote add origin "$2"
