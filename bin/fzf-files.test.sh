@@ -60,7 +60,7 @@ cd "$repo" || exit 1
 git config user.email t@e
 git config user.name t
 mkdir -p sub
-for f in old.txt committed.txt staged.txt unstaged.txt sub/in-sub.txt sub/rest-sub.txt rest.txt; do
+for f in old.txt zz-recent.txt committed.txt staged.txt unstaged.txt sub/in-sub.txt sub/rest-sub.txt rest.txt; do
   printf 'one\n' >"$f"
 done
 git add -A
@@ -70,6 +70,7 @@ printf 'two\n' >>old.txt
 git commit -qam 'touch old'
 for i in 1 2 3 4 5; do
   printf '%s\n' "$i" >>committed.txt
+  [ "$i" = 3 ] && printf '%s\n' "$i" >>zz-recent.txt
   git commit -qam "c$i"
 done
 printf 'two\n' >>staged.txt
@@ -93,6 +94,13 @@ t "a staged one, staged" "[ staged      ]" "$(label_of staged.txt)"
 t "an unstaged one, unstaged" "[ unstaged    ]" "$(label_of unstaged.txt)"
 t "staged outranks committed for the same file" "[ staged      ]" "$(label_of committed.txt)"
 t "a file only changed long ago gets no label" "" "$(label_of old.txt)"
+# zz-recent.txt changed in c3 and nowhere since: the third-newest commit, so it is
+# labelled with that commit's short hash and (-3).
+c3=$(git log --format=%h -1 --skip=2)
+t "a file changed in a recent commit is labelled with its hash and how many ago" \
+  "[ $(printf '%-11s' "$c3(-3)") ]" "$(label_of zz-recent.txt)"
+t "and comes before the unchanged files" "yes" \
+  "$([ "$(first_of zz-recent.txt)" -lt "$(first_of sub/rest-sub.txt)" ] && echo yes || echo no)"
 t "untracked comes before staged" "yes" "$([ "$(first_of untracked.txt)" -lt "$(first_of staged.txt)" ] && echo yes || echo no)"
 t "staged before unstaged" "yes" "$([ "$(first_of staged.txt)" -lt "$(first_of unstaged.txt)" ] && echo yes || echo no)"
 t "changed files before the rest" "yes" "$([ "$(first_of unstaged.txt)" -lt "$(first_of sub/rest-sub.txt)" ] && echo yes || echo no)"
@@ -109,6 +117,8 @@ plain=$(ff)
 t "plain mode lists the changed files first too" "untracked.txt" \
   "$(printf '%s\n' "$plain" | grep -nx -e untracked.txt -e sub/rest-sub.txt | head -1 | cut -d: -f2)"
 t "plain mode has no labels" "0" "$(printf '%s\n' "$plain" | grep -c '\[')"
+t "plain mode lists a recently committed file before the unchanged ones" "zz-recent.txt" \
+  "$(printf '%s\n' "$plain" | grep -nx -e zz-recent.txt -e sub/rest-sub.txt | head -1 | cut -d: -f2)"
 
 # --- from a subdirectory -----------------------------------------------------------
 # git status prints repo-root paths and rg cwd-relative ones; the two have to
