@@ -50,15 +50,19 @@ command -v tmux >/dev/null || {
   exit 1
 }
 
-# Two GUI clients; the one idle for less time is the one the user just typed
-# into, so its focused pane (42) is where the tabs belong. Spawns and focus
-# changes are recorded.
+# Three GUI clients; the one idle for least time is the one the user just typed
+# into, so its focused pane (42) is where the tabs belong. It sits in the
+# MIDDLE of the list, so neither "the first" nor "the last" client finds it by
+# accident. Spawns and focus changes are recorded, and so is the socket each
+# call was made against.
 cat >"$DIR/stub/wezterm" <<'STUB'
 #!/bin/sh
+printf '%s\n' "$WEZTERM_UNIX_SOCKET" >>"$CALLS.sock"
 if [ "$1 $2" = "cli list-clients" ]; then
   cat <<'JSON'
 [{"focused_pane_id":5,"idle_time":{"secs":900,"nanos":0}},
- {"focused_pane_id":42,"idle_time":{"secs":1,"nanos":500}}]
+ {"focused_pane_id":42,"idle_time":{"secs":1,"nanos":500}},
+ {"focused_pane_id":8,"idle_time":{"secs":30,"nanos":0}}]
 JSON
   exit 0
 fi
@@ -77,7 +81,13 @@ t() { # t <name> <expected> <actual>
   fi
 }
 
-tmux -f /dev/null new-session -d -s placeholder "$IDLE"
+# Creation order against name order: zz-oldest is created a second before the
+# rest and aa-newest a second after, so "oldest first" -- the order the tabs had
+# before the crash -- is the reverse of the alphabetical order list-sessions
+# uses. session_created has one-second resolution, hence the sleeps.
+tmux -f /dev/null new-session -d -s zz-oldest "$IDLE"
+sleep 1
+tmux new-session -d -s placeholder "$IDLE"
 # A name that also occurs inside its own session_created timestamp: three
 # digits from the middle of it, which is what regression (2) needs.
 created=$(tmux display-message -p -t '=placeholder:' '#{session_created}')
@@ -95,6 +105,8 @@ tmux new-session -d -s _agent_3_99 "$IDLE"
 # Only a LEADING underscore marks a popup. A glob loosened to `*_*` would drop
 # an ordinary session like this one, silently.
 tmux new-session -d -s tidy_up "$IDLE"
+sleep 1
+tmux new-session -d -s aa-newest "$IDLE"
 
 # A real client on `held`, so it counts as attached. script(1) differs between
 # BSD and util-linux; probe rather than branch on the platform.
@@ -110,7 +122,9 @@ for _ in $(seq 1 50); do
 done
 t "harness: held has a client" "1" "$(tmux display-message -p -t '=held:' '#{session_attached}')"
 
-PATH="$DIR/stub:$PATH" "$SCRIPT" >/dev/null 2>&1
+# Run with the dead socket a tmux session inherits after WezTerm restarts.
+: >"$CALLS.sock"
+PATH="$DIR/stub:$PATH" WEZTERM_UNIX_SOCKET=/stale/gui-sock "$SCRIPT" >/dev/null 2>&1
 status=$?
 
 spawns=$(grep '^cli spawn' "$CALLS")
@@ -123,9 +137,16 @@ t "an attached session gets no tab" "0" "$(printf '%s\n' "$spawns" | grep -c 'he
 t "a popup session gets no tab" "0" "$(printf '%s\n' "$spawns" | grep -c -- '-t =_')"
 t "an underscore inside a name is not a popup" "1" \
   "$(printf '%s\n' "$spawns" | grep -cx "cli spawn --pane-id 42 -- tmux attach -t =tidy_up")"
-t "every tab goes into the focused client's window, never \$WEZTERM_PANE's" "3" \
+t "every tab goes into the focused client's window, never \$WEZTERM_PANE's" "5" \
   "$(printf '%s\n' "$spawns" | grep -c -- '--pane-id 42 ')"
 t "focus returns to the focused pane" "cli activate-pane --pane-id 42" "$(tail -1 "$CALLS")"
+# Oldest first, which is the tab order before the crash.
+t "the oldest session's tab opens first" "=zz-oldest" \
+  "$(printf '%s\n' "$spawns" | head -n 1 | sed 's/.* -t //')"
+t "and the newest one's last" "=aa-newest" \
+  "$(printf '%s\n' "$spawns" | tail -n 1 | sed 's/.* -t //')"
+t "every wezterm call uses the socket symlink, not the inherited one" \
+  "$HOME/.local/share/wezterm/default-org.wezfurlong.wezterm" "$(sort -u "$CALLS.sock")"
 
 # Nothing to restore: every remaining session has a client, or is a popup's --
 # the two popup sessions above are still there, unattached, so this is also
@@ -136,6 +157,8 @@ t "focus returns to the focused pane" "cli activate-pane --pane-id 42" "$(tail -
 tmux kill-session -t "=$numeric"
 tmux kill-session -t '=my work'
 tmux kill-session -t '=tidy_up'
+tmux kill-session -t '=zz-oldest'
+tmux kill-session -t '=aa-newest'
 : >"$CALLS"
 out=$(PATH="$DIR/stub:$PATH" "$SCRIPT" 2>&1)
 status=$?
