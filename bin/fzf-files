@@ -41,16 +41,35 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   # committed trees, never the working copy) so it keeps --relative directly.
   prefix=$(git rev-parse --show-prefix)
 
+  # NUL-separated, so no path is quoted. The default output wraps a name with a
+  # space or a non-ASCII character in quotes and escapes it, and such a path
+  # then failed the existence check below and lost its place at the top.
+  # One entry per line after tr; a name containing a newline is the one thing
+  # this cannot carry, and fzf could not show it either.
+  porcelain_status() {
+    git status --porcelain=v1 -z -uall -- . 2>/dev/null | tr '\0' '\n'
+  }
+  # The last five commits' files. Names raw for the same reason (quotePath only
+  # escapes non-ASCII here). `|| true` because a branch with no commits yet
+  # makes git log exit 128, which under set -e ended the whole listing before
+  # it printed anything -- an empty picker right after `git init`.
+  recent_log() {
+    git -c core.quotePath=false log --relative --name-only "$@" -5 -- . 2>/dev/null || true
+  }
+
   if "$label_mode"; then
     # Build labeled list: [ label    ]\tpath
     # Use HASH: prefix marker to distinguish commit hashes from filenames.
     changed=$(
       {
-        git status --porcelain -uall -- . 2>/dev/null | awk -v pfx="$prefix" '
+        porcelain_status | awk -v pfx="$prefix" '
+          # A rename or copy is "XY new" followed by its old name on a line of
+          # its own; the old name is not a file to open.
+          skip { skip = 0; next }
           {
             xy = substr($0, 1, 2)
             path = substr($0, 4)
-            i = index(path, " -> "); if (i > 0) path = substr(path, i + 4)  # rename: keep new name
+            if (xy ~ /[RC]/) skip = 1
             if (pfx != "") { if (index(path, pfx) != 1) next; path = substr(path, length(pfx) + 1) }
             # Bucket by category, emit in priority order (untracked > staged > unstaged)
             # in END so display order does not depend on git status sort order.
@@ -63,7 +82,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
             for (k = 1; k <= ns; k++) printf "[ staged      ]\t%s\n", s[k]
             for (k = 1; k <= ng; k++) printf "[ unstaged    ]\t%s\n", g[k]
           }'
-        git log --relative --name-only --pretty='format:HASH:%h' -5 -- . |
+        recent_log --pretty='format:HASH:%h' |
           awk '/^HASH:/{n++; hash=$0; sub(/^HASH:/,"",hash); next} NF{printf "[ %-11s ]\t%s\n", hash"(-"n")", $0}'
       }
     )
@@ -79,14 +98,15 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     # Plain mode: no labels
     changed=$(
       {
-        git status --porcelain -uall -- . 2>/dev/null | awk -v pfx="$prefix" '
+        porcelain_status | awk -v pfx="$prefix" '
+          skip { skip = 0; next }
           {
             path = substr($0, 4)
-            i = index(path, " -> "); if (i > 0) path = substr(path, i + 4)
+            if (substr($0, 1, 2) ~ /[RC]/) skip = 1
             if (pfx != "") { if (index(path, pfx) != 1) next; path = substr(path, length(pfx) + 1) }
             print path
           }'
-        git log --relative --name-only --pretty=format: -5 -- .
+        recent_log --pretty=format:
       } | awk 'NF && !seen[$0]++'
     )
 

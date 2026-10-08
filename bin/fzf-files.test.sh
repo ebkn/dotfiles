@@ -42,6 +42,17 @@ export PATH="$TMP/stub:$PATH"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 ff() { "$FF" "$@" 2>&1; }
 
+# --- a repository with no commits yet ------------------------------------------
+# `git log` exits 128 on a branch with no commits. Under set -e that ended the
+# script before it printed anything: right after `git init`, the picker was
+# empty.
+repo0="$TMP/fresh"
+git init -q "$repo0"
+cd "$repo0" || exit 1
+printf 'x\n' >a.txt
+t "a repo with no commits still lists its files" "a.txt" "$(ff | tr '\t' ' ')"
+t "and labels them, untracked" "[ untracked   ] a.txt" "$(ff --label | tr '\t' ' ')"
+
 # --- the order, and the labels ---------------------------------------------------
 repo="$TMP/repo"
 git init -q "$repo"
@@ -91,6 +102,8 @@ t "a deleted file is not offered" "0" "$(printf '%s\n' "$labels" | grep -c '|res
 # --nth=-1 --accept-nth=-1, so the label must be a column of its own.
 t "the label is a field of its own, the path the last" "staged.txt" \
   "$(ff --label | grep -F 'staged.txt' | grep -v unstaged | head -1 | awk -F'\t' '{ print $NF }')"
+t "a name with a space is listed as changed, unquoted" "[ untracked   ]" "$(label_of 'my file.md')"
+t "a non-ASCII name is listed as changed, unquoted" "[ untracked   ]" "$(label_of '日本語.md')"
 
 plain=$(ff)
 t "plain mode lists the changed files first too" "untracked.txt" \
