@@ -73,6 +73,18 @@ t "status says hidden" "1" "$(printf '%s\n' "$out" | grep -c '^state: HIDDEN')"
 t "show removes only the block" "mine.txt text" "$(cat "$attr")"
 t "after which the diff is back" "1" "$(git diff -- gen/out.js | grep -c '^+two$')"
 
+# From a LINKED worktree -- every checkout `gw` makes. Git reads info/attributes
+# from the common dir, not from the worktree's own git dir, which is why the
+# script asks `--git-path`: a block written under `--git-dir` lands in a file
+# git never reads, and hides nothing.
+git commit -qam wip
+git worktree add -q -b side "$TMP/side" >/dev/null 2>&1
+printf 'three\n' >>"$TMP/side/gen/out.js"
+(cd "$TMP/side" && "$GG" >/dev/null 2>&1)
+t "run from a linked worktree, a generated diff still collapses" "1" \
+  "$(git -C "$TMP/side" diff -- gen/out.js | grep -c '^Binary files .* differ$')"
+(cd "$TMP/side" && "$GG" show >/dev/null 2>&1)
+
 # --- nothing to hide -----------------------------------------------------------------
 # Both shapes must say why. A .gitattributes with no generated entry used to make
 # the pipeline's last grep fail, and set -e exit 1 with nothing printed at all.
