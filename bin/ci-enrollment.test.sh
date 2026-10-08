@@ -28,8 +28,11 @@ fail() {
 # so the list cannot quietly outlive its reasons.
 #   git-guard.test.sh  -- not wired in yet (CLAUDE.md, Testing)
 #   default.rules.test.sh -- needs the codex binary; local only (root/README.md)
+#   read-doc.test.sh   -- needs pandoc, which the runner lacks; it fails rather
+#                         than skips without it, so it runs locally (read-doc.md)
 not_in_ci='root/.claude/hooks/git-guard.test.sh
-root/.codex/rules/default.rules.test.sh'
+root/.codex/rules/default.rules.test.sh
+bin/read-doc.test.sh'
 
 # Listings that fail must not read as "there is nothing to check".
 if ! suites=$(git ls-files -- '*.test.sh' '*.test.zsh'); then
