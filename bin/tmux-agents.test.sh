@@ -92,7 +92,6 @@ now=$(date +%s)
 # fixtures out from under the assertions a few hundred milliseconds in, which
 # shows up as an intermittent failure that looks like a ranking bug.
 IDLE="sleep 300"
-tmux -L "$socket" -f /dev/null new-session -d -s work "$IDLE"
 
 # One pane per state. @claude_since is set relative to now so the age column and
 # the oldest-first sort within a rank are both exercised.
@@ -107,27 +106,53 @@ add_pane() {
   [ -n "$note" ] && tmux -L "$socket" set-option -p -t "$pane" @claude_note "$note"
 }
 
-add_pane busy-new busy 10
-add_pane stalled-old stalled 7200
-add_pane asking-new asking 30 "which one?"
-add_pane waiting-old waiting 600 "needs permission"
-add_pane needs-input needs_input 120 "reviewer needs your input"
-# 400000s renders as "111h", four characters. That width is deliberate: the age
-# is printed with %4s, so for the usual three-character age ("10s", "2h") the
-# right-alignment contributes a leading space that exactly replaces the ▶
-# glyph's own padding -- and the glyph assertion below would pass even with the
-# padding removed. Only a four-character age makes the padding observable.
-add_pane busy-old busy 400000
+base_fixtures() {
+  tmux -L "$socket" -f /dev/null new-session -d -s work "$IDLE"
+  add_pane busy-new busy 10
+  add_pane stalled-old stalled 7200
+  add_pane asking-new asking 30 "which one?"
+  add_pane waiting-old waiting 600 "needs permission"
+  add_pane needs-input needs_input 120 "reviewer needs your input"
+  # 400000s renders as "111h", four characters. That width is deliberate: the
+  # age is printed with %4s, so for the usual three-character age ("10s", "2h")
+  # the right-alignment contributes a leading space that exactly replaces the ▶
+  # glyph's own padding -- and the glyph assertion below would pass even with
+  # the padding removed. Only a four-character age makes the padding observable.
+  add_pane busy-old busy 400000
 
-# A pane with no agent at all must not appear.
-tmux -L "$socket" new-window -t work -n plain-pane "$IDLE"
+  # A pane with no agent at all must not appear.
+  tmux -L "$socket" new-window -t work -n plain-pane "$IDLE"
 
-# A popup session, named the way bin/tmux-popup names them, carrying state. The
-# picker must skip it.
-tmux -L "$socket" new-session -d -s _popup_0 "$IDLE"
-popup_pane=$(tmux -L "$socket" list-panes -t _popup_0 -F '#{pane_id}' | head -1)
-tmux -L "$socket" set-option -p -t "$popup_pane" @claude_state busy
-tmux -L "$socket" set-option -p -t "$popup_pane" @claude_since "$now"
+  # A popup session, named the way bin/tmux-popup names them, carrying state.
+  # The picker must skip it.
+  tmux -L "$socket" new-session -d -s _popup_0 "$IDLE"
+  local popup_pane
+  popup_pane=$(tmux -L "$socket" list-panes -t _popup_0 -F '#{pane_id}' | head -1)
+  tmux -L "$socket" set-option -p -t "$popup_pane" @claude_state busy
+  tmux -L "$socket" set-option -p -t "$popup_pane" @claude_since "$now"
+}
+
+# fresh_server [bare] -- a new server for the next phase, holding the base
+# fixtures (or, with `bare`, one empty session). Each phase of this file starts
+# from one, rather than from whatever the phase before it added, renamed or
+# killed: the suite used to run every case on one server kept consistent by
+# hand, and two silent false passes came out of state it leaked
+# (tmux-agents.md). Waits for the old server to be gone, or the new-session
+# could land on the dying one.
+fresh_server() {
+  tmux -L "$socket" kill-server 2>/dev/null
+  for _ in $(seq 1 50); do
+    tmux -L "$socket" list-sessions >/dev/null 2>&1 || break
+    sleep 0.1
+  done
+  if [ "${1:-}" = bare ]; then
+    tmux -L "$socket" -f /dev/null new-session -d -s bare "$IDLE"
+  else
+    base_fixtures
+  fi
+}
+
+fresh_server
 
 run_picker() {
   rm -f "$work/list"
@@ -463,13 +488,9 @@ else
   fail "the literal-escape-in-note path produces a list" "fzf stub was never reached"
 fi
 
-tmux -L "$socket" kill-window -t work:lit-win 2>/dev/null
-tmux -L "$socket" kill-window -t work:esc-win 2>/dev/null
-
-# Back to the aggregate-only fixture: the remote and empty cases below assume it.
-tmux -L "$socket" kill-window -t work:multi-win 2>/dev/null
-
 # --- corrected against the session's own view ---------------------------------
+
+fresh_server
 
 # The pane options are transitions reported by hooks, and three transitions have
 # no hook at all: a permission prompt being answered, a dialog being dismissed,
@@ -1028,6 +1049,8 @@ fi
 
 # --- remote hosts -------------------------------------------------------------
 
+fresh_server
+
 # The remote path had no coverage while it was an awk pass over a second pane
 # listing. It is now a shell loop over the rows already in hand, and its failure
 # is the quiet kind: remote agents simply stop appearing, on a machine where you
@@ -1177,14 +1200,11 @@ if run_picker; then
 else
   fail "an unreachable host leaves the local rows in place" "fzf stub was never reached"
 fi
-tmux -L "$socket" kill-window -t work:ssh-plain 2>/dev/null
-
-# Back to a local-only fixture so the empty case below starts from a known state.
-tmux -L "$socket" kill-window -t work:ssh-pane-a 2>/dev/null
-tmux -L "$socket" kill-window -t work:ssh-pane-b 2>/dev/null
 rm -f "$work/stub/ssh"
 
 # --- what the picked row turns into -------------------------------------------
+
+fresh_server
 
 # fzf runs with --expect=ctrl-o, which prints the key that closed the picker on
 # its own first line -- EMPTY for a plain enter. Everything after that line is
@@ -1285,7 +1305,6 @@ else
   pass "no mirror session is created when the view is refused"
 fi
 
-tmux -L "$socket" kill-window -t work:pick-me 2>/dev/null
 # Restore the picker stub the sections below expect.
 cat >"$work/stub/fzf" <<STUB
 #!/bin/sh
@@ -1298,9 +1317,7 @@ chmod +x "$work/stub/fzf"
 
 # It must not exit instantly: in a popup that reads as a crash rather than as
 # "nothing to show". With no tty it prints the message and returns.
-tmux -L "$socket" kill-session -t work 2>/dev/null
-tmux -L "$socket" kill-session -t _popup_0 2>/dev/null
-tmux -L "$socket" new-session -d -s bare "$IDLE"
+fresh_server bare
 rm -f "$work/list"
 tmux -L "$socket" run-shell "cd $PWD && PATH=$work/stub:$PWD/bin:\$PATH tmux-agents >$work/empty 2>&1"
 for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -1818,11 +1835,10 @@ jump_check() {
   cat "$work/jc" 2>/dev/null
 }
 
-jc_win=$(tmux -L "$socket" list-windows -t work -F '#{window_id}' 2>/dev/null | head -1)
-if [ -z "$jc_win" ]; then
-  tmux -L "$socket" new-session -d -s jc "$IDLE"
-  jc_win=$(tmux -L "$socket" list-windows -t jc -F '#{window_id}' | head -1)
-fi
+# A detached session of its own, so no client shows its window -- arranged here
+# rather than borrowed from whichever session an earlier section left alive.
+tmux -L "$socket" new-session -d -s jc "$IDLE"
+jc_win=$(tmux -L "$socket" list-windows -t jc -F '#{window_id}' | head -1)
 jc_pane=$(tmux -L "$socket" list-panes -t "$jc_win" -F '#{pane_id}' | head -1)
 
 out=$(jump_check "|$jc_win|$jc_pane|asking")
