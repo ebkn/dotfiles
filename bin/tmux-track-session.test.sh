@@ -383,6 +383,28 @@ for _ in $(seq 1 50); do
 done
 kill -0 "$monitor_i" 2>/dev/null && gone=alive
 t "attach: still kills this conn_id's own stale monitor" "dead" "$gone"
+# ...and the pid file then names the NEW monitor, attach started. The old one's
+# trap runs only once its `sleep 2` returns -- after attach has started the new
+# monitor -- and it used to remove the pid file unconditionally, taking the new
+# monitor's with it. The next reconnect then had nothing to kill, and leaked it.
+new_pid=$(cat "$PID_DIR/connI" 2>/dev/null)
+t "attach: the pid file names the replacement monitor afterwards" "yes" \
+  "$(case "$(ps -ww -p "${new_pid:-0}" -o command= 2>/dev/null)" in
+    *"monitor connI "*) echo yes ;;
+    *) echo "no (pid file: ${new_pid:-missing})" ;;
+  esac)"
+
+# The identity check matches this conn_id as a whole argument. A process that is
+# the monitor of a LONGER conn_id (local-50's, holding a pid local-5's file
+# names) is somebody else's monitor, and killing it breaks that connection.
+# (`; exit 0` stops bash exec'ing sleep in its place, which would drop the argv.)
+bash -c 'sleep 600; exit 0' tmux-track-session monitor local-50 /dev/null &
+other_monitor=$!
+CLIENT_PIDS="$CLIENT_PIDS $other_monitor"
+printf '%s' "$other_monitor" >"$PID_DIR/local-5"
+attach_as local-5
+t "attach: a longer conn_id's monitor is not taken for this one's" "alive" \
+  "$(kill -0 "$other_monitor" 2>/dev/null && echo alive || echo dead)"
 
 # ---------------------------------------------------------------------------
 # adopt: the remote half of bin/tmux-restore-ssh-tabs. Each session it prints
