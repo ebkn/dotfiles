@@ -251,6 +251,13 @@ check 'and fails' 1 "$(status_of "$out")"
 check 'and creates no branch' '' \
   "$(git -C "$repo" branch --list --format='%(refname:short)' pr-branch)"
 
+# GitHub compares owner/repo case-insensitively, so must the guard. Getting as
+# far as the fetch is the proof the guard let it through; this repo has no
+# origin, so the fetch itself fails.
+out=$(GH_PR_REPO=Me/Mine GH_PR_BRANCH=pr-branch \
+      run "$repo" gw https://github.com/me/mine/pull/7)
+contains 'the origin check ignores case' 'Fetching PR #7 (pr-branch)' "$out"
+
 out=$(GH_PR_REPO=me/mine run "$repo" gw https://github.com/me/mine/pull/7)
 contains 'gw reports a PR it cannot look up' 'failed to fetch PR info' "$out"
 check 'and fails' 1 "$(status_of "$out")"
