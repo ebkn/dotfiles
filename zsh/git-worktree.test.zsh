@@ -150,6 +150,22 @@ check 'gw creates the worktree under git-worktrees/, slashes flattened' \
 check 'gw creates the branch' 'feature/thing' \
   "$(git -C "$repo" branch --list --format='%(refname:short)' feature/thing)"
 
+# gw run from inside a linked worktree -- how an agent working in one calls it
+# -- still files the new worktree under the MAIN checkout and copies from the
+# main checkout's .worktree-copy. Resolving the root to the current worktree
+# instead would nest worktrees inside worktrees, and every other case here runs
+# from the main root, where the two answers coincide.
+repo=$(new_repo gw-nested)
+printf 'secret\n' > "$repo/.env"
+print -r -- .env > "$repo/.worktree-copy"
+run "$repo" gw first >/dev/null
+mkdir -p "$repo/git-worktrees/first/sub"
+out=$(run "$repo/git-worktrees/first/sub" gw second)
+check 'gw from inside a linked worktree files the new one under the main checkout' \
+  "PWD=$repo/git-worktrees/second" "$(pwd_of "$out")"
+check 'and copies from the main checkout' 'secret' \
+  "$(cat "$repo/git-worktrees/second/.env" 2>&1)"
+
 # .worktree-copy: the untracked local files a new worktree needs to be usable.
 repo=$(new_repo gw-copy)
 mkdir -p "$repo/config"

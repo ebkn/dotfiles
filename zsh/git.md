@@ -32,7 +32,9 @@ Three things are worth knowing before editing it:
 The picker's menu is asserted on its **visible columns only**: the hidden third
 column is the absolute path, which contains both the branch name and the relative
 path, so a substring match on the whole menu passes whatever the first two
-columns say.
+columns say. Likewise every `gw` case but one runs from the main root, where the
+main checkout and the current worktree coincide; the case run from inside a linked
+worktree is the one that pins which of the two `gw` files new worktrees under.
 
 The `[gone]` upstream that `gdmerged` treats as consent is set up for real: push
 the branch, delete it in the bare origin, `fetch -p`.
