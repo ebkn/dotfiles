@@ -197,21 +197,35 @@ check 'and copies from the main checkout' 'secret' \
   "$(cat "$repo/git-worktrees/second/.env" 2>&1)"
 
 # .worktree-copy: the untracked local files a new worktree needs to be usable.
+# Anything Git LFS manages is skipped, a file at a time even inside a listed
+# directory; check-attr reads .gitattributes whether or not git-lfs is
+# installed, so the skip is exercised without it.
 repo=$(new_repo gw-copy)
 mkdir -p "$repo/config"
 printf 'secret\n' > "$repo/.env"
 printf 'x\n' > "$repo/config/local.yml"
-cat > "$repo/.worktree-copy" <<'COPY'
-# a comment
-
-.env
-config
-missing-file
-COPY
+printf 'pointer\n' > "$repo/config/model.bin"
+printf 'pointer\n' > "$repo/asset.bin"
+printf 'spaced\n' > "$repo/spaced.txt"
+printf 'last\n' > "$repo/last.txt"
+ln -s config "$repo/config-link"
+printf '*.bin filter=lfs\n' > "$repo/.gitattributes"
+# The last entry has no trailing newline, as an editor may well leave it.
+printf '%s\n' '# a comment' '' .env config '  spaced.txt  ' config-link \
+  asset.bin missing-file > "$repo/.worktree-copy"
+printf 'last.txt' >> "$repo/.worktree-copy"
 out=$(run "$repo" gw copied)
 wt="$repo/git-worktrees/copied"
 check 'gw copies a listed file' 'secret' "$(cat "$wt/.env" 2>&1)"
 check 'gw copies a listed directory recursively' 'x' "$(cat "$wt/config/local.yml" 2>&1)"
+check 'gw trims the whitespace around an entry' 'spaced' "$(cat "$wt/spaced.txt" 2>&1)"
+check 'gw reads a last entry with no trailing newline' 'last' "$(cat "$wt/last.txt" 2>&1)"
+check 'gw copies a symlink as the link it is' 'link' \
+  "$([[ -L "$wt/config-link" ]] && echo link || echo not-a-link)"
+check 'gw skips a listed LFS file' 'absent' \
+  "$([[ -e "$wt/asset.bin" ]] && echo present || echo absent)"
+check 'gw skips an LFS file inside a listed directory' 'absent' \
+  "$([[ -e "$wt/config/model.bin" ]] && echo present || echo absent)"
 contains 'gw warns about a missing entry' 'missing-file not found' "$out"
 lacks 'gw ignores comment lines' 'a comment not found' "$out"
 
