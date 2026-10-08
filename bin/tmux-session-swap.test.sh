@@ -103,27 +103,49 @@ new_client bravo || exit 1
 ttyA=$(tty_on alpha)
 ttyB=$(tty_on bravo)
 
+# place <A's session> <B's session> -- each case puts the two clients where it
+# needs them, rather than reading where the case before left them.
+place() {
+  tmux switch-client -c "$ttyA" -t "=$1"
+  tmux switch-client -c "$ttyB" -t "=$2"
+}
+
+# The targets are the strings choose-tree substitutes for %% (window-tree.c):
+# `=name:` for a session row, `=name:idx.` for a window row and `=name:idx.%id`
+# for a pane row. A bare session name is NOT among them, and cases built on one
+# would stay green under a session_of that parsed the string by hand.
+win_idx=$(tmux list-windows -t '=alpha' -F '#{window_index}' | head -1)
+pane_id=$(tmux list-panes -t '=alpha' -F '#{pane_id}' | head -1)
+
 # --- picking a session another client holds: the two clients swap ------------
+place alpha bravo
 "$SCRIPT" arm "$ttyA"
-"$SCRIPT" go bravo
+"$SCRIPT" go '=bravo:'
 t "swap: the picker lands on its choice" "bravo" "$(where "$ttyA")"
 t "swap: the incumbent takes the vacated one" "alpha" "$(where "$ttyB")"
 t "swap: no session ends up with two clients" "" "$(doubled)"
 
 # --- picking a free session: a plain move, nobody else is touched ------------
+place alpha bravo
 "$SCRIPT" arm "$ttyA"
-"$SCRIPT" go idle
+"$SCRIPT" go '=idle:'
 t "free: the picker lands on its choice" "idle" "$(where "$ttyA")"
-t "free: the other client is left alone" "alpha" "$(where "$ttyB")"
+t "free: the other client is left alone" "bravo" "$(where "$ttyB")"
 t "free: no session ends up with two clients" "" "$(doubled)"
 
-# --- a window target, which is what choose-tree -Zw actually passes ----------
-win=$(tmux list-windows -t '=alpha' -F '#{session_name}:#{window_index}' | head -1)
+# --- a window row and a pane row resolve to their session --------------------
+place idle alpha
 "$SCRIPT" arm "$ttyA"
-"$SCRIPT" go "$win"
+"$SCRIPT" go "=alpha:$win_idx."
 t "window target: resolved to its session" "alpha" "$(where "$ttyA")"
 t "window target: the incumbent was swapped" "idle" "$(where "$ttyB")"
 t "window target: no session has two clients" "" "$(doubled)"
+
+place idle alpha
+"$SCRIPT" arm "$ttyA"
+"$SCRIPT" go "=alpha:$win_idx.$pane_id"
+t "pane target: resolved to its session" "alpha" "$(where "$ttyA")"
+t "pane target: the incumbent was swapped" "idle" "$(where "$ttyB")"
 
 # --- picking the session you are already on is a no-op ----------------------
 before=$(where "$ttyA")
@@ -150,14 +172,13 @@ t "same session: no session has two clients" "" "$(doubled)"
 tmux new-session -d -s spare "$IDLE"
 rm -f "$XDG_STATE_HOME/tmux-session-swap/armed"
 before_spare=$(attached_on spare)
-"$SCRIPT" go spare >/dev/null 2>&1
-t "unarmed: exits cleanly" "0" "$?"
+"$SCRIPT" go '=spare:' >/dev/null 2>&1
 t "unarmed: the target session gains a client" "0 -> 1" "$before_spare -> $(attached_on spare)"
 
 # --- a target that no longer exists is ignored rather than erroring ---------
 pos=$(where "$ttyA")
 "$SCRIPT" arm "$ttyA"
-"$SCRIPT" go no-such-session >/dev/null 2>&1
+"$SCRIPT" go '=no-such-session:' >/dev/null 2>&1
 t "dead target: the picker did not move" "$pos" "$(where "$ttyA")"
 # `go` consumes the arm, on every path. The dead-target branch used to return
 # before reaching the removal, so a pick that resolved to nothing left the tty

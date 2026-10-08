@@ -24,7 +24,8 @@ STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tmux-session-swap"
 ARM_FILE="$STATE_DIR/armed"
 
 # Session name of a tmux target ("%%" from choose-tree is a window or session
-# target, e.g. "$3" or "local-85:2"). Empty when the target is already gone.
+# target, e.g. "=local-85:" or "=local-85:2." -- window-tree.c's forms, with
+# "=name:idx.%id" for a pane row). Empty when the target is already gone.
 session_of() {
   tmux display-message -p -t "$1" '#{session_name}' 2>/dev/null
 }
