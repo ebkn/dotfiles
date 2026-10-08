@@ -121,8 +121,15 @@ if [ -n "$manual_pr" ]; then
   only_pr=${manual_pr##*#}
 else
   only_pr=
-  repos=$(gh search prs --author=@me --state=open --limit 100 \
-    --json repository --jq '[.[].repository.nameWithOwner] | unique | .[]' 2>/dev/null)
+  # Raw JSON rather than --jq, for the reason the merged search below gives:
+  # success always prints at least `[]`, so an empty answer can only mean the
+  # request failed -- and the search API's 30/min limit makes that the likeliest
+  # failure here. It used to read as "nothing open".
+  open_list=$(gh search prs --author=@me --state=open --limit 100 \
+    --json repository 2>/dev/null) || open_list=
+  [ -n "$open_list" ] || printf 'skip: could not search for open pull requests\n'
+  repos=$(printf '%s' "${open_list:-[]}" |
+    jq -r '[.[].repository.nameWithOwner] | unique | .[]' 2>/dev/null)
 fi
 
 # No early exit on an empty $repos: the merged half below still has to run, and
@@ -222,7 +229,12 @@ while IFS= read -r repo; do
     #
     # A DRAFT is included, as in the conflict half: a red check on one is
     # exactly what should be dealt with before marking it ready.
-    if [ "$mergeable" != CONFLICTING ]; then
+    #
+    # UNKNOWN defers it too: mergeability still computing may come back
+    # CONFLICTING on the next pass, by which time a CI job queued now would sit
+    # beside the conflict -- the pair the rule above exists to prevent. The
+    # mergeability half below counts the pass as waiting.
+    if [ "$mergeable" != CONFLICTING ] && [ "$mergeable" != UNKNOWN ]; then
       case "$ci" in
         RUNNING)
           # The third answer, exactly as UNKNOWN is for mergeability. Announcing

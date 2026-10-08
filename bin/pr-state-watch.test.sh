@@ -381,6 +381,18 @@ eq 'it makes no request' '0' "$(wc -l <"$TMP/gh.log" | tr -d ' ')"
 eq 'it writes no job' 'no' "$(exists "$JOB")"
 eq "and leaves the holder's lock" "$$" "$(cat "$STATE/.state-lock/pid")"
 
+echo "-- a failed open search is reported, not read as nothing open --"
+# The search API's 30/min limit makes this the likeliest failure of all, and an
+# empty answer from a failed request looks exactly like a week with no PRs.
+STATE="$TMP/state-searchfail"
+JOB="$STATE/jobs/acme__widget__42__conflict.json"
+mv "$FIX/search.json" "$FIX/search.json.off"
+prs CONFLICTING false sha-s
+out=$(run)
+has 'it says the search failed' "$out" 'could not search for open pull requests'
+eq 'and writes nothing' 'no' "$(exists "$JOB")"
+mv "$FIX/search.json.off" "$FIX/search.json"
+
 echo "-- arguments --"
 out=$(run --help)
 rc=$?
@@ -462,6 +474,17 @@ for st in PENDING EXPECTED; do
   eq "a status $st is still running: nothing queued" 'no' "$(exists "$CIJOB")"
   has "and the pass says it is waiting ($st)" "$out" 'waiting'
 done
+
+echo "-- UNKNOWN mergeability defers the CI half too --"
+# A red PR whose mergeability is still computing may turn out CONFLICTING on the
+# next pass, and then the CI job would already be queued beside the conflict --
+# exactly the pair the CONFLICTING rule exists to prevent.
+STATE="$TMP/state-ci-unknown"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs UNKNOWN false head1 feature/x "[$(check lint COMPLETED FAILURE)]"
+out=$(run)
+eq 'no ci job while mergeability is unknown' 'no' "$(exists "$CIJOB")"
+has 'and the pass says it is waiting' "$out" 'waiting'
 
 echo "-- CANCELLED is not a failure --"
 # Concurrency groups cancel the previous run on every push. Treating that as a

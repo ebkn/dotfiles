@@ -123,7 +123,9 @@ every push, so counting it would queue a job for the act of pushing twice.
 **A `CONFLICTING` PR gets no CI job.** The merge is about to replace the tree the
 checks ran against, so fixing them first is work against a head that will not
 survive. The conflict is announced, and the next pass re-evaluates CI on the new
-head.
+head. **An `UNKNOWN` one waits as well**: mergeability still computing can come
+back `CONFLICTING` on the next pass, and a CI job queued now would then sit
+beside the conflict.
 
 ### Drafts are included in both halves
 
@@ -196,7 +198,9 @@ created ten days earlier and merged today comes back.
 **A failed request is reported, not read as "nothing merged".** Both requests
 take raw JSON, so success always prints at least `[]`, and an empty answer can
 only mean failure. That is the same rule as the open half's
-`could not list pull requests`.
+`could not list pull requests` and `could not search for open pull requests` —
+the open search once used `--jq` with stderr discarded, so a rate-limited search
+(30/min) read as a week with no open PRs.
 
 **A fixed lookback (3 days, `PR_STATE_WATCH_MERGED_DAYS`), not a cursor.** A
 merge happens once, so the job file existing is the whole idempotence record,
