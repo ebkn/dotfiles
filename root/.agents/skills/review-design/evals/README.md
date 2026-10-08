@@ -53,6 +53,11 @@ nothing is written before it.
 
 ## Last measured
 
+**Before `context: fork`.** Everything below was measured with the review
+running inline in the caller's context; the forked version has not been run
+yet. Expect the ordering graders to need a look: the report now reaches the
+transcript as the forked skill's result and is then relayed by the caller.
+
 On the final SKILL.md, every one of the eight cases has passed; the latest full
 run was 7/8, the miss being `hidden-clock-no-seam` reporting after its fix,
 which then went 3/3. The trigger pair over three runs each: starts at the

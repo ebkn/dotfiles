@@ -1,15 +1,28 @@
 ---
 name: review-design
-description: Run this before reporting a finished unit of work back to the user, without being asked, whenever that unit — committed, tests passing — added or changed an interface: an exported function or type, a command's arguments, flags or output, an environment variable, a configuration key, a file format, a new module or script. It reviews the design of the change — whether comments, docs and the intended design still match the code, and whether its interfaces are deep (simple to use, hiding real work) and testable — reports what to tidy, ranked P1/P2/P3, and the fixes follow. Also run it before create-pr while part of the branch is unreviewed. Not after every commit, and not for a change to tests, docs or configuration alone, or a small fix that changes no interface. On request too — "設計をレビューして", "設計の観点でレビューして", "コメントやドキュメントとの乖離を見て", "リファクタリングの観点で見て", "design review", "review the design" — or via the /review-design command. Not for finding bugs (code-review), reviewing test code (review-test), or line-level cleanups (simplify).
+description: Run this before reporting a finished unit of work back to the user, without being asked, whenever that unit — committed, tests passing — added or changed an interface: an exported function or type, a command's arguments, flags or output, an environment variable, a configuration key, a file format, a new module or script. It reviews the design of the change — whether comments, docs and the intended design still match the code, and whether its interfaces are deep (simple to use, hiding real work) and testable — reports what to tidy, ranked P1/P2/P3, and the fixes follow. Also run it before create-pr while part of the branch is unreviewed. Not after every commit, and not for a change to tests, docs or configuration alone, or a small fix that changes no interface. On request too — "設計をレビューして", "設計の観点でレビューして", "コメントやドキュメントとの乖離を見て", "リファクタリングの観点で見て", "design review", "review the design" — or via the /review-design command. Not for finding bugs (code-review), reviewing test code (review-test), or line-level cleanups (simplify). It runs in a fresh context that sees none of the conversation, so pass it a brief as the arguments: what the unit set out to do and why, the next planned change if one is known, the range (or the last `Reviewed:` line), and the user's language.
 effort: high
 allowed-tools: Read, Glob, Grep, Bash(git diff *), Bash(git log *), Bash(git show *), Bash(git merge-base *), Bash(git status *), Bash(git rev-parse *)
+context: fork
+agent: general-purpose
+background: false
 ---
 
 Review the design of a change at an implementation breakpoint and report what to tidy, ranked P1/P2/P3.
 
-**Every run writes its report out to the user** — a requested review before anything is changed; a review it started itself at the top of its closing message, once its fixes are committed. A review folded silently into the work is one the user never sees.
+## A fresh context, on purpose
 
-**Match the user's language.** Answer a Japanese request in Japanese, an English one in English. Quote code, file paths, and command output verbatim.
+On hosts that honour `context: fork`, this review runs in a subagent of its own. **You did not write this change**, and nothing of the conversation that produced it reaches you except the brief below. That is the point: an author re-reading their own work brings their reasons with them and confirms instead of questioning. What the brief says the change *meant* is the intent you weigh drift and structure against; whether the code achieves it is yours to judge.
+
+The brief from the caller:
+
+$ARGUMENTS
+
+Wherever the steps below say "the brief", they mean this text; with no brief, fall back to the commit messages and the defaults in Phase 1. Where this skill says "the caller", it means the agent that invoked you; "After the review" is its part, not yours.
+
+**Every run's report reaches the user** — a requested review before anything is changed; a review the caller started itself at the top of its closing message, once its fixes are committed. A review folded silently into the work is one the user never sees. Your own part is the full report as your final message (Phase 5); passing it on is the caller's.
+
+**Match the user's language** — the brief says which; with no brief, the language of the request. Quote code, file paths, and command output verbatim.
 
 **Boundary of this skill: reading only.** Never edit a file, never run tests, never run `gh`. Run git only to read — `git diff`, `git log`, `git show`, `git merge-base`, `git status`, `git rev-parse` — and never with `--output`, which writes to a file. Never `git add` / `commit` / `stash` / `checkout` / `switch` / `reset` / `restore` / `push`. Acting on the findings happens outside the skill (see "After the review").
 
@@ -54,7 +67,7 @@ Two prices start rising once a unit of work is done.
 
 ## After the review
 
-This skill changes no files while it runs, per the boundary above. After a requested review, the caller — the same agent in the same turn — takes over once the report is out, and not before. After a review it started itself, the caller takes over as soon as the review is done, and the report follows the fixes ("When to start"). Either way the caller carries on without stopping. The order, then:
+This skill changes no files while it runs, per the boundary above. When it ran forked, the report arrives as the skill's result, which the user does not necessarily see; the caller is the one who passes it on. After a requested review, the caller writes the report out to the user and takes over once it is out, and not before. After a review it started itself, the caller takes over as soon as the review is done, and the report follows the fixes ("When to start"). Either way the caller carries on without stopping. The order, then:
 
 - **requested**: report (Phase 5) → tests → fixes → tests → commit
 - **started by itself**: tests → fixes → tests → commit → the report atop the closing message
@@ -64,7 +77,7 @@ This skill changes no files while it runs, per the boundary above. After a reque
 3. **For structure, change the code's shape and nothing it does.** Work in small named refactorings — Inline Function, Move Function, Change Function Declaration, Split Phase — and prefer deleting a layer to adding a better one. A missing seam is added the same way: Introduce Parameter, with the old source as its default, so every existing caller behaves as before.
 4. **Keep behavior where it is.** Run the tests before and after. The tests of what callers see must pass unchanged — a new test beside them, say for a function the fix extracted, changes nothing they expect; a fix that would change what such a test expects is not a tidying — stop and report it. The one exception is a test the fix's seam was for: it may move onto the seam, asserting the same behavior with a fixed input in place of the clock or the environment.
 5. **Commit the fixes on their own, after the commits of the unit of work.** Never amend them into those commits or fold them in: the review is what justifies the fix, and folding it in hides that. This is the caller's step — the skill runs no git that writes.
-6. **Review again, for at most three rounds, until no P1 is left.** Stop on the same terms when one finding survives two rounds, and report what is left: an LLM's findings wobble, and grinding on them is not convergence.
+6. **Review again, in a fresh run, for at most three rounds, until no P1 is left.** Its brief carries the last `Reviewed:` line and what this round fixed. Stop on the same terms when one finding survives two rounds, and report what is left: an LLM's findings wobble, and grinding on them is not convergence.
 7. **The loop gate is P1 only.** P2 raised by a later round is reported, not chased. **Never auto-fix P3**; report it.
 
 What is left for the user to decide is what "Outside this review" asks, and any fix whose reach crosses the range — nothing else.
@@ -85,19 +98,19 @@ Five phases, in this order.
 ### Phase 1: Scope
 
 1. **Find the range.**
-   - If the caller named one, use it.
-   - If this skill already reviewed part of this branch earlier in the conversation, start from the head on that report's closing line (`Reviewed: <base>..<head>`), so finished work is not reviewed twice.
+   - If the brief names one, use it.
+   - If the brief carries an earlier report's closing line (`Reviewed: <base>..<head>`), start from its head, so finished work is not reviewed twice.
    - Otherwise, from the merge-base with the default branch to `HEAD`. Find the default branch with `git rev-parse --abbrev-ref origin/HEAD`; without a remote, use `main`, then `master`.
-   - On the default branch itself, where that merge-base is `HEAD` and the range would be empty, take the commits of the unit of work just finished, which the conversation knows. With no such context, ask which commits to review.
+   - On the default branch itself, where that merge-base is `HEAD` and the range would be empty, take the commits of the unit of work just finished, as the brief names them. With no such brief, say in the report that the range is unknown and stop — the caller can ask.
    - Uncommitted changes (`git status --short`) belong to the work too. Include them, and say so in the report: a fix made now will share their commit.
-2. **Read what the change meant to do**: the commit messages in the range (`git log`), and the plan, issue or conversation it came from. Note what comes next as well, if the plan, the task list or the conversation says — Phase 4 weighs the structure against it. Do not invent one.
+2. **Read what the change meant to do**: the commit messages in the range (`git log`), and the brief, which stands in for the plan, issue or conversation it came from. Note what comes next as well, if the brief says — Phase 4 weighs the structure against it. Do not invent one.
 3. **List the changed files** (`git diff --stat`). If the range changes nothing a caller or a reader depends on — formatting, a lockfile, tests alone — say so in one line and stop.
 
 ### Phase 2: Interfaces
 
 List every interface the range creates or changes. An interface is anything another piece of code or a person depends on: exported functions and types; a command's arguments, flags, exit status and output; environment variables it reads; configuration keys; file and message formats; a new module or script that others will source or call.
 
-For each, write one sentence from the caller's side — what it does, not how — using only its signature, its comment and its docs. **Write it before reading the implementation.** The reviewer is usually the one who wrote the code, and reading the implementation first lets intent fill in what the interface fails to say.
+For each, write one sentence from the caller's side — what it does, not how — using only its signature, its comment and its docs. **Write it before reading the implementation.** Reading the implementation first — or knowing the intent from the brief — lets what was meant fill in what the interface fails to say.
 
 Then find its callers (Grep), tests included, and split them by file. A caller is **inside the range** when the range changes the file that makes the call; otherwise it is **outside**, even when its behavior changed through what it calls, because nothing in this change touched it. Decide it by looking each caller's file up in the `git diff --stat` list from Phase 1 — never from whether its behavior changed. The outside ones are who a change to the interface would reach.
 
@@ -113,7 +126,7 @@ Compare the code as it now is with everything that describes it, nearest first.
    - every behavior a doc describes — what happens on bad input, what is printed, what the exit status is — is what the code now does
 4. **The intended design**: the plan, design doc or issue the change implements, and the commit messages in the range.
 
-**Decide which side is right from the stated intent** (Phase 1, step 2). When the commit messages, the plan or the conversation say the behavior changed on purpose, every doc that still describes the old behavior is stale — and so is any reason it gave for the old behavior. The requirement changed in the commit; the doc has not caught up. Only when nothing states the change is the disagreement a possible bug: report it under "Outside this review", not as drift.
+**Decide which side is right from the stated intent** (Phase 1, step 2). When the commit messages or the brief say the behavior changed on purpose, every doc that still describes the old behavior is stale — and so is any reason it gave for the old behavior. The requirement changed in the commit; the doc has not caught up. Only when nothing states the change is the disagreement a possible bug: report it under "Outside this review", not as drift.
 
 ### Phase 4: Structure
 
@@ -138,7 +151,7 @@ The cheapest evidence is in the callers: when each one repeats the same preparat
 
 ### Phase 5: Report
 
-For a requested review, write the report as text to the user before your next tool call — a message of its own. A review that started itself puts the short form from "When to start" at the top of its closing message instead. The full format is below. Translate the headings into the language of the report, but keep the `Reviewed:` line that closes it exactly as shown: the next run of this skill reads it.
+Write the full report, in the format below, as your final message. The caller passes it on: a requested review as a message of its own before its next tool call, a self-started one as the short form from "When to start" at the top of its closing message. Translate the headings into the language of the report, but keep the `Reviewed:` line that closes it exactly as shown: the next run of this skill reads it.
 
 ```
 ## Design review: <base>..<head> (<N> commits[, plus uncommitted changes])
@@ -161,12 +174,15 @@ For a requested review, write the report as text to the user before your next to
 ### Outside this review
 - <a question about behavior for the user; a suspected bug, a test-quality issue or a line-level cleanup, with the skill that covers it>
 
+Caller: pass this report on to the user, then act on it per "After the review" in ${CLAUDE_SKILL_DIR}/SKILL.md.
 Reviewed: <base>..<head>
 ```
 
+Keep the `Caller:` line untranslated: a forked caller never read this file, and that line is how it learns what its part is.
+
 Drop any section with nothing in it. If nothing is worth a finding, say so under the heading and list, under `### Checked`, what was checked: each doc and comment and the code it was compared with, and each red flag looked for and where. "No findings" alone cannot tell a clean change from an unread one. Still end with the `Reviewed:` line. Write abbreviated commit hashes there and in the heading, never a branch or tag name: names move, and the next session may not have them.
 
-**For a requested review, write the report first.** Nothing is edited, run or committed until it is out — the fixes answer to it. **The report does not end the turn either.** After the `Reviewed:` line, go straight on to "After the review". A self-started review reports at the end instead, but its range is still the one it reviewed, never the fixes that came after.
+**For a requested review, the report comes first.** Nothing is edited, run or committed until it is out — the fixes answer to it. **The report does not end the caller's turn either.** Once it is out, the caller goes straight on to "After the review". A self-started review reports at the end instead, but its range is still the one it reviewed, never the fixes that came after.
 
 ## Findings
 

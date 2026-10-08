@@ -44,6 +44,7 @@
 # Design Review
 
 - Use the `review-design` skill at an implementation breakpoint, without waiting to be asked: once a unit of work (a plan step, a task, a request) is committed with its tests passing and it added or changed an interface, before reporting it back. Also before `create-pr` while part of the branch is unreviewed. Not after every commit, and not for a small fix that changes no interface — the next breakpoint's range still covers it.
+- It runs in a forked, fresh context, so it knows only what you pass as its arguments: what the unit set out to do and why, the next planned change if one is known, the range or the last `Reviewed:` line, and the language to answer in. The next change matters most — without it the reviewer cannot weigh change cost. State intent, not a defence of the code.
 - The order at a breakpoint is `review-test` (before the commit, per Test Review) → commit → `review-design` → its fixes as commits of their own. A doc it brings back in line is a separate commit too, although the unit should have updated it itself: the review caught it, and that stays visible.
 - Fix the P1 and P2 findings whose reach is local without asking. A fix that reaches outside the range — another caller, a published contract, a structure the commit set out to build — is proposed and waits for an answer. The loop gate is P1 only, at most three rounds; P3 is reported, never auto-fixed.
 

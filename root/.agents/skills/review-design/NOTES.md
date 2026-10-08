@@ -83,6 +83,22 @@ moving.
 - **Tests may be added beside the kept ones.** What a fix must not do is change
   what an existing test expects; a test for a function it extracted changes
   nothing of the kind.
+- **`context: fork`, with a brief in place of the conversation.** It was first
+  dropped for two reasons: a global rule against handing verification of one's
+  own work to a subagent, and losing the conversation, the next planned change
+  included. Both were revisited. Inline, the reviewer *is* the author: it reads
+  the code with the reasons it wrote it for, which is how a review turns into
+  confirmation — the "treats the review as part of the work" result below is
+  the same coupling seen from the trigger side — and everything it reads stays
+  in the main context. The rule was removed; the lost context is what the brief
+  carries: intent, next change, range, language. What a fork cannot do is
+  check that the brief is complete, so a missing next change still silently
+  turns the change-cost lens off. `background: false` because the caller's fix
+  loop starts from the report; `general-purpose` because the review needs
+  `Bash` for git, and `allowed-tools` grants nothing to the subagent. Hosts
+  that ignore `context` (Codex) still run it inline, so the body reads
+  correctly both ways. **Not yet measured** against the inline version — the
+  eval numbers in `evals/README.md` predate it.
 - **`effort: high`**, one step below `review-test`'s `max`, because it runs at
   every qualifying breakpoint.
 
@@ -93,9 +109,8 @@ moving.
 - **A separate drift skill.** Drift happens on small fixes too, but the
   cumulative range catches it at the next breakpoint; two skills meant two
   triggers to keep apart.
-- **`context: fork`.** It would make report-before-fix structural, but runs
-  against the rule not to hand verification of one's own work to a subagent,
-  and loses the conversation — including the next planned change.
+- **Running inline, in the author's context** — the first design, dropped for
+  `context: fork` (above).
 - **A self-started report before the first fix.** Measured in three-run
   batches: 0/3, then 1/3, 1/3 and 2/3 as the wording got sharper and a short
   form was allowed. Reviewing code it has just written, the model treats the
