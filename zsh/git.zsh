@@ -204,40 +204,72 @@ _gw_fetch_pr_branch() {
 }
 
 # Copy one entry listed in .worktree-copy into the new worktree, skipping
-# anything Git LFS manages (the source holds a pointer, not the file).
+# anything Git LFS manages (the source holds a pointer, not the file). Reads
+# the caller's $lfs, the set of root-relative paths LFS manages.
 _gw_copy_entry() {
-  local root_dir=$1 src=$2 dst=$3 label=$4
-  local attr_output=$(git -C "$root_dir" check-attr filter -- "$label" 2>/dev/null)
-  if [[ "$attr_output" == *": filter: lfs" ]]; then
+  local src=$1 dst=$2 label=$3
+  if (( ${+lfs[$label]} )); then
     echo "  Skipped (git-lfs): $label"
     return 1
   fi
-  mkdir -p "$(dirname "$dst")"
+  mkdir -p "${dst:h}"
   # `command cp` bypasses `alias cp='cp -i -r'`, which would prompt.
   command cp -R "$src" "$dst"
 }
 
 # Copy the untracked local files a fresh worktree needs to be usable (.env and
 # friends), as listed in .worktree-copy at the main repo root.
+#
+# The cost is process count, not bytes: a check-attr, dirname, mkdir and cp per
+# file took ~1.8s on a list expanding to ~200 files (tetsunavi-monorepo), longer
+# than the checkout itself. So LFS is asked about every path in ONE check-attr
+# call, and a directory holding no LFS file is copied by one cp.
 _gw_copy_files() {
   local root_dir=$1 worktree_path=$2
   local list="$root_dir/.worktree-copy"
   [ -f "$list" ] || return 0
+  setopt localoptions extendedglob
 
   echo "Copying files..."
-  # Declared once, up here: `local` re-run on a variable already local to the
-  # function PRINTS it, so a declaration inside the loop dumped `rel_path=...`
-  # lines to the terminal from the second listed directory on.
-  local file src_path dst_path entry rel_path
+  # Every local is declared outside the loops: `local` re-run on a variable
+  # already local to the function PRINTS it.
+  local -a files
+  local file
   while IFS= read -r file || [ -n "$file" ]; do
-    # Skip empty lines and comments
-    [[ -z "$file" || "$file" =~ ^[[:space:]]*# ]] && continue
-    file=$(echo "$file" | xargs)   # trim whitespace
-    # Checked again after the trim: a line of spaces trims to "", which names
-    # the root itself, and the whole main checkout would be walked into the
-    # new worktree.
-    [[ -z "$file" ]] && continue
+    file=${${file##[[:space:]]#}%%[[:space:]]#}   # trim whitespace
+    # Skip empty lines and comments -- after the trim, so a line of spaces is
+    # skipped rather than read as "", which names the root itself.
+    [[ -z "$file" || "$file" == \#* ]] && continue
+    files+=("$file")
+  done < "$list"
 
+  # Every root-relative path a copy could touch. A real directory contributes
+  # each entry under it, so the LFS check applies per file rather than to the
+  # directory as a whole; a symlink to one is an entry like any file.
+  local -a paths entries
+  for file in $files; do
+    if [[ -d $root_dir/$file && ! -L $root_dir/$file ]]; then
+      entries=("$root_dir/$file"/**/*(DN^/))
+      paths+=("${(@)entries#$root_dir/}")
+    elif [[ -e $root_dir/$file ]]; then
+      paths+=("$file")
+    fi
+  done
+
+  # -z output is <path> NUL <attribute> NUL <value> NUL, per path.
+  local -A lfs
+  if (( $#paths )); then
+    local -a attrs
+    attrs=("${(@0)$(print -rN -- $paths | git -C "$root_dir" check-attr -z --stdin filter 2>/dev/null)}")
+    local -i i
+    for (( i = 1; i + 2 <= $#attrs; i += 3 )); do
+      [[ ${attrs[i+2]} == lfs ]] && lfs[${attrs[i]}]=1
+    done
+  fi
+
+  local src_path dst_path entry rel_path
+  local -a lfs_inside
+  for file in $files; do
     src_path="$root_dir/$file"
     dst_path="$worktree_path/$file"
 
@@ -246,24 +278,31 @@ _gw_copy_files() {
       continue
     fi
 
-    # A real directory is walked entry by entry, so the LFS check applies per
-    # file rather than to the directory as a whole. A symlink to one is copied
-    # as the link it is.
-    if [ -d "$src_path" ] && [ ! -L "$src_path" ]; then
+    if [[ -d $src_path && ! -L $src_path ]]; then
       mkdir -p "$dst_path"
-      while IFS= read -r entry; do
-        rel_path="${entry#$root_dir/}"
-        if [ -d "$entry" ] && [ ! -L "$entry" ]; then
-          mkdir -p "$worktree_path/$rel_path"
-          continue
-        fi
-        _gw_copy_entry "$root_dir" "$entry" "$worktree_path/$rel_path" "$rel_path"
-      done < <(find "$src_path" -mindepth 1)
+      # Filtered in an array assignment, not inline in (( )) or [[ ]]: those
+      # join the keys into one string first, and `:#` then tests whether that
+      # string starts with "$file/" -- an answer that hangs on hash order.
+      lfs_inside=(${(M)${(k)lfs}:#$file/*})
+      if (( ! $#lfs_inside )); then
+        # `/.` copies the contents INTO the directory, which the checkout may
+        # already have; a bare src would land as $dst_path/<name>.
+        command cp -R "$src_path/." "$dst_path"
+      else
+        for entry in "$src_path"/**/*(DN); do
+          rel_path="${entry#$root_dir/}"
+          if [[ -d $entry && ! -L $entry ]]; then
+            mkdir -p "$worktree_path/$rel_path"
+            continue
+          fi
+          _gw_copy_entry "$entry" "$worktree_path/$rel_path" "$rel_path"
+        done
+      fi
       echo "  Copied: $file"
     else
-      _gw_copy_entry "$root_dir" "$src_path" "$dst_path" "$file" && echo "  Copied: $file"
+      _gw_copy_entry "$src_path" "$dst_path" "$file" && echo "  Copied: $file"
     fi
-  done < "$list"
+  done
 }
 
 # create a new git worktree, fuzzy-pick an existing one when called without args,

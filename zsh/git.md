@@ -51,6 +51,26 @@ asserts the outcome, not the `git worktree prune` that opens `gdmerged`, since
 `git worktree remove --force` clears the same stale record and the two cover each
 other there.
 
+## What `gw` spends its time on
+
+Measured on tetsunavi-monorepo (~9,000 tracked files, a `.worktree-copy`
+expanding to ~200 files):
+
+| Phase | Time |
+| --- | --- |
+| `git worktree add` (the checkout) | ~0.9s |
+| `.worktree-copy`, one `check-attr`/`dirname`/`mkdir`/`cp` per file | ~1.7s |
+| `.worktree-copy`, as now | ~0.15s |
+
+**The copy's cost was process count, not bytes.** So `_gw_copy_files` asks git
+about LFS for every path in one `check-attr --stdin` call, and copies a listed
+directory with one `cp -R <dir>/. <dst>` unless an LFS file is inside it —
+`/.`, because the checkout may already hold that directory, and a bare source
+would land one level below it. Keep new per-file work out of that loop.
+
+The checkout is the floor: parallel checkout (`checkout.workers=0`) measured
+no faster here, so it is not set.
+
 ## Worktree layout
 
 `gw` nests every worktree under `<checkout>/git-worktrees/`, which makes the main
