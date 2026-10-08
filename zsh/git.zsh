@@ -233,6 +233,10 @@ _gw_copy_files() {
     # Skip empty lines and comments
     [[ -z "$file" || "$file" =~ ^[[:space:]]*# ]] && continue
     file=$(echo "$file" | xargs)   # trim whitespace
+    # Checked again after the trim: a line of spaces trims to "", which names
+    # the root itself, and the whole main checkout would be walked into the
+    # new worktree.
+    [[ -z "$file" ]] && continue
 
     src_path="$root_dir/$file"
     dst_path="$worktree_path/$file"

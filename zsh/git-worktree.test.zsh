@@ -217,8 +217,10 @@ mkdir -p "$repo/models/.hidden"
 printf 'pointer\n' > "$repo/models/.hidden/weights.bin"
 printf 'models-env\n' > "$repo/models/.env"
 printf '*.bin filter=lfs\n' > "$repo/.gitattributes"
-# The last entry has no trailing newline, as an editor may well leave it.
-printf '%s\n' '# a comment' '' .env config '  spaced.txt  ' config-link \
+# The last entry has no trailing newline, as an editor may well leave it. The
+# whitespace-only line once trimmed to "", which named the root itself and
+# walked the whole main checkout into the new worktree.
+printf '%s\n' '# a comment' '' '   ' .env config '  spaced.txt  ' config-link \
   models asset.bin missing-file > "$repo/.worktree-copy"
 printf 'last.txt' >> "$repo/.worktree-copy"
 out=$(run "$repo" gw copied)
@@ -238,6 +240,10 @@ check 'gw skips an LFS file in a hidden subdirectory of a listed directory' 'abs
 check 'and still copies the dotfiles beside it' 'models-env' "$(cat "$wt/models/.env" 2>&1)"
 contains 'gw warns about a missing entry' 'missing-file not found' "$out"
 lacks 'gw ignores comment lines' 'a comment not found' "$out"
+# .worktree-copy is untracked and unlisted, so only a copy of the whole root
+# brings it along; the copies asserted above are the control.
+check 'gw skips a whitespace-only line rather than copying the whole checkout' 'absent' \
+  "$([[ -e "$wt/.worktree-copy" ]] && echo present || echo absent)"
 
 # A listed directory with no LFS file in it, the common case (build output,
 # generated code). Its shape must arrive whole -- nesting, an empty directory,
