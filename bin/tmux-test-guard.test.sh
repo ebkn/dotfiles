@@ -41,13 +41,56 @@ while IFS= read -r f; do
   [ "$f" = bin/tmux-test-guard.test.sh ] && continue
   count=$((count + 1))
   # The sourcing line, the same match bin/test-in-docker enrolls by.
-  grep -q -E '^\. .*tmux-test-guard\.sh" \|\| exit 2$' "$f" ||
+  guard_line=$(grep -n -E '^\. .*tmux-test-guard\.sh" \|\| exit 2$' "$f" | head -n 1 | cut -d: -f1)
+  if [ -z "$guard_line" ]; then
     fail "$f is a tmux suite but does not source the guard (with || exit 2)"
+    continue
+  fi
+  # And BEFORE anything that would act on the host when the guard refuses: a
+  # trap registered above it runs its cleanup -- a bare `tmux kill-server` --
+  # on the exit the guard itself causes.
+  first_act=$(grep -n -E '^[[:space:]]*(trap |tmux )' "$f" | head -n 1 | cut -d: -f1)
+  if [ -n "$first_act" ] && [ "$first_act" -lt "$guard_line" ]; then
+    fail "$f registers a trap or runs tmux (line $first_act) before the guard (line $guard_line)"
+  fi
 done <<<"$suites"
 # A listing that found almost nothing would make the loop above vacuous. A
 # floor, not the exact count, so adding a suite does not mean editing this.
 [ "$count" -ge 5 ] || fail "found only $count tmux suite(s); the listing is broken"
-[ "$fails" -eq 0 ] && printf 'ok   all %d tmux suites source the guard\n' "$count"
+[ "$fails" -eq 0 ] && printf 'ok   all %d tmux suites source the guard before any trap or tmux call\n' "$count"
+
+# bin/test-in-docker enrolls by a COPY of the regex above. If the two drift, a
+# local run quietly stops running some suites and still prints "all N suite(s)
+# passed". So it is run here, with docker stubbed to record what it was asked
+# to run, and its list must be exactly the guarded suites found above.
+stub=$(mktemp -d)
+trap '/bin/rm -rf "$stub"' EXIT
+cat >"$stub/docker" <<'EOF'
+#!/bin/bash
+# `docker build` succeeds; `docker run` records one argument per line.
+[ "$1" = run ] && printf '%s\n' "$@" >"$DOCKER_ARGV"
+exit 0
+EOF
+chmod +x "$stub/docker"
+if PATH="$stub:$PATH" DOCKER_ARGV="$stub/argv" bash bin/test-in-docker >/dev/null 2>&1; then
+  # Everything after the `bash -c` script's $0 is the suite list.
+  ran=$(sed -n '/^test-in-docker$/,$p' "$stub/argv" | sed 1d | sort)
+  want=$(printf '%s\n' "$suites" | grep -vxF bin/tmux-test-guard.test.sh | sed '/^$/d' | sort)
+  if [ "$ran" = "$want" ]; then
+    printf 'ok   test-in-docker runs exactly the %d guarded suites\n' "$count"
+  else
+    fail "test-in-docker's suite list differs from the guarded suites: $(diff <(printf '%s\n' "$want") <(printf '%s\n' "$ran") | tr '\n' ' ')"
+  fi
+  # Read-only, and no -t: the runner has no TERM, and a writable mount lets a
+  # suite edit the checkout it is testing.
+  grep -qx -- "$PWD:/work:ro" "$stub/argv" ||
+    fail "test-in-docker does not mount the checkout read-only"
+  if grep -qxE -- '-[a-z]*t[a-z]*' "$stub/argv"; then
+    fail "test-in-docker allocates a tty, so TERM is set unlike on the runner"
+  fi
+else
+  fail "test-in-docker failed with docker stubbed"
+fi
 
 # Refusal. Only checkable where the guard is meant to refuse: in a container
 # /.dockerenv exists and it rightly lets the caller through.
