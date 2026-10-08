@@ -461,6 +461,16 @@ embed_images() {
         continue
       fi
       path="${dir}/$(basename -- "${path}")"
+      # The file itself, too. Resolving the directory alone let a symlink that
+      # sits INSIDE the tree and points out of it through the check below, and
+      # `-f` and base64 then followed it to whatever it named.
+      if [ -L "${path}" ]; then
+        path="$(readlink -f -- "${path}" 2>/dev/null)" || path=""
+        if [ -z "${path}" ]; then
+          printf 'read-doc: image not found: %s\n' "${ref}" >&2
+          continue
+        fi
+      fi
 
       case "${path}" in
         "${root}"/*) ;;

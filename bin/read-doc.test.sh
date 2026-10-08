@@ -87,6 +87,12 @@ t "an image beside the document is inlined as a data: URI" "1" \
   "$(count "src=\"data:image/gif;base64,$(printf 'GIF89a-beside' | base64 | tr -d '\n')\"" "$TMP/b.html")"
 t "a ../ path out of the document's tree is refused" "1" \
   "$(count 'refusing to inline ../outside/secret.gif' "$TMP/b.err")"
+# The directory was resolved before the check, the file was not: a symlink
+# sitting INSIDE the tree and pointing out of it passed the check and was read.
+t "a symlink inside the tree pointing out of it is refused too" "1" \
+  "$(count 'refusing to inline img/link.gif' "$TMP/b.err")"
+t "and nothing of the outside file reaches the page" "0" \
+  "$(count "$(printf 'GIF89a-secret' | base64 | tr -d '\n')" "$TMP/b.html")"
 
 # --- source files are fenced by their shebang ------------------------------------
 # Extensionless executables are the norm in bin/, and matching on the name alone

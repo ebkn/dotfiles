@@ -192,8 +192,13 @@ filename) and caps the body independently of the sender.
 
 ## Testing
 
-Verified by running it, like `textlint-docs`. `read-doc --print <file>` writes the
-HTML to stdout without opening a browser, which is the form to check.
+`bin/read-doc.test.sh` checks the untrusted-input half through `--print`, which
+writes the HTML to stdout without opening a browser. It needs pandoc and fails
+without it rather than skipping, so it runs **locally, not in CI** (the runner
+has no pandoc; `bin/ci-enrollment.test.sh` records why). Run it after editing
+read-doc. It covers the list below except `class="title"` and the measurement
+that follows, plus the forwarding cap and a symlink inside the document's tree
+pointing out of it — which the directory-only resolution once let through.
 
 **Assert on the output, not on the exit status** — every failure mode here is
 silent:
