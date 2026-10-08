@@ -69,11 +69,18 @@ case "$size" in
 esac
 
 esc=$(printf '\033')
-# centred <row> <text>
+# centred <row> <text> [<style>]
+# The style is a separate argument so its escape bytes are not counted as width:
+# folded into the text, `ESC[2m`/`ESC[0m` pushed the detail line four columns
+# left of centre.
 centred() {
   col=$(((cols - ${#2}) / 2 + 1))
   [ "$col" -lt 1 ] && col=1
-  printf '%s[%d;%dH%s' "$esc" "$1" "$col" "$2"
+  if [ -n "${3:-}" ]; then
+    printf '%s[%d;%dH%s%s%s[0m' "$esc" "$1" "$col" "$3" "$2" "$esc"
+  else
+    printf '%s[%d;%dH%s' "$esc" "$1" "$col" "$2"
+  fi
 }
 
 # The first notice of an outage clears the screen and shuts the mouse up; later
@@ -87,7 +94,7 @@ frame=""
   frame="${esc}[?9l${esc}[?1000l${esc}[?1002l${esc}[?1003l${esc}[?1006l${esc}[?2004l${esc}[0m${esc}[2J"
 frame="${frame}${esc}[?25l"
 frame="${frame}$(centred $((rows / 2)) "reconnecting to ${host} … (${attempt})")"
-[ -n "$detail" ] && frame="${frame}$(centred $((rows / 2 + 2)) "${esc}[2m${detail}${esc}[0m")"
+[ -n "$detail" ] && frame="${frame}$(centred $((rows / 2 + 2)) "$detail" "${esc}[2m")"
 
 # Write to the controlling terminal, falling back to stderr. `[ -w /dev/tty ]`
 # is not the test to use: it passes with no controlling terminal and the write

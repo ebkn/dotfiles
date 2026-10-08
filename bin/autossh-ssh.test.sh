@@ -116,6 +116,13 @@ case "$(cat "$tty")" in
   *"${E}[2J"*) fail "attempt 3: repaints without clearing the screen again" "frame: $(cat -v "$tty")" ;;
   *) pass "attempt 3: repaints without clearing the screen again" ;;
 esac
+# The quoted line is centred on its own width. Its dim/reset escapes used to be
+# counted as text, putting it four columns left of the line above.
+# "msg-of-attempt-2" is 16 wide: (80 - 16) / 2 + 1 = 33.
+case "$(cat "$tty")" in
+  *"${E}[14;33H${E}[2mmsg-of-attempt-2${E}[0m") pass "attempt 3: the quoted line is centred on its visible width" ;;
+  *) fail "attempt 3: the quoted line is centred on its visible width" "frame: $(cat -v "$tty")" ;;
+esac
 
 # --- no terminal to draw on: the notice falls back to stderr ---------------
 # autossh started outside a terminal (a launchd job, say) has no /dev/tty, and
