@@ -1,0 +1,143 @@
+#!/bin/bash
+#
+# fzf-files.test.sh
+#
+# Pins bin/fzf-files, the list behind prefix + o and nvim's :Files: files git
+# says changed come first, labelled by how, then everything else, each path once
+# and relative to where it was run. A regression here does not error -- the
+# picker still fills, just with the file you were editing somewhere in the
+# middle, or with nothing at all.
+#
+# git is real (the parsing of its output is the subject). rg is a stub that lists
+# the work tree the way `rg --files` does, since the runner does not carry
+# ripgrep and the rest-of-the-files half is rg's own behaviour, not this
+# script's.
+#
+# Written for bash 3.2 (/bin/bash on macOS).
+set -uo pipefail
+
+FF="$(cd "$(dirname "$0")" && pwd -P)/fzf-files"
+TMP=$(mktemp -d)
+TMP=$(cd "$TMP" && pwd -P)
+trap '/bin/rm -rf "$TMP"' EXIT
+
+fails=0
+t() { # t <name> <expected> <actual>
+  if [ "$2" = "$3" ]; then
+    printf 'ok   %s\n' "$1"
+  else
+    printf 'FAIL %s\n       expected: %s\n       actual:   %s\n' "$1" "$2" "$3"
+    fails=$((fails + 1))
+  fi
+}
+
+mkdir -p "$TMP/stub"
+cat >"$TMP/stub/rg" <<'STUB'
+#!/bin/sh
+# `rg --files --hidden`: every file under ., .git excluded, cwd-relative.
+find . -type f ! -path './.git/*' | sed 's|^\./||' | sort
+STUB
+chmod +x "$TMP/stub/rg"
+export PATH="$TMP/stub:$PATH"
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+ff() { "$FF" "$@" 2>&1; }
+
+# --- the order, and the labels ---------------------------------------------------
+repo="$TMP/repo"
+git init -q "$repo"
+cd "$repo" || exit 1
+git config user.email t@e
+git config user.name t
+mkdir -p sub
+for f in old.txt committed.txt staged.txt unstaged.txt sub/in-sub.txt sub/rest-sub.txt rest.txt; do
+  printf 'one\n' >"$f"
+done
+git add -A
+git commit -qm base
+# Six commits later, old.txt's change is outside the last five.
+printf 'two\n' >>old.txt
+git commit -qam 'touch old'
+for i in 1 2 3 4 5; do
+  printf '%s\n' "$i" >>committed.txt
+  git commit -qam "c$i"
+done
+printf 'two\n' >>staged.txt
+git add staged.txt
+printf 'two\n' >>unstaged.txt
+printf 'new\n' >untracked.txt
+# A file both committed recently AND staged now: the first label wins.
+printf 'three\n' >>committed.txt
+git add committed.txt
+# Names git quotes in its default output: a space, and non-ASCII.
+printf 'x\n' >'my file.md'
+printf 'x\n' >'日本語.md'
+# A deleted file is changed but not there to open.
+git rm -q rest.txt
+
+labels=$(ff --label | awk -F'\t' '{ print (NF > 1 ? $1 : "") "|" $NF }')
+first_of() { printf '%s\n' "$labels" | grep -nF "|$1" | head -1 | cut -d: -f1; }
+label_of() { printf '%s\n' "$labels" | grep -F "|$1" | head -1 | cut -d'|' -f1; }
+t "an untracked file is labelled untracked" "[ untracked   ]" "$(label_of untracked.txt)"
+t "a staged one, staged" "[ staged      ]" "$(label_of staged.txt)"
+t "an unstaged one, unstaged" "[ unstaged    ]" "$(label_of unstaged.txt)"
+t "staged outranks committed for the same file" "[ staged      ]" "$(label_of committed.txt)"
+t "a file only changed long ago gets no label" "" "$(label_of old.txt)"
+t "untracked comes before staged" "yes" "$([ "$(first_of untracked.txt)" -lt "$(first_of staged.txt)" ] && echo yes || echo no)"
+t "staged before unstaged" "yes" "$([ "$(first_of staged.txt)" -lt "$(first_of unstaged.txt)" ] && echo yes || echo no)"
+t "changed files before the rest" "yes" "$([ "$(first_of unstaged.txt)" -lt "$(first_of sub/rest-sub.txt)" ] && echo yes || echo no)"
+t "every path appears once" "" "$(printf '%s\n' "$labels" | cut -d'|' -f2 | sort | uniq -d)"
+t "a deleted file is not offered" "0" "$(printf '%s\n' "$labels" | grep -c '|rest.txt$')"
+# The path stays the LAST tab-separated field: FZF_DEFAULT_OPTS (.zshenv) sets
+# --nth=-1 --accept-nth=-1, so the label must be a column of its own.
+t "the label is a field of its own, the path the last" "staged.txt" \
+  "$(ff --label | grep -F 'staged.txt' | grep -v unstaged | head -1 | awk -F'\t' '{ print $NF }')"
+
+plain=$(ff)
+t "plain mode lists the changed files first too" "untracked.txt" \
+  "$(printf '%s\n' "$plain" | grep -nx -e untracked.txt -e sub/rest-sub.txt | head -1 | cut -d: -f2)"
+t "plain mode has no labels" "0" "$(printf '%s\n' "$plain" | grep -c '\[')"
+
+# --- from a subdirectory -----------------------------------------------------------
+# git status prints repo-root paths and rg cwd-relative ones; the two have to
+# line up, or one file shows up twice under two names and neither opens.
+printf 'two\n' >>sub/in-sub.txt
+cd sub || exit 1
+sub_labels=$(ff --label | awk -F'\t' '{ print (NF > 1 ? $1 : "") "|" $NF }')
+t "from a subdirectory, a changed file there is cwd-relative" "[ unstaged    ]|in-sub.txt" \
+  "$(printf '%s\n' "$sub_labels" | grep -F '|in-sub.txt' | head -1)"
+t "and files outside it are left out" "0" "$(printf '%s\n' "$sub_labels" | grep -c 'staged.txt')"
+
+# --- a rename -------------------------------------------------------------------
+# A rename is reported as the new name followed by the old one as an entry of
+# its own. The new name is the file; the old one must be dropped -- without
+# also dropping whatever entry comes after it.
+repo2="$TMP/rename"
+git init -q "$repo2"
+cd "$repo2" || exit 1
+git config user.email t@e
+git config user.name t
+printf 'a\n' >a.txt
+printf 'c\n' >c.txt
+git add -A
+git commit -qm base
+git mv a.txt b.txt
+printf 'c2\n' >>c.txt
+git add c.txt
+r_labels=$(ff --label | awk -F'\t' '{ print (NF > 1 ? $1 : "") "|" $NF }')
+t "a renamed file is listed under its new name, staged" "[ staged      ]|b.txt" \
+  "$(printf '%s\n' "$r_labels" | grep -F '|b.txt')"
+t "the entry after a rename is not lost" "[ staged      ]|c.txt" \
+  "$(printf '%s\n' "$r_labels" | grep -F '|c.txt')"
+
+# --- outside a repository ------------------------------------------------------------
+mkdir -p "$TMP/plain"
+cd "$TMP/plain" || exit 1
+printf 'x\n' >only.txt
+t "outside a repository it is rg --files" "only.txt" "$(ff)"
+
+if [ "$fails" -eq 0 ]; then
+  echo "PASS"
+else
+  echo "$fails failure(s)"
+  exit 1
+fi

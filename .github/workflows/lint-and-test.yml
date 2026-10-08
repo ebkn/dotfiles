@@ -131,6 +131,11 @@ jobs:
       - name: git-generated
         run: bash bin/git-generated.test.sh
 
+      # The list behind prefix + o and nvim's :Files. Its regressions do not
+      # error -- the picker still fills, in the wrong order or not at all.
+      - name: fzf-files
+        run: bash bin/fzf-files.test.sh
+
       # The grader of one eval case, plus the Makefile that case grades: the
       # test extracts it from references/swift.md and runs it, so a TAB lost in
       # the documentation fails here. Same reasoning as the runner above -- an
