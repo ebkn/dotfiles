@@ -92,6 +92,10 @@ case $mode in
     # would expand that against its own target, and the popup's target is the
     # calling client's pane, not the agent's.
     name=$(tmux display-message -p -t "$pane_id" '#{window_name}' 2>/dev/null) || name=""
+    # -T is a format too, so the name is expanded a second time there: a `#`
+    # in it would be read as format syntax -- `#(...)` runs a command -- and
+    # window names come from directory and branch names. `##` is a literal `#`.
+    name=$(printf '%s' "$name" | sed 's/#/##/g')
 
     tmux display-popup -C -c "$client" 2>/dev/null || true
     exec tmux display-popup -c "$client" -E \

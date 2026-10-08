@@ -70,7 +70,10 @@ It was still wrong: a popup covering the terminal edge to edge is
 indistinguishable from having jumped, and the first report back was "the whole
 screen changed". A view you cannot tell you are inside is worse than one costing
 a redraw, so the popup is `-w 90% -h 85%` with a border and a `-T` title naming
-the agent's window.
+the agent's window. **`-T` is a format**, so the name is expanded a second time
+there: every `#` is doubled first, or one in a window name — which comes from a
+directory or branch name — is read as format syntax, and `#(...)` runs a
+command on every `ctrl-o` and `prefix + A`.
 
 **What the resize actually costs was measured, not guessed**: a 62x18 popup took
 an 80x23 window to 60x15 and rewrapped its long lines (41 rows of history became

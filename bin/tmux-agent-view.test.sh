@@ -61,7 +61,7 @@ printf '%s\n' "\$*" >>"$work/calls"
 case "\$1" in
   display-message)
     case "\$*" in
-      *window_name*) echo "agent-win" ;;
+      *window_name*) printf '%s\n' "\${WINDOW_NAME:-agent-win}" ;;
       *session_name*) echo "work" ;;
     esac
     ;;
@@ -144,6 +144,19 @@ case "$open_call" in
   *"-T "*agent-win*) pass 'the border is titled with the agent window name' ;;
   *) fail 'the border is titled with the agent window name' "got: $open_call" ;;
 esac
+
+# -T is itself a FORMAT, so the name spliced into it is expanded a second time:
+# a `#` in it is read as format syntax, and `#(...)` runs a command, on every
+# ctrl-o and prefix + A. Window names here come from directory and branch names
+# (tmux-pane-titles), and git allows `#`, `(` and `)` in a branch name. Each `#`
+# must arrive doubled, which tmux renders as one literal `#`.
+WINDOW_NAME='b:/fix#(touch pwned)#W' run open /dev/ttys001 @7 %42
+open_call=$(grep 'display-popup -c' "$work/calls" | head -1)
+case "$open_call" in
+  *'-T  answering b:/fix##(touch pwned)##W '*) pass 'a # in the window name reaches the title escaped' ;;
+  *) fail 'a # in the window name reaches the title escaped' "got: $open_call" ;;
+esac
+run open /dev/ttys001 @7 %42
 
 has 'an unattached mirror session is swept' 'kill-session -t _agent_9_1'
 hasnt 'an attached mirror session is spared' 'kill-session -t _agent_8_2'
