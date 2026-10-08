@@ -19,10 +19,15 @@
 # it, not just the flag.
 #
 
-# The optional -t is deliberately absent: with no argument tmux resolves the
-# current window from $TMUX_PANE, which is exactly the window the calling shell
-# lives in.
-panes=$(tmux list-panes -F '#{b:pane_current_path}	#{@ssh_host}	#{@git_worktree}	#{@git_branch}' 2>/dev/null) || exit 0
+# Targeted at $TMUX_PANE explicitly. Left to itself, tmux does NOT resolve "the
+# current window" to the one the calling shell lives in: measured on 3.7c, a
+# command run inside a background window's pane, with a client attached,
+# resolves the client's ACTIVE window. So a hook firing in a background window
+# -- a long command finishing there -- renamed the window being looked at.
+# Without $TMUX_PANE (not run from a pane) the untargeted form is all there is.
+target=()
+[[ -n "${TMUX_PANE:-}" ]] && target=(-t "$TMUX_PANE")
+panes=$(tmux list-panes "${target[@]}" -F '#{b:pane_current_path}	#{@ssh_host}	#{@git_worktree}	#{@git_branch}' 2>/dev/null) || exit 0
 title=$(printf '%s\n' "$panes" | awk -F'\t' '
 # Drop the type prefix before the first "/" (feature/x -> /x, fix/x -> /x).
 # The type carries almost no information once the name itself is visible, so
@@ -48,5 +53,5 @@ function strip_type(b,   n) {
   else               label = dir
   if (!seen[label]++) { printf sep label; sep = "," }
 }')
-[[ -n "$title" ]] && tmux rename-window -- "$title" 2>/dev/null
+[[ -n "$title" ]] && tmux rename-window "${target[@]}" -- "$title" 2>/dev/null
 exit 0
