@@ -1119,14 +1119,33 @@ run_pick() {
 # on-one-session state bin/tmux-session-swap exists to prevent. prefix + w is the
 # key for that. Nothing here can raise a tab, so nothing may move: in particular
 # select-pane must not run, since that would reach into the agent's window.
+#
+# No client shows the agent's window on this throwaway server, so this is the
+# "nothing is showing that window" refusal -- the "no WezTerm tab" one, with a
+# client but no tab, is driven through the real fzf further down. The refusal
+# is waited for in the server's command log, so the case cannot pass for a
+# script that died before deciding anything.
+nothing_said() {
+  tmux -L "$socket" show-messages 2>/dev/null | grep -F 'display-message' |
+    grep -cF 'nothing is showing that window' || true
+}
+said_before=$(nothing_said)
 stub_pick ''
 select_first
 tmux -L "$socket" run-shell "cd $PWD && PATH=$work/stub:$PWD/bin:\$PATH tmux-agents >$work/out 2>&1"
-sleep 1
-if [ "$(active_pane)" = "$other_pane" ]; then
-  pass "enter with no WezTerm tab to raise leaves the agent's window alone"
+for _ in $(seq 1 20); do
+  [ "$(nothing_said)" -gt "$said_before" ] && break
+  sleep 0.25
+done
+if [ "$(nothing_said)" -gt "$said_before" ]; then
+  pass "enter on a window no client shows says so"
 else
-  fail "enter with no WezTerm tab to raise leaves the agent's window alone" \
+  fail "enter on a window no client shows says so" "$(cat "$work/out" 2>/dev/null)"
+fi
+if [ "$(active_pane)" = "$other_pane" ]; then
+  pass "enter on a window no client shows leaves the agent's window alone"
+else
+  fail "enter on a window no client shows leaves the agent's window alone" \
     "active pane moved to $(active_pane)" "$(cat "$work/out" 2>/dev/null)"
 fi
 
@@ -1906,8 +1925,14 @@ else
     # wezterm stub below would be invisible to the enter binding and the whole
     # success path would silently take the "no tab" branch. sh keeps the
     # environment it is given.
+    #
+    # FZF_DEFAULT_OPTS carries the one setting of the author's .zshenv that
+    # breaks this picker quietly: --accept-nth=-1 prints only the last field,
+    # dropping the key the jump parses. Neither CI nor the container sets it, so
+    # without this the script's reset of the variable was untested everywhere
+    # except the one machine it exists for.
     tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
-      "sh -c 'SHELL=/bin/sh PATH=$work/wstub:$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
+      "sh -c 'SHELL=/bin/sh FZF_DEFAULT_OPTS=--accept-nth=-1 PATH=$work/wstub:$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
     wait_screen "$1" || return 1
     tmux -L "$socket" send-keys -t "$fzf_pane" "$1"
     sleep 0.4
@@ -1950,9 +1975,9 @@ else
     fi
     active=$(tmux -L "$socket" display-message -p -t bindB:b-jump '#{pane_id}')
     if [ "$active" = "$jump_other" ]; then
-      pass "enter with no WezTerm tab to raise touches nothing"
+      pass "enter on a window no client shows touches nothing"
     else
-      fail "enter with no WezTerm tab to raise touches nothing" \
+      fail "enter on a window no client shows touches nothing" \
         "active pane moved to $active" "$(cat "$work/real2" 2>/dev/null)"
     fi
     if [ "$(mirrors)" = 0 ]; then
@@ -1966,6 +1991,8 @@ else
   # Now with a WezTerm that answers. The stub reports the tty of the client
   # attached to the agent's window, which is what the jump has to match on --
   # get that lookup wrong and it silently reports no tab, i.e. the case above.
+  # Like the real `cli list`, it returns every pane, with the match neither
+  # first nor last, so taking `.[0]` without the tty filter would raise tab 5.
   pty_attach bindB
   agent_tty=""
   for _ in $(seq 1 24); do
@@ -1979,11 +2006,43 @@ else
     fail "a pty client can be attached to the agent's session" \
       "script output: [$(tr -d '\r' <"$work/pty.log" 2>/dev/null | head -3 | tr '\n' '|')]"
   else
+    # A client now shows the agent's window, and there is still no wezterm to
+    # find its tab. This is the branch the `switch-client` fallback used to live
+    # in, and the one it must never come back to: it would repoint the tab you
+    # are sitting in at the agent's session, two clients on one session.
+    if ! press_enter b-jump; then
+      fail "the picker lists the jump fixture (no-tab case)" "$(screen)"
+    else
+      if wait_screen 'no WezTerm tab'; then
+        pass "enter with no WezTerm tab to raise says so in the header"
+      else
+        fail "enter with no WezTerm tab to raise says so in the header" "$(screen)"
+      fi
+      if [ "$(dead)" = 0 ]; then
+        pass "and leaves the picker open"
+      else
+        fail "and leaves the picker open" "the pane exited" "$(screen)"
+      fi
+      active=$(tmux -L "$socket" display-message -p -t bindB:b-jump '#{pane_id}')
+      if [ "$active" = "$jump_other" ]; then
+        pass "enter with no WezTerm tab to raise touches nothing"
+      else
+        fail "enter with no WezTerm tab to raise touches nothing" "active pane moved to $active"
+      fi
+      on=$(tmux -L "$socket" list-clients -F '#{client_name} #{client_session}' |
+        awk -v t="$agent_tty" '$1 == t { print $2 }')
+      if [ "$on" = bindB ]; then
+        pass "and switches no client anywhere"
+      else
+        fail "and switches no client anywhere" "the agent's client is now on [$on]"
+      fi
+    fi
+
     cat >"$work/wstub/wezterm" <<STUB
 #!/bin/sh
 printf '%s\n' "\$*" >>"$work/wezterm-calls"
 case "\$*" in
-  *list*) printf '[{"tab_id": 77, "tty_name": "%s"}]\n' "$agent_tty" ;;
+  *list*) printf '[{"tab_id": 5, "tty_name": "/dev/pts/990"}, {"tab_id": 77, "tty_name": "%s"}, {"tab_id": 9, "tty_name": "/dev/pts/991"}]\n' "$agent_tty" ;;
 esac
 exit 0
 STUB
@@ -2020,6 +2079,15 @@ STUB
       else
         fail "and puts the agent's pane in front inside it" \
           "active pane is $active, wanted $jump_target"
+      fi
+      # activate-tab leaves OS focus where it was, so the jump also writes OSC
+      # 1337 SetUserVar=focus_window to that client's tty, for the handler in
+      # wezterm.lua. Editing either side alone stops cross-window jumps
+      # silently. script(1) copies everything written to that pty into pty.log.
+      if grep -q 'SetUserVar=focus_window=' "$work/pty.log" 2>/dev/null; then
+        pass "and asks WezTerm to focus that window"
+      else
+        fail "and asks WezTerm to focus that window" "no focus_window OSC reached the client's tty"
       fi
     fi
     # And the ssh case: a client attached over ssh is never a WezTerm tab, so
