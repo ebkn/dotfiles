@@ -64,7 +64,11 @@ proven otherwise** — check with `--ignore-path /dev/null`.
 
 ## Testing
 
-Verified by running it, not by a test script: `textlint-docs <some.md>` on a file
+`bin/textlint-docs.test.sh` pins the script's own decisions with npm stubbed:
+when the toolchain is installed, that a failed install leaves no manifest behind
+(so the next run installs again), which ignore list textlint gets in each of
+the three cases, and that textlint's exit status passes through. The **rules**
+are not in it: they are verified by running `textlint-docs <some.md>` on a file
 with known violations.
 
 Its failure mode is silent: a misspelled or unknown rule key inside a preset
