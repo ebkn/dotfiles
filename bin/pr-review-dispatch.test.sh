@@ -695,6 +695,22 @@ eq "with its items" "2" "$(job '.pending | length')"
 has "and the hold is reported" "$out" "hold  acme/widget#42: could not write"
 rmdir "$STATE/jobs/acme__widget__42.prompt.md"
 
+# The same on the socket path, which is the one most deliveries take: a live
+# session must not be handed a pointer to a file that was never written.
+reset
+PID=$(spawn_holder)
+WIRE="$TMP/wire-unwritable"
+SOCKP="$TMP/sunw.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session live "$PID" "$WT" "$SOCKP" 100
+make_job
+mkdir "$STATE/jobs/acme__widget__42.prompt.md"
+out=$(run)
+eq "to a live session, nothing reaches the socket" "" "$(cat "$WIRE" 2>/dev/null)"
+eq "the job stays queued" "pending" "$(job .status)"
+has "and the hold is reported" "$out" "hold  acme/widget#42: could not write"
+rmdir "$STATE/jobs/acme__widget__42.prompt.md"
+
 # A branch that was merged and cleaned up takes its worktree with it (`gdmerged`
 # removes it), and the job outlives that -- nothing in this pipeline expires one.
 # The generic "no live session" line was wrong for it in a way that wasted the

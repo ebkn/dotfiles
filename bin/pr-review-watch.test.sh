@@ -544,7 +544,10 @@ eq 'it writes no job' 'no' "$([ -f "$STATE/jobs/acme__widget__42.json" ] && echo
 eq 'it does not advance Last-Modified' 'no' "$([ -f "$STATE/poll.last-modified" ] && echo yes || echo no)"
 
 echo "-- --print dumps the queue and polls nothing --"
-STATE="$TMP/state-reason-author" # holds one job, queued above
+# Its own queue, arranged here, rather than one an earlier case left behind.
+arrange_pr42 2026-09-07T10:02:00Z
+STATE="$TMP/state-print"
+run >/dev/null
 : >"$FIX/gh.log"
 out=$(run --print)
 eq 'it prints the queued jobs as one array' 'acme/widget#42' "$(printf '%s' "$out" | jq -r '.[] | .repo + "#" + (.pr|tostring)')"
