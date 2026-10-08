@@ -256,8 +256,16 @@ ln -s out.js "$repo/gen/alias.js"
 mkdir -p "$repo/out/dist"
 printf 'built\n' > "$repo/out/dist/index.js"
 printf '%s\n' gen out/dist > "$repo/.worktree-copy"
-run "$repo" gw dir-copied >/dev/null
+out=$(run "$repo" gw dir-copied)
 wt="$repo/git-worktrees/dir-copied"
+# Exactly these lines, in order: one per listed directory and nothing between.
+# A `local` re-run on a variable already local to the function PRINTS it, so a
+# declaration left inside the loop leaked `rel_path=...` lines to the terminal
+# from the second listed directory on -- and reaching the second directory at
+# all is what this also proves.
+copy_log=${out#*$'Copying files...\n'}
+check 'gw reports each listed directory and prints nothing else while copying' \
+  $'  Copied: gen\n  Copied: out/dist' "${copy_log%%$'\n'STATUS=*}"
 check 'gw copies a directory whose parent the checkout lacks' 'built' \
   "$(cat "$wt/out/dist/index.js" 2>&1)"
 check 'gw copies a directory into the one the checkout already has' 'out' \

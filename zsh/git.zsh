@@ -225,14 +225,17 @@ _gw_copy_files() {
   [ -f "$list" ] || return 0
 
   echo "Copying files..."
-  local file
+  # Declared once, up here: `local` re-run on a variable already local to the
+  # function PRINTS it, so a declaration inside the loop dumped `rel_path=...`
+  # lines to the terminal from the second listed directory on.
+  local file src_path dst_path entry rel_path
   while IFS= read -r file || [ -n "$file" ]; do
     # Skip empty lines and comments
     [[ -z "$file" || "$file" =~ ^[[:space:]]*# ]] && continue
     file=$(echo "$file" | xargs)   # trim whitespace
 
-    local src_path="$root_dir/$file"
-    local dst_path="$worktree_path/$file"
+    src_path="$root_dir/$file"
+    dst_path="$worktree_path/$file"
 
     if [ ! -e "$src_path" ]; then
       echo "  Warning: $file not found in root directory"
@@ -244,7 +247,6 @@ _gw_copy_files() {
     # as the link it is.
     if [ -d "$src_path" ] && [ ! -L "$src_path" ]; then
       mkdir -p "$dst_path"
-      local entry rel_path
       while IFS= read -r entry; do
         rel_path="${entry#$root_dir/}"
         if [ -d "$entry" ] && [ ! -L "$entry" ]; then
