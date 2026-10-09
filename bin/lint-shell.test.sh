@@ -12,8 +12,10 @@
 #
 # The checkers themselves are stubbed onto PATH, so shellcheck / shfmt / zsh
 # need not be installed and no real file is inspected — what is pinned here is
-# which files lint-shell decides to hand them, and whether a failure to decide
-# reaches the exit status.
+# which files lint-shell decides to hand them, with which shfmt mode, and
+# whether a failure -- to list, or a checker's finding -- reaches the exit
+# status. Every case asserting a pass has checkers that always pass, so the
+# finding cases are the only ones that can see a swallowed verdict.
 #
 # Written for bash 3.2 (/bin/bash on macOS): no mapfile, no associative arrays.
 set -uo pipefail
@@ -59,21 +61,44 @@ assert_contains() {
   esac
 }
 
+# Whole-argument matches against a stub's recorded argv, one argument per line.
+# A substring match is not enough: `-d` occurs inside the path
+# root/.agents/skills/review-design/..., which every run passes.
+assert_arg() {
+  local label=$1 file=$2 arg=$3
+  if grep -qxF -- "$arg" "$file" 2>/dev/null; then
+    ok "$label"
+  else
+    fail "$label" "no argument [$arg] in $(tr '\n' ' ' <"$file" 2>/dev/null)"
+  fi
+}
+
+refute_arg() {
+  local label=$1 file=$2 arg=$3
+  if grep -qxF -- "$arg" "$file" 2>/dev/null; then
+    fail "$label" "argument [$arg] was passed"
+  else
+    ok "$label"
+  fi
+}
+
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
 # Stub the three checkers. Each records the argv it was handed so a case can
-# assert on the target list, and succeeds, so only enumeration decides the
-# outcome.
+# assert on the target list, and succeeds -- except the one named as failing,
+# which exits 1 as a checker does on a finding, so a case can see whether a
+# finding reaches the exit status.
 make_stubs() {
-  local dir=$1
+  local dir=$1 failing=${2:-} tool code
   mkdir -p "$dir"
-  local tool
   for tool in shellcheck shfmt zsh; do
+    code=0
+    [ "$tool" = "$failing" ] && code=1
     cat >"$dir/$tool" <<STUB
 #!/usr/bin/env bash
 printf '%s\n' "\$@" >>"$dir/$tool.argv"
-exit 0
+exit $code
 STUB
     chmod +x "$dir/$tool"
   done
@@ -105,9 +130,12 @@ run_lint() {
 }
 
 # --- a failed listing must reach the exit status -----------------------------
-# The regression this file exists for.
+# The regression this file exists for. The stub still prints a usable listing:
+# with empty output, a lint-shell that ignored the status would fall through to
+# the empty-listing guard below and fail anyway, for the wrong reason.
 make_stubs "$work/failed"
-make_git_stub "$work/failed" 1 ""
+make_git_stub "$work/failed" 1 "bin/lint-shell
+"
 assert_nonzero "a failed git ls-files exits non-zero" "$(run_lint "$work/failed")"
 assert_contains "a failed git ls-files says so" "$(cat "$work/failed/out")" "git ls-files"
 
@@ -121,38 +149,55 @@ assert_nonzero "an empty git ls-files exits non-zero" "$(run_lint "$work/empty")
 
 # --- a normal listing checks the files it was given --------------------------
 make_stubs "$work/normal"
+# bin/init/macos.sh is `#!/bin/zsh` outside zsh/, so only its shebang can route
+# it -- and `\bsh\b` must not match the `sh` inside `zsh`.
 make_git_stub "$work/normal" 0 "bin/lint-shell
 zsh/alias.zsh
+bin/init/macos.sh
 README.md
 "
 assert_eq "a normal listing exits 0" "0" "$(run_lint "$work/normal")"
-assert_contains "the bash script reaches shellcheck" \
-  "$(cat "$work/normal/shellcheck.argv")" "bin/lint-shell"
-assert_contains "the zsh module reaches zsh -n" \
-  "$(cat "$work/normal/zsh.argv")" "zsh/alias.zsh"
+assert_arg "the bash script reaches shellcheck" "$work/normal/shellcheck.argv" "bin/lint-shell"
+assert_arg "the zsh module reaches zsh -n" "$work/normal/zsh.argv" "zsh/alias.zsh"
+assert_arg "a zsh-shebang script outside zsh/ reaches zsh -n" "$work/normal/zsh.argv" "bin/init/macos.sh"
+refute_arg "and not shellcheck" "$work/normal/shellcheck.argv" "bin/init/macos.sh"
+assert_arg "the zsh entrypoints are always checked" "$work/normal/zsh.argv" ".zshrc"
+assert_arg "the sourced fragments are always checked" "$work/normal/shellcheck.argv" "bin/init/common.sh"
+for tool in shellcheck shfmt zsh; do
+  refute_arg "a file with no shell shebang reaches no checker ($tool)" "$work/normal/$tool.argv" "README.md"
+done
 
 # --- zsh never reaches shfmt -------------------------------------------------
 # shfmt parses as bash. Handing it a zsh module would reformat constructs it
 # cannot represent, so the formatter must be fed the shellcheck target list
 # and not a listing of its own (`shfmt -f` does claim *.zsh).
-assert_contains "the bash script reaches shfmt" \
-  "$(cat "$work/normal/shfmt.argv")" "bin/lint-shell"
-case "$(cat "$work/normal/shfmt.argv")" in
-  *zsh/alias.zsh*) fail "no zsh module reaches shfmt" "zsh/alias.zsh was passed to shfmt" ;;
-  *) ok "no zsh module reaches shfmt" ;;
-esac
+assert_arg "the bash script reaches shfmt" "$work/normal/shfmt.argv" "bin/lint-shell"
+refute_arg "no zsh module reaches shfmt" "$work/normal/shfmt.argv" "zsh/alias.zsh"
+refute_arg "no zsh-shebang script reaches shfmt" "$work/normal/shfmt.argv" "bin/init/macos.sh"
 
 # --- the formatter defaults to reporting, not rewriting ----------------------
 # A lint command that edits the working tree as a side effect of being run is
 # a surprise; --write is the opt-in.
-assert_contains "the default run asks shfmt for a diff" \
-  "$(cat "$work/normal/shfmt.argv")" "-d"
+assert_arg "the default run asks shfmt for a diff" "$work/normal/shfmt.argv" "-d"
+refute_arg "the default run never asks shfmt to rewrite" "$work/normal/shfmt.argv" "-w"
 make_stubs "$work/write"
 make_git_stub "$work/write" 0 "bin/lint-shell
 "
 assert_eq "--write exits 0" "0" "$(run_lint "$work/write" --write)"
-assert_contains "--write asks shfmt to rewrite" \
-  "$(cat "$work/write/shfmt.argv")" "-w"
+assert_arg "--write asks shfmt to rewrite" "$work/write/shfmt.argv" "-w"
+
+# --- a finding from any checker fails the run --------------------------------
+# The verdict itself: every case above has checkers that always pass, so they
+# would stay green if a finding no longer reached the exit status.
+for tool in shellcheck shfmt zsh; do
+  make_stubs "$work/finding-$tool" "$tool"
+  make_git_stub "$work/finding-$tool" 0 "bin/lint-shell
+zsh/alias.zsh
+"
+  assert_nonzero "a $tool finding exits non-zero" "$(run_lint "$work/finding-$tool")"
+done
+assert_contains "a zsh -n failure names the file" "$(cat "$work/finding-zsh/out")" "FAIL zsh/alias.zsh"
+assert_nonzero "a finding fails --write too" "$(run_lint "$work/finding-shellcheck" --write)"
 
 # --- an unknown argument is rejected -----------------------------------------
 make_stubs "$work/badarg"

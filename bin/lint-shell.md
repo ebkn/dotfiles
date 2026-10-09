@@ -60,3 +60,15 @@ Pins that a failed or empty `git ls-files` exits non-zero, and stubs
 shellcheck/shfmt/zsh so it asserts on **which files the gate decided to hand
 them** rather than on their verdicts. Both enumeration cases were confirmed red
 against the previous script.
+
+Two traps the suite once fell into, both of which kept it green while proving
+nothing:
+
+- **Stubs that only ever pass cannot see a swallowed verdict.** One stub per
+  checker now exits 1, and the run must too. Confirmed red by turning the
+  `status=1` after shellcheck into a no-op.
+- **argv is matched argument by argument, never as a substring.** `-d` occurs
+  inside `root/.agents/skills/review-design/…`, which every run passes, so the
+  "default run asks for a diff" check passed even with `-w`. The failed-listing
+  stub likewise prints a usable listing, or a script ignoring the status would
+  fall through to the empty-listing guard and fail for the wrong reason.
