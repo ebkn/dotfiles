@@ -13,7 +13,7 @@
 #     left alone -- moving it would move the repo's own file (25339e9);
 #   - LINK_CHECK=1 reports and touches nothing;
 #   - relink applies only on an explicit yes, and an apply that left a link
-#     missing exits non-zero rather than saying "done.".
+#     missing or wrong exits non-zero rather than saying "done.".
 #
 # Every case runs against a throwaway $HOME and $BACKUP_DIR. The unit cases use
 # a small fake repo; the relink cases read the real checkout (only read: every
@@ -230,24 +230,33 @@ relink_run -
 out=$(cat "$DIR/out")
 eq "a second run finds nothing to do" "dotfiles symlinks are up to date." "$out"
 
-# An apply that could not create the links must not report success.
-# update-all runs relink last, so "done." and exit 0 here read as a synced
-# machine. A $HOME that cannot be written to makes every ln fail. This needs a
-# non-root runner: as root the kernel ignores the mode and the links succeed
-# (see the Testing section of CLAUDE.md).
+# An apply that left links undone must not report success. update-all runs
+# relink last, so "done." and exit 0 here read as a synced machine.
+#
+# The failures are in the MIDDLE and the last link succeeds. That is the case
+# the fix is about: link_dotfiles's own status is the last link's, so with
+# every link failing, a relink that trusted that status would also pass here.
+# Both obstacles are regular files where a directory belongs, which root cannot
+# get past either, unlike a chmod:
+#   - ~/.config is a file, so the links under it are never created (missing);
+#   - ~/backup is a file, so the real ~/.tigrc cannot be moved aside and its
+#     link fails on the file in the way (still wrong, and still the user's).
 rm -rf "$RH"
 mkdir -p "$RH"
-chmod 500 "$RH"
+printf 'not a dir\n' >"$RH/.config"
+printf 'not a dir\n' >"$RH/backup"
+printf 'mine\n' >"$RH/.tigrc"
 relink_run y
 status=$?
-chmod 700 "$RH"
-if [ "$status" -ne 0 ]; then
-  ok "a failed apply exits non-zero"
-else
-  fail "a failed apply exits non-zero"
-fi
+eq "a failed apply exits 1" "1" "$status"
 lacks "a failed apply does not say done." "$(cat "$DIR/out")" "done."
-has "a failed apply names a link it could not create" "$(cat "$DIR/err")" "still missing: $RH/.tmux.conf"
+has "a failed apply lists a link still missing" "$(cat "$DIR/err")" "still missing: $RH/.config/nvim"
+has "a failed apply lists a link still wrong" "$(cat "$DIR/err")" \
+  "still drift:   $RH/.tigrc does not point to $REPO/.tigrc"
+eq "a failed apply leaves the file in the way intact" "mine" "$(cat "$RH/.tigrc")"
+eq "a failed apply still runs to the end: the last link is created" \
+  "$REPO/root/.agents/skills/retrospective/session-review" "$(readlink "$RH/.local/bin/session-review")"
+eq "a failed apply still creates the links it can" "$REPO/.tmux.conf" "$(readlink "$RH/.tmux.conf")"
 
 rm -rf "$RH"
 mkdir -p "$RH"
