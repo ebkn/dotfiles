@@ -9,7 +9,11 @@ three programs on this pipeline: [pr-review-watch](pr-review-watch.md),
 because both have to answer the same two questions -- is there a local checkout,
 and is the branch checked out anywhere -- before they can route anything at all.
 `repo_path` takes its extra-repos list as an argument rather than reading a
-caller global, so the fragment carries no assumption about who sourced it.
+caller global, so the fragment carries no assumption about who sourced it. An
+extra repo is matched on its origin's `owner/name` tail, **anchored at the `/` or
+`:` before the owner**: an unanchored suffix match let `acme/widget` claim a
+checkout of `notacme/widget`, and the detector would then have queued work
+against the wrong repository.
 
 Sourced through `$(dirname "$(readlink -f "$0")")` so it resolves next to the
 real script rather than next to the `~/.local/bin` symlink (the idiom `read-doc`

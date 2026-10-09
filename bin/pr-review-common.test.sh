@@ -225,6 +225,10 @@ eq 'an extra repo is matched on an ssh origin' "$TMP/x/ssh" \
   "$(rp acme/widget "$TMP/missing:$TMP/x/https:$TMP/x/ssh")"
 eq 'an extra repo is matched on an https origin without .git' "$TMP/x/https" \
   "$(rp acme/gadget "$TMP/x/ssh:$TMP/x/https")"
+# The owner/name tail must start at a path boundary: notacme/thing is not
+# acme/thing, and taking it would act on somebody else's repository.
+eq 'an owner that merely ends in the same letters is not a match' 'none' \
+  "$(rp acme/thing "$TMP/x/lookalike")"
 eq 'nothing anywhere is a non-zero exit' 'none' "$(rp acme/absent "$TMP/x/ssh:$TMP/x/https")"
 
 echo

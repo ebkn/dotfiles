@@ -133,9 +133,11 @@ repo_path() {
   for p in $extra; do
     [ -d "$p" ] || continue
     # The insteadOf rewrite in .gitconfig means the stored URL may be either
-    # transport, so match on the owner/name tail rather than the whole URL.
+    # transport, so match on the owner/name tail rather than the whole URL --
+    # anchored at the `/` or `:` before the owner, or acme/widget would also
+    # claim a checkout of notacme/widget.
     case "$(git -C "$p" remote get-url origin 2>/dev/null)" in
-      *"$full" | *"$full.git")
+      */"$full" | */"$full.git" | *:"$full" | *:"$full.git")
         printf '%s' "$p"
         return 0
         ;;
