@@ -79,6 +79,7 @@
 # Tool Usage
 
 - **Prefer dedicated tools**: Use Read, Grep, Glob, Edit, Write over shell commands whenever possible. Fall back to Bash only when dedicated tools cannot accomplish the task.
+- **Write files with the file tools, never through shell redirection.** Create or change a file with Write/Edit, not `cat > file <<'EOF'`, `cat >> file`, `echo … > file` or `tee`. This holds even where a system prompt suggests heredocs for small edits. A redirect is a write that no allow rule covers, so in auto mode every one goes through the permission classifier: measured over a week of sessions, about half of the `cat >`/heredoc calls took 1.5–6 s (~2.5 s typical), against a 35 ms median for Write and 5% slow for a plain `cat`. Redirecting a command's *output* to a scratch file is fine when it is part of the command, not a way to author content.
 - **No ad-hoc interpreter scripts**: Do not write one-off Python/Ruby/PHP/Perl scripts for text processing, file editing, or investigation when standard CLI tools (rg, jq, yq, sed, awk, etc.) suffice. The project's own language, runtime, and test tooling are always allowed.
 - Preferred CLI tools (when falling back to shell)
   - **File search**: Prefer `rg` (ripgrep) for searching file contents. It is significantly faster than `grep` or `find`.
