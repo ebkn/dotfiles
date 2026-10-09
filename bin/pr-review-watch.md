@@ -225,6 +225,17 @@ The cases that earn their keep encode pipeline rules rather than parsing:
   pins the filter to the body rather than the id.
 - A `PENDING` review — `submitted_at: null`, a draft only its author can see —
   must not be queued as though it had been posted.
+- **The 304 and `--force` cases run with something unseen waiting.** The
+  conditional request is what keeps the poll off the rate limit, and with
+  nothing new in the fixtures a run that never sent `If-Modified-Since` (or a
+  `--force` that still did) produced the same empty result as a correct one.
+  Now the waiting comment must stay unqueued under 304 and arrive under
+  `--force`; both directions were confirmed red.
+
+The cases share one fixture directory, so **a case that depends on a fixture's
+value writes it itself.** The `--force` fallback case once passed only because
+an earlier case had left the notification stamped 10:02:00; with the original
+10:00:00, correct code went red.
 
 **Nested worktrees get their own end-to-end cases**: a PR on the outer checkout
 with a session only in an inner worktree must resolve to no session at all, and

@@ -247,17 +247,33 @@ eq 'earlier item still owed' 'true' "$(job '[.pending[].id]|index("issue:31")!=n
 eq 'pending grew by exactly one' "$((before + 1))" "$(job '.pending|length')"
 
 echo "-- 304 short-circuits: no fetch, no write --"
+# Something unseen is waiting (issue 40), so the outcome depends on the request
+# being conditional. With nothing new in the fixtures, a run that never sent
+# If-Modified-Since -- the stub answers 304 only when it arrives -- would fetch,
+# find nothing, and pass every assertion here for the wrong reason.
+cat >"$FIX/issue_comments.json" <<'EOF'
+[
+ {"id":31,"user":{"login":"coderabbitai[bot]"},"body":"nit: typo","created_at":"2026-09-07T10:00:08Z"},
+ {"id":32,"user":{"login":"bob"},"body":"one more thing","created_at":"2026-09-07T10:05:00Z"},
+ {"id":40,"user":{"login":"bob"},"body":"waiting behind the 304","created_at":"2026-09-07T10:10:00Z"}
+]
+EOF
 touch "$FIX/not-modified"
 sig_before=$(job '.updatedAt')
 out=$(run)
 eq '304 produces no output' '' "$out"
 eq '304 leaves the job untouched' "$sig_before" "$(job .updatedAt)"
+eq '304 fetches nothing, so the waiting comment is not queued' 'false' \
+  "$(job '[.pending[].id]|index("issue:40")!=null')"
 /bin/rm -f "$FIX/not-modified"
 
 echo "-- --force ignores the stored Last-Modified --"
+# The server would still answer 304 to a conditional request; --force must not
+# make one, so the waiting comment arrives.
 touch "$FIX/not-modified"
 run --force >/dev/null
-eq '--force still reaches the API' "$((before + 1))" "$(job '.pending|length')"
+eq '--force reaches the API and queues the waiting comment' 'true' \
+  "$(job '[.pending[].id]|index("issue:40")!=null')"
 /bin/rm -f "$FIX/not-modified"
 
 echo "-- --pr adopts a PR with no notification at all --"
@@ -410,10 +426,18 @@ echo "-- an unparseable stored Last-Modified falls back, it does not kill the po
 # script sends jq's stderr to /dev/null, so no message ever reaches the caller
 # whatever happens. The run has to be judged by what it QUEUED.
 #
-# This fixture is local to the case: the only item newer than the notification is
-# issue 34, so a job file existing at all proves the poll ran to completion, and
-# an unparsed date leaking through as a literal would sort every ISO timestamp
-# below it and queue nothing.
+# These fixtures are local to the case (and the next one reuses them, saying
+# so): the notification is stamped 10:02:00, after review 12, and the only item
+# newer than it is issue 34. So a job file existing at all proves the poll ran
+# to completion, and an unparsed date leaking through as a literal would sort
+# every ISO timestamp below it and queue nothing.
+cat >"$FIX/notifications.json" <<'EOF'
+[
+ {"reason":"author","updated_at":"2026-09-07T10:02:00Z",
+  "repository":{"full_name":"acme/widget"},
+  "subject":{"type":"PullRequest","title":"a title","url":"https://api.github.com/repos/acme/widget/pulls/42"}}
+]
+EOF
 cat >"$FIX/issue_comments.json" <<'EOF'
 [
  {"id":34,"user":{"login":"bob"},"body":"after the notification","created_at":"2026-09-07T10:05:00Z"}
@@ -431,6 +455,11 @@ echo "-- --force sends no conditional request, so it falls back too --"
 # previous poll to anchor on. Documented in pr-review-watch.md, so it is pinned:
 # the stored value must be ignored for the cutoff exactly as it is for the
 # request, or --force would seed history against a date it never sent.
+#
+# Same fixtures as the case above, on purpose: the fallback cutoff is the
+# notification's 10:02:00, so review 12 (10:00:05) is history only because of
+# that stamp. Inherited from further up the file, it read 10:00:00, and correct
+# code went red.
 STATE="$TMP/state9"
 mkdir -p "$STATE"
 printf 'Mon, 07 Sep 2026 09:59:00 GMT' >"$STATE/poll.last-modified"
