@@ -12,7 +12,8 @@
 #   - a destination that already IS the source through a symlinked parent is
 #     left alone -- moving it would move the repo's own file (25339e9);
 #   - LINK_CHECK=1 reports and touches nothing;
-#   - relink applies only on an explicit yes.
+#   - relink applies only on an explicit yes, and an apply that left a link
+#     missing exits non-zero rather than saying "done.".
 #
 # Every case runs against a throwaway $HOME and $BACKUP_DIR. The unit cases use
 # a small fake repo; the relink cases read the real checkout (only read: every
@@ -216,6 +217,7 @@ rm -rf "$RH"
 mkdir -p "$RH"
 printf 'mine\n' >"$RH/.tigrc"
 relink_run y
+eq "answering y exits 0" "0" "$?"
 eq "answering y creates the links" "$REPO/.tmux.conf" "$(readlink "$RH/.tmux.conf")"
 eq "and backs up a real file in the way" "mine" "$(cat "$RH/backup/.tigrc")"
 # Scoped to the checkout: ~/AGENTS.md links to ~/CLAUDE.md, which on an empty
@@ -227,6 +229,25 @@ eq "a link chained through another link is created on apply" "$RH/CLAUDE.md" "$(
 relink_run -
 out=$(cat "$DIR/out")
 eq "a second run finds nothing to do" "dotfiles symlinks are up to date." "$out"
+
+# An apply that could not create the links must not report success.
+# update-all runs relink last, so "done." and exit 0 here read as a synced
+# machine. A $HOME that cannot be written to makes every ln fail. This needs a
+# non-root runner: as root the kernel ignores the mode and the links succeed
+# (see the Testing section of CLAUDE.md).
+rm -rf "$RH"
+mkdir -p "$RH"
+chmod 500 "$RH"
+relink_run y
+status=$?
+chmod 700 "$RH"
+if [ "$status" -ne 0 ]; then
+  ok "a failed apply exits non-zero"
+else
+  fail "a failed apply exits non-zero"
+fi
+lacks "a failed apply does not say done." "$(cat "$DIR/out")" "done."
+has "a failed apply names a link it could not create" "$(cat "$DIR/err")" "still missing: $RH/.tmux.conf"
 
 rm -rf "$RH"
 mkdir -p "$RH"

@@ -4,7 +4,9 @@
 #
 # Reports drift (missing links, or paths that no longer point into the repo)
 # and, if any is found, asks before creating/fixing the links. Existing real
-# files at a link target are moved to ~/backup, same as the init script.
+# files at a link target are moved to ~/backup, same as the init script. After
+# applying it checks again, and any link still missing or wrong is listed with
+# exit 1.
 #
 # `update-all` calls this at the end so symlinks added to the repo after a
 # machine was provisioned land without re-running the full platform init script.
@@ -39,6 +41,17 @@ read -r reply
 case "$reply" in
   [yY] | [yY][eE][sS])
     link_dotfiles
+    # Judge the apply by checking again, not by its exit status:
+    # link_dotfiles is a list of link_with_backup calls run without -e, so
+    # its status is the last link's alone, and a failed mv or ln in the middle
+    # used to end in "done." and exit 0. update-all runs this last, which made
+    # that read as a synced machine.
+    remaining=$(LINK_CHECK=1 link_dotfiles 2>/dev/null)
+    if [ -n "$remaining" ]; then
+      printf '%s\n' "$remaining" | sed 's/^/still /' >&2
+      printf "error: some links could not be created or fixed.\n" >&2
+      exit 1
+    fi
     printf "done.\n"
     ;;
   *)
