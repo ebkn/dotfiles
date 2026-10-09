@@ -196,7 +196,10 @@ echo "== repo_path =="
 # repo's own PRs (~/dotfiles, outside ghq) reach a checkout, and both detector
 # suites run with it empty -- so it is pinned here, against real git remotes.
 mkdir -p "$TMP/stub"
-printf '#!/bin/sh\nprintf "%%s\\n" "$GHQ_OUT"\n' >"$TMP/stub/ghq"
+cat >"$TMP/stub/ghq" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$GHQ_OUT"
+EOF
 chmod +x "$TMP/stub/ghq"
 PATH="$TMP/stub:$PATH"
 export GHQ_OUT=""
