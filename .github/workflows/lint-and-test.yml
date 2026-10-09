@@ -137,6 +137,11 @@ jobs:
       - name: relink and link_with_backup
         run: bash bin/relink.test.sh
 
+      # Linking a LaunchAgent is not loading it, and an agent that is not
+      # loaded leaves no trace. launchctl is stubbed, so this runs on Linux.
+      - name: launchd-load
+        run: bash bin/launchd-load.test.sh
+
       - name: init-project swift case grader
         run: bash root/.agents/skills/init-project/evals/swift-makefile-entry-point/assert.test.sh
 

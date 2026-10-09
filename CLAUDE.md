@@ -255,6 +255,7 @@ silent.
 | `root/.codex/rules/default.rules.test.sh` | [root/README.md](root/README.md) — local only, not in CI |
 | `root/.agents/skills/retrospective/*.test.sh` | [NOTES.md](root/.agents/skills/retrospective/NOTES.md) |
 | `zsh/*.test.zsh` | [zsh/README.md](zsh/README.md) |
+| `bin/launchd-load.test.sh` | [launchd-load.md](bin/launchd-load.md) |
 | `bin/relink.test.sh` (also `link_with_backup`/`backup_path` in `bin/init/common.sh`) | its header |
 | `bin/read-doc.test.sh` (the image pass only) | [read-doc.md](bin/read-doc.md) |
 | `bin/read-doc` (rendering), `bin/textlint-docs` | verified by running them: [read-doc.md](bin/read-doc.md), [textlint-docs.md](bin/textlint-docs.md) |

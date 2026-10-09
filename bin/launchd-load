@@ -59,12 +59,14 @@ domain="gui/$uid"
 loaded=0
 skipped=0
 failed=0
+found=0
 
 # Discovered from the repo rather than listed, so a plist added to launchd/ is
 # picked up with no second place to remember -- the same discipline
 # bin/lint-shell applies to its targets.
 for plist in "$DOTFILES_DIR"/launchd/*.plist; do
   [ -f "$plist" ] || continue
+  found=$((found + 1))
   label=$(basename "$plist" .plist)
   linked="$AGENTS_DIR/$label.plist"
 
@@ -101,6 +103,14 @@ for plist in "$DOTFILES_DIR"/launchd/*.plist; do
     failed=$((failed + 1))
   fi
 done
+
+# Looking at nothing is not success. A DOTFILES_DIR that is wrong, or a
+# checkout kept elsewhere, makes the loop run zero times, and an exit 0 then
+# reads as "every agent is loaded" on a machine where none is.
+if [ "$found" -eq 0 ]; then
+  printf 'launchd-load: no plists found in %s\n' "$DOTFILES_DIR/launchd" >&2
+  exit 1
+fi
 
 [ "$loaded" -gt 0 ] && printf 'loaded %d agent(s)\n' "$loaded"
 [ "$failed" -eq 0 ]

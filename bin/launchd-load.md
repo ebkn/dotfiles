@@ -39,3 +39,29 @@ So `link_dotfiles` links `launchd-load` but never calls it.
 
 A machine with no Aqua session (ssh-only) has no `gui/<uid>` domain to load into.
 That is reported per agent and sets a non-zero exit, without aborting the rest.
+
+## Finding nothing is an error
+
+Finding no plists under `$DOTFILES_DIR/launchd` exits 1 and names the
+directory. That happens with a wrong `DOTFILES_DIR`, or a checkout kept
+somewhere else. Before, the loop ran zero times and the script exited 0, so a
+machine with every agent stopped reported nothing amiss.
+
+## Testing (`launchd-load.test.sh`)
+
+`launchctl` and `uname` are stubs: the real `launchctl` acts on the developer's
+own GUI session, and CI is Linux. The stub records every call, so "left alone"
+is asserted as "no bootstrap was issued", and each agent's report line is read
+on its own, since the label appears in the output whatever its status says.
+
+The suite covers:
+
+- only the stopped agents are bootstrapped, each through its **linked** path;
+- a running agent and an unlinked one are each reported for what they are;
+- `--status` loads nothing;
+- a failed load exits non-zero, and the agents after it are still loaded;
+- off macOS, `launchctl` is never called;
+- an unknown argument exits 1;
+- finding no plists exits 1.
+
+Each was confirmed red by mutation.
