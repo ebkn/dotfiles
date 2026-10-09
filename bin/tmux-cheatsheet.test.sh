@@ -92,7 +92,7 @@ tmux -f "$DIR/tmux.conf" new-session -d 'sleep 600'
 # whatever tput falls back to). The margin is stripped as ONE amount, so a frame
 # that centred line by line would still show as ragged rows.
 render() {
-  PAGER=cat "$SCRIPT" "$@" </dev/null 2>&1 |
+  PAGER='cat' "$SCRIPT" "$@" </dev/null 2>&1 |
     awk '/^ *\(any key to close\)$/ { next }
          NF { seen = 1 }
          seen { l[++n] = $0 }
