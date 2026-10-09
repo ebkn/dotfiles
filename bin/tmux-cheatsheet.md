@@ -111,7 +111,8 @@ otherwise required, since the real geometry comes from `stty`):
 rows once a second was added (measured on tmux 3.7c, with a custom table and
 with `copy-mode-vi`). The real config has three noted copy-mode keys, so the
 group shows; trim it to one and `COPY-MODE` vanishes from the page with no
-error, through no fault of the script.
+error, through no fault of the script. The same quirk is why the root table is
+not read at all: its one noted key, `C-]`, would never be listed.
 
 Geometry itself cannot be checked this way: confirm it in a real popup with
 `tmux display-popup -E -w 90% -h 70% "sh -c 'stty size >/abs/path'"`.
