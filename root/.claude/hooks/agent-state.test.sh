@@ -1220,6 +1220,26 @@ else
   bad "busy spawned jq $(count_calls jq) time(s) with a subagent registered"
 fi
 
+section "a note ending in ';' is published intact"
+# tmux reads an argument that ENDS in ';' as a command separator, even on a
+# single `set-option` invoked through argv: a permission prompt for `cd /x;`
+# published `cd /x`, a bare `;` published nothing, and `echo a\;` lost its
+# backslash, because a trailing `\;` is tmux's own escape for a literal ';'.
+# Notes are free text (a tool's command, an MCP server's message), so this is an
+# input, not a curiosity. @claude_agents never had the problem -- it always ends
+# in RS -- which is why it is checked here too: it is the control.
+for note in 'Bash: cd /x;' ';' 'Bash: echo a\;'; do
+  run clear
+  run notify "$(notify_json permission_prompt "$note")"
+  assert_opt @claude_state waiting
+  assert_opt @claude_note "$note"
+  if [[ "$(get_opt @claude_agents)" == *"${US}${note}${RS}" ]]; then
+    ok "@claude_agents keeps the note [$note] as its last field"
+  else
+    bad "@claude_agents with note [$note]: [$(get_opt @claude_agents)]"
+  fi
+done
+
 section "free text cannot forge a record separator"
 # The notes come from a permission prompt, a question, or an MCP server's
 # elicitation dialog, and the last of those is third-party text. RS and US were

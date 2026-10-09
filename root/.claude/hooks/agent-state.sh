@@ -116,7 +116,17 @@ state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/claude-agent-state/${sock//[^A-
 # -t "$TMUX_PANE" is explicit rather than relying on tmux resolving the current
 # pane from the environment: hooks run without a controlling terminal, so there
 # is no attached client for tmux to infer a target from.
-set_opt() { tmux set-option -p -t "$TMUX_PANE" "$1" "$2" 2>/dev/null; }
+#
+# tmux reads an argument ENDING in ';' as a command separator, even on argv, so
+# a note like `cd /x;` would publish as `cd /x` and a bare `;` as nothing. A
+# trailing `\;` is tmux's escape for a literal one: it drops that backslash and
+# keeps the ';', so inserting one is exact for any value, including one that
+# already ends in `\;`.
+set_opt() {
+  local v=$2
+  case $v in *';') v="${v%;}\\;" ;; esac
+  tmux set-option -p -t "$TMUX_PANE" "$1" "$v" 2>/dev/null
+}
 unset_opt() { tmux set-option -p -u -t "$TMUX_PANE" "$1" 2>/dev/null; }
 
 # --- reading the hook payload ------------------------------------------------

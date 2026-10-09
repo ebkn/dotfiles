@@ -463,6 +463,14 @@ carrying one splits its own record and the picker renders a phantom row whose
 state is the tail of the note. The text is not always Claude's own — an
 `elicitation_dialog` message comes from whichever MCP server raised it.
 
+## A trailing `;` is escaped on the way into tmux
+
+tmux reads an argument that *ends* in `;` as a command separator, even when the
+command arrives through argv, so a prompt for `cd /x;` used to publish `cd /x`
+and a trailing `\;` lost its backslash. `set_opt` inserts a `\` before a
+trailing `;`, tmux's own escape for a literal one; a `;` anywhere else is passed
+as is, because tmux unescapes only at the end of an argument.
+
 ## `asking` cannot come from `Notification`
 
 Verified against 2.1.247 by logging raw hook stdin: an AskUserQuestion dialog and
