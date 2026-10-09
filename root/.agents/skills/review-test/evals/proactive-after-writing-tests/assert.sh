@@ -42,15 +42,7 @@ check "committed the result" \
 # Writing is the point of this case, so Write and Edit say nothing here. git
 # still does: the skill body forbids it outright, and pre-approving it in the
 # frontmatter is precisely the host that body is written for.
-# `check` calls it by name, which shellcheck cannot see.
-# shellcheck disable=SC2329
-ran_no_git_before_the_report() {
-  local first
-  [ -n "$report_at" ] || return 1
-  first="$(transcript_first_command_index '(^|[^[:alnum:]_-])git([^[:alnum:]_-]|$)')"
-  [ -n "$first" ] || return 0
-  [ "$first" -gt "$report_at" ]
-}
-check "ran no git before the review was reported" ran_no_git_before_the_report
+check "ran no git before the review was reported" \
+  review_test_ran_no_git_before "$report_at"
 
 skill_eval_finish

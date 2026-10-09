@@ -19,15 +19,8 @@ check_llm "raises no P1 against tests that cover the contract" \
 # here is allowed behaviour rather than a violation. What still has to hold is
 # that the edit came after the report, and that it left the specification's
 # subject and the suite's result alone.
-# `check` calls it by name, which shellcheck cannot see.
-# shellcheck disable=SC2329
-wrote_nothing_before_the_report() {
-  [ -n "$report_at" ] || return 1
-  if transcript_tool_uses_precede Write "$report_at"; then return 1; fi
-  if transcript_tool_uses_precede Edit "$report_at"; then return 1; fi
-  return 0
-}
-check "wrote nothing before the review was reported" wrote_nothing_before_the_report
+check "wrote nothing before the review was reported" \
+  review_test_wrote_nothing_before "$report_at"
 check_eq "left the implementation untouched" "" "$(git diff --name-only eval-base -- lib/quantity.sh)"
 check "the tests still pass afterwards" \
   ./run-tests.sh
