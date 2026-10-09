@@ -691,5 +691,25 @@ has 'the merge is still reported' "$out" 'was merged'
 eq 'but no job file is written' 'no' "$(exists "$(MJOB)")"
 eq 'and nothing is withdrawn' '1' "$(jq '.pending|length' "$STATE/jobs/acme__widget__42__ci.json")"
 
+echo "-- an open search that fails is reported, not read as no open PRs --"
+# The open half's whole input. Read as "nothing open", a failed request turns
+# every conflict and red check silent until it happens to succeed again -- the
+# same rule the merged half follows, in the direction that matters more.
+STATE="$TMP/state-o1"
+prs CONFLICTING
+/bin/cp "$FIX/search.json" "$TMP/search.json.keep"
+/bin/rm -f "$FIX/search.json"
+out=$(run)
+has 'a failed open search says so' "$out" 'could not search for open pull requests'
+eq 'and queues nothing from it' 'no' \
+  "$([ -f "$STATE/jobs/acme__widget__42__conflict.json" ] && echo yes || echo no)"
+# An answer of [] is a real "nothing open", the state right after the last PR
+# merges, and must stay quiet.
+printf '[]' >"$FIX/search.json"
+out=$(run)
+eq 'an empty but successful search is not reported as a failure' 'no' \
+  "$(printf '%s' "$out" | grep -q 'could not search for open' && echo yes || echo no)"
+/bin/cp "$TMP/search.json.keep" "$FIX/search.json"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

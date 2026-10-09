@@ -121,8 +121,15 @@ if [ -n "$manual_pr" ]; then
   only_pr=${manual_pr##*#}
 else
   only_pr=
-  repos=$(gh search prs --author=@me --state=open --limit 100 \
-    --json repository --jq '[.[].repository.nameWithOwner] | unique | .[]' 2>/dev/null)
+  # Raw JSON rather than --jq, as the merged half below does and for the same
+  # reason: success always prints at least `[]`, so an empty answer can only
+  # mean the request failed. With --jq both came back empty, and a failure read
+  # as "no open PRs" -- every conflict and red check silent until it recovered.
+  open_list=$(gh search prs --author=@me --state=open --limit 100 \
+    --json repository 2>/dev/null) || open_list=
+  [ -n "$open_list" ] || printf 'skip: could not search for open pull requests\n'
+  repos=$(printf '%s' "${open_list:-[]}" |
+    jq -r '[.[].repository.nameWithOwner] | unique | .[]' 2>/dev/null)
 fi
 
 # No early exit on an empty $repos: the merged half below still has to run, and
