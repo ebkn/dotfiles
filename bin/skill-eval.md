@@ -228,3 +228,12 @@ bypassPermissions` carries the same flag as `acceptEdits`, and `--setting-source
 user,project` the same as `project`; the test once checked only that each flag
 was present, so either change passed. The judge's `--tools ""` is checked the
 same way, with an empty value kept distinct from an absent flag.
+
+**The transcript readers are pinned against a fixture transcript**, not only
+through the stub. The review skills' read-only boundary is graded by order —
+nothing written before the report — so an off-by-one in a record index, a
+heading quoted inside a tool's input counted as the report, or `last` where
+`first` belongs moves that line and grades a write-before-report run as clean.
+The fixture has a heading inside a `Write` input and a tool result, a call that
+is not its record's first block, and a tool called twice; each reader was
+mutated in those ways and went red.

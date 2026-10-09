@@ -404,6 +404,58 @@ check_fails "an unparsable max_turns says why, before spending anything" \
 check_fails "an unparsable budget_usd says why, before spending anything" \
   "case case-e: budget_usd takes a number" $RUN "$skill" case-e
 
+# --- the transcript readers, against a fixture transcript ---
+#
+# The review skills' read-only boundary is graded by ORDER: "nothing written
+# before the report" (see transcript_first_tool_index). An off-by-one, or a
+# heading quoted inside a tool's input counted as the report, moves that line
+# and grades a write-before-report run as clean. The runner cases above only
+# reach the count readers, through a two-record stub, so the ordering ones are
+# pinned here directly. The record index is the line number from 0, counting
+# every record, not just the assistant's.
+cat >"$DIR/transcript.jsonl" <<'EOF'
+{"type":"system","subtype":"init"}
+{"type":"user","message":{"content":"review the tests"}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"Let me look."},{"type":"tool_use","name":"Read","input":{"file_path":"a.test.sh"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","content":"## Test review"}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{"file_path":"notes.md","content":"## Test review draft"}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"git status\n--short"}}]}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"## Test review\nP1: none"}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"a.test.sh"}},{"type":"tool_use","name":"Read","input":{"file_path":"b.test.sh"}},{"type":"tool_use","name":"Bash","input":{"command":"git commit -m fix"}}]}}
+{"type":"result","subtype":"success","result":"done","permission_denials":[{"tool_name":"Write"},{"tool_name":"Bash"}]}
+EOF
+tail -1 "$DIR/transcript.jsonl" >"$DIR/result.json"
+# reader <function> [args] -- one reader's output against the fixture, in a
+# subshell so the sourced library leaves this shell alone.
+reader() {
+  (
+    SKILL_EVAL_TRANSCRIPT="$DIR/transcript.jsonl"
+    SKILL_EVAL_RESULT_FILE="$DIR/result.json"
+    # shellcheck source=bin/skill-eval-assert.sh
+    . bin/skill-eval-assert.sh
+    "$@"
+  )
+}
+# precedes <tool> <index> -- the predicate's sense, as a word.
+precedes() { if reader transcript_tool_uses_precede "$1" "$2"; then echo yes; else echo no; fi; }
+
+t "first_tool_index: the FIRST call, counting every record, not just the assistant's" "2" "$(reader transcript_first_tool_index Read)"
+t "first_tool_index: finds a call that is not the record's first block" "7" "$(reader transcript_first_tool_index Edit)"
+t "first_tool_index: empty for a tool never called" "" "$(reader transcript_first_tool_index Skill)"
+t "first_text_index: a heading inside a tool's input or result is not the report" "6" \
+  "$(reader transcript_first_text_index 'Test review')"
+t "first_text_index: empty when no text matches" "" "$(reader transcript_first_text_index 'no such heading')"
+t "first_command_index: the first Bash call whose command matches" "7" "$(reader transcript_first_command_index 'git commit')"
+t "first_command_index: another tool's input is not a command" "" "$(reader transcript_first_command_index 'notes\.md')"
+t "tool_uses_precede: a call before the index" "yes" "$(precedes Write 6)"
+t "tool_uses_precede: a call at the index counts as preceding" "yes" "$(precedes Write 4)"
+t "tool_uses_precede: a call only after the index" "no" "$(precedes Edit 6)"
+t "tool_uses_precede: a tool never called" "no" "$(precedes Skill 100)"
+t "tool_uses: every call, across records" "2" "$(reader transcript_tool_uses Bash)"
+t "commands: one call per line, newlines folded" $'git status\\n--short\ngit commit -m fix' "$(reader transcript_commands)"
+t "result_text: the final response" "done" "$(reader transcript_result_text)"
+t "denials: every refused call" "2" "$(reader transcript_denials)"
+
 if [ "$fails" -eq 0 ]; then
   printf '\nall skill-eval tests passed\n'
   exit 0
