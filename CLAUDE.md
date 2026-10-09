@@ -255,7 +255,8 @@ silent.
 | `root/.codex/rules/default.rules.test.sh` | [root/README.md](root/README.md) — local only, not in CI |
 | `root/.agents/skills/retrospective/*.test.sh` | [NOTES.md](root/.agents/skills/retrospective/NOTES.md) |
 | `zsh/*.test.zsh` | [zsh/README.md](zsh/README.md) |
-| `bin/read-doc`, `bin/textlint-docs` | verified by running them: [read-doc.md](bin/read-doc.md), [textlint-docs.md](bin/textlint-docs.md) |
+| `bin/read-doc.test.sh` (the image pass only) | [read-doc.md](bin/read-doc.md) |
+| `bin/read-doc` (rendering), `bin/textlint-docs` | verified by running them: [read-doc.md](bin/read-doc.md), [textlint-docs.md](bin/textlint-docs.md) |
 
 - **GitHub Actions CI** (`.github/workflows/`) runs the platform setup scripts plus lint, the hook tests, the tmux script tests, the retrospective tests and the `zsh/` unit tests. `git-guard.test.sh` is **not** wired in yet. The workflow lists suites by hand, so **a new suite needs its own step** — `bin/ci-enrollment.test.sh` fails CI until it has one, or is added to its `not_in_ci` list with the reason.
 - **Setup workflows must test the pushed branch.** They `actions/checkout`, symlink the checkout to `~/dotfiles`, and run the bootstrap with `DOTFILES_SKIP_UPDATE=1` so it does not self-update over the branch under test. The earlier form — `curl .../main/bin/init/bootstrap-*.sh | sh`, letting the bootstrap `git clone` the default branch — meant every job validated `main` regardless of the pushed ref, so the checks could not fail on unmerged code. **Do not reintroduce a hardcoded `/main/` raw URL or drop the skip flag.**

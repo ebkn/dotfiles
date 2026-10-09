@@ -124,6 +124,13 @@ jobs:
       # the documentation fails here. Same reasoning as the runner above -- an
       # inert grader reports a green eval run that measured nothing, and the
       # eval run is a paid, non-deterministic place to find that out.
+      # read-doc's image pass is a security boundary: a file from outside the
+      # document's tree, inlined as a data: URI, is one smuggled script away
+      # from leaving the machine. pandoc is stubbed, so this needs nothing the
+      # runner lacks.
+      - name: read-doc image confinement
+        run: bash bin/read-doc.test.sh
+
       - name: init-project swift case grader
         run: bash root/.agents/skills/init-project/evals/swift-makefile-entry-point/assert.test.sh
 

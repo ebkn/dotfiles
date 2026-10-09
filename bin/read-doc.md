@@ -131,6 +131,10 @@ rendered HTML, because neither pandoc nor the browser will go and fetch it (see
   base64 in the DOM to carry out in a URL. Confined, the secret has to be
   sitting beside the document already. `../images/a.svg` is therefore refused —
   **out loud on stderr**, so it reads as "move it", not as "this is broken".
+  `pwd -P` settles only the directory, so **a symlinked file is resolved too**
+  (`readlink -f`) before the test: a `logo.png` beside the document pointing at
+  `~/.ssh/id_rsa` passed the containment check and was inlined until that was
+  added. A symlink to an image inside the tree still inlines.
 - **Only inside an `<img>` tag**, tracked across lines because the html5 writer
   wraps at 72 columns and routinely splits one in two. A bare search for the
   attribute would rewrite a `src="./a.svg"` that a document about HTML was
@@ -192,8 +196,17 @@ filename) and caps the body independently of the sender.
 
 ## Testing
 
-Verified by running it, like `textlint-docs`. `read-doc --print <file>` writes the
-HTML to stdout without opening a browser, which is the form to check.
+**The image pass is pinned by `bin/read-doc.test.sh`**, which CI runs: what is
+inlined, what is refused and said so, and that stdin inlines nothing. It stubs
+pandoc with `cat`, so the document's raw `<img>` markup is what the second pass
+works on — the runner has no pandoc, and what pandoc makes of Markdown is not
+read-doc's contract. That is also why every `mktemp` here takes an explicit
+`XXXXXX` template: GNU `mktemp -t name` refuses a template without one, which
+made `--print` and `HOST:FILE` exit 2 on Linux.
+
+Everything else is verified by running it, like `textlint-docs`.
+`read-doc --print <file>` writes the HTML to stdout without opening a browser,
+which is the form to check.
 
 **Assert on the output, not on the exit status** — every failure mode here is
 silent:
