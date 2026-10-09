@@ -584,7 +584,9 @@ skips** without them.
 - **Cost** — these cases assert cost rather than output: no JSON parsing on the
   busy path while the pane has one actor, one jq pass once a subagent is
   registered, no tmux round trip when nothing a consumer can see has changed,
-  and exactly one when something has, with and without a note.
+  and exactly one when something has — with and without a note, and on a batch
+  while a subagent is registered, where the count is also the only thing that
+  notices a broken stop condition in the re-derive loop.
   Those are documented invariants that no functional test notices: break them and
   everything still passes, the hook merely taxes the inner agent loop. They wrap
   the real `jq` and `tmux` rather than faking them, since what is counted is how

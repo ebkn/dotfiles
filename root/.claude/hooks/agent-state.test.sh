@@ -1220,6 +1220,18 @@ else
   bad "busy spawned jq $(count_calls jq) time(s) with a subagent registered"
 fi
 
+# The path that pays most often: with a subagent registered the no-change exit is
+# off by design, so every batch of every actor publishes. Its count is the only
+# thing that notices a broken stop condition in publish()'s re-derive loop --
+# the options come out identical, just written five times over.
+: >"$countdir/tmux-calls"
+counted_run busy "$(agent_json A Explore)"
+if [[ "$(count_calls tmux)" -eq 1 ]]; then
+  ok "a batch with a subagent registered publishes in one tmux call"
+else
+  bad "a batch with a subagent registered cost $(count_calls tmux) tmux calls, want 1"
+fi
+
 # A state that does change still has to reach the pane, and that is not a cold
 # path: every prompt submitted flips the pane to busy, every turn end flips it
 # back, and while a subagent runs no publish can take the no-change exit at all.
