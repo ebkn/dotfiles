@@ -126,7 +126,7 @@ if [ -n "${src}" ] && [ ! -e "${src}" ] && printf '%s' "${src}" | grep -qE '^[A-
     *) remote_arg="'$(printf '%s' "${remote_path}" | sed "s/'/'\\\\''/g")'" ;;
   esac
 
-  fetched="$(mktemp -t read-doc)" || exit 2
+  fetched="$(mktemp "${TMPDIR:-/tmp}/read-doc.XXXXXX")" || exit 2
   trap 'rm -f "${fetched}"' EXIT
   # SC2029: client-side expansion is intended — remote_arg was quoted above
   # precisely so that this side decides what the remote shell receives.
@@ -411,7 +411,7 @@ embed_images() {
   root="$2"
   max="${READ_DOC_IMAGE_MAX_BYTES:-4194304}"
 
-  map="$(mktemp -t read-doc-img)" || return 0
+  map="$(mktemp "${TMPDIR:-/tmp}/read-doc-img.XXXXXX")" || return 0
   # Only <img> is rewritten, and the collection matches the same tags, because a
   # prose document about HTML may well *contain* the text `src="./a.svg"` inside
   # a code block: pandoc escapes `<` there but leaves the quotes alone, so a
@@ -493,7 +493,7 @@ embed_images() {
     done
 
   if [ -s "${map}" ]; then
-    edited="$(mktemp -t read-doc-html)" || {
+    edited="$(mktemp "${TMPDIR:-/tmp}/read-doc-html.XXXXXX")" || {
       rm -f "${map}"
       return 0
     }
@@ -564,7 +564,7 @@ if [ "${print_only}" -eq 1 ]; then
   # Through a file rather than straight down the pipe, because inlining the
   # images is a second pass over the finished markup. --print has to carry the
   # same output the browser gets, since that is the form the tests assert on.
-  printed="$(mktemp -t read-doc-html)" || exit 2
+  printed="$(mktemp "${TMPDIR:-/tmp}/read-doc-html.XXXXXX")" || exit 2
   if ! feed | render >"${printed}"; then
     rm -f "${printed}"
     exit 2
