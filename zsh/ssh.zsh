@@ -178,6 +178,13 @@ ssh() {
 : ${_SSH_KEEPALIVE_DIR:=${TMPDIR:-/tmp}/myssh-keepalive-$UID}
 typeset -g _SSH_KEEPALIVE_OWNER=""
 
+# _ssh_keepalive_lock_path <target> -- where the lock for <target> lives.
+# Its target is the pid of the supervisor pinging that host, which is how the
+# tests reach that supervisor without knowing the layout.
+_ssh_keepalive_lock_path() {
+  print -r -- "$_SSH_KEEPALIVE_DIR/${1//\//_}.lock"
+}
+
 # _ssh_keepalive_lock_take <lock> <pid> -- succeed when <pid> now holds <lock>.
 # `ln -s` is the atomic step, and the link's target carries the holder's pid,
 # so there is never a lock whose owner cannot be read. A holder that is no
@@ -225,9 +232,8 @@ _ssh_keepalive_start() {
   [ -n "$target" ] || return 0
   (( $+commands[ping] )) || return 0
 
-  local key=${target//\//_}
-  local lock="$_SSH_KEEPALIVE_DIR/$key.lock"
-  local owners="$_SSH_KEEPALIVE_DIR/$key.owners"
+  local lock=$(_ssh_keepalive_lock_path "$target")
+  local owners=${lock%.lock}.owners
   mkdir -m 700 -p "$_SSH_KEEPALIVE_DIR" 2>/dev/null || return 0
   mkdir -p "$owners" 2>/dev/null || return 0
   : >"$owners/$owner" || return 0

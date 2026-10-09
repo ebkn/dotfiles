@@ -183,7 +183,7 @@ case_file stale
 o1=$(owner)
 _ssh_keepalive_start 10.0.0.6 "$o1"
 png=$(first_ping)
-kill -9 "$(readlink "$_SSH_KEEPALIVE_DIR/10.0.0.6.lock")"
+kill -9 "$(readlink "$(_ssh_keepalive_lock_path 10.0.0.6)")"
 kill "$png"  # the orphan a SIGKILLed supervisor leaves; not what is under test
 : > "$PING_PIDFILE"
 o2=$(owner)
@@ -200,7 +200,7 @@ case_file killed
 o1=$(owner)
 _ssh_keepalive_start 10.0.0.7 "$o1"
 png=$(first_ping)
-kill "$(readlink "$_SSH_KEEPALIVE_DIR/10.0.0.7.lock")"
+kill "$(readlink "$(_ssh_keepalive_lock_path 10.0.0.7)")"
 check 'killing the supervisor takes its ping with it' 'gone' "$(wait_gone "$png")"
 _ssh_keepalive_stop
 kill "$o1"
@@ -217,7 +217,7 @@ o1=$(owner)
 _ssh_keepalive_start 10.0.0.9 "$o1"
 png=$(first_ping)
 touch -t 202001010000 "$_SSH_KEEPALIVE_OWNER"
-touch -h -t 202001010000 "$_SSH_KEEPALIVE_DIR/10.0.0.9.lock"
+touch -h -t 202001010000 "$(_ssh_keepalive_lock_path 10.0.0.9)"
 sleep 1
 find "$_SSH_KEEPALIVE_DIR" -mtime +3 -delete
 check 'a sweep of old files keeps a live connection'"'"'s ping' 'alive' "$(sleep 1; alive "$png")"
