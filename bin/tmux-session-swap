@@ -44,15 +44,17 @@ case "${1:-}" in
 
   go)
     target="${2:-}"
-    [ -n "$target" ] || exit 0
 
     # Read and clear the arm before anything can return early. The file means
     # "a chooser is open right now", so every path out of `go` has to consume
     # it, including the ones that decide there is nothing to do -- resolving the
-    # target first left the tty on disk whenever the pick resolved to nothing.
+    # target first left the tty on disk whenever the pick resolved to nothing,
+    # and so did checking for an empty target first.
     from_tty=""
     [ -f "$ARM_FILE" ] && from_tty=$(cat "$ARM_FILE")
     rm -f "$ARM_FILE"
+
+    [ -n "$target" ] || exit 0
 
     to_session=$(session_of "$target")
     [ -n "$to_session" ] || exit 0

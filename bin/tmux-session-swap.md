@@ -36,7 +36,9 @@ chooser inside it would have the second overwrite the first, costing a wrong swa
 and nothing worse.
 
 **`go` reads and clears the arm before anything else**, above even resolving the
-target: the file means "a chooser is open right now", so an early return that
+target or checking it is non-empty (the empty-target check once sat first and
+was the last path that skipped it): the file means "a chooser is open right
+now", so an early return that
 skipped the removal left a tty on disk describing a chooser that had closed. The
 binding papers over that by re-arming every time, which is exactly why it went
 unnoticed.

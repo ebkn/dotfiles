@@ -186,6 +186,14 @@ t "dead target: the picker did not move" "alpha" "$(where "$ttyA")"
 t "dead target: the arm was consumed anyway" "gone" \
   "$([ -f "$XDG_STATE_HOME/tmux-session-swap/armed" ] && echo left-behind || echo gone)"
 
+# An empty target is the other early exit, and it must consume the arm too.
+# The binding always substitutes %%, so this is a direct call or a broken
+# binding -- either way the file must stop claiming a chooser is open.
+"$SCRIPT" arm "$ttyA"
+"$SCRIPT" go "" >/dev/null 2>&1
+t "empty target: the arm was consumed anyway" "gone" \
+  "$([ -f "$XDG_STATE_HOME/tmux-session-swap/armed" ] && echo left-behind || echo gone)"
+
 # --- anything that is not arm or go is a usage error ------------------------
 # A silent exit 0 here would look exactly like a working key, which is the same
 # reason bin/tmux-popup.test.sh pins its own usage path.
