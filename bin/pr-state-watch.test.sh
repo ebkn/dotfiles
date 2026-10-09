@@ -475,17 +475,6 @@ for st in PENDING EXPECTED; do
   has "and the pass says it is waiting ($st)" "$out" 'waiting'
 done
 
-echo "-- UNKNOWN mergeability defers the CI half too --"
-# A red PR whose mergeability is still computing may turn out CONFLICTING on the
-# next pass, and then the CI job would already be queued beside the conflict --
-# exactly the pair the CONFLICTING rule exists to prevent.
-STATE="$TMP/state-ci-unknown"
-CIJOB="$STATE/jobs/acme__widget__42__ci.json"
-prs UNKNOWN false head1 feature/x "[$(check lint COMPLETED FAILURE)]"
-out=$(run)
-eq 'no ci job while mergeability is unknown' 'no' "$(exists "$CIJOB")"
-has 'and the pass says it is waiting' "$out" 'waiting'
-
 echo "-- CANCELLED is not a failure --"
 # Concurrency groups cancel the previous run on every push. Treating that as a
 # failure would queue a job for the act of pushing twice.

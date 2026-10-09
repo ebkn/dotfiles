@@ -87,10 +87,13 @@ t "an image beside the document is inlined as a data: URI" "1" \
   "$(count "src=\"data:image/gif;base64,$(printf 'GIF89a-beside' | base64 | tr -d '\n')\"" "$TMP/b.html")"
 t "a ../ path out of the document's tree is refused" "1" \
   "$(count 'refusing to inline ../outside/secret.gif' "$TMP/b.err")"
+# Matched on the src alone: pandoc adds alt= to a Markdown image.
+t "and its reference is left as written" "1" "$(count 'src="../outside/secret.gif"' "$TMP/b.html")"
 # The directory was resolved before the check, the file was not: a symlink
 # sitting INSIDE the tree and pointing out of it passed the check and was read.
 t "a symlink inside the tree pointing out of it is refused too" "1" \
   "$(count 'refusing to inline img/link.gif' "$TMP/b.err")"
+t "and that reference is left as written" "1" "$(count 'src="img/link.gif"' "$TMP/b.html")"
 t "and nothing of the outside file reaches the page" "0" \
   "$(count "$(printf 'GIF89a-secret' | base64 | tr -d '\n')" "$TMP/b.html")"
 
@@ -120,15 +123,17 @@ t "a symlink to an image inside the tree is inlined as that image" "1" \
   "$(count "src=\"data:image/gif;base64,$(printf 'GIF89a-beside' | base64 | tr -d '\n')\"" "$TMP/c.html")"
 t "an image through a symlinked directory out of the tree is refused" "1" \
   "$(count 'refusing to inline linked/secret.gif' "$TMP/c.err")"
+t "and is left as written" "1" "$(count '<img src="linked/secret.gif"' "$TMP/c.html")"
 t "an unknown image type is refused, and named" "1" "$(count 'not an inlinable image type: d.bmp' "$TMP/c.err")"
-t "and left as written" "1" "$(count '<img src="d.bmp"' "$TMP/c.html")"
+t "and is left as written too" "1" "$(count '<img src="d.bmp"' "$TMP/c.html")"
 t "a src= quoted outside an <img> is left as written" "1" \
   "$(count 'may quote src="a.svg" outside' "$TMP/c.html")"
 printf '<img src="a.svg">\n' >"$doc/cap.md"
 env -u SSH_CONNECTION READ_DOC_IMAGE_MAX_BYTES=1 "$RD" --print "$doc/cap.md" >"$TMP/cap.html" 2>"$TMP/cap.err"
 t "an image over READ_DOC_IMAGE_MAX_BYTES is refused, naming the cap" "1" \
   "$(count 'over the 1-byte inlining cap' "$TMP/cap.err")"
-t "and left as written" "0" "$(count 'src="data:' "$TMP/cap.html")"
+t "and is not inlined" "0" "$(count 'src="data:' "$TMP/cap.html")"
+t "but left as written" "1" "$(count '<img src="a.svg"' "$TMP/cap.html")"
 
 # --- a document with no local tree inlines nothing -----------------------------
 # Only a document this machine named on the command line has neighbours. A

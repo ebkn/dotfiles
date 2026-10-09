@@ -220,6 +220,11 @@ rp() { # rp <owner/name> <extra>: the path, or "none" with a non-zero status
 
 GHQ_OUT="$TMP/ghq/acme/tool"
 eq 'a ghq checkout is found' "$TMP/ghq/acme/tool" "$(rp acme/tool "")"
+# ghq is asked first: an extra repo that also matches does not win over it.
+mkdir -p "$TMP/ghq/acme/widget"
+GHQ_OUT="$TMP/ghq/acme/widget"
+eq 'a ghq checkout is returned before a matching extra repo' "$TMP/ghq/acme/widget" \
+  "$(rp acme/widget "$TMP/x/ssh")"
 GHQ_OUT="$TMP/ghq/gone"
 eq 'a ghq answer that is not a directory falls through to the extra repos' \
   "$TMP/x/ssh" "$(rp acme/widget "$TMP/x/ssh")"
