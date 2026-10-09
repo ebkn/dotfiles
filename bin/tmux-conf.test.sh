@@ -519,17 +519,36 @@ else
   fail "cheatsheet renders at width 120" "empty output; stderr: $(cat "$work/wide.err" 2>/dev/null)"
 fi
 
-# Every category tagged in the config must appear as a heading. A group silently
+# Every category in the config must appear as a heading. A group silently
 # vanishing is the failure the tag-shape heuristic in tmux-cheatsheet can cause.
+# The heading must stand alone in its column -- bounded by the line's edge or
+# the gutter's run of spaces -- because a substring match finds COPY inside
+# COPY-MODE and reports a vanished "copy" group as present.
+# copy-mode-vi notes carry no tag -- everything in that table is ours -- and the
+# cheatsheet heads them COPY-MODE. They are listed only while the table holds
+# two or more noted keys (see bin/tmux-cheatsheet.md), so the group can vanish
+# with every tag intact; it is expected whenever the config notes one.
+# A command substitution, not `< <(...)`, and checked before copy-mode is
+# added: a failed listing must not become zero tags and a pass.
+tags=$(grep -oE ' -N "[a-z][a-z ]*:' .tmux.conf | sed -E 's/ -N "//; s/:$//' | sort -u)
+groups=$tags
+if grep -qE -- '-N "[^"]*" +-T copy-mode-vi|-T copy-mode-vi +-N ' .tmux.conf; then
+  groups="$groups
+copy-mode"
+fi
 missing_groups=""
 while IFS= read -r tag; do
+  [ -n "$tag" ] || continue
   heading=$(printf '%s' "$tag" | tr '[:lower:]' '[:upper:]')
-  grep -qF "$heading" "$work/wide" || missing_groups="$missing_groups $tag"
-done < <(grep -oE ' -N "[a-z][a-z ]*:' .tmux.conf | sed -E 's/ -N "//; s/:$//' | sort -u)
-if [ -n "$missing_groups" ]; then
-  fail "every tagged category appears as a heading" "missing:$missing_groups"
+  grep -qE "(^|[[:space:]]{2})${heading}([[:space:]]{2}|\$)" "$work/wide" ||
+    missing_groups="$missing_groups $tag"
+done <<<"$groups"
+if [ -z "$tags" ]; then
+  fail "every category appears as a heading" "no tagged categories found in .tmux.conf"
+elif [ -n "$missing_groups" ]; then
+  fail "every category appears as a heading" "missing:$missing_groups"
 else
-  pass "every tagged category appears as a heading"
+  pass "every category appears as a heading ($(printf '%s\n' "$groups" | wc -l | tr -d ' '))"
 fi
 
 # How many columns the page was packed into. Counted from the heading rows --
