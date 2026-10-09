@@ -92,6 +92,19 @@ doubled() { tmux list-sessions -f '#{>:#{session_attached},1}' -F '#{session_nam
 # prints an empty string and exits 0 rather than "0". That reads as a passing
 # comparison against another empty string, which is the wrong kind of quiet.
 attached_on() { tmux list-sessions -f "#{==:#{session_name},$1}" -F '#{session_attached}'; }
+# place <tty> <session> -- put a client where a case needs it, explicitly. Each
+# case arranges its own starting positions rather than inheriting whatever the
+# case before it left, so one failure stays one failure instead of turning the
+# next case's expectations wrong too.
+place() {
+  tmux switch-client -c "$1" -t "=$2"
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    [ "$(where "$1")" = "$2" ] && return 0
+    sleep 0.1
+  done
+  echo "could not place $1 on $2" >&2
+  return 1
+}
 
 tmux -f /dev/null new-session -d -s alpha "$IDLE"
 tmux set -g default-command "$IDLE"
@@ -111,6 +124,8 @@ t "swap: the incumbent takes the vacated one" "alpha" "$(where "$ttyB")"
 t "swap: no session ends up with two clients" "" "$(doubled)"
 
 # --- picking a free session: a plain move, nobody else is touched ------------
+place "$ttyA" bravo
+place "$ttyB" alpha
 "$SCRIPT" arm "$ttyA"
 "$SCRIPT" go idle
 t "free: the picker lands on its choice" "idle" "$(where "$ttyA")"
@@ -118,6 +133,8 @@ t "free: the other client is left alone" "alpha" "$(where "$ttyB")"
 t "free: no session ends up with two clients" "" "$(doubled)"
 
 # --- a window target, which is what choose-tree -Zw actually passes ----------
+place "$ttyA" idle
+place "$ttyB" alpha
 win=$(tmux list-windows -t '=alpha' -F '#{session_name}:#{window_index}' | head -1)
 "$SCRIPT" arm "$ttyA"
 "$SCRIPT" go "$win"
@@ -126,10 +143,12 @@ t "window target: the incumbent was swapped" "idle" "$(where "$ttyB")"
 t "window target: no session has two clients" "" "$(doubled)"
 
 # --- picking the session you are already on is a no-op ----------------------
-before=$(where "$ttyA")
+place "$ttyA" alpha
+place "$ttyB" idle
 "$SCRIPT" arm "$ttyA"
-"$SCRIPT" go "$before"
-t "same session: nothing moves" "$before" "$(where "$ttyA")"
+"$SCRIPT" go alpha
+t "same session: nothing moves" "alpha" "$(where "$ttyA")"
+t "same session: the other client is left alone" "idle" "$(where "$ttyB")"
 t "same session: no session has two clients" "" "$(doubled)"
 
 # --- without an arm it degrades to a plain switch, not to nothing -----------
@@ -155,10 +174,10 @@ t "unarmed: exits cleanly" "0" "$?"
 t "unarmed: the target session gains a client" "0 -> 1" "$before_spare -> $(attached_on spare)"
 
 # --- a target that no longer exists is ignored rather than erroring ---------
-pos=$(where "$ttyA")
+place "$ttyA" alpha
 "$SCRIPT" arm "$ttyA"
 "$SCRIPT" go no-such-session >/dev/null 2>&1
-t "dead target: the picker did not move" "$pos" "$(where "$ttyA")"
+t "dead target: the picker did not move" "alpha" "$(where "$ttyA")"
 # `go` consumes the arm, on every path. The dead-target branch used to return
 # before reaching the removal, so a pick that resolved to nothing left the tty
 # on disk. Harmless in the binding, which re-arms before every chooser, but it
