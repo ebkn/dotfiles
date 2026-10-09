@@ -24,6 +24,9 @@
 
 state="${AUTOSSH_NOTICE_STATE:-}"
 host="${AUTOSSH_NOTICE_HOST:-the remote}"
+# The terminal the notice is drawn on. Only the test sets it: run from a real
+# terminal, the suite would otherwise clear it and hide its cursor.
+tty="${AUTOSSH_NOTICE_TTY:-/dev/tty}"
 
 ssh_bin=$(command -v ssh 2>/dev/null)
 [ -n "$ssh_bin" ] || ssh_bin=/usr/bin/ssh
@@ -60,17 +63,24 @@ cols=80
 # Braced, for the reason spelled out at the terminal write below: with no
 # controlling terminal the "Device not configured" comes from the redirection,
 # so `stty ... 2>/dev/null` does not suppress it.
-{ size=$(stty size </dev/tty); } 2>/dev/null
+{ size=$(stty size <"$tty"); } 2>/dev/null
 case "$size" in
   [0-9]*' '[0-9]*) rows=${size%% *} cols=${size##* } ;;
 esac
 
 esc=$(printf '\033')
-# centred <row> <text>
+# centred <row> <text> [<style>]
+# The style is a separate argument so its escape bytes are not counted as width:
+# folded into the text, `ESC[2m`/`ESC[0m` pushed the detail line four columns
+# left of centre.
 centred() {
   col=$(((cols - ${#2}) / 2 + 1))
   [ "$col" -lt 1 ] && col=1
-  printf '%s[%d;%dH%s' "$esc" "$1" "$col" "$2"
+  if [ -n "${3:-}" ]; then
+    printf '%s[%d;%dH%s%s%s[0m' "$esc" "$1" "$col" "$3" "$2" "$esc"
+  else
+    printf '%s[%d;%dH%s' "$esc" "$1" "$col" "$2"
+  fi
 }
 
 # The first notice of an outage clears the screen and shuts the mouse up; later
@@ -84,14 +94,14 @@ frame=""
   frame="${esc}[?9l${esc}[?1000l${esc}[?1002l${esc}[?1003l${esc}[?1006l${esc}[?2004l${esc}[0m${esc}[2J"
 frame="${frame}${esc}[?25l"
 frame="${frame}$(centred $((rows / 2)) "reconnecting to ${host} … (${attempt})")"
-[ -n "$detail" ] && frame="${frame}$(centred $((rows / 2 + 2)) "${esc}[2m${detail}${esc}[0m")"
+[ -n "$detail" ] && frame="${frame}$(centred $((rows / 2 + 2)) "$detail" "${esc}[2m")"
 
 # Write to the controlling terminal, falling back to stderr. `[ -w /dev/tty ]`
 # is not the test to use: it passes with no controlling terminal and the write
 # then fails with ENXIO. The braces matter too -- "Device not configured" comes
 # from the redirection rather than from printf, so a bare 2>/dev/null on the
 # command would not suppress it. Same idiom as bin/read-doc.
-{ printf '%s' "$frame" >/dev/tty; } 2>/dev/null || printf '%s' "$frame" >&2
+{ printf '%s' "$frame" >"$tty"; } 2>/dev/null || printf '%s' "$frame" >&2
 
 # stderr to the log so the next attempt can quote it. stdout is left alone: it
 # is the session itself.

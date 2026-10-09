@@ -133,6 +133,17 @@ t "no plists found: exits non-zero" "1" "$RC"
 has "no plists found: names where it looked" "$ERR" "$DIR/empty-repo/launchd"
 t "no plists found: never calls launchctl" "" "$(cat "$CALLS")"
 
+# The label is taken from the FILE NAME, and launchctl knows the agent by the
+# Label inside it. The two disagreeing makes `print` always miss -- so every
+# run would bootstrap again, and fail, on an agent already running. Read off
+# the repo's real plists, not the fixture.
+mismatch=""
+for plist in "$(dirname "$SCRIPT")"/../launchd/*.plist; do
+  label=$(awk '/<key>Label<\/key>/ { getline; gsub(/.*<string>|<\/string>.*/, ""); print; exit }' "$plist")
+  [ "$label" = "$(basename "$plist" .plist)" ] || mismatch="$mismatch $(basename "$plist")"
+done
+t "every plist in launchd/ is named after its Label" "" "$mismatch"
+
 if [ "$fails" -eq 0 ]; then
   echo "PASS"
 else

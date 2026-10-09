@@ -206,9 +206,10 @@ created ten days earlier and merged today comes back.
 take raw JSON, so success always prints at least `[]`, and an empty answer can
 only mean failure. That is the same rule as the open half's
 `could not list pull requests` and `could not search for open pull requests`.
-The open search once took `--jq` with stderr discarded, so a failed request and
-"no open PRs" both came back empty, and the whole conflict and CI half went quiet
-until the next request that happened to succeed.
+The open search once took `--jq` with stderr discarded, so a failed request — a
+rate-limited one (30/min) the likeliest — and "no open PRs" both came back
+empty, and the whole conflict and CI half went quiet until the next request that
+happened to succeed.
 
 **A fixed lookback (3 days, `PR_STATE_WATCH_MERGED_DAYS`), not a cursor.** A
 merge happens once, so the job file existing is the whole idempotence record,

@@ -410,15 +410,37 @@ for k in p t o a A g '?'; do
   case $k in
     g) want='gh pr view --web' ;;
     '?') want='tmux-cheatsheet' ;;
+    # p/t/o route through bin/tmux-popup, whose session name is what the guard
+    # above recognises -- so a binding that stopped calling it would stack
+    # popups with every script-side test still green.
+    p) want='tmux-popup popup' ;;
+    t) want='tmux-popup tig tmux-tig' ;;
+    o) want='tmux-popup fzf_nvim fzf-nvim' ;;
     *) continue ;;
   esac
   case "$row" in
-    *'already in a popup\"" { display-popup '*"$want"*'}'*)
+    *'already in a popup\"" {'*"display-popup "*"$want"*'}'*)
       pass "prefix + $k still opens its popup outside one"
       ;;
     *) fail "prefix + $k still opens its popup outside one" "want [$want] in the else block" "got: $row" ;;
   esac
+  # In a myssh pane the same chord belongs to the REMOTE tmux, so it is sent on.
+  case $k in
+    p | t | o)
+      case "$row" in
+        *"@ssh_my_machine"*"send-keys C-q $k"*) pass "prefix + $k is passed to the remote in a myssh pane" ;;
+        *) fail "prefix + $k is passed to the remote in a myssh pane" "got: $row" ;;
+      esac
+      ;;
+  esac
 done
+
+# prefix + u is not a popup, but it is the other chord a myssh pane hands on.
+u_row=$(printf '%s\n' "$prefix_keys" | grep -E '^bind-key +(-N "[^"]*" +)?-T prefix +u ' | head -1)
+case "$u_row" in
+  *"@ssh_my_machine"*"send-keys C-q u"*"copy-mode"*) pass "prefix + u is passed to the remote in a myssh pane, copy mode otherwise" ;;
+  *) fail "prefix + u is passed to the remote in a myssh pane, copy mode otherwise" "got: ${u_row:-<unbound>}" ;;
+esac
 
 # C-] is the way out of the answer view, and the footer that advertises it is
 # written by bin/tmux-agent-view -- so the binding has to exist here, be guarded
@@ -447,22 +469,37 @@ esac
 # And the other direction: the notes must actually reach the server. A note that
 # tmux parsed as part of the command instead would pass the grep above.
 #
-# Both sides count the same set: tagged notes in the prefix table. The server
-# lists `C-q <key>  <note>`, any key -- an earlier pattern put [a-z] where the
-# key goes, so it counted only lowercase single-letter keys (15 of 23). The file
-# side skips -n (root) and -T (copy-mode-vi) binds, which list-keys -T prefix
-# never shows; it once needed a space that [[:space:]] had already eaten, so it
-# matched only the four `bind -r -N` lines and the check compared 15 >= 4.
-noted_on_server=$(tmux -L "$socket" list-keys -N -T prefix 2>/dev/null | grep -cE '^[^ ]+ +[^ ]+ +[a-z][a-z ]*:')
-noted_in_file=$(grep -E '^[[:space:]]*(bind|bind-key)[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-N "[a-z]' .tmux.conf |
-  grep -cvE -- ' -(n|T) ')
-if [ "$noted_on_server" -eq 0 ]; then
-  fail "tagged notes reach the running server" "list-keys -N -T prefix matched none"
-elif [ "$noted_on_server" -ne "$noted_in_file" ]; then
-  fail "tagged notes reach the running server" \
-    "file has $noted_in_file prefix notes, server reports $noted_on_server"
+# Compared note by note, as two sets. This used to compare COUNTS, and the
+# file-side regex required whitespace both before `.*` and before ` -N`, so it
+# matched only the four lines where -N is not the first flag: the check passed
+# whenever the server held four notes. Sets also survive a key bound in both
+# branches of an %if, which a count would read as a missing note.
+#
+# The server side is `list-keys -N`, the listing the cheatsheet reads: plain
+# `list-keys` prints no notes at all. Each row there ends in the note, padded,
+# so a note is looked for as a whole line suffix.
+file_notes=$(grep -E '^[[:space:]]*(bind|bind-key)[[:space:]]' .tmux.conf |
+  grep -vE -- ' -n | -T (copy-mode|copy-mode-vi|root) ' |
+  grep -oE -- ' -N "[^"]*"' | sed -E 's/^ -N "//; s/"$//' | sort -u)
+server_listing=$(tmux -L "$socket" list-keys -N -T prefix 2>/dev/null)
+missing_notes=""
+while IFS= read -r note; do
+  [ -n "$note" ] || continue
+  # An exact suffix, compared as a string so no character in a note is read
+  # as a pattern.
+  printf '%s\n' "$server_listing" |
+    awk -v n="  $note" 'substr($0, length($0) - length(n) + 1) == n { found = 1 } END { exit !found }' ||
+    missing_notes="$missing_notes
+$note"
+done <<<"$file_notes"
+n_file_notes=$(printf '%s\n' "$file_notes" | grep -c .)
+if [ "$n_file_notes" -lt 15 ]; then
+  # A floor, so a listing broken the way the old regex was cannot pass vacuously.
+  fail "tagged notes reach the running server" "found only $n_file_notes noted prefix binds in .tmux.conf"
+elif [ -n "$missing_notes" ]; then
+  fail "tagged notes reach the running server" "in the file but not on the server:$missing_notes"
 else
-  pass "tagged notes reach the running server ($noted_on_server)"
+  pass "tagged notes reach the running server (all $n_file_notes)"
 fi
 
 # --- 3. the swap binding survives tmux's own parser -------------------------
@@ -550,6 +587,17 @@ elif [ -n "$missing_groups" ]; then
 else
   pass "every category appears as a heading ($(printf '%s\n' "$groups" | wc -l | tr -d ' '))"
 fi
+
+# A copy-mode-vi key is reached by being in copy mode, never by the prefix, so
+# the "C-q " list-keys prints in front of it must be dropped -- or the sheet
+# teaches a chord that does nothing.
+sel_row=$(grep 'start selection' "$work/wide" | head -n 1)
+case "$sel_row" in
+  '') fail "copy-mode keys are listed without the prefix" "no 'start selection' row" ;;
+  *'C-q v'*) fail "copy-mode keys are listed without the prefix" "row: $sel_row" ;;
+  *' v '*) pass "copy-mode keys are listed without the prefix" ;;
+  *) fail "copy-mode keys are listed without the prefix" "row: $sel_row" ;;
+esac
 
 # How many columns the page was packed into. Counted from the heading rows --
 # lines made only of capitals and spaces -- because a row carrying two headings

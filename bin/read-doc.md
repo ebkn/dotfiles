@@ -196,17 +196,20 @@ filename) and caps the body independently of the sender.
 
 ## Testing
 
-**The image pass is pinned by `bin/read-doc.test.sh`**, which CI runs: what is
-inlined, what is refused and said so, and that stdin inlines nothing. It stubs
-pandoc with `cat`, so the document's raw `<img>` markup is what the second pass
-works on — the runner has no pandoc, and what pandoc makes of Markdown is not
-read-doc's contract. That is also why every `mktemp` here takes an explicit
-`XXXXXX` template: GNU `mktemp -t name` refuses a template without one, which
-made `--print` and `HOST:FILE` exit 2 on Linux.
-
-Everything else is verified by running it, like `textlint-docs`.
-`read-doc --print <file>` writes the HTML to stdout without opening a browser,
-which is the form to check.
+`bin/read-doc.test.sh` checks the untrusted-input half through `--print`, which
+writes the HTML to stdout without opening a browser. It needs pandoc and fails
+without it rather than skipping. CI installs a **pinned** pandoc for it (the
+runner has none, and the distro package predates `--syntax-highlighting`); the
+same pin is in `bin/test-in-docker.Dockerfile` and `brewfiles/Brewfile-shell`,
+so bump all three together. It covers the list below except `class="title"` and
+the measurement that follows, plus the forwarding cap and the image pass's
+edges: a symlink inside the document's tree pointing out of it — which the
+directory-only resolution once let through — and one pointing at an image
+inside it, which must still inline; a symlinked directory; an unknown type; the
+size cap; and a `src=` the document only quotes. It also runs `HOST:FILE` on
+Linux, which is why every `mktemp` here takes an explicit `XXXXXX` template:
+GNU `mktemp -t name` refuses a template without one, which made `--print` and
+`HOST:FILE` exit 2 there.
 
 **Assert on the output, not on the exit status** — every failure mode here is
 silent:

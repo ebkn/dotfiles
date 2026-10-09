@@ -44,6 +44,20 @@ RUN version=0.74.3 \
   && install -m 0755 fzf /usr/local/bin/fzf \
   && rm -f fzf fzf.tar.gz
 
+# Same as the "Install pandoc" step in the workflow and the pandoc note in
+# brewfiles/Brewfile-shell. Bump all three places together. read-doc.test.sh
+# asserts on pandoc's rendered HTML, and read-doc needs --syntax-highlighting,
+# which older distro packages do not have.
+RUN version=3.12 \
+  && expected=67d7d011fed8c8543306022b985b9b2499ab9b74818df91d8727c7e9ebc5ba06 \
+  && cd /tmp \
+  && curl -fsSL -o pandoc.tar.gz \
+    "https://github.com/jgm/pandoc/releases/download/${version}/pandoc-${version}-linux-amd64.tar.gz" \
+  && echo "${expected}  pandoc.tar.gz" | sha256sum --check --strict \
+  && tar -xzf pandoc.tar.gz \
+  && install -m 0755 "pandoc-${version}/bin/pandoc" /usr/local/bin/pandoc \
+  && rm -rf pandoc.tar.gz "pandoc-${version}"
+
 # UTF-8, or tmux renders every wide glyph as `_`. The runner has it.
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 

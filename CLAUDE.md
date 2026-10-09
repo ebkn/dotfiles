@@ -198,7 +198,8 @@ and a `-F` format, and tmux has changed how it renders non-printable bytes
 between versions — an unpinned one was green locally and red in CI on code
 nobody had touched. `fzf` is pinned and installed for the same reason —
 `tmux-agents.test.sh` drives the real binary in a real pane and reads the
-rendered screen back — and the runner image does not carry it at all. Each such
+rendered screen back — and the runner image does not carry it at all. `pandoc`
+likewise, for `read-doc.test.sh`, which asserts on the HTML it renders. Each such
 pin lives in three places — the workflow, `bin/test-in-docker.Dockerfile` and
 `brewfiles/Brewfile-shell`, each naming the other two; bump all three together,
 and the workflow prints each version so the next gap is visible in the log
@@ -234,7 +235,7 @@ silent.
 | `root/.agents/skills/init-project/evals/*/assert.test.sh` | [skill-eval.md](bin/skill-eval.md) |
 | `bin/tmux-agents.test.sh` | [tmux-agents.md](bin/tmux-agents.md) |
 | `bin/tmux-agent-view.test.sh` | [tmux-agent-view.md](bin/tmux-agent-view.md) |
-| `bin/tmux-popup.test.sh`, `bin/tmux-tig.test.sh` | [tmux-popup.md](bin/tmux-popup.md) |
+| `bin/tmux-popup.test.sh` (also `tmux-tig`, `fzf-nvim`) | [tmux-popup.md](bin/tmux-popup.md) |
 | `bin/tmux-cheatsheet.test.sh` | [tmux-cheatsheet.md](bin/tmux-cheatsheet.md) |
 | `bin/tmux-conf.test.sh` | [tmux-conf.md](bin/tmux-conf.md) |
 | `bin/tmux-pane-titles.test.sh` | [tmux-pane-titles.md](bin/tmux-pane-titles.md) |
@@ -256,9 +257,10 @@ silent.
 | `root/.agents/skills/retrospective/*.test.sh` | [NOTES.md](root/.agents/skills/retrospective/NOTES.md) |
 | `zsh/*.test.zsh` | [zsh/README.md](zsh/README.md) |
 | `bin/launchd-load.test.sh` | [launchd-load.md](bin/launchd-load.md) |
-| `bin/relink.test.sh` (also `link_with_backup`/`backup_path` in `bin/init/common.sh`) | its header |
-| `bin/read-doc.test.sh` (the image pass only) | [read-doc.md](bin/read-doc.md) |
-| `bin/read-doc` (rendering), `bin/textlint-docs` | verified by running them: [read-doc.md](bin/read-doc.md), [textlint-docs.md](bin/textlint-docs.md) |
+| `bin/relink.test.sh` (also `link_with_backup`/`backup_path` in `bin/init/common.sh`, and `link_dotfiles`) | its header |
+| `bin/read-doc.test.sh` | [read-doc.md](bin/read-doc.md) — needs pandoc (pinned in CI) |
+| `bin/textlint-docs.test.sh` | [textlint-docs.md](bin/textlint-docs.md) (the rules themselves are checked by using them) |
+| `bin/git-generated.test.sh`, `bin/fzf-files.test.sh` | their headers |
 
 - **GitHub Actions CI** (`.github/workflows/`) runs the platform setup scripts plus lint, the hook tests, the tmux script tests, the retrospective tests and the `zsh/` unit tests. `git-guard.test.sh` is **not** wired in yet. The workflow lists suites by hand, so **a new suite needs its own step** — `bin/ci-enrollment.test.sh` fails CI until it has one, or is added to its `not_in_ci` list with the reason.
 - **Setup workflows must test the pushed branch.** They `actions/checkout`, symlink the checkout to `~/dotfiles`, and run the bootstrap with `DOTFILES_SKIP_UPDATE=1` so it does not self-update over the branch under test. The earlier form — `curl .../main/bin/init/bootstrap-*.sh | sh`, letting the bootstrap `git clone` the default branch — meant every job validated `main` regardless of the pushed ref, so the checks could not fail on unmerged code. **Do not reintroduce a hardcoded `/main/` raw URL or drop the skip flag.**

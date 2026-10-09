@@ -47,8 +47,11 @@ Three files in `root/.agents/skills/<skill>/evals/<case>/`:
 | File | Role |
 | --- | --- |
 | `prompt.md` | the prompt for `claude -p`. Leading YAML frontmatter is stripped before it is passed, and carries the case's own `allowed_tools` / `max_turns` / `budget_usd` |
-| `scaffold.sh` | builds the fixture; cwd is an empty temp dir. Source `$SKILL_EVAL_LIB_DIR/skill-eval-scaffold.sh` and call `skill_eval_init_repo`, which tags the starting state `eval-base` |
-| `assert.sh` | grades; cwd is the working directory after the run. Source `$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh`, emit one `check` per assertion, end with `skill_eval_finish` |
+| `scaffold.sh` | builds the fixture; cwd is an empty temp dir. Source `$SKILL_EVAL_LIB_DIR/skill-eval-scaffold.sh` and call `skill_eval_init_repo`, which tags the starting state `eval-base`. A non-zero exit stops the whole run as `case <name>: scaffold.sh exited N` — a broken harness is not graded as a failing skill |
+| `assert.sh` | grades; cwd is the working directory after the run. Source `$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh`, emit one `check` per assertion, end with `skill_eval_finish`. Any `FAIL` line in its output fails the run even if the script exits 0, so a grader that forgets `skill_eval_finish` cannot report `[PASS]` |
+
+`allowed-tools` is read from `SKILL.md`'s frontmatter only; a body line starting
+with the key is documentation, not configuration.
 
 Functions available to `assert.sh`: `check`, `check_eq`, `check_match`,
 `check_not_match`, `transcript_denials`, `transcript_commands`,

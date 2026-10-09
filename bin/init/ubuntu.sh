@@ -212,6 +212,10 @@ link_with_backup "${DOTFILES_DIR}/bin/tmux-popup" "${HOME}/.local/bin/tmux-popup
 link_with_backup "${DOTFILES_DIR}/bin/fzf-nvim" "${HOME}/.local/bin/fzf-nvim"
 link_with_backup "${DOTFILES_DIR}/bin/fzf-files" "${HOME}/.local/bin/fzf-files"
 link_with_backup "${DOTFILES_DIR}/bin/git-generated" "${HOME}/.local/bin/git-generated"
+# update-all runs relink only if it is on PATH, so without this link Linux
+# never re-synced at all: links added to links.sh after provisioning never
+# arrived. relink reports drift and asks before changing anything.
+link_with_backup "${DOTFILES_DIR}/bin/relink" "${HOME}/.local/bin/relink"
 
 log_step "Ensuring tmux plugin manager"
 install_or_upgrade_git_repo "https://github.com/tmux-plugins/tpm" "${HOME}/.tmux/plugins/tpm"

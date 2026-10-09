@@ -63,10 +63,14 @@ cat >"$REMOTE_HOME/.local/bin/tmux-track-session" <<'STUB'
 exit "${ADOPT_EXIT:-0}"
 STUB
 chmod +x "$REMOTE_HOME/.local/bin/tmux-track-session"
+# Three clients with the least idle one in the MIDDLE, so neither "the first"
+# nor "the last" picks pane 7 by accident. Every call also records the socket
+# it was made against, in a file of its own.
 cat >"$DIR/stub/wezterm" <<'STUB'
 #!/bin/sh
+printf '%s\n' "$WEZTERM_UNIX_SOCKET" >>"$CALLS.sock"
 if [ "$1 $2" = "cli list-clients" ]; then
-  echo '[{"focused_pane_id":3,"idle_time":{"secs":600,"nanos":0}},{"focused_pane_id":7,"idle_time":{"secs":2,"nanos":0}}]'
+  echo '[{"focused_pane_id":3,"idle_time":{"secs":600,"nanos":0}},{"focused_pane_id":7,"idle_time":{"secs":2,"nanos":0}},{"focused_pane_id":9,"idle_time":{"secs":300,"nanos":0}}]'
   exit 0
 fi
 printf 'wezterm %s\n' "$*" >>"$CALLS"
@@ -87,10 +91,13 @@ t() { # t <name> <expected> <actual>
 tmux -f /dev/null new-session -d -s keep 'sleep 600'
 tmux set -g default-command cat
 
+# WEZTERM_UNIX_SOCKET is set to a dead socket, the state a tmux session is in
+# after WezTerm restarts; the script has to replace it with the symlink.
 run() { # run <adopt output> [adopt exit] [ssh exit] -- sets $status and $out
   : >"$CALLS"
-  out=$(PATH="$DIR/stub:$PATH" ADOPT="$1" ADOPT_EXIT="${2:-0}" SSH_EXIT="${3:-}" \
-    "$SCRIPT" myhost 2>&1)
+  : >"$CALLS.sock"
+  out=$(PATH="${RUN_PATH:-$DIR/stub:$PATH}" ADOPT="$1" ADOPT_EXIT="${2:-0}" SSH_EXIT="${3:-}" \
+    WEZTERM_UNIX_SOCKET=/stale/gui-sock "$SCRIPT" myhost 2>&1)
   status=$?
 }
 
@@ -105,6 +112,18 @@ typed() {
     sleep 0.1
   done
   printf '%s' "$line"
+}
+
+# How many lines of <session>'s pane carry the myssh line, waiting for cat to
+# have written its copy.
+entered() {
+  local n=0
+  for _ in $(seq 1 50); do
+    n=$(tmux capture-pane -p -t "=$1:" | grep -c myssh)
+    [ "$n" -ge 2 ] && break
+    sleep 0.1
+  done
+  printf '%s' "$n"
 }
 
 # What the pane's zsh would do with the typed line: which session and host
@@ -135,13 +154,43 @@ second=$(printf '%s\n' "$spawned" | sed -n 2p)
 t "tabs open in adopt's order (first)" "zeta|myhost" "$(as_zsh_runs "$(typed "$first")")"
 t "a session name with a space survives the pane's shell" \
   "my work|myhost" "$(as_zsh_runs "$(typed "$second")")"
+# The pty echoes typed text whether or not Enter follows, so `typed` alone
+# cannot see a missing Enter -- and without it no restored tab ever connects.
+# cat only writes the line back once it has been entered, so an entered line
+# shows twice: the echo, then cat's copy.
+t "the line is entered, not just typed (first)" "2" "$(entered "$first")"
+t "the line is entered, not just typed (second)" "2" "$(entered "$second")"
 
 t "every tab goes into the focused client's window" "2" \
   "$(grep -c '^wezterm cli spawn --pane-id 7 -- ' "$CALLS")"
 t "focus returns to the tab it was run from" \
   "wezterm cli activate-pane --pane-id 7" "$(tail -1 "$CALLS")"
+# After WezTerm restarts, the variable inside an existing tmux session names the
+# old, dead socket; every call must go through the symlink instead.
+t "every wezterm call uses the socket symlink, not the inherited one" \
+  "$HOME/.local/share/wezterm/default-org.wezfurlong.wezterm" "$(sort -u "$CALLS.sock")"
 
 for s in $locals; do tmux kill-session -t "=$s"; done
+
+# ---------------------------------------------------------------------------
+# A local session that cannot be created must stop the run. send-keys with an
+# empty -t does not fail -- it types into whatever pane tmux considers current
+# -- so without the check the myssh line lands in some unrelated pane. tmux is
+# wrapped so that only new-session fails.
+mkdir -p "$DIR/failnew"
+real_tmux=$(command -v tmux)
+cat >"$DIR/failnew/tmux" <<STUB
+#!/bin/sh
+[ "\$1" = new-session ] && exit 1
+exec "$real_tmux" "\$@"
+STUB
+chmod +x "$DIR/failnew/tmux"
+RUN_PATH="$DIR/failnew:$DIR/stub:$PATH" run "zeta"
+t "a session that cannot be created exits non-zero" "1" "$status"
+t "and says which remote session it was for" "1" \
+  "$(printf '%s' "$out" | grep -c 'could not create a local session for zeta')"
+t "and types nothing into another pane" "0" "$(tmux capture-pane -p -t =keep: | grep -c myssh)"
+t "and opens no tab" "" "$(grep '^wezterm cli spawn' "$CALLS")"
 
 # ---------------------------------------------------------------------------
 # The marker arrived, but ssh exited 255 -- a connection lost after the

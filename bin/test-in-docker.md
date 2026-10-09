@@ -30,7 +30,13 @@ could run on the host safely; they are guarded anyway, so the rule is one a
 reader can check by file name.
 
 `bin/tmux-test-guard.test.sh` enforces the enrollment in CI, so the rule does
-not depend on anyone remembering it. Matching the bare words `new-session` or
+not depend on anyone remembering it. It also requires the guard to come before
+the suite's first `trap` or `tmux` line — a cleanup trap registered above it
+would run `tmux kill-server` on the host on the very exit the guard causes — and
+it runs this script with `docker` stubbed, asserting that the suites it would
+run are exactly the guarded ones, mounted `:ro` and without `-t`. The two
+enroll by copies of one regex, and a drift would shrink the local run while it
+still printed "all N suite(s) passed". Matching the bare words `new-session` or
 `kill-server` would be wrong both ways: the stub suites only see them as text in
 a call log, and `zsh/ssh-session.test.zsh` quotes them without running tmux. It
 also checks that the guard really refuses outside a container. That half can

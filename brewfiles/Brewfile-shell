@@ -67,6 +67,9 @@ brew 'bat'
 
 # document converter (backs bin/read-doc; chosen over cmark-gfm for its
 # built-in syntax highlighting, which avoids vendoring highlight.js here)
+# Keep the version in step with the pin in .github/workflows/lint-and-test.yml
+# and bin/test-in-docker.Dockerfile (all three together). read-doc.test.sh
+# asserts on the HTML pandoc renders.
 brew 'pandoc'
 
 # better diff

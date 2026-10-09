@@ -232,6 +232,7 @@ eq 'an extra repo is matched on an https origin without .git' "$TMP/x/https" \
 # acme/thing, and taking it would act on somebody else's repository.
 eq 'an owner that merely ends in the same letters is not a match' 'none' \
   "$(rp acme/thing "$TMP/x/lookalike")"
+eq 'while the real owner does' "$TMP/x/lookalike" "$(rp notacme/thing "$TMP/x/lookalike")"
 eq 'nothing anywhere is a non-zero exit' 'none' "$(rp acme/absent "$TMP/x/ssh:$TMP/x/https")"
 
 echo

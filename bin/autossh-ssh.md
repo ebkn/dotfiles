@@ -44,21 +44,20 @@ handed, which is the shim's real contract with autossh: drop an argument and the
 reconnect itself breaks, on a path that only runs once the network has already
 gone wrong.
 
-The notice is read off the shim's **own stderr**, which works because with no
-controlling terminal the `/dev/tty` write fails and falls back to stderr, while
-ssh's stderr is going to the log from attempt two onwards — so stderr carries the
-notice alone.
+The notice is drawn on **`AUTOSSH_NOTICE_TTY`** (default `/dev/tty`; only the
+test sets it), pointed at a plain file so the frame is read back whole. The suite
+used to read the notice off the shim's stderr instead, which only works with no
+controlling terminal: run from an interactive shell it failed five cases and left
+that terminal cleared with its cursor hidden. A plain file has no size, so the
+shim falls back to 24x80 and the columns are fixed. The stderr fallback is still
+tested, by pointing the variable at a path that cannot be opened.
 
-"No controlling terminal" is **arranged, not assumed**: every shim run goes
-through `detach` (util-linux `setsid`, or perl's `POSIX::setsid` on macOS, which
-has no `setsid`), and a harness case checks `/dev/tty` really is gone. Before
-that, the suite passed in CI and under an agent's shell but failed five cases
-from a developer's terminal — the notice was drawn on that terminal, and stderr
-came back empty.
-
-Each attempt also asserts the argv ssh received and that **stdout carries ssh's
-output alone**, since stdout is the session: a reconnect that dropped an
-argument, or a notice written to stdout, would otherwise pass.
+Each attempt is checked on argv (the reconnect is the attempt that matters most),
+on the whole visible text rather than a substring — a stray "Device not
+configured" in front of the notice is the mess this exists to remove — with a
+different ssh message per attempt, so "the previous attempt's message" cannot be
+satisfied by the current one, and on **stdout carrying ssh's output alone**,
+since stdout is the session: a notice written to stdout would otherwise pass.
 
 It caught the `/dev/tty` trap [read-doc](read-doc.md) documents on its first run:
 `stty size </dev/tty 2>/dev/null` does **not** suppress "Device not configured",

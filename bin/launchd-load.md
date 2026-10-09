@@ -62,6 +62,9 @@ The suite covers:
 - a failed load exits non-zero, and the agents after it are still loaded;
 - off macOS, `launchctl` is never called;
 - an unknown argument exits 1;
-- finding no plists exits 1.
+- finding no plists exits 1;
+- every real plist in `launchd/` is named after its `Label` — the script derives
+  the label from the file name, so a mismatch would make `print` miss and
+  re-bootstrap a running agent on every run.
 
-Each was confirmed red by mutation.
+Each behaviour case was confirmed red by mutation.

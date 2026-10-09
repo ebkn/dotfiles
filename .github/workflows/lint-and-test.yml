@@ -119,29 +119,42 @@ jobs:
       - name: skill-eval runner
         run: bash bin/skill-eval.test.sh
 
+      # link_with_backup, link_dotfiles and relink, against a throwaway $HOME.
+      # link_with_backup moves real files out of $HOME on every update-all
+      # (via relink): a backup that replaces an earlier one, or a "backup" of a
+      # file that is really the repo's own, loses data with no error. The setup
+      # workflows only show that a bootstrap exited 0 -- a missing link source
+      # is a warning and exit 0.
+      - name: relink and link_with_backup
+        run: bash bin/relink.test.sh
+
+      # git-generated writes into $GIT_DIR/info/attributes; the assertion that
+      # matters is what `git diff` then prints, against a temp repository.
+      - name: git-generated
+        run: bash bin/git-generated.test.sh
+
+      # The list behind prefix + o and nvim's :Files. Its regressions do not
+      # error -- the picker still fills, in the wrong order or not at all.
+      - name: fzf-files
+        run: bash bin/fzf-files.test.sh
+
+      # Which launchctl calls launchd-load makes, with launchctl stubbed: load
+      # through the linked path, never restart a running agent, change nothing
+      # under --status. Plus every plist's Label matching its file name.
+      - name: launchd-load
+        run: bash bin/launchd-load.test.sh
+
+      # textlint-docs' own decisions with npm stubbed: when to install, that a
+      # failed install is not mistaken for a finished one, and which ignore
+      # list textlint gets -- a wrong one skips files without a word.
+      - name: textlint-docs
+        run: bash bin/textlint-docs.test.sh
+
       # The grader of one eval case, plus the Makefile that case grades: the
       # test extracts it from references/swift.md and runs it, so a TAB lost in
       # the documentation fails here. Same reasoning as the runner above -- an
       # inert grader reports a green eval run that measured nothing, and the
       # eval run is a paid, non-deterministic place to find that out.
-      # read-doc's image pass is a security boundary: a file from outside the
-      # document's tree, inlined as a data: URI, is one smuggled script away
-      # from leaving the machine. pandoc is stubbed, so this needs nothing the
-      # runner lacks.
-      - name: read-doc image confinement
-        run: bash bin/read-doc.test.sh
-
-      # link_with_backup moves real files out of $HOME on every update-all
-      # (via relink). A backup that replaces an earlier one, or a "backup" of
-      # a file that is really the repo's own, loses data with no error.
-      - name: relink and link_with_backup
-        run: bash bin/relink.test.sh
-
-      # Linking a LaunchAgent is not loading it, and an agent that is not
-      # loaded leaves no trace. launchctl is stubbed, so this runs on Linux.
-      - name: launchd-load
-        run: bash bin/launchd-load.test.sh
-
       - name: init-project swift case grader
         run: bash root/.agents/skills/init-project/evals/swift-makefile-entry-point/assert.test.sh
 
@@ -210,6 +223,24 @@ jobs:
           tar -xzf fzf.tar.gz
           sudo install -m 0755 fzf /usr/local/bin/fzf
 
+      # pandoc is what read-doc runs, and read-doc.test.sh asserts on the HTML
+      # it renders, so it is the subject under test in the same sense as tmux
+      # and fzf above. The runner has none, and the distro package predates
+      # --syntax-highlighting, which read-doc passes. Pinned for the same
+      # reason as the others; the checksum is of the release tarball as
+      # fetched (upstream publishes no digest beside it). bin/test-in-docker.
+      # Dockerfile and brewfiles/Brewfile-shell carry the same pin: bump all
+      # three.
+      - name: Install pandoc
+        run: |
+          version=3.12
+          expected=67d7d011fed8c8543306022b985b9b2499ab9b74818df91d8727c7e9ebc5ba06
+          curl -fsSL -o pandoc.tar.gz \
+            "https://github.com/jgm/pandoc/releases/download/${version}/pandoc-${version}-linux-amd64.tar.gz"
+          echo "${expected}  pandoc.tar.gz" | sha256sum --check --strict
+          tar -xzf pandoc.tar.gz
+          sudo install -m 0755 "pandoc-${version}/bin/pandoc" /usr/local/bin/pandoc
+
       # Printed, not assumed. The version is the one thing that explains a
       # failure in the round-trip cases below, and the run that found that out
       # had no record of it.
@@ -218,6 +249,13 @@ jobs:
           tmux -V
           zsh --version
           fzf --version
+          pandoc --version | head -n 1
+
+      # read-doc renders UNTRUSTED documents: the page must load nothing and an
+      # image may only come from the document's own tree. Needs the pinned
+      # pandoc installed above.
+      - name: read-doc
+        run: bash bin/read-doc.test.sh
 
       # Every tmux suite must refuse to run on a developer machine, where one
       # missed `unset TMUX` killed the real server. Static: it runs nothing.
@@ -231,14 +269,10 @@ jobs:
       # .tmux.conf match that name with `_*`. Breaking the naming makes the
       # guard stop recognising popups and the chord starts stacking them, with
       # no error anywhere.
+      # The same suite covers the commands the popups run: tmux-tig, whose failed
+      # tig must leave its message on screen until a key, and fzf-nvim.
       - name: tmux-popup
         run: bash bin/tmux-popup.test.sh
-
-      # prefix + t's wrapper: a failed tig must leave its message on screen
-      # until a key, or the popup vanishes with the error unread -- the bug it
-      # exists for. Driven in a pty through util-linux script(1).
-      - name: tmux-tig
-        run: bash bin/tmux-tig.test.sh
 
       # .tmux.conf is never re-read on a working machine, so a bad line sits
       # there unnoticed; and a bind that lost its -N note keeps working while

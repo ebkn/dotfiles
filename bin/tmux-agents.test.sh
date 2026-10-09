@@ -92,7 +92,6 @@ now=$(date +%s)
 # fixtures out from under the assertions a few hundred milliseconds in, which
 # shows up as an intermittent failure that looks like a ranking bug.
 IDLE="sleep 300"
-tmux -L "$socket" -f /dev/null new-session -d -s work "$IDLE"
 
 # One pane per state. @claude_since is set relative to now so the age column and
 # the oldest-first sort within a rank are both exercised.
@@ -107,27 +106,53 @@ add_pane() {
   [ -n "$note" ] && tmux -L "$socket" set-option -p -t "$pane" @claude_note "$note"
 }
 
-add_pane busy-new busy 10
-add_pane stalled-old stalled 7200
-add_pane asking-new asking 30 "which one?"
-add_pane waiting-old waiting 600 "needs permission"
-add_pane needs-input needs_input 120 "reviewer needs your input"
-# 400000s renders as "111h", four characters. That width is deliberate: the age
-# is printed with %4s, so for the usual three-character age ("10s", "2h") the
-# right-alignment contributes a leading space that exactly replaces the ▶
-# glyph's own padding -- and the glyph assertion below would pass even with the
-# padding removed. Only a four-character age makes the padding observable.
-add_pane busy-old busy 400000
+base_fixtures() {
+  tmux -L "$socket" -f /dev/null new-session -d -s work "$IDLE"
+  add_pane busy-new busy 10
+  add_pane stalled-old stalled 7200
+  add_pane asking-new asking 30 "which one?"
+  add_pane waiting-old waiting 600 "needs permission"
+  add_pane needs-input needs_input 120 "reviewer needs your input"
+  # 400000s renders as "111h", four characters. That width is deliberate: the
+  # age is printed with %4s, so for the usual three-character age ("10s", "2h")
+  # the right-alignment contributes a leading space that exactly replaces the ▶
+  # glyph's own padding -- and the glyph assertion below would pass even with
+  # the padding removed. Only a four-character age makes the padding observable.
+  add_pane busy-old busy 400000
 
-# A pane with no agent at all must not appear.
-tmux -L "$socket" new-window -t work -n plain-pane "$IDLE"
+  # A pane with no agent at all must not appear.
+  tmux -L "$socket" new-window -t work -n plain-pane "$IDLE"
 
-# A popup session, named the way bin/tmux-popup names them, carrying state. The
-# picker must skip it.
-tmux -L "$socket" new-session -d -s _popup_0 "$IDLE"
-popup_pane=$(tmux -L "$socket" list-panes -t _popup_0 -F '#{pane_id}' | head -1)
-tmux -L "$socket" set-option -p -t "$popup_pane" @claude_state busy
-tmux -L "$socket" set-option -p -t "$popup_pane" @claude_since "$now"
+  # A popup session, named the way bin/tmux-popup names them, carrying state.
+  # The picker must skip it.
+  tmux -L "$socket" new-session -d -s _popup_0 "$IDLE"
+  local popup_pane
+  popup_pane=$(tmux -L "$socket" list-panes -t _popup_0 -F '#{pane_id}' | head -1)
+  tmux -L "$socket" set-option -p -t "$popup_pane" @claude_state busy
+  tmux -L "$socket" set-option -p -t "$popup_pane" @claude_since "$now"
+}
+
+# fresh_server [bare] -- a new server for the next phase, holding the base
+# fixtures (or, with `bare`, one empty session). Each phase of this file starts
+# from one, rather than from whatever the phase before it added, renamed or
+# killed: the suite used to run every case on one server kept consistent by
+# hand, and two silent false passes came out of state it leaked
+# (tmux-agents.md). Waits for the old server to be gone, or the new-session
+# could land on the dying one.
+fresh_server() {
+  tmux -L "$socket" kill-server 2>/dev/null
+  for _ in $(seq 1 50); do
+    tmux -L "$socket" list-sessions >/dev/null 2>&1 || break
+    sleep 0.1
+  done
+  if [ "${1:-}" = bare ]; then
+    tmux -L "$socket" -f /dev/null new-session -d -s bare "$IDLE"
+  else
+    base_fixtures
+  fi
+}
+
+fresh_server
 
 run_picker() {
   rm -f "$work/list"
@@ -463,13 +488,9 @@ else
   fail "the literal-escape-in-note path produces a list" "fzf stub was never reached"
 fi
 
-tmux -L "$socket" kill-window -t work:lit-win 2>/dev/null
-tmux -L "$socket" kill-window -t work:esc-win 2>/dev/null
-
-# Back to the aggregate-only fixture: the remote and empty cases below assume it.
-tmux -L "$socket" kill-window -t work:multi-win 2>/dev/null
-
 # --- corrected against the session's own view ---------------------------------
+
+fresh_server
 
 # The pane options are transitions reported by hooks, and three transitions have
 # no hook at all: a permission prompt being answered, a dialog being dismissed,
@@ -630,6 +651,76 @@ else
   esac
 fi
 
+# The quieter break: a CLI that exits 0 with something that is not JSON -- a
+# changed output format, a warning on stdout. jq failing must degrade the same
+# way, not turn into an empty correction map that the awk then applies.
+stub_claude 'Warning: agents is now "claude sessions" {'
+if ! run_rows; then
+  fail "--rows survives a CLI that answers with non-JSON" "stderr: $(cat "$work/rows.err" 2>/dev/null)"
+else
+  case "$(row_of corr-late)" in
+    '▶ '*) pass "non-JSON from the CLI leaves the rows as the hooks published them" ;;
+    *) fail "non-JSON from the CLI leaves the rows as the hooks published them" "row: $(row_of corr-late)" ;;
+  esac
+fi
+
+# When the two sides AGREE that a session is blocked, the hook's data is kept
+# whole: its note names the tool, and its per-actor listing names which
+# subagent is blocked -- the CLI knows neither. A correction that rewrote every
+# bound row would replace both with the CLI's vaguer waitingFor.
+add_bound_pane corr-agree waiting "Bash: rm -rf build" sid-agree
+agree_pane=$(tmux -L "$socket" list-panes -t work:corr-agree -F '#{pane_id}' | head -1)
+tmux -L "$socket" set-option -p -t "$agree_pane" @claude_agents \
+  "waiting${US}${now}${US}Explore${US}Bash: rm -rf build${RS}busy${US}${now}${US}${US}${RS}"
+# A state the hooks never published before, on a pane of its own: the list must
+# show it rather than drop the pane, since a new state is still an agent.
+add_bound_pane corr-newstate teleporting "" ""
+stub_claude '[{"sessionId":"sid-agree","status":"waiting","waitingFor":"permission prompt"}]'
+if ! run_rows; then
+  fail "--rows produces a list (agreement case)" "stderr: $(cat "$work/rows.err" 2>/dev/null)"
+else
+  case "$(grep -F 'corr-agree [Explore]' "$work/rows" | head -1 | cut -f2-)" in
+    '🛑'*'Bash: rm -rf build'*) pass "agreement keeps the hook's note and per-actor rows" ;;
+    *) fail "agreement keeps the hook's note and per-actor rows" "rows: $(grep -F corr-agree "$work/rows" | cut -f2- | tr '\n' '|')" ;;
+  esac
+  if grep -F corr-agree "$work/rows" | grep -qF 'permission prompt'; then
+    fail "and does not replace it with the CLI's waitingFor" "$(grep -F corr-agree "$work/rows" | cut -f2-)"
+  else
+    pass "and does not replace it with the CLI's waitingFor"
+  fi
+  if [ "$(rows_for corr-newstate)" -ge 1 ]; then
+    pass "a state the script does not know is still listed"
+  else
+    fail "a state the script does not know is still listed" "no row for corr-newstate"
+  fi
+fi
+tmux -L "$socket" kill-window -t work:corr-agree 2>/dev/null
+tmux -L "$socket" kill-window -t work:corr-newstate 2>/dev/null
+
+# The picker's FIRST list comes from the pane options alone: `claude agents
+# --json` costs ~140ms, the whole latency budget before the popup paints, so it
+# is paid on the first refresh instead. Bound panes exist at this point, so a
+# picker that corrected up front would have every reason to call the CLI -- and
+# the stub fzf exits before any refresh could, so any call here is the first
+# list's.
+cat >"$work/stub/claude" <<STUB
+#!/bin/sh
+echo called >>"$work/claude-first.log"
+echo '[]'
+STUB
+chmod +x "$work/stub/claude"
+rm -f "$work/claude-first.log"
+if run_picker; then
+  if [ -s "$work/claude-first.log" ]; then
+    fail "the first list is drawn without running the CLI" \
+      "$(wc -l <"$work/claude-first.log" | tr -d ' ') call(s)"
+  else
+    pass "the first list is drawn without running the CLI"
+  fi
+else
+  fail "the first list is drawn without running the CLI" "fzf stub was never reached"
+fi
+
 # --- the same correction, written back onto the panes -------------------------
 
 # --rows fixes the picker and nothing else: the WezTerm tab glyph is read from
@@ -753,15 +844,23 @@ fi
 # Asserted in both directions, because "no longer says waiting" is also what an
 # empty option says, and clearing the listing would be a different bug wearing
 # the same result.
+#
+# What this case CAN see is the end state of the option: the correction is
+# republished, and the waiting record is not in it. It cannot see the hook's
+# unblock_actors at work. The fixture wrote @claude_agents with set-option, so
+# the hook's own record store never held the waiting Explore record, and the
+# republish comes out clean whether or not that function ran. Turning a stale
+# record in the STORE into busy is pinned by agent-state.test.sh, which drives
+# the hook through its events.
 stale_listing=$(opt_of corr-stale @claude_agents)
 case $stale_listing in
   *waiting*)
-    fail "a corrected pane's listing drops the stale blocked record" \
+    fail "a corrected pane's republished listing holds no blocked record" \
       "listing: [$stale_listing]"
     ;;
-  *busy*) pass "a corrected pane's listing drops the stale blocked record" ;;
+  *busy*) pass "a corrected pane's republished listing holds no blocked record" ;;
   *)
-    fail "a corrected pane's listing drops the stale blocked record" \
+    fail "a corrected pane's republished listing holds no blocked record" \
       "the listing was cleared rather than rebuilt: [$stale_listing]"
     ;;
 esac
@@ -950,6 +1049,8 @@ fi
 
 # --- remote hosts -------------------------------------------------------------
 
+fresh_server
+
 # The remote path had no coverage while it was an awk pass over a second pane
 # listing. It is now a shell loop over the rows already in hand, and its failure
 # is the quiet kind: remote agents simply stop appearing, on a machine where you
@@ -1064,12 +1165,46 @@ else
 fi
 bare_tmux "$rt_dir" kill-server 2>/dev/null
 
-# Back to a local-only fixture so the empty case below starts from a known state.
-tmux -L "$socket" kill-window -t work:ssh-pane-a 2>/dev/null
-tmux -L "$socket" kill-window -t work:ssh-pane-b 2>/dev/null
+# Which hosts are asked at all. @ssh_my_machine marks a myssh pane -- a machine
+# running these dotfiles, with a tmux this script can query. A pane that is
+# merely ssh'd somewhere carries @ssh_host alone, and querying it would open a
+# connection to a machine with no such tmux, on every picker open.
+tmux -L "$socket" new-window -t work -n ssh-plain "$IDLE"
+plain_ssh_pane=$(tmux -L "$socket" list-panes -t work:ssh-plain -F '#{pane_id}' | head -1)
+tmux -L "$socket" set-option -p -t "$plain_ssh_pane" @ssh_host plainhost
+# And a myssh host that does not answer: ssh failing outright, as it does for a
+# host that is asleep. Its rows are absent; everything local must still be there.
+cat >"$work/stub/ssh" <<STUB
+#!/bin/sh
+echo "\$@" >>"$work/ssh-calls"
+exit 255
+STUB
+chmod +x "$work/stub/ssh"
+: >"$work/ssh-calls"
+if run_picker; then
+  if grep -q plainhost "$work/ssh-calls"; then
+    fail "a pane ssh'd somewhere without myssh is never queried" "$(cat "$work/ssh-calls")"
+  else
+    pass "a pane ssh'd somewhere without myssh is never queried"
+  fi
+  if grep -q bakery "$work/ssh-calls"; then
+    pass "while a myssh host is"
+  else
+    fail "while a myssh host is" "ssh calls: [$(tr '\n' '|' <"$work/ssh-calls")]"
+  fi
+  if cut -f2- "$work/list" | grep -q 'waiting-old'; then
+    pass "an unreachable host leaves the local rows in place"
+  else
+    fail "an unreachable host leaves the local rows in place" "$(cut -f2- "$work/list")"
+  fi
+else
+  fail "an unreachable host leaves the local rows in place" "fzf stub was never reached"
+fi
 rm -f "$work/stub/ssh"
 
 # --- what the picked row turns into -------------------------------------------
+
+fresh_server
 
 # fzf runs with --expect=ctrl-o, which prints the key that closed the picker on
 # its own first line -- EMPTY for a plain enter. Everything after that line is
@@ -1119,14 +1254,33 @@ run_pick() {
 # on-one-session state bin/tmux-session-swap exists to prevent. prefix + w is the
 # key for that. Nothing here can raise a tab, so nothing may move: in particular
 # select-pane must not run, since that would reach into the agent's window.
+#
+# No client shows the agent's window on this throwaway server, so this is the
+# "nothing is showing that window" refusal -- the "no WezTerm tab" one, with a
+# client but no tab, is driven through the real fzf further down. The refusal
+# is waited for in the server's command log, so the case cannot pass for a
+# script that died before deciding anything.
+nothing_said() {
+  tmux -L "$socket" show-messages 2>/dev/null | grep -F 'display-message' |
+    grep -cF 'nothing is showing that window' || true
+}
+said_before=$(nothing_said)
 stub_pick ''
 select_first
 tmux -L "$socket" run-shell "cd $PWD && PATH=$work/stub:$PWD/bin:\$PATH tmux-agents >$work/out 2>&1"
-sleep 1
-if [ "$(active_pane)" = "$other_pane" ]; then
-  pass "enter with no WezTerm tab to raise leaves the agent's window alone"
+for _ in $(seq 1 20); do
+  [ "$(nothing_said)" -gt "$said_before" ] && break
+  sleep 0.25
+done
+if [ "$(nothing_said)" -gt "$said_before" ]; then
+  pass "enter on a window no client shows says so"
 else
-  fail "enter with no WezTerm tab to raise leaves the agent's window alone" \
+  fail "enter on a window no client shows says so" "$(cat "$work/out" 2>/dev/null)"
+fi
+if [ "$(active_pane)" = "$other_pane" ]; then
+  pass "enter on a window no client shows leaves the agent's window alone"
+else
+  fail "enter on a window no client shows leaves the agent's window alone" \
     "active pane moved to $(active_pane)" "$(cat "$work/out" 2>/dev/null)"
 fi
 
@@ -1151,7 +1305,6 @@ else
   pass "no mirror session is created when the view is refused"
 fi
 
-tmux -L "$socket" kill-window -t work:pick-me 2>/dev/null
 # Restore the picker stub the sections below expect.
 cat >"$work/stub/fzf" <<STUB
 #!/bin/sh
@@ -1164,9 +1317,7 @@ chmod +x "$work/stub/fzf"
 
 # It must not exit instantly: in a popup that reads as a crash rather than as
 # "nothing to show". With no tty it prints the message and returns.
-tmux -L "$socket" kill-session -t work 2>/dev/null
-tmux -L "$socket" kill-session -t _popup_0 2>/dev/null
-tmux -L "$socket" new-session -d -s bare "$IDLE"
+fresh_server bare
 rm -f "$work/list"
 tmux -L "$socket" run-shell "cd $PWD && PATH=$work/stub:$PWD/bin:\$PATH tmux-agents >$work/empty 2>&1"
 for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -1601,7 +1752,48 @@ STUB
       "$(cat "$work/first" 2>/dev/null)"
   fi
   drop_mirrors
+
+  # A remote blocked row that is OLDER than a local one sorts first, and must
+  # not end the scan: it is skipped, and the local one is still answered. Every
+  # case above had the remote row as the only blocked one, so a scan that
+  # stopped at the first blocked row of any kind passed them all.
+  tmux -L "$socket" set-option -p -t "$ask_pane" @claude_state asking
+  tmux -L "$socket" set-option -p -t "$ask_pane" @claude_since "$now"
+  answer_first "$work/sshstub"
+  if wait_mirror; then
+    shown=$(tmux -L "$socket" list-clients -F '#{client_session} #{window_name}' |
+      awk '$1 ~ /^_agent_/ { print $2; exit }')
+    if [ "$shown" = ask-win ]; then
+      pass "prefix + A skips an older remote blocked row and answers the local one"
+    else
+      fail "prefix + A skips an older remote blocked row and answers the local one" \
+        "the view is showing [$shown]"
+    fi
+  else
+    fail "prefix + A skips an older remote blocked row and answers the local one" \
+      "no mirror session appeared" "$(cat "$work/first" 2>/dev/null)"
+  fi
+  drop_mirrors
   tmux -L "$socket" kill-window -t tabB:ssh-pane 2>/dev/null
+
+  # The third of the three silences: no agent on the server at all. Every pane's
+  # state is set aside for the one run and put back after, since the cases that
+  # follow read them.
+  agent_panes=$(tmux -L "$socket" list-panes -a -F '#{pane_id} #{@claude_state}' | awk 'NF == 2')
+  while read -r p st; do
+    [ -n "$p" ] && tmux -L "$socket" set-option -pu -t "$p" @claude_state
+  done <<<"$agent_panes"
+  refused=$(said_count "no Claude agents running")
+  answer_first
+  if wait_said "$refused" "no Claude agents running" && [ "$(mirrors)" = 0 ]; then
+    pass "prefix + A with no agent anywhere says so, rather than 'nothing is waiting'"
+  else
+    fail "prefix + A with no agent anywhere says so, rather than 'nothing is waiting'" \
+      "messages: $(msg_log | tail -3 | tr "\n" "|")" "$(cat "$work/first" 2>/dev/null)"
+  fi
+  while read -r p st; do
+    [ -n "$p" ] && tmux -L "$socket" set-option -p -t "$p" @claude_state "$st"
+  done <<<"$agent_panes"
   tmux -L "$socket" set-option -p -t "$ask_pane" @claude_state asking
 fi
 
@@ -1643,11 +1835,10 @@ jump_check() {
   cat "$work/jc" 2>/dev/null
 }
 
-jc_win=$(tmux -L "$socket" list-windows -t work -F '#{window_id}' 2>/dev/null | head -1)
-if [ -z "$jc_win" ]; then
-  tmux -L "$socket" new-session -d -s jc "$IDLE"
-  jc_win=$(tmux -L "$socket" list-windows -t jc -F '#{window_id}' | head -1)
-fi
+# A detached session of its own, so no client shows its window -- arranged here
+# rather than borrowed from whichever session an earlier section left alive.
+tmux -L "$socket" new-session -d -s jc "$IDLE"
+jc_win=$(tmux -L "$socket" list-windows -t jc -F '#{window_id}' | head -1)
 jc_pane=$(tmux -L "$socket" list-panes -t "$jc_win" -F '#{pane_id}' | head -1)
 
 out=$(jump_check "|$jc_win|$jc_pane|asking")
@@ -1826,16 +2017,19 @@ else
 
   # And the eligible row still accepts. There is no client here, so the script
   # stops at its own no-client guard -- but fzf having accepted is what makes
-  # the pane exit at all, and exit 0 is what says it got that far.
+  # the pane exit at all. Dead AND silent, as the needs_input case below
+  # explains: the pane also dies when the script errors out, so "it exited"
+  # alone would report a crash as an accepted key.
   tmux -L "$socket" send-keys -t "$fzf_pane" C-o
   for _ in $(seq 1 40); do
     [ "$(dead)" = 1 ] && break
     sleep 0.25
   done
-  if [ "$(dead)" = 1 ]; then
+  if [ "$(dead)" = 1 ] && [ ! -s "$work/real" ]; then
     pass "ctrl-o on a blocked row is accepted"
   else
-    fail "ctrl-o on a blocked row is accepted" "picker still running" "$(screen)"
+    fail "ctrl-o on a blocked row is accepted" "pane_dead=$(dead)" \
+      "log: $(cat "$work/real" 2>/dev/null)" "$(screen)"
   fi
 
   # needs_input is accepted too, and it gets its own run rather than riding on
@@ -1906,8 +2100,14 @@ else
     # wezterm stub below would be invisible to the enter binding and the whole
     # success path would silently take the "no tab" branch. sh keeps the
     # environment it is given.
+    #
+    # FZF_DEFAULT_OPTS carries the one setting of the author's .zshenv that
+    # breaks this picker quietly: --accept-nth=-1 prints only the last field,
+    # dropping the key the jump parses. Neither CI nor the container sets it, so
+    # without this the script's reset of the variable was untested everywhere
+    # except the one machine it exists for.
     tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
-      "sh -c 'SHELL=/bin/sh PATH=$work/wstub:$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
+      "sh -c 'SHELL=/bin/sh FZF_DEFAULT_OPTS=--accept-nth=-1 PATH=$work/wstub:$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
     wait_screen "$1" || return 1
     tmux -L "$socket" send-keys -t "$fzf_pane" "$1"
     sleep 0.4
@@ -1970,6 +2170,8 @@ else
   # Now with a WezTerm that answers. The stub reports the tty of the client
   # attached to the agent's window, which is what the jump has to match on --
   # get that lookup wrong and it silently reports no tab, i.e. the case above.
+  # Like the real `cli list`, it returns every pane, with the match neither
+  # first nor last, so taking `.[0]` without the tty filter would raise tab 5.
   pty_attach bindB
   agent_tty=""
   for _ in $(seq 1 24); do
@@ -2019,7 +2221,7 @@ else
 #!/bin/sh
 printf '%s\n' "\$*" >>"$work/wezterm-calls"
 case "\$*" in
-  *list*) printf '[{"tab_id": 77, "tty_name": "%s"}]\n' "$agent_tty" ;;
+  *list*) printf '[{"tab_id": 5, "tty_name": "/dev/pts/990"}, {"tab_id": 77, "tty_name": "%s"}, {"tab_id": 9, "tty_name": "/dev/pts/991"}]\n' "$agent_tty" ;;
 esac
 exit 0
 STUB
@@ -2056,6 +2258,15 @@ STUB
       else
         fail "and puts the agent's pane in front inside it" \
           "active pane is $active, wanted $jump_target"
+      fi
+      # activate-tab leaves OS focus where it was, so the jump also writes OSC
+      # 1337 SetUserVar=focus_window to that client's tty, for the handler in
+      # wezterm.lua. Editing either side alone stops cross-window jumps
+      # silently. script(1) copies everything written to that pty into pty.log.
+      if grep -q 'SetUserVar=focus_window=' "$work/pty.log" 2>/dev/null; then
+        pass "and asks WezTerm to focus that window"
+      else
+        fail "and asks WezTerm to focus that window" "no focus_window OSC reached the client's tty"
       fi
     fi
     # And the ssh case: a client attached over ssh is never a WezTerm tab, so

@@ -53,6 +53,10 @@ lacks() { case "$2" in *"$3"*) no "$1" "[$2] unexpectedly contains [$3]" ;; *) o
 
 TMP=$(mktemp -d)
 TMP=$(cd "$TMP" && pwd -P)
+# The program runs in the caller's working directory, and its prompt heredocs
+# name git fetch/merge/push: one dropped backslash there executes them. Running
+# from the temp tree keeps such a regression away from the developer's checkout.
+cd "$TMP" || exit 1
 KILL_PIDS=""
 leaked=0
 cleanup() {
@@ -60,7 +64,7 @@ cleanup() {
   # sessions, and the `nc -lU` listeners, which outlive the run whenever a case
   # asserts that nothing was sent -- a listener nobody connects to waits forever,
   # and `-w` does not bound one (verified: still alive after 3.5s with -w 2).
-  for p in $KILL_PIDS; do kill "$p" 2>/dev/null; done
+  for p in $KILL_PIDS $(cat "$TMP/holders" 2>/dev/null); do kill "$p" 2>/dev/null; done
   # Reap them so job control cannot print "Terminated" over the results.
   wait 2>/dev/null
 
@@ -123,9 +127,21 @@ git init -q "$REPO"
 git -C "$REPO" -c user.email=t@e -c user.name=t commit -q --allow-empty -m init
 git -C "$REPO" worktree add -q -b feature/x "$WT" >/dev/null 2>&1
 
+# The working directory is logged with the argv: `--bg` and the cwd are what make
+# the resume land in the right conversation, in the background.
+#
+# $RESUMEAPPEND, when it names a job file, has the stub append an item to that
+# job while the delivery is in flight -- what pr-review-watch does when a poll
+# lands mid-delivery. The two programs write the same file under different
+# locks, so this is the deterministic form of a race that does happen.
 cat >"$STUB/claude" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >> "$RESUMELOG"
+printf 'cwd=%s\n' "$PWD" >> "$RESUMELOG"
+if [ -n "${RESUMEAPPEND:-}" ]; then
+  jq '.pending += [{id:"issue:99", kind:"issue", author:"dave", body:"late", at:"2026-09-07T10:01:00Z"}]
+      | .seen += ["issue:99"]' "$RESUMEAPPEND" >"$RESUMEAPPEND.tmp" && mv "$RESUMEAPPEND.tmp" "$RESUMEAPPEND"
+fi
 [ -f "$RESUMEFAIL" ] && exit 1
 exit 0
 EOF
@@ -141,9 +157,15 @@ chmod +x "$STUB"/*
 # that pipe open and the assignment blocks for the full five minutes, with no
 # output and no error to say why. Detaching all three streams is what makes the
 # substitution return as soon as the function does.
+#
+# The pid goes to a file as well as to stdout. Called as `$(spawn_holder)`, this
+# runs in a subshell, so appending to KILL_PIDS here never reached the parent:
+# cleanup killed no holder at all, and every run left ~30 `sleep 300` behind
+# (counted). Nor does the straggler sweep find them -- their argv does not name
+# $TMP. The file is the one place both sides can see.
 spawn_holder() {
   sleep 300 >/dev/null 2>&1 &
-  KILL_PIDS="$KILL_PIDS $!"
+  printf '%s\n' "$!" >>"$TMP/holders"
   printf '%s' "$!"
 }
 
@@ -233,6 +255,7 @@ reset() { /bin/rm -f "$STATE"/jobs/* "$SESS"/*.json "$TMP"/wire-* "$TMP/resume.l
 run() {
   PATH="$STUB:$PATH" \
     RESUMELOG="$TMP/resume.log" RESUMEFAIL="$TMP/resume.fail" \
+    RESUMEAPPEND="${RESUMEAPPEND:-}" \
     PR_REVIEW_WATCH_STATE_DIR="$STATE" CLAUDE_SESSIONS_DIR="$SESS" \
     PR_REVIEW_DISPATCH_RESUME="${RESUME:-0}" \
     "$DISPATCH" "$@" 2>&1
@@ -636,6 +659,63 @@ has "and the prompt text as claude's argument" "$(cat "$TMP/resume.log")" "[pr-r
 eq "and writes the prompt file it points at" "present" \
   "$([ -f "$STATE/jobs/acme__widget__42.prompt.md" ] && echo present)"
 has "which carries the feedback" "$(cat "$STATE/jobs/acme__widget__42.prompt.md" 2>/dev/null)" "CHANGES_REQUESTED"
+# --bg is what keeps the resume from opening a TUI nobody is looking at, and the
+# cwd is what makes claude find the conversation: sessions are stored per project
+# directory, so a resume from anywhere else does not find sess-1 at all.
+has "the resume runs in the background" "$(head -n 1 "$TMP/resume.log")" "--bg --resume sess-1"
+eq "from the job's worktree" "cwd=$WT" "$(grep '^cwd=' "$TMP/resume.log")"
+
+# --- feedback that arrives while a delivery is in flight --------------------
+# pr-review-watch appends to the same job file under its own lock, not this
+# program's, so a poll can land between the prompt being written and the job
+# being marked. Marking used to empty `pending` outright: the late item was in
+# no prompt, yet left the queue with its id already in `seen`, so no later poll
+# would ever queue it again -- feedback lost with nothing said anywhere.
+printf 'feedback arriving mid-delivery\n'
+reset
+make_job
+out=$(RESUME=1 RESUMEAPPEND="$STATE/jobs/acme__widget__42.json" run)
+lacks "the late item was not in this delivery" "$(cat "$STATE/jobs/acme__widget__42.prompt.md" 2>/dev/null)" "dave"
+has "which did carry the earlier items" "$(cat "$STATE/jobs/acme__widget__42.prompt.md" 2>/dev/null)" "carol"
+eq "it stays pending for the next run" "issue:99" "$(job '[.pending[].id] | join(" ")')"
+eq "the job is still queued" "pending" "$(job .status)"
+eq "only what was delivered is counted" "2" "$(job .deliveredCount)"
+
+# The next run delivers it, so the item is late rather than lost.
+out=$(RESUME=1 run)
+has "the next run delivers it" "$(cat "$STATE/jobs/acme__widget__42.prompt.md" 2>/dev/null)" "late"
+eq "and the queue is then empty" "0" "$(job '.pending | length')"
+
+# --- a prompt file that cannot be written ------------------------------------
+# The message is only a pointer to the prompt file, so sending it after a failed
+# write points the session at a file that is missing -- or, worse, at the
+# previous delivery's file, read as if it were this one's feedback.
+printf 'unwritable prompt file\n'
+reset
+make_job
+mkdir "$STATE/jobs/acme__widget__42.prompt.md" # a directory: the write fails
+out=$(RESUME=1 run)
+eq "nothing is sent" "absent" "$([ -f "$TMP/resume.log" ] || echo absent)"
+eq "the job stays queued" "pending" "$(job .status)"
+eq "with its items" "2" "$(job '.pending | length')"
+has "and the hold is reported" "$out" "hold  acme/widget#42: could not write"
+rmdir "$STATE/jobs/acme__widget__42.prompt.md"
+
+# The same on the socket path, which is the one most deliveries take: a live
+# session must not be handed a pointer to a file that was never written.
+reset
+PID=$(spawn_holder)
+WIRE="$TMP/wire-unwritable"
+SOCKP="$TMP/sunw.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session live "$PID" "$WT" "$SOCKP" 100
+make_job
+mkdir "$STATE/jobs/acme__widget__42.prompt.md"
+out=$(run)
+eq "to a live session, nothing reaches the socket" "" "$(cat "$WIRE" 2>/dev/null)"
+eq "the job stays queued" "pending" "$(job .status)"
+has "and the hold is reported" "$out" "hold  acme/widget#42: could not write"
+rmdir "$STATE/jobs/acme__widget__42.prompt.md"
 
 # A branch that was merged and cleaned up takes its worktree with it (`gdmerged`
 # removes it), and the job outlives that -- nothing in this pipeline expires one.
@@ -655,6 +735,16 @@ case "$out" in
   *PR_REVIEW_DISPATCH_RESUME=1*) no "it does not repeat advice that cannot apply" "[$out]" ;;
   *) ok "it does not repeat advice that cannot apply" ;;
 esac
+
+# Both detectors queue with a null sessionId when no session was live, so this
+# is the common shape under RESUME=1 -- where advice to set RESUME=1 is circular.
+reset
+make_job
+jq '.sessionId = null' "$STATE/jobs/acme__widget__42.json" >"$TMP/j" && mv "$TMP/j" "$STATE/jobs/acme__widget__42.json"
+out=$(RESUME=1 run)
+eq "a job naming no session holds under RESUME=1" "pending" "$(job .status)"
+has "it says there is no session to resume" "$out" "the job names none to resume"
+lacks "and does not point at the variable already set" "$out" "set PR_REVIEW_DISPATCH_RESUME=1"
 
 # A failed resume must leave the job queued -- it is the only copy.
 reset
@@ -681,11 +771,18 @@ SOCKP="$TMP/s8.sock"
 listen "$SOCKP" "$WIRE" || no "listener came up"
 session live "$PID" "$WT" "$SOCKP" 100
 make_job
-chmod 500 "$STATE/jobs" # writable job file, unwritable directory
+# The prompt file already exists and stays writable, so marking -- the rename of
+# the job's .tmp into the directory -- is the ONLY write that fails. Without it
+# the prompt write failed too and the case asserted a message pointing at a
+# file that was never written.
+: >"$STATE/jobs/acme__widget__42.prompt.md"
+chmod 500 "$STATE/jobs" # writable job and prompt files, unwritable directory
 out=$(run 2>&1)
 settle "$WIRE"
 chmod 700 "$STATE/jobs"
 eq "the message still went out" "user" "$(jq -r .type <"$WIRE" 2>/dev/null)"
+has "pointing at a prompt that was written" \
+  "$(cat "$STATE/jobs/acme__widget__42.prompt.md")" "CHANGES_REQUESTED"
 has "the failure is reported" "$out" "could not be marked"
 has "it names the consequence" "$out" "WILL be sent again"
 eq "no .tmp file is left behind" "" "$(ls "$STATE"/jobs/*.tmp 2>/dev/null)"
@@ -845,7 +942,13 @@ has "the run reports the send" "$out" "send  acme/widget#42"
 # An explicit choice that is not installed must fail loudly, not fall back to the
 # other tool: a silent fallback would make the override look honoured when it was
 # not, which is the whole reason to set it.
-out=$(PATH="$STUB:$PATH" PR_REVIEW_WATCH_STATE_DIR="$STATE" \
+#
+# "Not installed" is made true rather than assumed: socat is in Brewfile-others
+# for every non-mac machine, so the developer's PATH may well carry one.
+no_socat_path=$(printf '%s' "$PATH" | tr ':' '\n' | while IFS= read -r d; do
+  [ -n "$d" ] && [ ! -x "$d/socat" ] && printf '%s:' "$d"
+done)
+out=$(PATH="$STUB:${no_socat_path%:}" PR_REVIEW_WATCH_STATE_DIR="$STATE" \
   PR_REVIEW_DISPATCH_SOCK_TOOL=socat "$DISPATCH" 2>&1)
 rc=$?
 eq "an uninstalled override exits non-zero" "1" "$rc"

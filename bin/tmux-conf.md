@@ -152,13 +152,17 @@ A consequence to know before reading a surprising column count below: **the
 throwaway server is now deliberately plugin-free on every machine.** It was not
 before — a real `tpm` loaded the developer's plugins into it while CI, where the
 load failed, had none, so the cheatsheet cases were measuring a different set of
-bindings depending on where they ran. `tagged notes reach the running server`
-therefore compares `server == file`: the tagged notes in the prefix table, as
-`list-keys -N -T prefix` shows them and as the file's non-`-n`, non-`-T` binds
-declare them (23 each). Both of its patterns were once wrong in a way that
-kept it green — the server side counted only lowercase single-letter keys (15)
-and the file side only the four `bind -r -N` lines — so it compared 15 >= 4
-and could not notice a lost note.
+bindings depending on where they ran.
+
+`tagged notes reach the running server` compares the notes **as a set**: every
+note on a prefix-table `bind` in the file must end a row of `list-keys -N -T
+prefix` (23 today, with a floor of 15). It used to compare counts, and both of
+its patterns were wrong in a way that kept it green — the server side counted
+only lowercase single-letter keys (15) and the file side only the four lines
+where `-N` is not the first flag — so it compared 15 >= 4, and the "equality"
+this paragraph once claimed was never being checked. A count that matched would
+still miss a note mangled on the way in, which is why it is now a set. Plain
+`list-keys -T prefix` prints no notes at all; only `-N` does.
 
 What it asserts:
 

@@ -56,7 +56,14 @@ running its trap leaves its pid file behind and the OS may hand that number to
 anything, so the blind `kill` this replaced landed on a bystander, on a remote,
 silently. `bin/pr-review-common.sh` settles for `kill -0` because a recycled pid
 there only costs a missed steal; here the mistake is destructive, so liveness is
-the wrong question.
+the wrong question. The conn_id is matched **as a whole argument** (`monitor
+<conn_id> `): as a bare substring, `local-5` also matched `local-50`'s monitor
+and killed another connection.
+
+**A monitor removes its pid file only while the file still names it.** Its trap
+runs once its `sleep 2` returns, which is usually after `attach` has started the
+replacement — so removing the file outright took the replacement's pid with it,
+and the next reconnect had nothing to kill and leaked a monitor.
 
 `ps` needs **`-ww`**, or procps truncates to the terminal width, the conn_id falls
 off the end of an absolute path, the match never succeeds on Linux, and every

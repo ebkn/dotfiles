@@ -17,7 +17,27 @@ jobs:
       - name: Place the checkout at ~/dotfiles
         run: ln -s "$GITHUB_WORKSPACE" "$HOME/dotfiles"
 
+      # Teed so the steps below can read it. `shell: bash` for pipefail: the
+      # default shell would report tee's status and hide a failed bootstrap.
       - name: Run install script
-        run: zsh bin/init/bootstrap-macos.sh
+        shell: bash
+        run: zsh bin/init/bootstrap-macos.sh 2>&1 | tee "$RUNNER_TEMP/setup.log"
         env:
           DOTFILES_SKIP_UPDATE: '1'
+
+      # Exit 0 says the install steps worked; it says nothing about the links.
+      # A missing link source is a warning and exit 0, so a typo in links.sh or
+      # an init script passes the step above while the link is never made.
+      - name: No link was skipped for a missing source
+        run: |
+          if grep -n 'missing source for link' "$RUNNER_TEMP/setup.log"; then
+            exit 1
+          fi
+
+      # macos.sh runs link_dotfiles, so right after it relink -- the drift
+      # check update-all runs on every machine -- must find nothing to do.
+      - name: relink finds no drift
+        run: |
+          out=$("$HOME/dotfiles/bin/relink" </dev/null 2>&1)
+          printf '%s\n' "$out"
+          grep -qx 'dotfiles symlinks are up to date.' <<<"$out"

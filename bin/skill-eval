@@ -63,14 +63,24 @@ runs=1
 model="sonnet"
 keep=0
 cases=()
+# An option missing its value used to die on `shift 2` under set -e, exiting 1
+# without a word.
+needs_value() {
+  if [ "$2" -lt 2 ]; then
+    printf -- '%s needs a value\n' "$1" >&2
+    usage
+  fi
+}
 while [ $# -gt 0 ]; do
   case "$1" in
     --runs)
-      runs="${2:-}"
+      needs_value "$1" $#
+      runs="$2"
       shift 2
       ;;
     --model)
-      model="${2:-}"
+      needs_value "$1" $#
+      model="$2"
       shift 2
       ;;
     --keep)
@@ -139,11 +149,26 @@ for case_name in "${cases[@]}"; do
   done
 done
 
+# One scalar value out of a file's YAML frontmatter -- prompt.md's metadata, or
+# SKILL.md's. Only the frontmatter: a body line that happens to start with the
+# key is documentation, not configuration.
+frontmatter_value() {
+  awk -v key="$2" '
+    NR == 1 && $0 == "---" { inside = 1; next }
+    inside && $0 == "---" { exit }
+    inside && index($0, key ":") == 1 {
+      sub("^" key ":[ \t]*", "")
+      print
+      exit
+    }
+  ' "$1"
+}
+
 # Run the skill under its own allowed-tools, so a call outside them is refused
 # and recorded as a permission denial the case can assert on. Read the value
 # straight out of the frontmatter rather than restating it here: a copy would
 # drift, and it would drift towards being more permissive than the skill.
-allowed_line="$(sed -n 's/^allowed-tools:[[:space:]]*//p' "$skill_dir/SKILL.md")"
+allowed_line="$(frontmatter_value "$skill_dir/SKILL.md" allowed-tools)"
 skill_allowed_tools=()
 if [ -n "$allowed_line" ]; then
   while IFS= read -r tool; do
@@ -158,19 +183,6 @@ read_prompt() {
     NR == 1 && $0 == "---" { skip = 1; next }
     skip && $0 == "---" { skip = 0; next }
     !skip { print }
-  ' "$1"
-}
-
-# One scalar value out of prompt.md's frontmatter.
-prompt_meta() {
-  awk -v key="$2" '
-    NR == 1 && $0 == "---" { inside = 1; next }
-    inside && $0 == "---" { exit }
-    inside && index($0, key ":") == 1 {
-      sub("^" key ":[ \t]*", "")
-      print
-      exit
-    }
   ' "$1"
 }
 
@@ -189,7 +201,7 @@ for case_name in "${cases[@]}"; do
   # allowed_tools and are added on top. The skill's own boundary is never
   # widened here -- only the scenario around it.
   case_allowed_tools=("${skill_allowed_tools[@]}")
-  extra_allowed_line="$(prompt_meta "$case_dir/prompt.md" allowed_tools)"
+  extra_allowed_line="$(frontmatter_value "$case_dir/prompt.md" allowed_tools)"
   if [ -n "$extra_allowed_line" ]; then
     while IFS= read -r tool; do
       [ -n "$tool" ] && case_allowed_tools+=("$tool")
@@ -201,9 +213,9 @@ for case_name in "${cases[@]}"; do
   # and exits non-zero, which the runner grades as FAIL, so the case reports a
   # broken skill when what ran out was the harness. Raising the global default
   # instead would spend that ceiling on every other case too.
-  case_max_turns="$(prompt_meta "$case_dir/prompt.md" max_turns)"
+  case_max_turns="$(frontmatter_value "$case_dir/prompt.md" max_turns)"
   [ -n "$case_max_turns" ] || case_max_turns="$max_turns"
-  case_budget_usd="$(prompt_meta "$case_dir/prompt.md" budget_usd)"
+  case_budget_usd="$(frontmatter_value "$case_dir/prompt.md" budget_usd)"
   [ -n "$case_budget_usd" ] || case_budget_usd="$budget_usd"
   if ! [[ "$case_max_turns" =~ ^[1-9][0-9]*$ ]]; then
     printf 'case %s: max_turns takes an integer of 1 or more (got: %s)\n' "$case_name" "$case_max_turns" >&2
@@ -229,7 +241,17 @@ for case_name in "${cases[@]}"; do
     cp -R "$skill_dir" "$work/.claude/skills/$skill"
     rm -rf "$work/.claude/skills/$skill/evals"
 
-    (cd "$work" && SKILL_EVAL_LIB_DIR="$lib_dir" SKILL_EVAL_REPO_ROOT="$repo_root" bash "$case_dir/scaffold.sh")
+    # A broken scaffold is the harness failing, not the skill, so it stops the
+    # run rather than being graded -- but by name, and without leaving the
+    # working directory behind as `set -e` used to.
+    scaffold_exit=0
+    (cd "$work" && SKILL_EVAL_LIB_DIR="$lib_dir" SKILL_EVAL_REPO_ROOT="$repo_root" bash "$case_dir/scaffold.sh") ||
+      scaffold_exit=$?
+    if [ "$scaffold_exit" -ne 0 ]; then
+      printf 'case %s: scaffold.sh exited %s\n' "$case_name" "$scaffold_exit" >&2
+      rm -rf "$work"
+      exit 1
+    fi
 
     # The .claude/ we just carried in, and bin/ where a scaffold puts stubs,
     # are not part of the fixture. Left untracked they show up in git status,
@@ -296,6 +318,12 @@ for case_name in "${cases[@]}"; do
           SKILL_EVAL_JUDGE_COST_FILE="$artifacts/judge-cost.txt" \
           bash "$case_dir/assert.sh" >"$artifacts/assert.log" 2>&1
     ); then
+      assert_exit=1
+    fi
+    # The FAIL lines count on their own. An assert.sh that never reaches
+    # skill_eval_finish exits 0 with its failures printed, and grading on the
+    # exit status alone reported that as PASS.
+    if grep -q '^FAIL' "$artifacts/assert.log"; then
       assert_exit=1
     fi
     # A run where `claude -p` itself failed (budget, auth, turn limit) is not a
