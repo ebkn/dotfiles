@@ -1,0 +1,344 @@
+#!/bin/bash
+#
+# assert.test.sh — pins the graders of every review-test eval case, without
+# calling the API.
+#
+# A grader is an instrument, and an inert one reports a paid, non-deterministic
+# eval run that measured nothing. So for each case this builds the fixture its
+# scaffold.sh builds, hands the grader a synthetic transcript of a good run and
+# checks that it passes, then breaks one thing at a time and checks that the
+# matching assertion FAILs and the grader exits non-zero.
+#
+# The synthetic transcripts carry what a real one carries besides the model's
+# own words: the body of SKILL.md, which the Skill tool loads into the
+# conversation. That body holds the report template ("## Test review: ..."), so
+# any check that searches the whole transcript for the heading finds it there
+# whether or not a report was ever written.
+#
+# check_llm is graded by a stub judge that fails exactly when the text it was
+# handed contains JUDGE_FAIL. What that pins is the wiring -- each judged check
+# reads the text it claims to read -- not the rubric, which only a real run can
+# exercise.
+#
+# Written for bash 3.2 (macOS) and run on Linux in CI.
+set -uo pipefail
+
+cd "$(dirname "$(readlink -f "$0")")" || exit 1
+evals_dir="$PWD"
+repo_root="$(cd "$evals_dir/../../../../.." && pwd)"
+
+fails=0
+ok() { printf 'ok   %s\n' "$1"; }
+bad() {
+  printf 'FAIL %s\n' "$1"
+  fails=$((fails + 1))
+}
+
+root_dir="$(mktemp -d)"
+trap 'rm -rf "$root_dir"' EXIT
+
+judge="$root_dir/judge"
+cat >"$judge" <<'JUDGE'
+#!/bin/bash
+input="$(cat)"
+case "$input" in
+  *JUDGE_FAIL*) pass=false ;;
+  *) pass=true ;;
+esac
+printf '{"structured_output":{"pass":%s,"reason":"stub"},"total_cost_usd":0}\n' "$pass"
+JUDGE
+chmod +x "$judge"
+
+# --- transcript records, in the stream-json shape the helpers read ---
+rec_init() { printf '{"type":"system","subtype":"init"}\n'; }
+rec_text() { jq -nc --arg t "$1" '{type: "assistant", message: {content: [{type: "text", text: $t}]}}'; }
+rec_tool() { jq -nc --arg n "$1" --argjson i "$2" '{type: "assistant", message: {content: [{type: "tool_use", name: $n, input: $i}]}}'; }
+rec_bash() { rec_tool Bash "$(jq -nc --arg c "$1" '{command: $c}')"; }
+rec_edit() { rec_tool "$1" "$(jq -nc --arg p "$2" '{file_path: $p}')"; }
+rec_skill() {
+  rec_tool Skill '{"skill":"review-test"}'
+  # What the Skill tool brings back: the skill's own body, report template
+  # included. Not the model's words, so it must never count as a report.
+  jq -nc --rawfile body "$repo_root/root/.agents/skills/review-test/SKILL.md" \
+    '{type: "user", message: {content: [{type: "tool_result", content: $body}]}}'
+}
+
+report='## テストレビュー: lib/quantity.test.sh
+
+### P1 (Critical)
+- parse_quantity の拒否（空・数値以外・負数で status 1、stderr のメッセージ）がテストされていない'
+
+# --- running one scenario ---
+# new_run <case>: the fixture its scaffold builds, an empty transcript.
+new_run() {
+  case_name="$1"
+  work="$root_dir/work"
+  art="$root_dir/art"
+  rm -rf "$work" "$art"
+  mkdir -p "$work" "$art"
+  (
+    cd "$work" || exit 1
+    SKILL_EVAL_LIB_DIR="$repo_root/bin" SKILL_EVAL_REPO_ROOT="$repo_root" \
+      bash "$evals_dir/$case_name/scaffold.sh"
+    printf '.claude/\nbin/\n' >>.git/info/exclude
+  ) || return 1
+  rec_init >"$art/transcript.jsonl"
+}
+
+# in_work <command>: change the fixture the way the run under test did.
+in_work() {
+  (
+    cd "$work" || exit 1
+    # shellcheck source=./lib.sh
+    . "$evals_dir/lib.sh"
+    eval "$1"
+  ) >/dev/null 2>&1
+}
+
+# A suite that fails. An assertion is changed rather than an `exit 1` appended:
+# the file already ends in `exit "$fails"`, so anything after it never runs.
+# shellcheck disable=SC2016  # expanded later, inside in_work
+break_a_test='sed "s/\"parses a plain number\" \"12.5\"/\"parses a plain number\" \"99\"/" lib/quantity.test.sh >lib/t.tmp; mv lib/t.tmp lib/quantity.test.sh'
+
+# grade <final response>
+grade() {
+  jq -nc --arg r "$1" '{type: "result", result: $r, permission_denials: []}' >"$art/result.json"
+  out="$(
+    cd "$work" || exit 1
+    SKILL_EVAL_LIB_DIR="$repo_root/bin" \
+      SKILL_EVAL_REPO_ROOT="$repo_root" \
+      SKILL_EVAL_TRANSCRIPT="$art/transcript.jsonl" \
+      SKILL_EVAL_RESULT_FILE="$art/result.json" \
+      SKILL_EVAL_CLAUDE_BIN="$judge" \
+      bash "$evals_dir/$case_name/assert.sh" 2>&1
+  )"
+  status=$?
+}
+
+expect_pass() {
+  if [ "$status" -eq 0 ] && ! grep -q '^FAIL' <<<"$out"; then
+    ok "$1"
+  else
+    bad "$1"
+    grep '^FAIL' <<<"$out" | sed 's/^/       /'
+  fi
+}
+
+# expect_fail <label> <the assertion that must FAIL>
+# Both halves: the FAIL line is for a human reading assert.log, the status is
+# what the runner grades on.
+expect_fail() {
+  if grep -qF "FAIL  $2" <<<"$out"; then
+    ok "$1"
+  else
+    bad "$1 (expected FAIL: $2)"
+    grep '^FAIL' <<<"$out" | sed 's/^/       got: /'
+  fi
+  if [ "$status" -eq 0 ]; then
+    bad "$1 — the grader printed FAIL but exited 0"
+  fi
+}
+
+# ============================================================
+# gaps-in-error-contract
+# ============================================================
+# A good run: the skill loads, reads, reports the untested refusals; the
+# caller then fixes the tests and commits.
+#   gaps_run <records before the report> <report> <records after> <tree change>
+gaps_run() {
+  new_run gaps-in-error-contract || return 1
+  {
+    rec_skill
+    rec_edit Read lib/quantity.test.sh
+    eval "$1"
+    [ -z "$2" ] || rec_text "$2"
+    eval "$3"
+  } >>"$art/transcript.jsonl"
+  in_work "$4"
+}
+gaps_after='rec_edit Edit lib/quantity.test.sh; rec_bash ./run-tests.sh; rec_bash "git add lib/quantity.test.sh"; rec_bash "git commit -m test"'
+gaps_fix='review_test_write_thorough_test; git add -A; git commit -q -m "test: cover the refusals"'
+
+gaps_run '' "$report" "$gaps_after" "$gaps_fix"
+grade "P1 を直してコミットしました。"
+expect_pass "gaps: a good run passes every assertion"
+
+# The heading lives in the SKILL.md the Skill tool loaded. A run that never
+# wrote a report must still fail.
+gaps_run '' '' "$gaps_after" "$gaps_fix"
+grade "テストを直しました。"
+expect_fail "gaps: a heading only in the loaded SKILL.md is not a report" \
+  "reports under a test-review heading"
+
+# A sentence announcing the review is not the review. Counted as one, it moves
+# the line "nothing written before the report" to before the write.
+gaps_run 'rec_text "テストレビューを始めます。"; rec_edit Edit lib/quantity.test.sh' "$report" "$gaps_after" "$gaps_fix"
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: a preamble naming the review does not count as the report" \
+  "wrote nothing before the review was reported"
+
+gaps_run 'rec_edit Edit lib/quantity.test.sh' "$report" "$gaps_after" "$gaps_fix"
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: an Edit before the report is caught" \
+  "wrote nothing before the review was reported"
+
+gaps_run 'rec_edit Write lib/quantity.test.sh' "$report" "$gaps_after" "$gaps_fix"
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: a Write before the report is caught" \
+  "wrote nothing before the review was reported"
+
+gaps_run 'rec_bash "git log --oneline"' "$report" "$gaps_after" "$gaps_fix"
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: git before the report is caught" \
+  "ran no git before the review was reported"
+
+gaps_run '' "$report" '' ''
+grade "P1 があります。"
+expect_fail "gaps: a review that fixes nothing is caught" \
+  "changed the test file"
+
+gaps_run '' "$report" "$gaps_after" "$break_a_test"'; git add -A; git commit -q -m broken'
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: a fix that breaks the suite is caught" \
+  "the tests still pass afterwards"
+
+gaps_run '' "$report" "$gaps_after" 'review_test_write_thorough_test'
+grade "P1 を直しました。"
+expect_fail "gaps: a fix left uncommitted is caught" \
+  "committed the result"
+
+gaps_run '' "$report" "$gaps_after" "$gaps_fix"' ; printf "# touched\n" >>lib/quantity.sh; git add -A; git commit -q -m impl'
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: a changed implementation is caught" \
+  "left the implementation untouched"
+
+gaps_run '' "$report" "$gaps_after" "$gaps_fix"
+grade "JUDGE_FAIL"
+expect_fail "gaps: the P1 judge reads the final response" \
+  "P1 names the untested error contract"
+
+gaps_run '' "$report" "$gaps_after" "$gaps_fix"'; printf "# JUDGE_FAIL\n" >>lib/quantity.test.sh; git add -A; git commit -q -m mark'
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: the fixed-tests judge reads the test file" \
+  "the fixed tests exercise the failure behaviour"
+
+# ============================================================
+# well-tested-no-false-p1
+# ============================================================
+#   well_run <records before the report> <report> <tree change>
+well_run() {
+  new_run well-tested-no-false-p1 || return 1
+  {
+    rec_skill
+    rec_edit Read lib/quantity.test.sh
+    eval "$1"
+    [ -z "$2" ] || rec_text "$2"
+  } >>"$art/transcript.jsonl"
+  in_work "$3"
+}
+well_report='## テストレビュー: lib/quantity.test.sh
+
+P1 に該当する指摘はありません。'
+
+well_run '' "$well_report" ''
+grade "$well_report"
+expect_pass "well-tested: a good run passes every assertion"
+
+well_run '' '' ''
+grade "問題ありません。"
+expect_fail "well-tested: a heading only in the loaded SKILL.md is not a report" \
+  "reports under a test-review heading"
+
+well_run 'rec_edit Write lib/extra.test.sh' "$well_report" ''
+grade "$well_report"
+expect_fail "well-tested: a Write before the report is caught" \
+  "wrote nothing before the review was reported"
+
+well_run '' "$well_report" 'printf "# touched\n" >>lib/quantity.sh'
+grade "$well_report"
+expect_fail "well-tested: a changed implementation is caught" \
+  "left the implementation untouched"
+
+well_run '' "$well_report" "$break_a_test"
+grade "$well_report"
+expect_fail "well-tested: a broken suite is caught" \
+  "the tests still pass afterwards"
+
+well_run '' "$well_report" ''
+grade "JUDGE_FAIL"
+expect_fail "well-tested: the no-P1 judge reads the final response" \
+  "raises no P1 against tests that cover the contract"
+
+# ============================================================
+# proactive-after-writing-tests
+# ============================================================
+# A good run: the tests are written and pass, the skill starts on its own,
+# reports, and the result is committed afterwards.
+#   proactive_run <records before the report> <report> <tree change> [<skill starts>]
+proactive_run() {
+  local starts="${4:-1}" i
+  new_run proactive-after-writing-tests || return 1
+  {
+    rec_edit Write lib/quantity.test.sh
+    rec_bash ./run-tests.sh
+    for ((i = 0; i < starts; i++)); do rec_skill; done
+    eval "$1"
+    [ -z "$2" ] || rec_text "$2"
+    rec_bash "git add lib/quantity.test.sh"
+    rec_bash "git commit -m test"
+  } >>"$art/transcript.jsonl"
+  in_work "$3"
+}
+proactive_write='review_test_write_thorough_test; git add -A; git commit -q -m "test: add quantity tests"'
+proactive_final="テストを書き、レビューの P1・P2 はありませんでした。コミット済みです。"
+
+proactive_run '' "$well_report" "$proactive_write"
+grade "$proactive_final"
+expect_pass "proactive: a good run passes every assertion"
+
+proactive_run '' "$well_report" "$proactive_write" 0
+grade "$proactive_final"
+expect_fail "proactive: a run that never starts the skill is caught" \
+  "started review-test without being asked"
+
+proactive_run '' "$well_report" "$proactive_write" 5
+grade "$proactive_final"
+expect_fail "proactive: a review loop past its cap is caught" \
+  "kept the review loop within its cap of four"
+
+proactive_run '' '' "$proactive_write"
+grade "$proactive_final"
+expect_fail "proactive: a heading only in the loaded SKILL.md is not a report" \
+  "reports under a test-review heading"
+
+proactive_run '' "$well_report" ''
+grade "$proactive_final"
+expect_fail "proactive: a run that wrote no test file is caught" \
+  "wrote a test file for lib/quantity.sh"
+
+proactive_run '' "$well_report" 'review_test_write_thorough_test'
+grade "$proactive_final"
+expect_fail "proactive: tests left uncommitted are caught" \
+  "committed the result"
+
+proactive_run '' "$well_report" "$proactive_write"'; printf "# touched\n" >>lib/quantity.sh; git add -A; git commit -q -m impl'
+grade "$proactive_final"
+expect_fail "proactive: a changed implementation is caught" \
+  "left the implementation untouched"
+
+proactive_run 'rec_bash "git status"' "$well_report" "$proactive_write"
+grade "$proactive_final"
+expect_fail "proactive: git before the report is caught" \
+  "ran no git before the review was reported"
+
+proactive_run '' "$well_report" "$proactive_write"
+grade "JUDGE_FAIL"
+expect_fail "proactive: the P1/P2 judge reads the final response" \
+  "reaches a conclusion about P1 and P2"
+
+if [ "$fails" -eq 0 ]; then
+  printf '\nall review-test grader tests passed\n'
+  exit 0
+fi
+printf '\n%d review-test grader test(s) failed\n' "$fails"
+exit 1

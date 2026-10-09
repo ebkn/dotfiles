@@ -145,6 +145,12 @@ jobs:
       - name: init-project swift case grader
         run: bash root/.agents/skills/init-project/evals/swift-makefile-entry-point/assert.test.sh
 
+      # The graders of every review-test case, against synthetic transcripts and
+      # a stub judge. Its first run found the report heading matched in the
+      # SKILL.md body the Skill tool loads, so the check could not fail.
+      - name: review-test case graders
+        run: bash root/.agents/skills/review-test/evals/assert.test.sh
+
       # zsh is needed by the zsh unit tests below and does not ship with the
       # runner image.
       - name: Install zsh

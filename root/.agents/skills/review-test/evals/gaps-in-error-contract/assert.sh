@@ -3,13 +3,14 @@ set -eo pipefail
 
 # shellcheck source=../../../../../../bin/skill-eval-assert.sh
 source "$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh"
+# shellcheck source=../grading.sh
+source "$SKILL_EVAL_REPO_ROOT/root/.agents/skills/review-test/evals/grading.sh"
 
 result="$(transcript_result_text)"
-report_heading='テストレビュー|[Tt]est review'
-report_at="$(transcript_first_text_index "$report_heading")"
+report_at="$(review_test_report_index)"
 
 # --- the finding this case exists for ---
-check_match "reports under a test-review heading" "$report_heading" "$(cat "$SKILL_EVAL_TRANSCRIPT")"
+check "reports under a test-review heading" test -n "$report_at"
 check_llm "P1 names the untested error contract" \
   'The text reports a test review and lists, as P1, that the failure behaviour of parse_quantity or sum_quantities is untested -- rejecting empty, non-numeric or negative input, the non-zero exit status, the message on stderr, or the promise of no partial sum. It fails if the review raises no P1 at all, or if its P1 items are only about naming, structure or style.' \
   "$result"

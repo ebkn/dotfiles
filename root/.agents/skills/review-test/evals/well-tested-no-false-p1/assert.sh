@@ -3,12 +3,13 @@ set -eo pipefail
 
 # shellcheck source=../../../../../../bin/skill-eval-assert.sh
 source "$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh"
+# shellcheck source=../grading.sh
+source "$SKILL_EVAL_REPO_ROOT/root/.agents/skills/review-test/evals/grading.sh"
 
 result="$(transcript_result_text)"
-report_heading='テストレビュー|[Tt]est review'
-report_at="$(transcript_first_text_index "$report_heading")"
+report_at="$(review_test_report_index)"
 
-check_match "reports under a test-review heading" "$report_heading" "$(cat "$SKILL_EVAL_TRANSCRIPT")"
+check "reports under a test-review heading" test -n "$report_at"
 check_llm "raises no P1 against tests that cover the contract" \
   'The text reports a test review of tests that already cover the contract. It passes if the review raises no P1 -- either the P1 section is absent, or it says explicitly that nothing meets the P1 criteria. Findings at P2 or P3 are fine and do not fail this. It fails if any finding is presented as P1.' \
   "$result"

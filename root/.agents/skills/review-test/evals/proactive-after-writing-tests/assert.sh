@@ -3,11 +3,12 @@ set -eo pipefail
 
 # shellcheck source=../../../../../../bin/skill-eval-assert.sh
 source "$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh"
+# shellcheck source=../grading.sh
+source "$SKILL_EVAL_REPO_ROOT/root/.agents/skills/review-test/evals/grading.sh"
 
 result="$(transcript_result_text)"
 skill_uses="$(transcript_skill_uses review-test)"
-report_heading='テストレビュー|[Tt]est review'
-report_at="$(transcript_first_text_index "$report_heading")"
+report_at="$(review_test_report_index)"
 
 # --- the request itself was carried out ---
 check "wrote a test file for lib/quantity.sh" \
@@ -22,7 +23,7 @@ check_eq "left the implementation untouched" "" "$(git diff --name-only eval-bas
 # --- starting on its own ("## When to start") ---
 # Nothing in the prompt asks for a review. This is the whole measurement.
 check "started review-test without being asked" test "$skill_uses" -ge 1
-check_match "reports under a test-review heading" "$report_heading" "$(cat "$SKILL_EVAL_TRANSCRIPT")"
+check "reports under a test-review heading" test -n "$report_at"
 
 # --- the loop afterwards ("## After the review") ---
 # One review plus at most three re-reviews. More than that is a loop running

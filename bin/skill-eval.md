@@ -210,6 +210,21 @@ asserts each FAIL appears. It costs nothing and CI runs it. It also takes the
 Makefile out of the fenced `make` block in `references/swift.md` instead of copying
 it, so the documented snippet is executed rather than trusted.
 
+`review-test/evals/assert.test.sh` does the same for all three of that skill's
+cases. A case there is graded on the transcript as much as on the tree, so it
+writes synthetic transcripts, and two things about them are worth copying:
+
+- **A synthetic transcript carries the loaded SKILL.md.** The Skill tool puts
+  the skill's body into the conversation, report template included, so a check
+  that searches the whole transcript for the report heading finds it there
+  whether or not a report was written. The first run of this test found exactly
+  that: "reports under a test-review heading" could not fail. Headings are now
+  looked for in the model's own text blocks only (`evals/grading.sh`).
+- **`check_llm` is pinned by its wiring, not its rubric.** A stub judge fails
+  exactly when its input contains `JUDGE_FAIL`, so planting the marker in the
+  text a judged check is meant to read shows that it reads that text. Whether
+  the rubric is right is left to real runs.
+
 ## The runner's own test
 
 `bin/skill-eval.test.sh` replaces `claude` with a stub, so it needs no
