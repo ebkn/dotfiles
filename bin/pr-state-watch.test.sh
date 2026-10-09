@@ -458,6 +458,50 @@ eq 'the conflict is queued' 'yes' \
   "$([ -f "$STATE/jobs/acme__widget__42__conflict.json" ] && echo yes || echo no)"
 eq 'and the CI failure waits for it' 'no' "$([ -f "$CIJOB" ] && echo yes || echo no)"
 
+echo "-- a PR whose mergeability is UNKNOWN gets no CI job yet, and waits as one PR --"
+# UNKNOWN is the answer GitHub gives seconds before CONFLICTING, so treating it
+# as "not conflicting" queues exactly the CI job the case above withholds, one
+# pass early. It waits a pass instead, as the conflict half does, and the wait
+# counts the PR once rather than once per half.
+STATE="$TMP/state-ci8u"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs UNKNOWN false head1 feature/x "[$(check lint COMPLETED FAILURE)]"
+out=$(run)
+eq 'no CI job while mergeability is unknown' 'no' "$([ -f "$CIJOB" ] && echo yes || echo no)"
+has 'the pass says it is waiting on the PR' "$out" 'waiting on 1 PR(s)'
+prs UNKNOWN false head1 feature/x "[$(check lint COMPLETED FAILURE),$(check build IN_PROGRESS '')]"
+out=$(run)
+has 'unknown and still running is still one PR' "$out" 'waiting on 1 PR(s)'
+prs MERGEABLE false head1 feature/x "[$(check lint COMPLETED FAILURE)]"
+out=$(run)
+has 'and the failure is queued once it turns out mergeable' "$out" 'queue acme/widget#42: checks failing'
+eq 'at the head it was seen at' 'head1' "$(cijob .ciHead)"
+
+echo "-- an UNKNOWN pass does not re-announce a failure at a new head either --"
+# The likelier way to meet UNKNOWN: a push makes GitHub recompute mergeability,
+# so the first pass after a red push asks while the answer is not in yet.
+STATE="$TMP/state-ci8v"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs MERGEABLE false head1 feature/x "[$(check lint COMPLETED FAILURE)]"
+run >/dev/null
+prs UNKNOWN false head2 feature/x "[$(check lint COMPLETED FAILURE)]"
+out=$(run)
+eq 'a red push is not re-announced while mergeability is unknown' '' \
+  "$(printf '%s' "$out" | grep '^queue' || true)"
+eq 'and the job keeps the old head' 'head1' "$(cijob .ciHead)"
+prs MERGEABLE false head2 feature/x "[$(check lint COMPLETED FAILURE)]"
+out=$(run)
+has 'it is re-announced once it turns out mergeable' "$out" 'queue acme/widget#42: checks failing'
+
+echo "-- checks going green are withdrawn even while mergeability is unknown --"
+# Only queueing waits for the answer. No answer to come would make a passing
+# check worth delivering, and an undelivered red left in the queue for another
+# pass is delivered to a session the moment one appears.
+prs UNKNOWN false head2 feature/x "[$(check lint COMPLETED SUCCESS)]"
+run >/dev/null
+eq 'the job is resolved' 'resolved' "$(cijob .status)"
+eq 'and nothing is left owed' '0' "$(cijob '.pending|length')"
+
 echo "-- a PR with no checks at all is not a failure --"
 STATE="$TMP/state-ci9"
 CIJOB="$STATE/jobs/acme__widget__42__ci.json"

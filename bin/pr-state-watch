@@ -234,16 +234,24 @@ while IFS= read -r repo; do
         RUNNING)
           # The third answer, exactly as UNKNOWN is for mergeability. Announcing
           # on the first red while others are still running means announcing
-          # again for every one that lands after it.
-          waiting=$((waiting + 1))
+          # again for every one that lands after it. An UNKNOWN PR is counted
+          # by the mergeability half instead, so it is one PR waiting, not two.
+          [ "$mergeable" = UNKNOWN ] || waiting=$((waiting + 1))
           ;;
         FAIL)
+          # Not while UNKNOWN: that is the answer GitHub gives seconds before
+          # CONFLICTING, so reading it as "not conflicting" queued the very job
+          # the rule above withholds. The mergeability half counts the PR as
+          # waiting. Only queueing waits -- green checks below still withdraw a
+          # job under UNKNOWN, as under MERGEABLE: no answer to come would make
+          # a passing check worth delivering.
+          #
           # Same idempotence key as the conflict half: the head oid. Told once
           # per push, and told AGAIN when a push does not fix it -- which is
           # when it needs saying twice. Whether a failure is a flake is a
           # judgement that needs the log, so it is the session's to make, not
           # this program's.
-          if [ -n "$worktree" ] &&
+          if [ "$mergeable" != UNKNOWN ] && [ -n "$worktree" ] &&
             { [ ! -f "$ci_job" ] || [ "$(jq -r '.ciHead // ""' "$ci_job")" != "$head" ]; }; then
             failed=$(printf '%s' "$prs" | jq -c --argjson n "$pr" '
               def checkstate:

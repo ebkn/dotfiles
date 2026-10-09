@@ -123,7 +123,16 @@ every push, so counting it would queue a job for the act of pushing twice.
 **A `CONFLICTING` PR gets no CI job.** The merge is about to replace the tree the
 checks ran against, so fixing them first is work against a head that will not
 survive. The conflict is announced, and the next pass re-evaluates CI on the new
-head.
+head. **Nor, yet, does an `UNKNOWN` one**: it is the answer GitHub gives seconds
+before `CONFLICTING`, so treating it as "not conflicting" queued exactly that job
+one pass early — most often right after a red push, which is what makes GitHub
+recompute. The PR counts as waiting, once, and the next pass decides. Only
+queueing waits: checks gone green still withdraw an undelivered CI job under
+`UNKNOWN`, as under `MERGEABLE`, since no answer to come would make a passing
+check worth delivering. (Under `CONFLICTING` the whole CI half is skipped, so
+there it is not withdrawn.) The cost is that a PR stuck at
+`UNKNOWN` for several passes holds its red check back that long, and the summary
+line does not say which of its two causes it is waiting on.
 
 ### Drafts are included in both halves
 
@@ -314,7 +323,9 @@ request shape above is assertable.
 The cases that earn their keep are the state machine, not the parsing:
 
 - the same conflict is **not** re-queued on the next pass, and a new head **is**;
-- `UNKNOWN` neither clears a real conflict nor invents one;
+- `UNKNOWN` neither clears a real conflict nor invents one, gives a red check no
+  CI job — first or re-announced — until a pass says whether the PR conflicts,
+  and still withdraws one whose checks went green;
 - becoming mergeable withdraws an undelivered job;
 - `--pr` on a repo with two conflicting PRs touches only the one asked for — a
   filter that quietly matches everything is this pipeline's signature bug;
