@@ -30,19 +30,26 @@ set -euo pipefail
 # it outright when the test fails, so these stay as if-statements.
 show_all=0
 force_cols=""
+usage() {
+  printf 'usage: %s [--all] [--width N]\n' "${0##*/}" >&2
+  exit 2
+}
 while [ $# -gt 0 ]; do
   case "$1" in
     --all) show_all=1 ;;
     # Pretend the popup is this wide. Exists so the column packing can be
-    # verified without a pty -- bin/tmux-conf.test.sh (section 4) does this.
+    # verified without a pty -- bin/tmux-conf.test.sh (section 4) does this. A
+    # missing value used to fall through to the loop's own `shift`, which
+    # failed under `set -e` and exited 1 with nothing said; a non-number reached
+    # awk as width 0 and quietly packed one column.
     --width)
+      case "${2:-}" in
+        '' | *[!0-9]*) usage ;;
+      esac
+      force_cols=$2
       shift
-      force_cols="${1:-}"
       ;;
-    *)
-      printf 'usage: %s [--all] [--width N]\n' "${0##*/}" >&2
-      exit 2
-      ;;
+    *) usage ;;
   esac
   shift
 done
