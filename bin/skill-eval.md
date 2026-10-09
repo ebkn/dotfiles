@@ -216,10 +216,13 @@ writes synthetic transcripts, and two things about them are worth copying:
 
 - **A synthetic transcript carries the loaded SKILL.md.** The Skill tool puts
   the skill's body into the conversation, report template included, so a check
-  that searches the whole transcript for the report heading finds it there
-  whether or not a report was written. The first run of this test found exactly
-  that: "reports under a test-review heading" could not fail. Headings are now
-  looked for in the model's own text blocks only (`evals/grading.sh`).
+  that searched the whole transcript for the report heading would find it
+  whether or not a report was written. "reports under a test-review heading"
+  did exactly that, and also counted any mention of a test review, a preamble
+  included. Headings are now looked for in the model's own text blocks only,
+  and need the colon (`evals/grading.sh`). The record's shape is taken from
+  Claude Code's session log; whether stream-json emits it has not been checked
+  against a real run, and the controls do not depend on it.
 - **`check_llm` is pinned by its wiring, not its rubric.** A stub judge fails
   exactly when its input contains `JUDGE_FAIL`, so planting the marker in the
   text a judged check is meant to read shows that it reads that text. Whether
