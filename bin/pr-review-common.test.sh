@@ -189,5 +189,56 @@ bg=$(jq -n --arg r "$REPO" '[
 eq 'a background session is not a delivery target' 'none' \
   "$(sid "$bg" "$REPO/git-worktrees/a" "$WTS2")"
 
+echo
+echo "== repo_path =="
+# ghq is stubbed: it prints $GHQ_OUT whatever it is asked, which is all
+# repo_path reads from it. The extra-repos half is the only route by which this
+# repo's own PRs (~/dotfiles, outside ghq) reach a checkout, and both detector
+# suites run with it empty -- so it is pinned here, against real git remotes.
+mkdir -p "$TMP/stub"
+printf '#!/bin/sh\nprintf "%%s\\n" "$GHQ_OUT"\n' >"$TMP/stub/ghq"
+chmod +x "$TMP/stub/ghq"
+PATH="$TMP/stub:$PATH"
+export GHQ_OUT=""
+
+mkrepo() { # <dir> <origin url>
+  git init -q "$1"
+  git -C "$1" remote add origin "$2"
+}
+mkrepo "$TMP/x/ssh" "git@github.com:acme/widget.git"
+mkrepo "$TMP/x/https" "https://github.com/acme/gadget"
+mkrepo "$TMP/x/lookalike" "git@github.com:notacme/thing.git"
+mkdir -p "$TMP/ghq/acme/tool"
+
+rp() { # rp <owner/name> <extra>: the path, or "none" with a non-zero status
+  local out
+  if out=$(repo_path "$1" "$2"); then printf '%s' "$out"; else printf 'none'; fi
+}
+
+GHQ_OUT="$TMP/ghq/acme/tool"
+eq 'a ghq checkout is found' "$TMP/ghq/acme/tool" "$(rp acme/tool "")"
+GHQ_OUT="$TMP/ghq/gone"
+eq 'a ghq answer that is not a directory falls through to the extra repos' \
+  "$TMP/x/ssh" "$(rp acme/widget "$TMP/x/ssh")"
+GHQ_OUT=""
+eq 'an extra repo is matched on an ssh origin' "$TMP/x/ssh" \
+  "$(rp acme/widget "$TMP/missing:$TMP/x/https:$TMP/x/ssh")"
+eq 'an extra repo is matched on an https origin without .git' "$TMP/x/https" \
+  "$(rp acme/gadget "$TMP/x/ssh:$TMP/x/https")"
+eq 'nothing anywhere is a non-zero exit' 'none' "$(rp acme/absent "$TMP/x/ssh:$TMP/x/https")"
+
+echo
+echo "== worktree_for_branch =="
+wfb() { # wfb <repo> <branch>: the path, or "none" with a non-zero status
+  local out
+  if out=$(worktree_for_branch "$1" "$2"); then printf '%s' "$out"; else printf 'none'; fi
+}
+main_branch=$(git -C "$REPO" symbolic-ref --short HEAD)
+eq 'the main checkout holds its own branch' "$REPO" "$(wfb "$REPO" "$main_branch")"
+eq 'a nested worktree holds its branch' "$REPO/git-worktrees/a" "$(wfb "$REPO" feat-a)"
+eq 'a branch name that is a prefix of another is not that branch' 'none' "$(wfb "$REPO" feat)"
+eq 'a branch checked out nowhere is a non-zero exit' 'none' "$(wfb "$REPO" no-such-branch)"
+eq 'a directory that is not a repository is a non-zero exit' 'none' "$(wfb "$TMP/stub" feat-a)"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
