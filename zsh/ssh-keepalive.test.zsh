@@ -205,6 +205,28 @@ check 'killing the supervisor takes its ping with it' 'gone' "$(wait_gone "$png"
 _ssh_keepalive_stop
 kill "$o1"
 
+# --- the OS sweeps the state dir --------------------------------------------
+# macOS's dirhelper deletes $TMPDIR files older than 3 days (daily, 03:35), and
+# connections here outlive that. An owner file swept from under a live
+# connection would read as "no owner left" and stop its ping; a swept lock
+# would let the next connection start a second one. The sweep is emulated
+# with find on mtime: files are aged, the supervisor gets a few polls, and
+# whatever is still old is deleted.
+case_file sweep
+o1=$(owner)
+_ssh_keepalive_start 10.0.0.9 "$o1"
+png=$(first_ping)
+touch -t 202001010000 "$_SSH_KEEPALIVE_OWNER"
+touch -h -t 202001010000 "$_SSH_KEEPALIVE_DIR/10.0.0.9.lock"
+sleep 1
+find "$_SSH_KEEPALIVE_DIR" -mtime +3 -delete
+check 'a sweep of old files keeps a live connection'"'"'s ping' 'alive' "$(sleep 1; alive "$png")"
+o2=$(owner)
+_ssh_keepalive_start 10.0.0.9 "$o2"
+check 'and still blocks a second one' '1' "$(settled_pings 1)"
+_ssh_keepalive_stop
+kill "$o1" "$o2"
+
 # --- the shared state cannot be created -------------------------------------
 # A best-effort extra must never get in the way of the connection: no message
 # on the terminal myssh is about to hand to ssh, and no half-registered owner.

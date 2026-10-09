@@ -166,8 +166,10 @@ ssh() {
 # registered in between saw the lock still held and left the ping to it, so
 # either that supervisor re-takes the lock or the newcomer's own candidate
 # does. That ordering is what rules out a session with no ping; the lock rules
-# out two pings. One gap is accepted: two newcomers both clearing the same
-# stale lock can each end up pinging, until their owners leave.
+# out two pings. Two gaps are accepted: two newcomers both clearing the same
+# stale lock can each end up pinging, until their owners leave; and a stale
+# lock whose pid has been reused reads as held, leaving that host unpinged
+# until the process now holding the pid exits.
 #
 # The interval and the directory are variables so the tests do not have to
 # sleep for real seconds or share state with a live session; nothing else
@@ -251,6 +253,12 @@ _ssh_keepalive_start() {
           _ssh_keepalive_lock_take "$lock" "$me" && continue
         break
       fi
+      # Keep the state young: macOS's dirhelper deletes $TMPDIR files older
+      # than 3 days, and a connection can outlive that. A swept owner file
+      # reads as "nobody left" and stops the ping; a swept lock lets the next
+      # connection start a second one. The dead were pruned just above.
+      touch "$owners"/*(N) 2>/dev/null
+      touch -h "$lock" 2>/dev/null
       sleep "$_SSH_KEEPALIVE_POLL"
     done
     kill $ping_pid 2>/dev/null

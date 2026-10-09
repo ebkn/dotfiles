@@ -104,6 +104,14 @@ Shapes checked by breaking it and confirming red:
 7. an unguarded `mkdir` of the state dir, which prints on every connection when
    the dir cannot be created (that case needs a non-root runner).
 
+**The state lives in `$TMPDIR`, which macOS sweeps.** `com.apple.bsd.dirhelper`
+runs daily at 03:35 with `CLEAN_FILES_OLDER_THAN_DAYS=3`, and connections here
+have run for six days. An owner file swept from under a live connection reads as
+"nobody left" and stops its ping, so the supervisor `touch`es the live owner files
+and its lock every poll. The sweep case emulates dirhelper with `find -mtime +3
+-delete`; whether dirhelper judges by mtime or atime was not checked, and `touch`
+refreshes both.
+
 **Not covered: the supervisor's second look.** A supervisor that finds no owner
 drops the lock and scans once more, for a shell that registered in between and
 left the ping to it. Removing that second scan stays green, because the window is
