@@ -7,10 +7,11 @@
 
 # The report's own heading line ("## Test review: [what was reviewed]" in
 # SKILL.md, translated), not any mention of a test review. Two things it must
-# not match, both found by evals/assert.test.sh:
-# - the template itself, which sits in the transcript as part of the SKILL.md
-#   body the Skill tool loads -- so it is searched for in the model's text
-#   blocks only, never in the transcript as a whole;
+# not match, both pinned by evals/assert.test.sh:
+# - the template itself, which the Skill tool loads into the conversation as
+#   part of the SKILL.md body (whether stream-json carries that record is not
+#   verified) -- so it is searched for in the model's text blocks only, never
+#   in the transcript as a whole;
 # - a preamble such as "テストレビューを始めます", which would move "nothing
 #   written before the report" to before the write. The colon after the title
 #   is what tells the two apart.

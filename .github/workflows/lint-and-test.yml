@@ -146,8 +146,9 @@ jobs:
         run: bash root/.agents/skills/init-project/evals/swift-makefile-entry-point/assert.test.sh
 
       # The graders of every review-test case, against synthetic transcripts and
-      # a stub judge. Its first run found the report heading matched in the
-      # SKILL.md body the Skill tool loads, so the check could not fail.
+      # a stub judge. Its first run found the heading check searching the whole
+      # transcript, loaded SKILL.md included, and counting a preamble as the
+      # report.
       - name: review-test case graders
         run: bash root/.agents/skills/review-test/evals/assert.test.sh
 
