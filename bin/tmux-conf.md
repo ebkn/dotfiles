@@ -153,8 +153,12 @@ throwaway server is now deliberately plugin-free on every machine.** It was not
 before — a real `tpm` loaded the developer's plugins into it while CI, where the
 load failed, had none, so the cheatsheet cases were measuring a different set of
 bindings depending on where they ran. `tagged notes reach the running server`
-compares `server >= file`, which plugins could only pad; with none it sits at
-equality, which is the comparison that was meant.
+therefore compares `server == file`: the tagged notes in the prefix table, as
+`list-keys -N -T prefix` shows them and as the file's non-`-n`, non-`-T` binds
+declare them (23 each). Both of its patterns were once wrong in a way that
+kept it green — the server side counted only lowercase single-letter keys (15)
+and the file side only the four `bind -r -N` lines — so it compared 15 >= 4
+and could not notice a lost note.
 
 What it asserts:
 

@@ -446,11 +446,19 @@ esac
 
 # And the other direction: the notes must actually reach the server. A note that
 # tmux parsed as part of the command instead would pass the grep above.
-noted_on_server=$(tmux -L "$socket" list-keys -N -T prefix 2>/dev/null | grep -cE '^[^ ]+ +[a-z][a-z ]*:')
-noted_in_file=$(grep -cE '^[[:space:]]*(bind|bind-key)[[:space:]].* -N "[a-z]' .tmux.conf)
+#
+# Both sides count the same set: tagged notes in the prefix table. The server
+# lists `C-q <key>  <note>`, any key -- an earlier pattern put [a-z] where the
+# key goes, so it counted only lowercase single-letter keys (15 of 23). The file
+# side skips -n (root) and -T (copy-mode-vi) binds, which list-keys -T prefix
+# never shows; it once needed a space that [[:space:]] had already eaten, so it
+# matched only the four `bind -r -N` lines and the check compared 15 >= 4.
+noted_on_server=$(tmux -L "$socket" list-keys -N -T prefix 2>/dev/null | grep -cE '^[^ ]+ +[^ ]+ +[a-z][a-z ]*:')
+noted_in_file=$(grep -E '^[[:space:]]*(bind|bind-key)[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-N "[a-z]' .tmux.conf |
+  grep -cvE -- ' -(n|T) ')
 if [ "$noted_on_server" -eq 0 ]; then
   fail "tagged notes reach the running server" "list-keys -N -T prefix matched none"
-elif [ "$noted_on_server" -lt "$noted_in_file" ]; then
+elif [ "$noted_on_server" -ne "$noted_in_file" ]; then
   fail "tagged notes reach the running server" \
     "file has $noted_in_file prefix notes, server reports $noted_on_server"
 else
