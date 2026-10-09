@@ -27,8 +27,8 @@ set -u
 DIR=$(mktemp -d)
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 # The caller's PATH, for the relink runs below to prepend their stub to. `unit`
-# changes PATH only inside its subshell, so $PATH would do as well -- but
-# shellcheck cannot tell, and flags every later read of it (SC2031).
+# changes PATH only inside its subshell, so $PATH would do as well -- but the
+# linter cannot tell, and flags every later read of it (SC2031).
 BASE_PATH=$PATH
 fails=0
 trap 'rm -rf "$DIR"' EXIT
