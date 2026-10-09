@@ -9,11 +9,13 @@
 # checks that it passes, then breaks one thing at a time and checks that the
 # matching assertion FAILs and the grader exits non-zero.
 #
-# The synthetic transcripts carry what a real one carries besides the model's
-# own words: the body of SKILL.md, which the Skill tool loads into the
-# conversation. That body holds the report template ("## Test review: ..."), so
-# any check that searches the whole transcript for the heading finds it there
-# whether or not a report was ever written.
+# The synthetic transcripts carry the body of SKILL.md, which the Skill tool
+# loads into the conversation. That body holds the report template ("## Test
+# review: ..."), so a check that searched the whole transcript for the heading
+# would find it whether or not a report was ever written. Whether `claude -p
+# --output-format stream-json` emits that record at all is not verified here;
+# the shape is taken from Claude Code's session log. The controls hold either
+# way, since they need only that the body is not in an assistant record.
 #
 # check_llm is graded by a stub judge that fails exactly when the text it was
 # handed contains JUDGE_FAIL. What that pins is the wiring -- each judged check
@@ -57,10 +59,13 @@ rec_bash() { rec_tool Bash "$(jq -nc --arg c "$1" '{command: $c}')"; }
 rec_edit() { rec_tool "$1" "$(jq -nc --arg p "$2" '{file_path: $p}')"; }
 rec_skill() {
   rec_tool Skill '{"skill":"review-test"}'
-  # What the Skill tool brings back: the skill's own body, report template
-  # included. Not the model's words, so it must never count as a report.
+  # What the Skill tool brings back: a short tool_result, then the skill's own
+  # body as a user text block, report template included -- the shape Claude
+  # Code's session log records. Not the model's words, so it must never count
+  # as a report.
+  jq -nc '{type: "user", message: {content: [{type: "tool_result", content: "Launching skill: review-test"}]}}'
   jq -nc --rawfile body "$repo_root/root/.agents/skills/review-test/SKILL.md" \
-    '{type: "user", message: {content: [{type: "tool_result", content: $body}]}}'
+    '{type: "user", message: {content: [{type: "text", text: $body}]}}'
 }
 
 report='## テストレビュー: lib/quantity.test.sh
@@ -135,7 +140,7 @@ expect_fail() {
     grep '^FAIL' <<<"$out" | sed 's/^/       got: /'
   fi
   if [ "$status" -eq 0 ]; then
-    bad "$1 — the grader printed FAIL but exited 0"
+    bad "$1 — the grader exited 0"
   fi
 }
 
@@ -244,6 +249,20 @@ well_run '' "$well_report" ''
 grade "$well_report"
 expect_pass "well-tested: a good run passes every assertion"
 
+# The forms grading.sh accepts on purpose, because runs vary them. Each one
+# dropped by a "simplified" regex fails a correct report in a paid run.
+for heading in \
+  '## Test review: lib/quantity.test.sh' \
+  '**テストレビュー: lib/quantity.test.sh**' \
+  '## テストレビュー：lib/quantity.test.sh' \
+  'テストを読みました。
+
+## テストレビュー: lib/quantity.test.sh'; do
+  well_run '' "$heading" ''
+  grade "$heading"
+  expect_pass "well-tested: the report heading is found as: ${heading%%$'\n'*}"
+done
+
 well_run '' '' ''
 grade "問題ありません。"
 expect_fail "well-tested: a heading only in the loaded SKILL.md is not a report" \
@@ -301,10 +320,20 @@ grade "$proactive_final"
 expect_fail "proactive: a run that never starts the skill is caught" \
   "started review-test without being asked"
 
+# One review plus three re-reviews is the cap itself, not past it.
+proactive_run '' "$well_report" "$proactive_write" 4
+grade "$proactive_final"
+expect_pass "proactive: a review loop of exactly four passes"
+
 proactive_run '' "$well_report" "$proactive_write" 5
 grade "$proactive_final"
 expect_fail "proactive: a review loop past its cap is caught" \
   "kept the review loop within its cap of four"
+
+proactive_run '' "$well_report" "$proactive_write"'; '"$break_a_test"'; git add -A; git commit -q -m broken'
+grade "$proactive_final"
+expect_fail "proactive: tests it wrote that fail are caught" \
+  "the tests it wrote pass"
 
 proactive_run '' '' "$proactive_write"
 grade "$proactive_final"
