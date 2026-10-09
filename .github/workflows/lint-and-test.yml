@@ -241,6 +241,11 @@ jobs:
       - name: tmux config and cheatsheet
         run: bash bin/tmux-conf.test.sh
 
+      # The cheatsheet's rows against a fixture config: a key column one token
+      # off, or a lost sort, still prints a plausible page.
+      - name: tmux-cheatsheet rows
+        run: bash bin/tmux-cheatsheet.test.sh
+
       # One WezTerm tab means one tmux session; tmux enforces nothing of the
       # sort. Both of these keep that invariant, and both fail silently -- the
       # tab you switched away from starts mirroring another one, minutes later,

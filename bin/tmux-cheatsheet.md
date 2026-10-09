@@ -82,19 +82,36 @@ opens no tmux session and mutates nothing.
 
 ## Testing
 
-Verified by running it against a throwaway tmux server
-(`tmux -L <name> -f ./.tmux.conf new-session -d`), the same isolation
-`agent-state.test.sh` uses, with `TMUX` pointed at that socket and the width
-supplied by `--width N` — a pty is otherwise required, since the real geometry
-comes from `stty`.
-
 **Assert on the rendered grid, not the exit status.** Every failure mode here is
 silent: a `bind` line that lost its `-N` note simply vanishes, a mis-parsed key
 column shows a wrong-but-plausible chord, an awk subscript slip prints nothing at
-all, and a `set -e` slip does the same.
+all, and a `set -e` slip does the same. Two suites split the work, both against
+a real throwaway server with the width supplied by `--width N` (a pty is
+otherwise required, since the real geometry comes from `stty`):
 
-Check a wide width (expect two or three columns, filled in reading order), a narrow one
-(expect one), and `--all`.
+- **`bin/tmux-cheatsheet.test.sh` pins the page**, against a fixture config
+  whose whole page can be written out, padding included: reading order with
+  two unlisted categories last and in name order, verb-then-key order within a
+  group, the prefix shown on prefix rows and dropped on copy-mode ones; at a
+  wide width, whole groups packed down then across into three columns, centred
+  as one block, and the same grid at a width that would allow six; `--all`
+  adding tmux's own notes under `TMUX`; the empty-config message; and a bad
+  command line printing the usage with exit 2. Only the frame's common left
+  margin, its top margin and the closing hint are stripped, since those follow
+  the terminal rather than the fixture. Each rule was mutated and went red,
+  including the `SUBSEP++` slip, per-line centring and per-line packing.
+- **`bin/tmux-conf.test.sh` (section 4) runs it against the real `.tmux.conf`**:
+  every tagged category, and `COPY-MODE` whenever copy-mode-vi bindings carry
+  notes, is a heading standing alone in its column (a substring match found
+  `COPY` inside `COPY-MODE` and let a vanished `copy` group pass); a wide width
+  packs two or three columns, a narrow one exactly one.
+
+**A table holding exactly one noted key lists nothing.** `list-keys -N -T
+<table>` printed an empty result for a table with one noted binding and both
+rows once a second was added (measured on tmux 3.7c, with a custom table and
+with `copy-mode-vi`). The real config has three noted copy-mode keys, so the
+group shows; trim it to one and `COPY-MODE` vanishes from the page with no
+error, through no fault of the script.
 
 Geometry itself cannot be checked this way: confirm it in a real popup with
 `tmux display-popup -E -w 90% -h 70% "sh -c 'stty size >/abs/path'"`.

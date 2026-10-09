@@ -235,7 +235,7 @@ silent.
 | `bin/tmux-agents.test.sh` | [tmux-agents.md](bin/tmux-agents.md) |
 | `bin/tmux-agent-view.test.sh` | [tmux-agent-view.md](bin/tmux-agent-view.md) |
 | `bin/tmux-popup.test.sh`, `bin/tmux-tig.test.sh` | [tmux-popup.md](bin/tmux-popup.md) |
-| `bin/tmux-cheatsheet` | [tmux-cheatsheet.md](bin/tmux-cheatsheet.md) |
+| `bin/tmux-cheatsheet.test.sh` | [tmux-cheatsheet.md](bin/tmux-cheatsheet.md) |
 | `bin/tmux-conf.test.sh` | [tmux-conf.md](bin/tmux-conf.md) |
 | `bin/tmux-pane-titles.test.sh` | [tmux-pane-titles.md](bin/tmux-pane-titles.md) |
 | `bin/tmux-session-swap.test.sh` | [tmux-session-swap.md](bin/tmux-session-swap.md) |
