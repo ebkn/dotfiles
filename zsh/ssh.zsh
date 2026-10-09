@@ -142,7 +142,7 @@ ssh() {
 # The ping must be disowned (&!): as an ordinary job it would announce itself
 # ("[1] 12345") on every connection and report "terminated" on every
 # disconnect. But disowning also puts it out of reach of the SIGHUP a shell
-# sends its jobs on the way out, and myssh's own kill is only reached when
+# sends its jobs on the way out, and myssh's own cleanup is only reached when
 # myssh *returns* — so closing the pane mid-session, or killing the shell, left
 # a ping running at three packets a second with nothing left to stop it.
 #
