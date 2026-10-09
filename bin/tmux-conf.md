@@ -157,12 +157,15 @@ bindings depending on where they ran.
 `tagged notes reach the running server` compares the notes **as a set**: every
 note on a prefix-table `bind` in the file must end a row of `list-keys -N -T
 prefix` (23 today, with a floor of 15). It used to compare counts, and both of
-its patterns were wrong in a way that kept it green — the server side counted
-only lowercase single-letter keys (15) and the file side only the four lines
-where `-N` is not the first flag — so it compared 15 >= 4, and the "equality"
-this paragraph once claimed was never being checked. A count that matched would
-still miss a note mangled on the way in, which is why it is now a set. Plain
-`list-keys -T prefix` prints no notes at all; only `-N` does.
+its patterns were once wrong in a way that kept it green — the server side
+counted only lowercase single-letter keys (15) and the file side only the four
+lines where `-N` is not the first flag — so it compared 15 >= 4, and the
+"equality" this paragraph once claimed was not being checked. Fixing the
+patterns made the counts equal (23 each), but a count that matches still misses
+a note mangled on the way in, which is why it is now a set. The set does not
+see the reverse — a tagged note on the server that the file-side grep never
+collected — beyond the floor. Plain `list-keys -T prefix` prints no notes at
+all; only `-N` does.
 
 What it asserts:
 

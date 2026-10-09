@@ -149,15 +149,13 @@ make_git_stub "$work/empty" 0 ""
 assert_nonzero "an empty git ls-files exits non-zero" "$(run_lint "$work/empty")"
 
 # --- a normal listing checks the files it was given --------------------------
-# bin/init/macos.sh is a real `#!/bin/zsh` script, the case a loosened shebang
-# pattern (`^#!.*sh`) would wrongly hand to shellcheck.
+# bin/init/macos.sh is a real `#!/bin/zsh` script outside zsh/, so only its
+# shebang can route it -- the case a loosened pattern (`^#!.*sh`, or `\bsh\b`
+# matching the `sh` inside `zsh`) would wrongly hand to shellcheck.
 make_stubs "$work/normal"
-# bin/init/macos.sh is `#!/bin/zsh` outside zsh/, so only its shebang can route
-# it -- and `\bsh\b` must not match the `sh` inside `zsh`.
 make_git_stub "$work/normal" 0 "bin/lint-shell
 bin/init/macos.sh
 zsh/alias.zsh
-bin/init/macos.sh
 README.md
 "
 assert_eq "a normal listing exits 0" "0" "$(run_lint "$work/normal")"
