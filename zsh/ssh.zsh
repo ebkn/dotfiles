@@ -135,8 +135,9 @@ ssh() {
 # This client stays on Wi-Fi (it roams to the office), and 802.11 power save
 # lets the radio doze during typing pauses — the first keystroke after a pause
 # pays the wake-up cost, measured at 70-100ms on the home LAN. A low-rate ping
-# (~3 pkt/s, ~400 B/s) for the session's lifetime pins the radio in active mode
-# and keeps Tailscale's UDP NAT mapping warm for away-from-home direct paths.
+# (~3 pkt/s, ~400 B/s) while any connection to the host is open pins the radio
+# in active mode and keeps Tailscale's UDP NAT mapping warm for away-from-home
+# direct paths.
 #
 # The ping must be disowned (&!): as an ordinary job it would announce itself
 # ("[1] 12345") on every connection and report "terminated" on every
@@ -146,42 +147,123 @@ ssh() {
 # a ping running at three packets a second with nothing left to stop it.
 #
 # The supervisor is what bounds it. It is the disowned process; the ping is its
-# child; it wakes every few seconds to check the shell that asked for the
-# keepalive is still alive, and kills the ping when it is not. So a leak now
-# costs at most one poll interval instead of lasting until reboot.
+# child; it wakes every few seconds to check that a shell which asked for the
+# keepalive is still alive, and kills the ping when none is. So a leak costs at
+# most one poll interval instead of lasting until reboot.
 #
-# The interval is a variable so the tests do not have to sleep for real
-# seconds; nothing else should set it.
+# ONE ping per host, not per connection. The radio and the NAT mapping are per
+# host, so a second ping keeps nothing warmer -- and with a myssh per tab, four
+# tabs on one host were running four (~27 packets a second, measured as more
+# traffic than all four terminals together). Connections live in separate
+# shells, so the sharing goes through the filesystem, under $_SSH_KEEPALIVE_DIR:
+#
+#   <host>.owners/<pid>  one file per shell with a connection open to <host>
+#   <host>.lock          symlink to the pid of the supervisor that pings it
+#
+# Every start registers its owner file FIRST and then launches a candidate
+# supervisor, which pings only if it can take the lock. A supervisor that finds
+# no live owner drops the lock and then looks once more: a shell that
+# registered in between saw the lock still held and left the ping to it, so
+# either that supervisor re-takes the lock or the newcomer's own candidate
+# does. That ordering is what rules out a session with no ping; the lock rules
+# out two pings. One gap is accepted: two newcomers both clearing the same
+# stale lock can each end up pinging, until their owners leave.
+#
+# The interval and the directory are variables so the tests do not have to
+# sleep for real seconds or share state with a live session; nothing else
+# should set them.
 : ${_SSH_KEEPALIVE_POLL:=5}
-typeset -g _SSH_KEEPALIVE_PID=""
+: ${_SSH_KEEPALIVE_DIR:=${TMPDIR:-/tmp}/myssh-keepalive-$UID}
+typeset -g _SSH_KEEPALIVE_OWNER=""
+
+# _ssh_keepalive_lock_take <lock> <pid> -- succeed when <pid> now holds <lock>.
+# `ln -s` is the atomic step, and the link's target carries the holder's pid,
+# so there is never a lock whose owner cannot be read. A holder that is no
+# longer running (SIGKILL runs no trap) is stale, and is replaced.
+_ssh_keepalive_lock_take() {
+  local lock=$1 me=$2 holder
+  ln -s "$me" "$lock" 2>/dev/null && return 0
+  holder=$(readlink "$lock" 2>/dev/null)
+  if [ -n "$holder" ]; then
+    kill -0 "$holder" 2>/dev/null && return 1
+    command rm -f "$lock"
+  fi
+  # An empty holder means the lock vanished between the two calls: retry
+  # without the rm, which could otherwise remove a lock someone just took.
+  ln -s "$me" "$lock" 2>/dev/null
+}
+
+# _ssh_keepalive_lock_drop <lock> <pid> -- release <lock> if <pid> holds it.
+_ssh_keepalive_lock_drop() {
+  [ "$(readlink "$1" 2>/dev/null)" = "$2" ] && command rm -f "$1"
+  return 0
+}
+
+# _ssh_keepalive_owners_live <dir> -- succeed when a registered shell is alive.
+# Prunes the dead ones as it goes, so a shell that died without myssh
+# returning stops counting at the next poll.
+_ssh_keepalive_owners_live() {
+  local f live=1
+  for f in "$1"/*(N); do
+    if kill -0 "${f:t}" 2>/dev/null; then
+      live=0
+    else
+      command rm -f "$f"
+    fi
+  done
+  return $live
+}
 
 # _ssh_keepalive_start <target> [owner-pid]
-# Sets _SSH_KEEPALIVE_PID, or leaves it empty when there is nothing to ping.
+# Registers this shell as needing a ping to <target> and makes sure one runs.
+# Sets _SSH_KEEPALIVE_OWNER, or leaves it empty when there is nothing to ping.
 _ssh_keepalive_start() {
   local target=$1 owner=${2:-$$}
-  _SSH_KEEPALIVE_PID=""
+  _SSH_KEEPALIVE_OWNER=""
   [ -n "$target" ] || return 0
   (( $+commands[ping] )) || return 0
 
+  local key=${target//\//_}
+  local lock="$_SSH_KEEPALIVE_DIR/$key.lock"
+  local owners="$_SSH_KEEPALIVE_DIR/$key.owners"
+  mkdir -m 700 -p "$_SSH_KEEPALIVE_DIR" 2>/dev/null || return 0
+  mkdir -p "$owners" 2>/dev/null || return 0
+  : >"$owners/$owner" || return 0
+  _SSH_KEEPALIVE_OWNER="$owners/$owner"
+
   {
+    # $$ in a subshell is still the parent shell's pid; the lock needs this one.
+    zmodload -F zsh/system p:sysparams
+    local me=${sysparams[pid]}
+    _ssh_keepalive_lock_take "$lock" "$me" || exit 0
+
     ping -i 0.3 -q "$target" >/dev/null 2>&1 &
     local ping_pid=$!
-    # The trap covers the ordinary path (myssh kills this supervisor when the
-    # connection ends); the loop covers the shell dying without myssh ever
-    # returning. `sleep` is interruptible, so the trap runs promptly.
-    trap 'kill $ping_pid 2>/dev/null; exit' TERM INT HUP
-    while kill -0 $owner 2>/dev/null && kill -0 $ping_pid 2>/dev/null; do
+    # The trap covers being killed outright; the loop covers every owner
+    # leaving, whether myssh returned or its shell died. `sleep` is
+    # interruptible, so the trap runs promptly.
+    trap 'kill $ping_pid 2>/dev/null; _ssh_keepalive_lock_drop "$lock" "$me"; exit' TERM INT HUP
+    while kill -0 $ping_pid 2>/dev/null; do
+      if ! _ssh_keepalive_owners_live "$owners"; then
+        _ssh_keepalive_lock_drop "$lock" "$me"
+        # The second look described above the variables.
+        _ssh_keepalive_owners_live "$owners" &&
+          _ssh_keepalive_lock_take "$lock" "$me" && continue
+        break
+      fi
       sleep "$_SSH_KEEPALIVE_POLL"
     done
     kill $ping_pid 2>/dev/null
+    _ssh_keepalive_lock_drop "$lock" "$me"
   } >/dev/null 2>&1 &!
-  _SSH_KEEPALIVE_PID=$!
 }
 
+# Unregisters this shell. The supervisor notices at its next poll, and stops
+# the ping only if no other connection to that host remains.
 _ssh_keepalive_stop() {
-  [ -n "$_SSH_KEEPALIVE_PID" ] || return 0
-  kill "$_SSH_KEEPALIVE_PID" 2>/dev/null
-  _SSH_KEEPALIVE_PID=""
+  [ -n "$_SSH_KEEPALIVE_OWNER" ] || return 0
+  command rm -f "$_SSH_KEEPALIVE_OWNER"
+  _SSH_KEEPALIVE_OWNER=""
 }
 
 # myssh: ssh into "my machines" — hosts where tmux + tmux-track-session
@@ -189,8 +271,9 @@ _ssh_keepalive_stop() {
 # remote tmux session. Sets `@ssh_my_machine` on the local pane so tmux
 # bindings (prefix + p/t/o/u) pass the prefix chord through to the nested
 # remote tmux instead of falling back to running the local popup / copy-mode.
-# Runs a low-rate keepalive ping for the session's lifetime to hold this
-# Wi-Fi-first client's radio out of 802.11 power-save doze
+# Shares one low-rate keepalive ping per host, for as long as any connection
+# to it is open, to hold this Wi-Fi-first client's radio out of 802.11
+# power-save doze
 # (see _ssh_keepalive_start above).
 #
 # Falls back to plain `command ssh` without setting `@ssh_my_machine` when:

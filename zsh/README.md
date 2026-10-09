@@ -128,7 +128,7 @@ Pinned by `zsh/update.test.zsh`.
 | `zshenv-autofs.test.zsh` | the `$OSTYPE` guard on the Linuxbrew probe |
 | `ssh-parse-argv.test.zsh` | which argv element is the host — see [ssh.md](ssh.md) |
 | `ssh-decorate.test.zsh` | the pane decoration pair being exact inverses |
-| `ssh-keepalive.test.zsh` | the keepalive ping's lifetime |
+| `ssh-keepalive.test.zsh` | the keepalive ping's lifetime, one per host |
 | `his.test.zsh` | `his()` and `gs()` — see [alias.md](alias.md) |
 | `rm.test.zsh`, `fd.test.zsh` | the two `alias.zsh` wrappers |
 | `git-worktree.test.zsh` | `gw()` and `gdmerged()` — see [git.md](git.md) |

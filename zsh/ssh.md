@@ -47,36 +47,56 @@ captures output cannot reach it through them.
 
 ## ssh-keepalive.test.zsh
 
-Pins the lifetime of the Wi-Fi keepalive ping `myssh` runs.
+Pins the lifetime **and the count** of the Wi-Fi keepalive ping `myssh` runs:
+one ping per host, for as long as any connection to that host is open.
 
 The ping **has** to be disowned (`&!`) or it would print `[1] 12345` on every
 connection and `terminated` on every disconnect — but a disowned job also
 outlives the SIGHUP a shell sends its jobs on the way out, and `myssh`'s own
-`kill` is only reached when `myssh` *returns*. **Closing the pane mid-session
+cleanup is only reached when `myssh` *returns*. **Closing the pane mid-session
 therefore left a ping running at three packets a second until the machine was
 rebooted**, with nothing left anywhere that would stop it.
 
-`_ssh_keepalive_start` now disowns a **supervisor** instead: the ping is its
-child, it wakes every `_SSH_KEEPALIVE_POLL` seconds to check the shell that asked
-for the keepalive is still there, and a `trap` covers the ordinary path where
-`myssh` kills it.
+`_ssh_keepalive_start` disowns a **supervisor** instead: the ping is its child,
+it wakes every `_SSH_KEEPALIVE_POLL` seconds to check that some shell which asked
+for the keepalive is still there, and a `trap` covers it being killed.
 
-**The contract is a lifetime, not an output**, so the test watches **real
-processes** — only `ping` is stubbed (nothing may put packets on the wire from a
-test); the disowned supervisor, the poll loop and the signals are the real thing.
+**One per host, because one per connection was measured as the bulk of the
+traffic.** With a `myssh` per tab, four tabs on one host ran four pings — ~27
+packets a second, more bytes per hour than all four terminals together. The
+radio and the NAT mapping are per host, so the extra three kept nothing warmer.
+Connections live in separate shells, so they share through
+`$_SSH_KEEPALIVE_DIR` (per user under `$TMPDIR`): each shell registers an owner
+file named by its pid, and a supervisor pings only while it holds the host's
+lock — a symlink whose target is its pid, so `ln -s` is the atomic step and a
+holder killed outright is recognisable as stale. `_ssh_keepalive_stop` only
+unregisters; the supervisor stops the ping at its next poll once no owner is
+left alive.
 
-Two seams make that fast and non-flaky rather than a pile of sleeps:
-`_SSH_KEEPALIVE_POLL` is turned down to 0.2s, and `_ssh_keepalive_start` takes the
-owner pid as an optional second argument so a test can own a process it is
-allowed to kill. Assertions poll for the answer (`wait_gone`), so a pass is
-immediate and only a genuine failure pays the timeout.
+**The contract is a lifetime and a count, not an output**, so the test watches
+**real processes** — only `ping` is stubbed (nothing may put packets on the wire
+from a test); the disowned supervisor, the lock, the poll loop and the signals
+are the real thing.
 
-Three shapes were checked by breaking it and confirming red:
+Three seams make that fast and isolated rather than a pile of sleeps:
+`_SSH_KEEPALIVE_POLL` is turned down to 0.2s, `_SSH_KEEPALIVE_DIR` points at a
+scratch dir so a test never joins a live session's ping, and
+`_ssh_keepalive_start` takes the owner pid as an optional second argument so one
+test can play several shells and own processes it is allowed to kill.
+Disappearance is polled for (`wait_gone`), so a pass is immediate; "no second
+ping appeared" cannot be polled for, so the count cases wait a fixed second.
+
+Shapes checked by breaking it and confirming red:
 
 1. the original bare `ping … &!` (the shell-dies case fails);
-2. a supervisor with no `trap` (`stop` kills the supervisor and **orphans the
-   ping**);
-3. a supervisor that never checks its owner.
+2. a supervisor that never checks its owner;
+3. no lock — every connection pings (the two-sessions case fails);
+4. no stale detection — a SIGKILLed supervisor blocks the host forever.
+
+**Not covered: the supervisor's second look.** A supervisor that finds no owner
+drops the lock and scans once more, for a shell that registered in between and
+left the ping to it. Removing that second scan stays green, because the window is
+a few milliseconds and the test has no hook to land a registration inside it.
 
 The test kills every pid its stub recorded on the way out, because a failing run
 is by definition one that leaked a process.
