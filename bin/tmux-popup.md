@@ -65,10 +65,16 @@ in a popup".
 
 `bin/tmux-tig` runs tig and holds the popup open on failure (`prefix + t`).
 
-Verified against a throwaway tmux server
-(`tmux -L <name> -f /dev/null new-session -d -c <dir> tmux-tig`), the same
-isolation the other tmux scripts use — it needs a pty, so it cannot be checked by
-piping. Check both paths:
+**Pinned by `bin/tmux-tig.test.sh`**, with tig stubbed and the script run in a
+pty through util-linux `script(1)`, its input a fifo: held open, it shows the
+popup still standing before any key; one byte, no Enter, closes it with tig's
+status. Container or CI only, through the tmux suites' guard — BSD `script(1)`
+refuses a fifo on stdin, and the pause reads `/dev/tty`, which on a developer's
+machine is their own terminal.
+
+By hand, against a throwaway tmux server
+(`tmux -L <name> -f /dev/null new-session -d -c <dir> tmux-tig`), check both
+paths with the real tig:
 
 - in a non-git directory the pane must show tig's own
   `tig: Not a git repository` **plus** the pause line, and must survive until

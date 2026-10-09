@@ -229,6 +229,12 @@ jobs:
       - name: tmux-popup
         run: bash bin/tmux-popup.test.sh
 
+      # prefix + t's wrapper: a failed tig must leave its message on screen
+      # until a key, or the popup vanishes with the error unread -- the bug it
+      # exists for. Driven in a pty through util-linux script(1).
+      - name: tmux-tig
+        run: bash bin/tmux-tig.test.sh
+
       # .tmux.conf is never re-read on a working machine, so a bad line sits
       # there unnoticed; and a bind that lost its -N note keeps working while
       # disappearing from the cheatsheet.
