@@ -232,7 +232,7 @@ silent.
 | `bin/ci-enrollment.test.sh` | its header (the not-in-CI list and each reason) |
 | `bin/skill-eval.test.sh` | [skill-eval.md](bin/skill-eval.md) |
 | `root/.agents/skills/init-project/evals/*/assert.test.sh` | [skill-eval.md](bin/skill-eval.md) |
-| `root/.agents/skills/review-test/evals/assert.test.sh` | [skill-eval.md](bin/skill-eval.md) |
+| `root/.agents/skills/review-test/evals/assert.test.sh`, `root/.agents/skills/review-design/evals/assert.test.sh` | [skill-eval.md](bin/skill-eval.md) |
 | `bin/tmux-agents.test.sh` | [tmux-agents.md](bin/tmux-agents.md) |
 | `bin/tmux-agent-view.test.sh` | [tmux-agent-view.md](bin/tmux-agent-view.md) |
 | `bin/tmux-popup.test.sh`, `bin/tmux-tig.test.sh` | [tmux-popup.md](bin/tmux-popup.md) |

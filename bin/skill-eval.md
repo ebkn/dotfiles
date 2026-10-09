@@ -211,7 +211,7 @@ Makefile out of the fenced `make` block in `references/swift.md` instead of copy
 it, so the documented snippet is executed rather than trusted.
 
 `review-test/evals/assert.test.sh` does the same for all three of that skill's
-cases. A case there is graded on the transcript as much as on the tree, so it
+cases, and `review-design/evals/assert.test.sh` for all eight of its. A case there is graded on the transcript as much as on the tree, so it
 writes synthetic transcripts, and two things about them are worth copying:
 
 - **A synthetic transcript carries the loaded SKILL.md.** The Skill tool puts

@@ -40,7 +40,11 @@ nothing is written before it.
   it as `##` or as bold, and a preamble like "設計レビューを始めます" has no colon.
 - **Graders are checked before they are paid for.** Each case's checks were run
   against synthetic transcripts with a stub judge — a good run passing all of
-  them, each bad run failing only its own — before any real run.
+  them, each bad run failing only its own — before any real run. That check is
+  now `assert.test.sh`, which CI runs: a good run per case, then every
+  assertion provoked, each judged one fed a marker to show it reads the text
+  it claims to. It asserts that the provoked check fails, not that nothing
+  else does.
 - **`skill_eval_init_repo` used to commit the skill under test into the
   fixture**, where a doc-reviewing skill would read itself. Fixed in the harness.
 - **Pin the behaviour the tests do not reach.** Every case that lets the caller
