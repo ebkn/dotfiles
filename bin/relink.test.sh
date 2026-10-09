@@ -146,6 +146,24 @@ for mode in apply check; do
   eq "$mode: a dest reached through a symlinked parent is left alone" "$before" "$(snapshot "$DIR/case")"
 done
 
+# --- backups never replace one another -----------------------------------------
+# $BACKUP_DIR/settings.json already exists from an earlier run, and two real
+# files of that name are backed up in the same second. links.sh has several
+# destinations sharing a basename (settings.json, AGENTS.md, each skill).
+fresh
+mkdir -p "$B" "$H/a" "$H/b"
+printf 'old-backup\n' >"$B/settings.json"
+printf 'first\n' >"$H/a/settings.json"
+printf 'second\n' >"$H/b/settings.json"
+two_backups() {
+  link_with_backup "$R/rc" "$H/a/settings.json"
+  link_with_backup "$R/rc" "$H/b/settings.json"
+}
+unit two_backups
+kept=$(cat "$B"/settings.json* 2>/dev/null | sort | tr '\n' ' ')
+eq "two same-second backups of one name and the earlier backup all survive" \
+  "first old-backup second " "$kept"
+
 # --- LINK_CHECK=1 ----------------------------------------------------------------
 fresh
 ln -s "$R/rc" "$H/.ok"

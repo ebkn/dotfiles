@@ -15,7 +15,7 @@ log_step() {
 }
 
 backup_path() {
-  local src dest suffix
+  local src dest suffix stem n
   src="$1"
 
   if [ ! -e "$src" ] && [ ! -L "$src" ]; then
@@ -28,7 +28,18 @@ backup_path() {
   dest="${BACKUP_DIR}/$(basename "$src")"
   if [ -e "$dest" ] || [ -L "$dest" ]; then
     suffix="$(date +%Y%m%d%H%M%S)"
-    dest="${dest}.${suffix}"
+    stem="${dest}.${suffix}"
+    dest="$stem"
+    # A second-resolution stamp is not unique: one link_dotfiles run backs up
+    # several destinations sharing a basename (settings.json, AGENTS.md, each
+    # skill three times) within the same second, and `mv` onto the taken name
+    # would silently replace that earlier backup -- or, for a directory, move
+    # into it. Count up until the name is free.
+    n=1
+    while [ -e "$dest" ] || [ -L "$dest" ]; do
+      dest="${stem}.${n}"
+      n=$((n + 1))
+    done
   fi
 
   printf "backup: %s -> %s\n" "$src" "$dest"
