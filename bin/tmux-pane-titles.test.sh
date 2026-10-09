@@ -131,6 +131,18 @@ t5=$(new_window "$work/alpha")
 set_opts "$t5" 0 '@git_branch=hotfix'
 check 'a branch with no / is left alone' 'b:hotfix' "$(title_of "$t5")"
 
+# Only the type is dropped: everything after the first "/" is the name.
+t5b=$(new_window "$work/alpha")
+set_opts "$t5b" 0 '@git_branch=feature/api/v2'
+check 'only the first / segment is dropped' 'b:/api/v2' "$(title_of "$t5b")"
+
+# A label is data, never a format: `%` is legal in a branch name, and a label
+# handed to awk's printf as the format string turns "%-o" into a conversion
+# with no argument, which truncates the title or aborts awk outright.
+t5c=$(new_window "$work/alpha")
+set_opts "$t5c" 0 '@git_branch=fix/50%-off'
+check 'a % in a branch name is shown as written' 'b:/50%-off' "$(title_of "$t5c")"
+
 # --- precedence --------------------------------------------------------------
 
 # ssh wins over everything: the pane is somewhere else, which is the one fact

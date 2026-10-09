@@ -46,7 +46,9 @@ function strip_type(b,   n) {
   else if (wt != "") label = "w:" strip_type(wt)
   else if (br != "") label = "b:" strip_type(br)
   else               label = dir
-  if (!seen[label]++) { printf sep label; sep = "," }
+  # The label goes in as an argument, never as the format: a branch named
+  # fix/50%-off would otherwise make "%-o" a conversion with nothing to convert.
+  if (!seen[label]++) { printf "%s%s", sep, label; sep = "," }
 }')
 [[ -n "$title" ]] && tmux rename-window -- "$title" 2>/dev/null
 exit 0
