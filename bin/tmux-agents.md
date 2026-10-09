@@ -565,6 +565,15 @@ Two harness traps, both of which made these pass or fail for the wrong reason:
    exists for the `wezterm` stub. Sharing `$work/stub` looked like it worked and
    silently used the **real** `ssh`, which fails a connection to `bakery` three
    seconds after the assertion has already given up.
+3. **A refusal is waited for by its reason, never by `enter: `.** The hint
+   on screen from the start begins with `enter: ` too, so the real-fzf `enter`
+   cases read the screen before `--jump-check` had run at all — removing the ssh
+   refusal left them green. Each now waits for its own reason (`nothing is
+   showing`, `no WezTerm tab`, `shown over ssh`). The same review found the
+   case named after the no-tab refusal never reached it: no client was
+   attached, so it stopped one check earlier. That refusal now has a case after
+   `pty_attach`, with no `wezterm` on the path. Both confirmed red by removing
+   the refusal under test.
 
 `--jump-check` is pinned on its own, headlessly: it is the half that decides, it
 needs no pty, and each answer is a different silent failure — accepting a row

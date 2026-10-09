@@ -1932,16 +1932,20 @@ else
   # for a reason that has nothing to do with the jump.
   mkdir -p "$work/wstub"
   rm -f "$work/wstub/wezterm"
+  # No client is attached to bindB yet, so this is the "nothing is showing that
+  # window" refusal. Each refusal case waits for its own reason, never for the
+  # bare "enter: " -- the hint on screen from the start begins with that too,
+  # so waiting for it read the screen before enter had been handled at all.
   if ! press_enter b-jump; then
     fail "the picker lists the jump fixture" "$(screen)"
   else
     # The point of refusing inside fzf: the popup stays, and says why. A
     # refusal that closed it would be a popup that vanishes with the reason on
     # a status line somewhere behind it.
-    if wait_screen 'enter: '; then
-      pass "enter that cannot act warns in the header"
+    if wait_screen 'nothing is showing'; then
+      pass "enter on a window no client shows warns in the header"
     else
-      fail "enter that cannot act warns in the header" "$(screen)"
+      fail "enter on a window no client shows warns in the header" "$(screen)"
     fi
     if [ "$(dead)" = 0 ]; then
       pass "and leaves the picker open"
@@ -1950,9 +1954,9 @@ else
     fi
     active=$(tmux -L "$socket" display-message -p -t bindB:b-jump '#{pane_id}')
     if [ "$active" = "$jump_other" ]; then
-      pass "enter with no WezTerm tab to raise touches nothing"
+      pass "enter on a window no client shows touches nothing"
     else
-      fail "enter with no WezTerm tab to raise touches nothing" \
+      fail "enter on a window no client shows touches nothing" \
         "active pane moved to $active" "$(cat "$work/real2" 2>/dev/null)"
     fi
     if [ "$(mirrors)" = 0 ]; then
@@ -1979,6 +1983,38 @@ else
     fail "a pty client can be attached to the agent's session" \
       "script output: [$(tr -d '\r' <"$work/pty.log" 2>/dev/null | head -3 | tr '\n' '|')]"
   else
+    # A client now shows the window, but there is still no wezterm to ask: the
+    # "no WezTerm tab" refusal, which replaced a switch-client fallback that
+    # left two clients on one session. Reachable only with a client attached,
+    # which is why it sits here and not with the case above.
+    if ! press_enter b-jump; then
+      fail "the picker lists the jump fixture (no-tab case)" "$(screen)"
+    else
+      if wait_screen 'no WezTerm tab'; then
+        pass "enter with no WezTerm tab to raise warns in the header"
+      else
+        fail "enter with no WezTerm tab to raise warns in the header" "$(screen)"
+      fi
+      if [ "$(dead)" = 0 ]; then
+        pass "and leaves the picker open (no-tab case)"
+      else
+        fail "and leaves the picker open (no-tab case)" "the pane exited" "$(screen)"
+      fi
+      active=$(tmux -L "$socket" display-message -p -t bindB:b-jump '#{pane_id}')
+      if [ "$active" = "$jump_other" ]; then
+        pass "enter with no WezTerm tab to raise touches nothing"
+      else
+        fail "enter with no WezTerm tab to raise touches nothing" "active pane moved to $active"
+      fi
+      clients=$(tmux -L "$socket" list-clients -F '#{client_name} #{client_session}' |
+        awk -v t="$agent_tty" '$1 == t { print $2 }')
+      if [ "$clients" = bindB ]; then
+        pass "and the client showing the agent stays where it was"
+      else
+        fail "and the client showing the agent stays where it was" "it is on [$clients]"
+      fi
+    fi
+
     cat >"$work/wstub/wezterm" <<STUB
 #!/bin/sh
 printf '%s\n' "\$*" >>"$work/wezterm-calls"
@@ -2032,7 +2068,11 @@ STUB
     if ! press_enter b-jump; then
       fail "the picker lists the jump fixture (ssh case)" "$(screen)"
     else
-      wait_screen 'enter: ' || true
+      if wait_screen 'shown over ssh'; then
+        pass "enter on a window shown over ssh says so in the header"
+      else
+        fail "enter on a window shown over ssh says so in the header" "$(screen)"
+      fi
       if [ ! -s "$work/wezterm-calls" ]; then
         pass "enter on a window shown over ssh never runs wezterm at all"
       else
