@@ -1220,7 +1220,7 @@ else
   bad "busy spawned jq $(count_calls jq) time(s) with a subagent registered"
 fi
 
-section "a note ending in ';' is published intact"
+section "a ';' in a note is published intact"
 # tmux reads an argument that ENDS in ';' as a command separator, even on a
 # single `set-option` invoked through argv: a permission prompt for `cd /x;`
 # published `cd /x`, a bare `;` published nothing, and `echo a\;` lost its
@@ -1228,7 +1228,11 @@ section "a note ending in ';' is published intact"
 # Notes are free text (a tool's command, an MCP server's message), so this is an
 # input, not a curiosity. @claude_agents never had the problem -- it always ends
 # in RS -- which is why it is checked here too: it is the control.
-for note in 'Bash: cd /x;' ';' 'Bash: echo a\;'; do
+#
+# A ';' anywhere else must NOT be escaped: tmux unescapes `\;` only at the end of
+# an argument, so escaping every ';' would leave a stray backslash mid-note --
+# and with every other case still green, since no other fixture carries one.
+for note in 'Bash: cd /x;' ';' 'Bash: echo a\;' 'Bash: cd /x; ls'; do
   run clear
   run notify "$(notify_json permission_prompt "$note")"
   assert_opt @claude_state waiting
