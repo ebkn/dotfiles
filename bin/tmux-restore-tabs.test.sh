@@ -63,10 +63,17 @@ JSON
   exit 0
 fi
 printf '%s\n' "$*" >>"$CALLS"
+printf '%s\n' "$WEZTERM_UNIX_SOCKET" >>"$SOCKETS"
 STUB
 chmod +x "$DIR/stub/wezterm"
 export CALLS="$DIR/calls"
 : >"$CALLS"
+# The socket every wezterm call was made with. Inside a tmux started by an
+# earlier WezTerm, $WEZTERM_UNIX_SOCKET names that WezTerm's dead socket -- the
+# same staleness as $WEZTERM_PANE -- so the script must override it.
+export SOCKETS="$DIR/sockets"
+: >"$SOCKETS"
+export WEZTERM_UNIX_SOCKET=/stale/socket
 
 t() { # t <name> <expected> <actual>
   if [ "$2" = "$3" ]; then
@@ -126,6 +133,8 @@ t "an underscore inside a name is not a popup" "1" \
 t "every tab goes into the focused client's window, never \$WEZTERM_PANE's" "3" \
   "$(printf '%s\n' "$spawns" | grep -c -- '--pane-id 42 ')"
 t "focus returns to the focused pane" "cli activate-pane --pane-id 42" "$(tail -1 "$CALLS")"
+t "every wezterm call uses the current socket, not the inherited one" \
+  "$HOME/.local/share/wezterm/default-org.wezfurlong.wezterm" "$(sort -u "$SOCKETS")"
 
 # Nothing to restore: every remaining session has a client, or is a popup's --
 # the two popup sessions above are still there, unattached, so this is also
@@ -142,6 +151,21 @@ status=$?
 t "nothing to restore: exits 1" "1" "$status"
 t "nothing to restore: says so" "No unattached tmux sessions found" "$out"
 t "nothing to restore: opens nothing" "" "$(cat "$CALLS")"
+
+# Tabs open oldest session first, which is what puts them back in their old
+# order. Created a second apart (session_created has one-second resolution) and
+# in reverse alphabetical order, so name order and age order disagree: an
+# implementation that dropped the sort would hand tmux's own name-ordered
+# listing straight through and open alpha first.
+tmux new-session -d -s zulu "$IDLE"
+sleep 1
+tmux new-session -d -s mike "$IDLE"
+sleep 1
+tmux new-session -d -s alpha "$IDLE"
+: >"$CALLS"
+PATH="$DIR/stub:$PATH" "$SCRIPT" >/dev/null 2>&1
+t "tabs open oldest session first" "zulu mike alpha" \
+  "$(grep '^cli spawn' "$CALLS" | sed 's/.*-t =//' | tr '\n' ' ' | sed 's/ $//')"
 
 if [ "$fails" -eq 0 ]; then
   echo "PASS"
