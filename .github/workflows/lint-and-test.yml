@@ -131,6 +131,12 @@ jobs:
       - name: read-doc image confinement
         run: bash bin/read-doc.test.sh
 
+      # link_with_backup moves real files out of $HOME on every update-all
+      # (via relink). A backup that replaces an earlier one, or a "backup" of
+      # a file that is really the repo's own, loses data with no error.
+      - name: relink and link_with_backup
+        run: bash bin/relink.test.sh
+
       - name: init-project swift case grader
         run: bash root/.agents/skills/init-project/evals/swift-makefile-entry-point/assert.test.sh
 
