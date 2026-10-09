@@ -600,7 +600,7 @@
     "command": "bash \"$HOME/.claude/statusline-command.sh\""
   },
   "enabledPlugins": {
-    "playwright@claude-plugins-official": true,
+    "playwright@claude-plugins-official": false,
     "typescript-lsp@claude-plugins-official": false,
     "figma@claude-plugins-official": false,
     "slack@claude-plugins-official": true,
@@ -611,7 +611,7 @@
     "coderabbit@claude-plugins-official": false,
     "swift-lsp@claude-plugins-official": false,
     "semgrep@claude-plugins-official": false,
-    "chrome-devtools-mcp@claude-plugins-official": true,
+    "chrome-devtools-mcp@claude-plugins-official": false,
     "skill-creator@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
     "legal@synced": false,
