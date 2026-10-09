@@ -1220,6 +1220,60 @@ else
   bad "busy spawned jq $(count_calls jq) time(s) with a subagent registered"
 fi
 
+# A state that does change still has to reach the pane, and that is not a cold
+# path: every prompt submitted flips the pane to busy, every turn end flips it
+# back, and while a subagent runs no publish can take the no-change exit at all.
+# Each tmux client is its own process round trip, and six of them measured
+# ~114 ms on a laptop against ~17 ms for the same commands chained with `\;` --
+# time the session spends blocked before its next model request.
+#
+# Checked both with and without a note, because they leave the pane through
+# different commands (set vs unset) and either one could fall out of the chain.
+run clear
+: >"$countdir/tmux-calls"
+counted_run busy '{"hook_event_name":"PostToolBatch"}'
+if [[ "$(count_calls tmux)" -eq 1 ]]; then
+  ok "a state change without a note publishes in one tmux call"
+else
+  bad "a state change without a note cost $(count_calls tmux) tmux calls, want 1"
+fi
+# One call is only a saving if the chain still delivers every option.
+assert_opt @claude_state busy
+assert_opt @claude_glyph '▶ '
+assert_opt @claude_note ''
+if [[ -n "$(get_opt @claude_since)" ]]; then
+  ok "@claude_since set by the chained publish"
+else
+  bad "@claude_since empty after the chained publish"
+fi
+if [[ "$(get_opt @claude_agents)" == "busy${US}"* ]]; then
+  ok "@claude_agents set by the chained publish"
+else
+  bad "@claude_agents after the chained publish: [$(get_opt @claude_agents)]"
+fi
+
+: >"$countdir/tmux-calls"
+counted_run notify "$(notify_json permission_prompt 'Bash: rm x')"
+if [[ "$(count_calls tmux)" -eq 1 ]]; then
+  ok "a state change with a note publishes in one tmux call"
+else
+  bad "a state change with a note cost $(count_calls tmux) tmux calls, want 1"
+fi
+assert_opt @claude_state waiting
+assert_opt @claude_note 'Bash: rm x'
+
+# And back to a noteless state: the unset has to run, and must not cut the chain
+# short of the listing when there is something to unset.
+: >"$countdir/tmux-calls"
+counted_run busy '{"hook_event_name":"PostToolBatch"}'
+assert_opt @claude_state busy
+assert_opt @claude_note ''
+if [[ "$(get_opt @claude_agents)" == "busy${US}"* ]]; then
+  ok "@claude_agents follows the state back to busy"
+else
+  bad "@claude_agents after returning to busy: [$(get_opt @claude_agents)]"
+fi
+
 section "a ';' in a note is published intact"
 # tmux reads an argument that ENDS in ';' as a command separator, even on a
 # single `set-option` invoked through argv: a permission prompt for `cd /x;`

@@ -122,12 +122,44 @@ state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/claude-agent-state/${sock//[^A-
 # trailing `\;` is tmux's escape for a literal one: it drops that backslash and
 # keeps the ';', so inserting one is exact for any value, including one that
 # already ends in `\;`.
-set_opt() {
+#
+# Commands are queued and sent as ONE tmux invocation, chained with ';' argv
+# separators, because the cost of this hook is process count: each tmux client
+# is a full round trip to the server, and publish() needs six of them -- ~114 ms
+# measured separately against ~17 ms chained, paid before the session's next
+# model request on every state change.
+#
+# tmux abandons the rest of a chain at the first failing command, which makes
+# ORDER part of the contract: an unescaped bare `;` note fails with "empty
+# value" and would take everything queued after it down too, and refresh-client
+# fails with "no current client" on any session nobody is attached to (an
+# orphan tmux-restore-tabs will pick up), so it must stay the LAST command.
+tmux_queue=()
+queue_cmd() {
+  [ "${#tmux_queue[@]}" -gt 0 ] && tmux_queue+=(';')
+  tmux_queue+=("$@")
+}
+queue_set() {
   local v=$2
   case $v in *';') v="${v%;}\\;" ;; esac
-  tmux set-option -p -t "$TMUX_PANE" "$1" "$v" 2>/dev/null
+  queue_cmd set-option -p -t "$TMUX_PANE" "$1" "$v"
 }
-unset_opt() { tmux set-option -p -u -t "$TMUX_PANE" "$1" 2>/dev/null; }
+queue_unset() { queue_cmd set-option -p -u -t "$TMUX_PANE" "$1"; }
+# The length check is not only a shortcut: expanding an empty array is an error
+# under `set -u` on bash 3.2, which is what /bin/bash is on macOS.
+queue_run() {
+  [ "${#tmux_queue[@]}" -gt 0 ] || return 0
+  tmux "${tmux_queue[@]}" 2>/dev/null
+  tmux_queue=()
+}
+set_opt() {
+  queue_set "$1" "$2"
+  queue_run
+}
+unset_opt() {
+  queue_unset "$1"
+  queue_run
+}
 
 # --- reading the hook payload ------------------------------------------------
 #
@@ -512,37 +544,39 @@ publish() {
       [ "$prev" = "$pub" ] && return 0
     fi
 
-    set_opt @claude_state "$best_state"
-    set_opt @claude_glyph "$(glyph_of "$best_state")"
-    set_opt @claude_since "$best_since"
+    queue_set @claude_state "$best_state"
+    queue_set @claude_glyph "$(glyph_of "$best_state")"
+    queue_set @claude_since "$best_since"
     if [ -n "$best_note" ]; then
-      set_opt @claude_note "$best_note"
+      queue_set @claude_note "$best_note"
     else
-      unset_opt @claude_note
+      queue_unset @claude_note
     fi
-    set_opt @claude_agents "$listing"
+    queue_set @claude_agents "$listing"
+    # The status line and the client title are only recomputed on redraw, and
+    # status-interval is 30s (.tmux.conf) to keep #() fork rates low. Force the
+    # redraw here so the glyph appears the moment the state changes, instead of
+    # lowering that interval for everyone. Last in the chain: it fails on a
+    # session with no client attached, and would drop anything queued after it.
+    queue_cmd refresh-client -S
+    queue_run
     # Written after the options, not before: the file must never claim more than
     # the pane actually got.
     printf '%s' "$pub" >"$state_dir/.published" 2>/dev/null || true
     last=$pub
-
-    # The status line and the client title are only recomputed on redraw, and
-    # status-interval is 30s (.tmux.conf) to keep #() fork rates low. Force the
-    # redraw here so the glyph appears the moment the state changes, instead of
-    # lowering that interval for everyone.
-    tmux refresh-client -S 2>/dev/null
   done
   return 0
 }
 
 clear_opts() {
-  unset_opt @claude_state
-  unset_opt @claude_glyph
-  unset_opt @claude_since
-  unset_opt @claude_note
-  unset_opt @claude_agents
+  queue_unset @claude_state
+  queue_unset @claude_glyph
+  queue_unset @claude_since
+  queue_unset @claude_note
+  queue_unset @claude_agents
+  queue_cmd refresh-client -S
+  queue_run
   rm -f "$state_dir/.published" 2>/dev/null || true
-  tmux refresh-client -S 2>/dev/null
 }
 
 case "$mode" in
