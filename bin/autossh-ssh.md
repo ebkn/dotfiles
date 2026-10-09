@@ -49,6 +49,17 @@ controlling terminal the `/dev/tty` write fails and falls back to stderr, while
 ssh's stderr is going to the log from attempt two onwards — so stderr carries the
 notice alone.
 
+"No controlling terminal" is **arranged, not assumed**: every shim run goes
+through `detach` (util-linux `setsid`, or perl's `POSIX::setsid` on macOS, which
+has no `setsid`), and a harness case checks `/dev/tty` really is gone. Before
+that, the suite passed in CI and under an agent's shell but failed five cases
+from a developer's terminal — the notice was drawn on that terminal, and stderr
+came back empty.
+
+Each attempt also asserts the argv ssh received and that **stdout carries ssh's
+output alone**, since stdout is the session: a reconnect that dropped an
+argument, or a notice written to stdout, would otherwise pass.
+
 It caught the `/dev/tty` trap [read-doc](read-doc.md) documents on its first run:
 `stty size </dev/tty 2>/dev/null` does **not** suppress "Device not configured",
 because the message comes from the redirection rather than from `stty`, and it
