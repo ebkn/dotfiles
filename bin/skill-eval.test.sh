@@ -57,6 +57,14 @@ absent() {
   esac
 }
 
+# The argument following <flag> in a stub's argv file (one argument per line),
+# or <absent>. Values are what decide a boundary -- `--permission-mode
+# bypassPermissions` carries the same flag name as `acceptEdits` -- and an
+# empty value (the judge's `--tools ""`) must stay distinguishable from no flag.
+flag_value() { # <argv file> <flag>
+  awk -v f="$2" 'found { print; exit } $0 == f { found = 1 } END { if (!found) print "<absent>" }' "$1"
+}
+
 DIR=$(mktemp -d)
 trap 'rm -rf "$DIR"' EXIT
 
@@ -193,8 +201,16 @@ t "allowed-tools arrive as three separate arguments" "3" \
 contains "--model is passed through" "haiku" "$args"
 contains "the prompt body is passed" "/stub-skill do it" "$args"
 absent "prompt.md frontmatter stays out of the prompt" "name: case-a" "$args"
-contains "permission prompts are answered by refusing" "--permission-prompts" "$args"
-contains "the caller's MCP servers stay out" "--strict-mcp-config" "$args"
+t "permission prompts are answered by refusing" "none" \
+  "$(flag_value "$STUB_CLAUDE_OUT/args" --permission-prompts)"
+t "edits are approved by acceptEdits, never by bypassing permissions" "acceptEdits" \
+  "$(flag_value "$STUB_CLAUDE_OUT/args" --permission-mode)"
+# Without it the caller's user settings load: hooks that emit "allow", and the
+# root/CLAUDE.md rules skill-eval.md relies on staying out of the fixture.
+t "only the fixture's project settings load" "project" \
+  "$(flag_value "$STUB_CLAUDE_OUT/args" --setting-sources)"
+t "the caller's MCP servers stay out" "1" \
+  "$(grep -cxF -- --strict-mcp-config "$STUB_CLAUDE_OUT/args")"
 contains "the run is reported" "[PASS] $skill/case-a run-1" "$output"
 
 # --- prompt.md's allowed_tools are added to the skill's own ---
@@ -311,9 +327,8 @@ output="$(STUB_USE_JUDGE=1 $RUN "$skill" case-a)"
 judge_stdin="$(cat "$STUB_CLAUDE_OUT/judge-stdin")"
 contains "the judge is given the rubric" "the rubric" "$judge_stdin"
 contains "the judge is given the final response" "done" "$judge_stdin"
-judge_args="$(cat "$STUB_CLAUDE_OUT/judge-args")"
-contains "the judge runs without tools" "--tools" "$judge_args"
-contains "the judge reads no settings" "--setting-sources" "$judge_args"
+t "the judge runs without tools" "" "$(flag_value "$STUB_CLAUDE_OUT/judge-args" --tools)"
+t "the judge reads no settings" "" "$(flag_value "$STUB_CLAUDE_OUT/judge-args" --setting-sources)"
 contains "the judge's verdict carries its reason" "PASS  judged (judge: stub reason)" \
   "$(cat "$(find "$SKILL_EVAL_OUT_DIR/$skill/case-a" -name assert.log)")"
 contains "the judge's cost is added to the case" "0.260" "$output"

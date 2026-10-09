@@ -222,3 +222,9 @@ assertion passes for the wrong reason; carrying `evals/` in lets the model read
 its own grader; leaving the harness visible to git makes the fixture's status
 not the fixture's; swallowing an assertion FAIL or a non-zero `claude -p` paints
 a broken case green. Each of those has a case in the test.
+
+**The boundary flags are asserted by value, not by name.** `--permission-mode
+bypassPermissions` carries the same flag as `acceptEdits`, and `--setting-sources
+user,project` the same as `project`; the test once checked only that each flag
+was present, so either change passed. The judge's `--tools ""` is checked the
+same way, with an empty value kept distinct from an absent flag.
