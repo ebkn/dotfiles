@@ -83,15 +83,26 @@ Three seams make that fast and isolated rather than a pile of sleeps:
 scratch dir so a test never joins a live session's ping, and
 `_ssh_keepalive_start` takes the owner pid as an optional second argument so one
 test can play several shells and own processes it is allowed to kill.
-Disappearance is polled for (`wait_gone`), so a pass is immediate; "no second
-ping appeared" cannot be polled for, so the count cases wait a fixed second.
+Disappearance and the expected count are polled for (`wait_gone`,
+`settled_pings`), so a slow start is waited out rather than miscounted; only "no
+extra ping appeared" is a fixed wait, because absence cannot be polled for.
+
+The `ping` stub records the host it was asked for as well as its pid. One that
+accepted any argv stayed green with the target dropped, while the real `ping`
+exits at once on a usage error — the keepalive gone, silently.
 
 Shapes checked by breaking it and confirming red:
 
 1. the original bare `ping … &!` (the shell-dies case fails);
-2. a supervisor that never checks its owner;
-3. no lock — every connection pings (the two-sessions case fails);
-4. no stale detection — a SIGKILLed supervisor blocks the host forever.
+2. a supervisor with no `trap` — killing it **orphans the ping**. `stop` no
+   longer signals the supervisor, so this is reached only by a kill from
+   outside, and has a case of its own;
+3. a supervisor that never checks its owner;
+4. no lock — every connection pings (the two-sessions case fails);
+5. no stale detection — a SIGKILLed supervisor blocks the host forever;
+6. `ping` run without the target;
+7. an unguarded `mkdir` of the state dir, which prints on every connection when
+   the dir cannot be created (that case needs a non-root runner).
 
 **Not covered: the supervisor's second look.** A supervisor that finds no owner
 drops the lock and scans once more, for a shell that registered in between and

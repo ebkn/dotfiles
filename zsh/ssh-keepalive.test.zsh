@@ -38,8 +38,12 @@ _SSH_KEEPALIVE_DIR="$work/state"
 # A ping that records its own pid and then does nothing until it is killed --
 # the same shape as the real one from the caller's point of view. Every ping of
 # a case goes to the same file, so counting live pids there counts the pings.
+# The host it was asked to reach goes beside it: a stub that accepted any argv
+# would stay green with the target dropped, while the real ping exits at once.
 cat >"$stub_bin/ping" <<'STUB'
 #!/bin/sh
+for last; do :; done
+echo "$last" >> "$PING_PIDFILE.target"
 echo $$ >> "$PING_PIDFILE"
 exec sleep 600
 STUB
@@ -77,6 +81,7 @@ wait_gone() {
 case_file() {
   PING_PIDFILE="$work/ping.$1"
   : > "$PING_PIDFILE"
+  : > "$PING_PIDFILE.target"
   export PING_PIDFILE
 }
 
@@ -89,17 +94,28 @@ first_ping() {
   done
 }
 
-# live_pings -- how many recorded pings are running, once things have settled.
-# Settling is a fixed wait on purpose: the question is "did a SECOND ping
-# appear", and absence cannot be polled for. Five poll intervals covers a
-# candidate supervisor losing the lock race and an owner being pruned.
-live_pings() {
-  sleep 1
+# count_live -- how many recorded pings are running right now.
+count_live() {
   local n=0 pid
   while IFS= read -r pid; do
     [[ -n $pid ]] && kill -0 "$pid" 2>/dev/null && (( n++ ))
   done < "$PING_PIDFILE"
   echo $n
+}
+
+# settled_pings <expected> -- how many pings run once things have settled.
+# Two halves, because they are different questions. Reaching <expected> is
+# polled for, so a slow start is waited out rather than miscounted. "No extra
+# ping appeared" cannot be polled for, so that half is a fixed wait: five poll
+# intervals, enough for a candidate supervisor to lose the lock race and exit.
+settled_pings() {
+  local want=$1 i
+  for i in {1..40}; do
+    (( $(count_live) >= want )) && break
+    sleep 0.1
+  done
+  sleep 1
+  count_live
 }
 
 # owner -- a process standing in for one shell running myssh.
@@ -110,6 +126,7 @@ case_file stop
 _ssh_keepalive_start 10.0.0.1
 png=$(first_ping)
 check 'a session starts a ping' 'alive' "$(alive "$png")"
+check 'to the host it was given' '10.0.0.1' "$(head -1 "$PING_PIDFILE.target")"
 _ssh_keepalive_stop
 check 'stopping the only session stops the ping' 'gone' "$(wait_gone "$png")"
 check 'stop clears the recorded owner' '' "$_SSH_KEEPALIVE_OWNER"
@@ -132,7 +149,7 @@ own1=$_SSH_KEEPALIVE_OWNER
 png=$(first_ping)
 _ssh_keepalive_start 10.0.0.3 "$o2"
 own2=$_SSH_KEEPALIVE_OWNER
-check 'two sessions on one host run one ping' '1' "$(live_pings)"
+check 'two sessions on one host run one ping' '1' "$(settled_pings 1)"
 
 # The gap: the ping must outlive any one session while another remains.
 _SSH_KEEPALIVE_OWNER=$own1 _ssh_keepalive_stop
@@ -143,7 +160,7 @@ check 'the last session ending stops it' 'gone' "$(wait_gone "$png")"
 # A session arriving after the last one left needs a ping of its own; the
 # previous supervisor released the lock on its way out.
 _ssh_keepalive_start 10.0.0.3 "$o1"
-check 'a later session on that host starts a new one' '1' "$(live_pings)"
+check 'a later session on that host starts a new one' '1' "$(settled_pings 1)"
 _ssh_keepalive_stop
 kill "$o1" "$o2"
 
@@ -154,7 +171,7 @@ _ssh_keepalive_start 10.0.0.4 "$o1"
 own1=$_SSH_KEEPALIVE_OWNER
 _ssh_keepalive_start 10.0.0.5 "$o1"
 own2=$_SSH_KEEPALIVE_OWNER
-check 'two hosts run two pings' '2' "$(live_pings)"
+check 'two hosts run two pings' '2' "$(settled_pings 2)"
 _SSH_KEEPALIVE_OWNER=$own1 _ssh_keepalive_stop
 _SSH_KEEPALIVE_OWNER=$own2 _ssh_keepalive_stop
 kill "$o1"
@@ -171,9 +188,35 @@ kill "$png"  # the orphan a SIGKILLed supervisor leaves; not what is under test
 : > "$PING_PIDFILE"
 o2=$(owner)
 _ssh_keepalive_start 10.0.0.6 "$o2"
-check 'a stale lock does not block a new ping' '1' "$(live_pings)"
+check 'a stale lock does not block a new ping' '1' "$(settled_pings 1)"
 _ssh_keepalive_stop
 kill "$o1" "$o2"
+
+# --- the supervisor itself is killed ----------------------------------------
+# Nothing in myssh signals the supervisor any more -- stop only unregisters --
+# so its trap is reached only from outside: a stray `kill`, a logout. Without
+# the trap the ping would be orphaned, which is the leak this file exists for.
+case_file killed
+o1=$(owner)
+_ssh_keepalive_start 10.0.0.7 "$o1"
+png=$(first_ping)
+kill "$(readlink "$_SSH_KEEPALIVE_DIR/10.0.0.7.lock")"
+check 'killing the supervisor takes its ping with it' 'gone' "$(wait_gone "$png")"
+_ssh_keepalive_stop
+kill "$o1"
+
+# --- the shared state cannot be created -------------------------------------
+# A best-effort extra must never get in the way of the connection: no message
+# on the terminal myssh is about to hand to ssh, and no half-registered owner.
+# Needs a non-root runner -- root ignores the mode -- which CI and the container
+# both are.
+case_file nodir
+mkdir -m 500 "$work/ro"
+_SSH_KEEPALIVE_DIR="$work/ro/state" _ssh_keepalive_start 10.0.0.8 >"$work/nodir.out" 2>&1
+check 'an unwritable state dir is silent' '' "$(<"$work/nodir.out")"
+check 'and registers nothing' '' "$_SSH_KEEPALIVE_OWNER"
+check 'and starts no ping' '0' "$(settled_pings 0)"
+chmod 700 "$work/ro"
 
 # --- nothing to ping --------------------------------------------------------
 _ssh_keepalive_start ""
