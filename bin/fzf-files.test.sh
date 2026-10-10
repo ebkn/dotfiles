@@ -70,7 +70,14 @@ printf 'two\n' >>old.txt
 git commit -qam 'touch old'
 for i in 1 2 3 4 5; do
   printf '%s\n' "$i" >>committed.txt
-  [ "$i" = 3 ] && printf '%s\n' "$i" >>zz-recent.txt
+  if [ "$i" = 3 ]; then
+    printf '%s\n' "$i" >>zz-recent.txt
+    # Names git log quotes. core.quotePath=false stops only the octal escaping
+    # of non-ASCII; a double quote is still wrapped and escaped.
+    printf 'x\n' >'say "hi".txt'
+    printf 'x\n' >'漢字.txt'
+    git add 'say "hi".txt' '漢字.txt'
+  fi
   git commit -qam "c$i"
 done
 printf 'two\n' >>staged.txt
@@ -101,6 +108,9 @@ t "a file changed in a recent commit is labelled with its hash and how many ago"
   "[ $(printf '%-11s' "$c3(-3)") ]" "$(label_of zz-recent.txt)"
 t "and comes before the unchanged files" "yes" \
   "$([ "$(first_of zz-recent.txt)" -lt "$(first_of sub/rest-sub.txt)" ] && echo yes || echo no)"
+t "a recently committed name with a double quote keeps its commit label" \
+  "[ $(printf '%-11s' "$c3(-3)") ]" "$(label_of 'say "hi".txt')"
+t "and a non-ASCII one" "[ $(printf '%-11s' "$c3(-3)") ]" "$(label_of '漢字.txt')"
 t "untracked comes before staged" "yes" "$([ "$(first_of untracked.txt)" -lt "$(first_of staged.txt)" ] && echo yes || echo no)"
 t "staged before unstaged" "yes" "$([ "$(first_of staged.txt)" -lt "$(first_of unstaged.txt)" ] && echo yes || echo no)"
 t "changed files before the rest" "yes" "$([ "$(first_of unstaged.txt)" -lt "$(first_of sub/rest-sub.txt)" ] && echo yes || echo no)"

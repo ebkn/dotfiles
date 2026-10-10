@@ -49,12 +49,15 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   porcelain_status() {
     git status --porcelain=v1 -z -uall -- . 2>/dev/null | tr '\0' '\n'
   }
-  # The last five commits' files. Names raw for the same reason (quotePath only
-  # escapes non-ASCII here). `|| true` because a branch with no commits yet
-  # makes git log exit 128, which under set -e ended the whole listing before
-  # it printed anything -- an empty picker right after `git init`.
+  # The last five commits' files, NUL-separated for the same reason. Turning
+  # core.quotePath off was not enough: it stops only the octal escaping of
+  # non-ASCII, and a name with a double quote or a backslash was still wrapped
+  # and escaped, so it lost its commit label. A HASH: line still starts a line
+  # after tr. `|| true` because a branch with no commits yet makes git log exit
+  # 128, which under set -e ended the whole listing before it printed anything
+  # -- an empty picker right after `git init`.
   recent_log() {
-    git -c core.quotePath=false log --relative --name-only "$@" -5 -- . 2>/dev/null || true
+    { git log -z --relative --name-only "$@" -5 -- . 2>/dev/null || true; } | tr '\0' '\n'
   }
 
   if "$label_mode"; then
