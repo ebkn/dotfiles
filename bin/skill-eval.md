@@ -141,11 +141,25 @@ dotfiles' conventions rather than the skill's own contract. `--setting-sources
 project` and `--strict-mcp-config` keep the caller's user settings and MCP
 servers out for the same reason.
 
-The consequence is the limit worth knowing: **a case can only measure what
-`SKILL.md` achieves on its own.** The auto-start rule in `root/CLAUDE.md` is not
-loaded, so its effect is not measured here. Read that the other way round and it
-is the point: a case that passes predicts the behaviour in a repository with no
+The consequence is the limit worth knowing: **by default a case measures only
+what `SKILL.md` achieves on its own.** Read that the other way round and it is
+the point: a case that passes predicts the behaviour in a repository with no
 `CLAUDE.md` of ours, and under an agent that reads only `.agents/skills/`.
+
+A rule that lives in a `CLAUDE.md` needs the opposite, and a case opts in by
+naming the file, as a path from the repo root:
+
+```yaml
+---
+name: proactive-with-claude-md
+claude_md: root/CLAUDE.md
+---
+```
+
+The runner copies it in as the fixture's `CLAUDE.md` after the scaffold, and
+excludes it from git only then, so a skill that writes a `CLAUDE.md` of its own
+still sees that one. A path that does not exist is refused before the case
+runs: a typo would otherwise measure `SKILL.md` alone under the other name.
 
 ## Divergences from the monorepo harness
 

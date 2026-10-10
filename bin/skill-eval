@@ -174,6 +174,42 @@ prompt_meta() {
   ' "$1"
 }
 
+# case_settings <case>
+# Sets case_max_turns, case_budget_usd and case_claude_md from the case's
+# frontmatter, or fails saying which value is wrong.
+case_settings() {
+  local meta="$evals_dir/$1/prompt.md"
+
+  # A case whose scenario is longer than the defaults declares its own ceiling.
+  # Without this the case is simply unrunnable: `claude -p` stops at --max-turns
+  # and exits non-zero, which the runner grades as FAIL, so the case reports a
+  # broken skill when what ran out was the harness. Raising the global default
+  # instead would spend that ceiling on every other case too.
+  case_max_turns="$(prompt_meta "$meta" max_turns)"
+  [ -n "$case_max_turns" ] || case_max_turns="$max_turns"
+  case_budget_usd="$(prompt_meta "$meta" budget_usd)"
+  [ -n "$case_budget_usd" ] || case_budget_usd="$budget_usd"
+  if ! [[ "$case_max_turns" =~ ^[1-9][0-9]*$ ]]; then
+    printf 'case %s: max_turns takes an integer of 1 or more (got: %s)\n' "$1" "$case_max_turns" >&2
+    return 1
+  fi
+  if ! [[ "$case_budget_usd" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    printf 'case %s: budget_usd takes a number (got: %s)\n' "$1" "$case_budget_usd" >&2
+    return 1
+  fi
+
+  # A rule that lives only in a CLAUDE.md -- review-test's auto-start is one --
+  # cannot be measured with the fixture's CLAUDE.md left out, which is the
+  # default. A case that measures one names the file, as a path from the repo
+  # root. Refused when missing: a typo would otherwise measure SKILL.md alone
+  # while claiming to measure the rule.
+  case_claude_md="$(prompt_meta "$meta" claude_md)"
+  if [ -n "$case_claude_md" ] && [ ! -f "$repo_root/$case_claude_md" ]; then
+    printf 'case %s: claude_md not found: %s\n' "$1" "$case_claude_md" >&2
+    return 1
+  fi
+}
+
 timestamp="$(date +%Y%m%d-%H%M%S)"
 summary_file="$(mktemp)"
 trap 'rm -f "$summary_file"' EXIT
@@ -196,23 +232,7 @@ for case_name in "${cases[@]}"; do
     done <<<"${extra_allowed_line//, /$'\n'}"
   fi
 
-  # A case whose scenario is longer than the defaults declares its own ceiling.
-  # Without this the case is simply unrunnable: `claude -p` stops at --max-turns
-  # and exits non-zero, which the runner grades as FAIL, so the case reports a
-  # broken skill when what ran out was the harness. Raising the global default
-  # instead would spend that ceiling on every other case too.
-  case_max_turns="$(prompt_meta "$case_dir/prompt.md" max_turns)"
-  [ -n "$case_max_turns" ] || case_max_turns="$max_turns"
-  case_budget_usd="$(prompt_meta "$case_dir/prompt.md" budget_usd)"
-  [ -n "$case_budget_usd" ] || case_budget_usd="$budget_usd"
-  if ! [[ "$case_max_turns" =~ ^[1-9][0-9]*$ ]]; then
-    printf 'case %s: max_turns takes an integer of 1 or more (got: %s)\n' "$case_name" "$case_max_turns" >&2
-    exit 1
-  fi
-  if ! [[ "$case_budget_usd" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-    printf 'case %s: budget_usd takes a number (got: %s)\n' "$case_name" "$case_budget_usd" >&2
-    exit 1
-  fi
+  case_settings "$case_name"
 
   case_passed=0
   case_cost_file="$(mktemp)"
@@ -236,6 +256,16 @@ for case_name in "${cases[@]}"; do
     # and a skill reading that status treats them as the user's work.
     if [ -d "$work/.git" ]; then
       printf '.claude/\nbin/\n' >>"$work/.git/info/exclude"
+    fi
+
+    # After the scaffold, so its first commit cannot track it, and excluded
+    # only when it was brought in: a case whose skill writes a CLAUDE.md of its
+    # own must still see that one in git status.
+    if [ -n "$case_claude_md" ]; then
+      cp "$repo_root/$case_claude_md" "$work/CLAUDE.md"
+      if [ -d "$work/.git" ]; then
+        printf '/CLAUDE.md\n' >>"$work/.git/info/exclude"
+      fi
     fi
 
     # --allowedTools is variadic: passing it with nothing swallows the next

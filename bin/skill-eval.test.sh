@@ -100,6 +100,11 @@ else
   echo absent >"$STUB_CLAUDE_OUT/evals"
 fi
 cp bin/repo_root "$STUB_CLAUDE_OUT/repo_root" 2>/dev/null || echo none >"$STUB_CLAUDE_OUT/repo_root"
+if [ -f CLAUDE.md ]; then
+  head -n 1 CLAUDE.md >"$STUB_CLAUDE_OUT/claude_md"
+else
+  echo absent >"$STUB_CLAUDE_OUT/claude_md"
+fi
 if [ -n "${STUB_CLAUDE_ACTION:-}" ]; then
   bash -c "$STUB_CLAUDE_ACTION"
 fi
@@ -403,6 +408,50 @@ check_fails "an unparsable max_turns says why, before spending anything" \
   "case case-d: max_turns takes an integer" $RUN "$skill" case-d
 check_fails "an unparsable budget_usd says why, before spending anything" \
   "case case-e: budget_usd takes a number" $RUN "$skill" case-e
+
+# --- claude_md: a case that measures a CLAUDE.md rule opts in to one ---
+# By default no CLAUDE.md reaches the fixture, so a case measures what SKILL.md
+# does on its own. A rule that lives only in CLAUDE.md -- review-test's
+# auto-start -- is measurable only by a case that names the file it comes from.
+rm -rf "$STUB_CLAUDE_OUT"
+$RUN "$skill" case-a >/dev/null
+t "a case without claude_md gets no CLAUDE.md" "absent" "$(cat "$STUB_CLAUDE_OUT/claude_md")"
+
+mkdir -p "$skills_dir/$skill/evals/case-f" "$skills_dir/$skill/evals/case-g"
+cat >"$skills_dir/$skill/evals/case-f/prompt.md" <<'EOF'
+---
+name: case-f
+claude_md: root/CLAUDE.md
+---
+do it
+EOF
+cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-f/scaffold.sh"
+cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-f/assert.sh"
+rm -rf "$STUB_CLAUDE_OUT"
+$RUN "$skill" case-f >/dev/null
+t "claude_md is copied in as the fixture's CLAUDE.md" "$(head -n 1 root/CLAUDE.md)" \
+  "$(cat "$STUB_CLAUDE_OUT/claude_md")"
+# Untracked, it is the user's work to a skill reading git status; committed by
+# the scaffold, it is the user's code.
+t "the CLAUDE.md we brought in stays out of git status" " M tracked.txt" \
+  "$(cat "$STUB_CLAUDE_OUT/status")"
+t "the fixture's first commit does not track the CLAUDE.md" "tracked.txt" \
+  "$(cat "$STUB_CLAUDE_OUT/tracked")"
+absent "the claude_md line stays out of the prompt" "claude_md:" "$(cat "$STUB_CLAUDE_OUT/args")"
+
+cat >"$skills_dir/$skill/evals/case-g/prompt.md" <<'EOF'
+---
+name: case-g
+claude_md: no/such/CLAUDE.md
+---
+do it
+EOF
+cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-g/scaffold.sh"
+cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-g/assert.sh"
+# A typo would otherwise run the case with no CLAUDE.md at all, and measure
+# SKILL.md alone while claiming to measure the rule.
+check_fails "a claude_md that does not exist says why, before spending anything" \
+  "case case-g: claude_md not found: no/such/CLAUDE.md" $RUN "$skill" case-g
 
 # --- the transcript readers, against a fixture transcript ---
 #
