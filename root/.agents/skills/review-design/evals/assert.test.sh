@@ -15,9 +15,10 @@
 # those checks are provoked once per case rather than once per helper.
 #
 # The synthetic transcripts carry the body of SKILL.md, which the Skill tool
-# loads into the conversation, report template included. The shape is taken
-# from Claude Code's session log; whether stream-json emits that record is not
-# verified, and the controls need only that it is not an assistant record.
+# loads into the conversation, report template included. The shape is the one
+# a real forked run emitted (see rec_skill): the body and the fork's own git
+# reads arrive inside the fork, and the report first arrives as the Skill's
+# tool_result, which the caller must still write out to count as reported.
 #
 # check_llm is graded by a stub judge that fails exactly when the text it was
 # handed contains JUDGE_FAIL. That pins the wiring -- each judged check reads
@@ -62,11 +63,29 @@ rec_text() { jq -nc --arg t "$1" '{type: "assistant", message: {content: [{type:
 rec_tool() { jq -nc --arg n "$1" --argjson i "$2" '{type: "assistant", message: {content: [{type: "tool_use", name: $n, input: $i}]}}'; }
 rec_bash() { rec_tool Bash "$(jq -nc --arg c "$1" '{command: $c}')"; }
 rec_edit() { rec_tool "$1" "$(jq -nc --arg p "$2" '{file_path: $p}')"; }
+# rec_skill
+# A forked run as stream-json records it (measured on real runs): the Skill
+# call; the skill's body as a user text record inside the fork; the fork's own
+# tool calls -- read-only git, by default -- tagged with the Skill call's id as
+# parent_tool_use_id; and the report coming back as the Skill's tool_result.
+# None of it is the caller's words, so none of it counts as having reported.
+# What happens inside the fork is the skill's own doing, though, and its
+# boundary holds there too.
+# Set for one call:
+#   skill_inside  records the fork makes, in rec_* calls (default: one git diff)
+#   skill_result  what the Skill hands back (default: a placeholder)
+skill_seq=0
 rec_skill() {
-  rec_tool Skill '{"skill":"review-design"}'
-  jq -nc '{type: "user", message: {content: [{type: "tool_result", content: "Launching skill: review-design"}]}}'
-  jq -nc --rawfile body "$repo_root/root/.agents/skills/review-design/SKILL.md" \
-    '{type: "user", message: {content: [{type: "text", text: $body}]}}'
+  local id
+  skill_seq=$((skill_seq + 1))
+  id="toolu_skill_$skill_seq"
+  jq -nc --arg id "$id" \
+    '{type: "assistant", message: {content: [{type: "tool_use", id: $id, name: "Skill", input: {skill: "review-design", args: "brief"}}]}}'
+  jq -nc --arg id "$id" --rawfile body "$repo_root/root/.agents/skills/review-design/SKILL.md" \
+    '{type: "user", parent_tool_use_id: $id, message: {content: [{type: "text", text: ("Base directory for this skill: .claude/skills/review-design\n\n" + $body)}]}}'
+  eval "${skill_inside:-rec_bash \"git diff main..HEAD\"}" | jq -c --arg id "$id" '. + {parent_tool_use_id: $id}'
+  jq -nc --arg id "$id" --arg r "${skill_result:-(the review)}" \
+    '{type: "user", message: {content: [{type: "tool_result", tool_use_id: $id, content: ("Skill \"review-design\" completed (forked execution).\n\nResult:\n" + $r)}]}}'
 }
 
 # --- running one scenario ---
@@ -279,6 +298,15 @@ while read -r c fix; do
   expect_fail "$c: a heading only in the loaded SKILL.md is not a report" \
     "reported under a design-review heading"
 
+  # Forked, the report first arrives as the Skill's result, which the user does
+  # not necessarily see. A real run of stale-doc-after-change left it there and
+  # went straight on to its fixes; that is not having reported.
+  # The hashes are left as BASE..HEAD: the heading is what is under test.
+  skill_result="$good_report" design_run "$c" none "$before_default" "$after_default" "$fix"
+  grade "直してコミットしました。"
+  expect_fail "$c: a report left in the Skill's result is not a report" \
+    "reported under a design-review heading"
+
   # The range must be the unit's: right shape, wrong hashes -- at either end.
   design_run "$c" "${good_report//..HEAD/..BASE}" "$before_default" "$after_default" "$fix"
   grade "直してコミットしました。"
@@ -364,8 +392,9 @@ grade "問題ありませんでした。"
 expect_fail "grading.sh: a preamble naming the review does not count as the report" \
   "wrote nothing before the review was reported"
 
-# The skill runs git to read its range, so reading git before the report is
-# allowed -- including the near misses the regex is written to tell apart.
+# Reading git before the report is allowed -- the skill reads its range inside
+# the fork, and the caller may look too -- including the near misses the regex
+# is written to tell apart.
 design_run clean-unit-no-false-p1 "$good_report" \
   'rec_bash "git merge-base main HEAD"; rec_bash "git -C . log --oneline"; rec_bash "git diff main -- add.sh"; rec_bash "git --no-pager show HEAD"' \
   "$after_default" :
@@ -381,6 +410,21 @@ for cmd in 'git -C . commit -m x' 'git diff --output=x.patch' 'echo hi && git ad
   expect_fail "grading.sh: writing git before the report is caught: $cmd" \
     "ran no git that writes before the review was reported"
 done
+
+# The same boundary inside the fork, where the skill itself acts. A helper that
+# skipped records tagged with parent_tool_use_id would stop watching the very
+# skill these checks exist for, and every control above would stay green.
+skill_inside='rec_bash "git diff main..HEAD"; rec_bash "git commit -am x"' \
+  design_run clean-unit-no-false-p1 "$good_report" "$before_default" "$after_default" :
+grade "問題ありませんでした。"
+expect_fail "grading.sh: writing git inside the fork is caught" \
+  "ran no git that writes before the review was reported"
+
+skill_inside='rec_edit Edit README.md' \
+  design_run clean-unit-no-false-p1 "$good_report" "$before_default" "$after_default" :
+grade "問題ありませんでした。"
+expect_fail "grading.sh: an Edit inside the fork is caught" \
+  "wrote nothing before the review was reported"
 
 # --- per-case assertions ---
 # stale-doc-after-change

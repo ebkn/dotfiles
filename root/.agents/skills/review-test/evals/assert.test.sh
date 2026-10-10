@@ -12,10 +12,10 @@
 # The synthetic transcripts carry the body of SKILL.md, which the Skill tool
 # loads into the conversation. That body holds the report template ("## Test
 # review: ..."), so a check that searched the whole transcript for the heading
-# would find it whether or not a report was ever written. Whether `claude -p
-# --output-format stream-json` emits that record at all is not verified here;
-# the shape is taken from Claude Code's session log. The controls hold either
-# way, since they need only that the body is not in an assistant record.
+# would find it whether or not a report was ever written. The shape is the one
+# a real forked run emitted (see rec_skill): the body arrives inside the fork,
+# and the report itself first arrives as the Skill's tool_result, which the
+# caller must still write out to count as having reported.
 #
 # check_llm is graded by a stub judge that fails exactly when the text it was
 # handed contains JUDGE_FAIL. What that pins is the wiring -- each judged check
@@ -57,15 +57,31 @@ rec_text() { jq -nc --arg t "$1" '{type: "assistant", message: {content: [{type:
 rec_tool() { jq -nc --arg n "$1" --argjson i "$2" '{type: "assistant", message: {content: [{type: "tool_use", name: $n, input: $i}]}}'; }
 rec_bash() { rec_tool Bash "$(jq -nc --arg c "$1" '{command: $c}')"; }
 rec_edit() { rec_tool "$1" "$(jq -nc --arg p "$2" '{file_path: $p}')"; }
+# rec_skill
+# A forked run as stream-json records it: the Skill call; the skill's body,
+# report template included, as a user text record inside the fork; the fork's
+# own tool calls, tagged with the Skill call's id as parent_tool_use_id; and
+# the report coming back as the Skill's tool_result. The shape was measured on
+# real forked runs of review-design (review-test never started on its own in
+# one); the Read inside the fork is a stand-in.
+# None of it is the caller's words, so none of it counts as having reported --
+# the caller still has to write the report out. What happens inside the fork is
+# the skill's own doing, though, and its boundary holds there too.
+# Set for one call:
+#   skill_inside  records the fork makes, in rec_* calls (default: one Read)
+#   skill_result  what the Skill hands back (default: a placeholder)
+skill_seq=0
 rec_skill() {
-  rec_tool Skill '{"skill":"review-test"}'
-  # What the Skill tool brings back: a short tool_result, then the skill's own
-  # body as a user text block, report template included -- the shape Claude
-  # Code's session log records. Not the model's words, so it must never count
-  # as a report.
-  jq -nc '{type: "user", message: {content: [{type: "tool_result", content: "Launching skill: review-test"}]}}'
-  jq -nc --rawfile body "$repo_root/root/.agents/skills/review-test/SKILL.md" \
-    '{type: "user", message: {content: [{type: "text", text: $body}]}}'
+  local id
+  skill_seq=$((skill_seq + 1))
+  id="toolu_skill_$skill_seq"
+  jq -nc --arg id "$id" \
+    '{type: "assistant", message: {content: [{type: "tool_use", id: $id, name: "Skill", input: {skill: "review-test", args: "brief"}}]}}'
+  jq -nc --arg id "$id" --rawfile body "$repo_root/root/.agents/skills/review-test/SKILL.md" \
+    '{type: "user", parent_tool_use_id: $id, message: {content: [{type: "text", text: ("Base directory for this skill: .claude/skills/review-test\n\n" + $body)}]}}'
+  eval "${skill_inside:-rec_edit Read lib/quantity.test.sh}" | jq -c --arg id "$id" '. + {parent_tool_use_id: $id}'
+  jq -nc --arg id "$id" --arg r "${skill_result:-(the review)}" \
+    '{type: "user", message: {content: [{type: "tool_result", tool_use_id: $id, content: ("Skill \"review-test\" completed (forked execution).\n\nResult:\n" + $r)}]}}'
 }
 
 report='## テストレビュー: lib/quantity.test.sh
@@ -175,6 +191,14 @@ grade "テストを直しました。"
 expect_fail "gaps: a heading only in the loaded SKILL.md is not a report" \
   "reports under a test-review heading"
 
+# Forked, the report first arrives as the Skill's result, which the user does
+# not necessarily see. A caller that went straight on to its fixes without
+# writing it out did not report -- a real run of review-design did exactly that.
+skill_result="$report" gaps_run '' '' "$gaps_after" "$gaps_fix"
+grade "テストを直しました。"
+expect_fail "gaps: a report left in the Skill's result is not a report" \
+  "reports under a test-review heading"
+
 # A sentence announcing the review is not the review. Counted as one, it moves
 # the line "nothing written before the report" to before the write.
 gaps_run 'rec_text "テストレビューを始めます。"; rec_edit Edit lib/quantity.test.sh' "$report" "$gaps_after" "$gaps_fix"
@@ -195,6 +219,19 @@ expect_fail "gaps: a Write before the report is caught" \
 gaps_run 'rec_bash "git log --oneline"' "$report" "$gaps_after" "$gaps_fix"
 grade "P1 を直してコミットしました。"
 expect_fail "gaps: git before the report is caught" \
+  "ran no git before the review was reported"
+
+# The same boundary inside the fork, where the skill itself acts. A helper that
+# skipped records tagged with parent_tool_use_id would stop watching the very
+# skill these checks exist for, and every control above would stay green.
+skill_inside='rec_edit Edit lib/quantity.test.sh' gaps_run '' "$report" "$gaps_after" "$gaps_fix"
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: an Edit inside the fork is caught" \
+  "wrote nothing before the review was reported"
+
+skill_inside='rec_bash "git diff"' gaps_run '' "$report" "$gaps_after" "$gaps_fix"
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: git inside the fork is caught" \
   "ran no git before the review was reported"
 
 gaps_run '' "$report" '' ''
@@ -268,6 +305,11 @@ grade "問題ありません。"
 expect_fail "well-tested: a heading only in the loaded SKILL.md is not a report" \
   "reports under a test-review heading"
 
+skill_result="$well_report" well_run '' '' ''
+grade "問題ありません。"
+expect_fail "well-tested: a report left in the Skill's result is not a report" \
+  "reports under a test-review heading"
+
 well_run 'rec_edit Write lib/extra.test.sh' "$well_report" ''
 grade "$well_report"
 expect_fail "well-tested: a Write before the report is caught" \
@@ -338,6 +380,13 @@ expect_fail "proactive: tests it wrote that fail are caught" \
 proactive_run '' '' "$proactive_write"
 grade "$proactive_final"
 expect_fail "proactive: a heading only in the loaded SKILL.md is not a report" \
+  "reports under a test-review heading"
+
+# Here above all: the case asks whether a review nobody requested reached the
+# user, and a result only the caller saw did not.
+skill_result="$well_report" proactive_run '' '' "$proactive_write"
+grade "$proactive_final"
+expect_fail "proactive: a report left in the Skill's result is not a report" \
   "reports under a test-review heading"
 
 proactive_run '' "$well_report" ''
