@@ -299,6 +299,20 @@ out=$(cat "$DIR/out")
 eq "a second run finds nothing to do" "dotfiles symlinks are up to date." "$out"
 eq "and no run touched launchctl" "no" "$([ -e "$DIR/launchctl.log" ] && echo yes || echo no)"
 
+# On that synced home, one link moved into an old checkout that still exists.
+# relink decides "up to date" from LINK_DRIFT alone, so the drift line is not
+# enough: a flag set only for missing links would print it and then say up to
+# date, fixing nothing.
+mkdir -p "$DIR/old-checkout"
+printf 'old\n' >"$DIR/old-checkout/.tmux.conf"
+ln -sfn "$DIR/old-checkout/.tmux.conf" "$RH/.tmux.conf"
+relink_run -
+has "a live link into an old checkout is listed as drift" "$(cat "$DIR/out")" \
+  "drift:   $RH/.tmux.conf does not point to $REPO/.tmux.conf"
+lacks "and relink does not call the home up to date" "$(cat "$DIR/out")" "up to date"
+relink_run y
+eq "and answering y re-points it" "$REPO/.tmux.conf" "$(readlink "$RH/.tmux.conf")"
+
 # An apply that left links undone must not report success. update-all runs
 # relink last, so "done." and exit 0 here read as a synced machine.
 #
