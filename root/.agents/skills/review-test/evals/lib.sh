@@ -49,19 +49,23 @@ parse_quantity() {
 }
 
 # sum_quantities [<input>...]
-# Print the total of every argument, in tonnes, to 10 significant digits. No
-# arguments is 0.
+# Print the total of every argument, in tonnes, rounded once to 10 significant
+# digits. A total of at least 0.0001 and below 1e10 prints as a plain decimal;
+# outside that range it prints in exponent form ("1e-05"), which parse_quantity
+# does not read back. No arguments is 0.
 # If any one of them is refused by parse_quantity, the total is refused too:
 # status 1, nothing on stdout. A partial sum is never printed.
 sum_quantities() {
-  local total=0 input value
+  local values="" input value
   for input in "$@"; do
     if ! value="$(parse_quantity "$input")"; then
       return 1
     fi
-    total="$(awk -v a="$total" -v b="$value" 'BEGIN { printf "%.10g", a + b }')"
+    values="$values$value"$'\n'
   done
-  printf '%s\n' "$total"
+  # Added up in one pass and rounded at the end: rounding after every addition
+  # lets the error build up (3 x 0.33333333333 would print 0.9999999999).
+  printf '%s' "$values" | awk '{ s += $1 } END { printf "%.10g\n", s + 0 }'
 }
 QUANTITY
 
