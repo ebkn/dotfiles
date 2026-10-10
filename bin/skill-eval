@@ -203,7 +203,12 @@ work=
 # shellcheck disable=SC2329 # invoked by the EXIT trap below
 cleanup() {
   rm -f "$summary_file" ${case_cost_file:+"$case_cost_file"}
-  if [ -n "$work" ] && [ "$keep" -eq 0 ]; then
+  [ -n "$work" ] || return 0
+  # A run cut short is the failure --keep is for, so it is named here whatever
+  # ended it; a finished run names its own and clears $work first.
+  if [ "$keep" -eq 1 ]; then
+    printf '    work: %s\n' "$work" >&2
+  else
     rm -rf "$work"
   fi
 }
@@ -262,14 +267,13 @@ for case_name in "${cases[@]}"; do
 
     # A broken scaffold is the harness failing, not the skill, so it stops the
     # run rather than being graded -- but by name. The trap removes the
-    # working directory, unless --keep asked for it: a half-built fixture is
+    # working directory, or under --keep names it: a half-built fixture is
     # exactly what fixing the scaffold needs to look at.
     scaffold_exit=0
     (cd "$work" && SKILL_EVAL_LIB_DIR="$lib_dir" SKILL_EVAL_REPO_ROOT="$repo_root" bash "$case_dir/scaffold.sh") ||
       scaffold_exit=$?
     if [ "$scaffold_exit" -ne 0 ]; then
       printf 'case %s: scaffold.sh exited %s\n' "$case_name" "$scaffold_exit" >&2
-      [ "$keep" -eq 0 ] || printf '    work: %s\n' "$work" >&2
       exit 1
     fi
 

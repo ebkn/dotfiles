@@ -556,33 +556,50 @@ t "and leaves nothing in TMPDIR" "" "$(ls -Ap "$DIR/multi-tmp" 2>&1)"
 # A mid-case exit that is not the scaffold's -- here the runner's own write
 # into .git/info failing under set -e -- removes the working directory too:
 # without --keep, a run leaves nothing whichever way it ends.
-rm -rf "$STUB_CLAUDE_OUT" "$DIR/scaffold-cwd"
-mkdir -p "$DIR/midcase-tmp"
-if TMPDIR="$DIR/midcase-tmp" STUB_SCAFFOLD_BREAK_GIT_INFO=1 STUB_SCAFFOLD_CWD="$DIR/scaffold-cwd" \
-  $RUN "$skill" case-a >/dev/null 2>&1; then
-  printf 'FAIL a run whose runner step failed still exited 0\n'
-  fails=$((fails + 1))
-else
-  printf 'ok   a runner step failing mid-case exits non-zero\n'
-fi
-midcase_cwd=$(cat "$DIR/scaffold-cwd" 2>/dev/null)
-t "the scaffold ran before the failure" "yes" "$([ -n "$midcase_cwd" ] && echo yes || echo no)"
-t "and the working directory is removed" "gone" "$([ -e "$midcase_cwd" ] && echo kept || echo gone)"
+# Each run below records its cwd in a file of its own, so no case can pass on
+# a path a previous one left behind.
+#
+# run_failing <name> <args...> -- run the runner with TMPDIR=$DIR/<name>-tmp and
+# STUB_SCAFFOLD_CWD=$DIR/<name>-cwd; sets out, rc, cwd (the scaffold's pwd -P)
+# and named (the `work:` path the runner printed, resolved with pwd -P).
+run_failing() {
+  local name=$1
+  shift
+  mkdir -p "$DIR/$name-tmp"
+  rc=0
+  out=$(env TMPDIR="$DIR/$name-tmp" STUB_SCAFFOLD_CWD="$DIR/$name-cwd" "$@" 2>&1) || rc=$?
+  cwd=$(cat "$DIR/$name-cwd" 2>/dev/null)
+  named=$(printf '%s\n' "$out" | sed -n 's/^ *work: //p')
+  [ -z "$named" ] || named=$(cd "$named" 2>/dev/null && pwd -P)
+}
+
+rm -rf "$STUB_CLAUDE_OUT"
+run_failing midcase STUB_SCAFFOLD_BREAK_GIT_INFO=1 $RUN "$skill" case-a
+t "a runner step failing mid-case exits non-zero" "nonzero" "$([ "$rc" -ne 0 ] && echo nonzero || echo zero)"
+# Not the scaffold's failure dressed up as one: the scaffold returned 0, and
+# the run stopped at the runner's own write.
+absent "and the scaffold itself did not fail" "scaffold.sh exited" "$out"
+contains "it stopped at the runner's write into .git/info" ".git/info/exclude" "$out"
+t "the working directory is removed" "gone" "$([ -n "$cwd" ] && [ ! -e "$cwd" ] && echo gone || echo kept)"
 t "and nothing is left in TMPDIR" "" "$(ls -Ap "$DIR/midcase-tmp" 2>&1)"
 
 # --keep is for investigating a failure, and a broken scaffold is one: its
-# half-built fixture is kept and named, while the runner's own files go.
-rm -rf "$STUB_CLAUDE_OUT" "$DIR/scaffold-cwd"
-mkdir -p "$DIR/keepfail-tmp"
-keepfail_out=$(TMPDIR="$DIR/keepfail-tmp" STUB_SCAFFOLD_FAIL=1 STUB_SCAFFOLD_CWD="$DIR/scaffold-cwd" \
-  $RUN "$skill" case-a --keep 2>&1)
-keepfail_cwd=$(cat "$DIR/scaffold-cwd" 2>/dev/null)
-t "--keep keeps a failed scaffold's working directory" "kept" \
-  "$([ -n "$keepfail_cwd" ] && [ -d "$keepfail_cwd" ] && echo kept || echo gone)"
-# The stub records `pwd -P`; the runner prints the path as it made it.
-keepfail_named=$(printf '%s\n' "$keepfail_out" | sed -n 's/^ *work: //p')
-t "and names it" "$keepfail_cwd" "$(cd "$keepfail_named" 2>/dev/null && pwd -P)"
-t "and it is the only thing left in TMPDIR" "$(basename "$keepfail_cwd")/" "$(ls -Ap "$DIR/keepfail-tmp" 2>&1)"
+# half-built fixture is kept and named, while the runner's own files go, and
+# the run still fails as a broken harness.
+rm -rf "$STUB_CLAUDE_OUT"
+run_failing keepfail STUB_SCAFFOLD_FAIL=1 $RUN "$skill" case-a --keep
+t "--keep still fails a broken scaffold" "nonzero" "$([ "$rc" -ne 0 ] && echo nonzero || echo zero)"
+contains "and still names the failing case" "case case-a: scaffold.sh exited 4" "$out"
+t "and keeps its working directory" "kept" "$([ -n "$cwd" ] && [ -d "$cwd" ] && echo kept || echo gone)"
+t "and names it" "$cwd" "$named"
+t "and it is the only thing left in TMPDIR" "$(basename "$cwd")/" "$(ls -Ap "$DIR/keepfail-tmp" 2>&1)"
+
+# The same for any other mid-case exit: a run cut short under --keep names the
+# directory it kept, or it is an unnamed skill-eval.XXXXXX among the others.
+rm -rf "$STUB_CLAUDE_OUT"
+run_failing keepmid STUB_SCAFFOLD_BREAK_GIT_INFO=1 $RUN "$skill" case-a --keep
+t "--keep keeps a run cut short mid-case" "kept" "$([ -n "$cwd" ] && [ -d "$cwd" ] && echo kept || echo gone)"
+t "and names it" "$cwd" "$named"
 
 # --- allowed-tools is read from the frontmatter only ---
 # A body line that happens to start with the key -- an example in the skill's
