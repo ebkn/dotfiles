@@ -194,7 +194,9 @@ tmp_root="${TMPDIR:-/tmp}"
 tmp_root="${tmp_root%/}"
 summary_file="$(mktemp "$tmp_root/skill-eval.XXXXXX")"
 # The cost file is per case and removed at the case's end; the trap covers an
-# exit in the middle of one (a failed scaffold, an invalid case after it).
+# exit in the middle of one (a failed scaffold, or a command failing under
+# set -e). It holds only the case in progress, so each case still removes its
+# own and clears the variable.
 case_cost_file=
 trap 'rm -f "$summary_file" ${case_cost_file:+"$case_cost_file"}' EXIT
 
@@ -368,6 +370,7 @@ for case_name in "${cases[@]}"; do
 
   case_cost="$(jq -s 'add // 0' "$case_cost_file")"
   rm -f "$case_cost_file"
+  case_cost_file=
   printf '%s\t%d/%d\t%.3f\t%d\n' "$case_name" "$case_passed" "$runs" "$case_cost" "$((case_duration_ms / 1000))" >>"$summary_file"
 done
 

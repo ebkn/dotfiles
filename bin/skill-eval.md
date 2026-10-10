@@ -141,11 +141,14 @@ which is an order of magnitude more than a `review-test` review.
 The working directory is created **outside this repo**, under `$TMPDIR` (an
 explicit `mktemp` template, since macOS's bare `mktemp` ignores `TMPDIR`). Inside
 the repo, Claude Code would read this repo's `CLAUDE.md` and grade the fixture
-against dotfiles' conventions rather than the skill's own contract. A run leaves
-nothing in `$TMPDIR`, a failed scaffold included — the per-case cost file once
-outlived that exit. `--setting-sources
+against dotfiles' conventions rather than the skill's own contract. `--setting-sources
 project` and `--strict-mcp-config` keep the caller's user settings and MCP
 servers out for the same reason.
+
+What the runner leaves in `$TMPDIR`: nothing, for a run that finishes and for
+one stopped by a failed scaffold (the per-case cost file once outlived that
+exit; both are pinned). `--keep` leaves the working directory by design, and a
+run interrupted mid-`claude -p` leaves it too, since the trap does not cover it.
 
 The consequence is the limit worth knowing: **a case can only measure what
 `SKILL.md` achieves on its own.** The auto-start rule in `root/CLAUDE.md` is not
