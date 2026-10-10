@@ -174,14 +174,24 @@ the pair, and it is why the option exists. Measured 2026-10-10 with sonnet:
 | Case | Started review-test on its own |
 | --- | --- |
 | `proactive-after-writing-tests` (no CLAUDE.md) | 0 of 7 (4 forked, 3 with the fork lines removed) |
-| `proactive-with-claude-md` (`root/CLAUDE.md`) | 3 of 3 |
+| `proactive-with-claude-md` (`root/CLAUDE.md`) | 9 of 9 |
 
-So the auto-start rests on `root/CLAUDE.md`, not on the description. None of
-the three passed as a whole, though, and not for the trigger: in all three the
-caller acted on the forked report without writing it out first, and in two the
-review found real defects in the fixture's `lib/quantity.sh` (`%g` printing
-`1e+06`, a multi-line input passing the `grep`), so the tests that exposed them
-failed and the caller stopped to ask.
+So the auto-start rests on `root/CLAUDE.md`, not on the description. Passing as
+a whole took two more things, each found by these runs:
+
+| Round | Passed | What failed |
+| --- | --- | --- |
+| first | 0 of 3 | the caller acted on the forked report without writing it out (3); the review found real defects in the fixture (`%g` printing `1e+06`, a multi-line input passing `grep`) and the caller stopped to ask (2) |
+| after the `Caller:` line was made explicit and the fixture fixed | 1 of 3 | the fixture fix itself rounded after every addition (2) |
+| after rounding once | 1 of 3 | no commit, since `root/CLAUDE.md` names a `commit` skill the fixture does not carry (1); P2 findings left as questions for the user (1) |
+
+From the second round on, every run wrote the report out before acting on it.
+**A fixture a good review can fault makes the case unsatisfiable**: the tests
+that expose a defect fail, and fixing it fails "left the implementation
+untouched". So the fixture's contract has to be one a careful reader finds
+complete. **A `CLAUDE.md` brought in whole also brings its references**: the
+`commit` skill it names is not in the fixture, which is a gap between the two,
+not something the skill under evaluation did.
 
 ## Divergences from the monorepo harness
 
