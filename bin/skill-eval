@@ -193,7 +193,10 @@ timestamp="$(date +%Y%m%d-%H%M%S)"
 tmp_root="${TMPDIR:-/tmp}"
 tmp_root="${tmp_root%/}"
 summary_file="$(mktemp "$tmp_root/skill-eval.XXXXXX")"
-trap 'rm -f "$summary_file"' EXIT
+# The cost file is per case and removed at the case's end; the trap covers an
+# exit in the middle of one (a failed scaffold, an invalid case after it).
+case_cost_file=
+trap 'rm -f "$summary_file" ${case_cost_file:+"$case_cost_file"}' EXIT
 
 any_failed=0
 for case_name in "${cases[@]}"; do

@@ -138,9 +138,12 @@ which is an order of magnitude more than a `review-test` review.
 
 ## What the eval can and cannot see
 
-The working directory is created **outside this repo** (`mktemp`). Inside it,
-Claude Code would read this repo's `CLAUDE.md` and grade the fixture against
-dotfiles' conventions rather than the skill's own contract. `--setting-sources
+The working directory is created **outside this repo**, under `$TMPDIR` (an
+explicit `mktemp` template, since macOS's bare `mktemp` ignores `TMPDIR`). Inside
+the repo, Claude Code would read this repo's `CLAUDE.md` and grade the fixture
+against dotfiles' conventions rather than the skill's own contract. A run leaves
+nothing in `$TMPDIR`, a failed scaffold included — the per-case cost file once
+outlived that exit. `--setting-sources
 project` and `--strict-mcp-config` keep the caller's user settings and MCP
 servers out for the same reason.
 

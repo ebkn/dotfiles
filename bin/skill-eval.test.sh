@@ -527,6 +527,11 @@ STUB_SCAFFOLD_FAIL=1 STUB_SCAFFOLD_CWD="$DIR/scaffold-cwd" $RUN "$skill" case-a 
 scaffold_cwd=$(cat "$DIR/scaffold-cwd" 2>/dev/null)
 t "the failing scaffold ran in a working directory" "yes" "$([ -n "$scaffold_cwd" ] && echo yes || echo no)"
 t "and that directory is removed" "gone" "$([ -e "$scaffold_cwd" ] && echo kept || echo gone)"
+# Nor anything else the run made in TMPDIR: the per-case cost file used to
+# outlive this exit, one more empty file in the temp dir per failed scaffold.
+mkdir -p "$DIR/scaffold-tmp"
+TMPDIR="$DIR/scaffold-tmp" STUB_SCAFFOLD_FAIL=1 $RUN "$skill" case-a >/dev/null 2>&1
+t "and nothing the run made is left in TMPDIR" "" "$(ls -A "$DIR/scaffold-tmp")"
 
 # --- allowed-tools is read from the frontmatter only ---
 # A body line that happens to start with the key -- an example in the skill's
