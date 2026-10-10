@@ -124,11 +124,16 @@ unit link_with_backup "$R/rc" "$H/.rc"
 eq "a correct link is left exactly as it was" "$before" "$(snapshot "$DIR/case")"
 eq "and says nothing" "" "$(cat "$DIR/out" "$DIR/err")"
 
+# The target EXISTS: a link into an old checkout still resolves, and a check
+# that took any live link for a correct one would leave it pointing there for
+# good, with relink reporting "up to date". (A dangling one is the case below.)
 fresh
-ln -s "$DIR/elsewhere" "$H/.rc"
+mkdir -p "$DIR/case/old-checkout"
+printf 'old-rc\n' >"$DIR/case/old-checkout/rc"
+ln -s "$DIR/case/old-checkout/rc" "$H/.rc"
 unit link_with_backup "$R/rc" "$H/.rc"
-eq "a link pointing elsewhere is replaced" "$R/rc" "$(readlink "$H/.rc")"
-eq "and the old link is kept in the backup dir" "$DIR/elsewhere" "$(readlink "$B/.rc")"
+eq "a live link pointing elsewhere is replaced" "$R/rc" "$(readlink "$H/.rc")"
+eq "and the old link is kept in the backup dir" "$DIR/case/old-checkout/rc" "$(readlink "$B/.rc")"
 
 fresh
 unit link_with_backup "$R/nope" "$H/.nope"
@@ -176,7 +181,9 @@ eq "two same-second backups of one name and the earlier backup all survive" \
 # --- LINK_CHECK=1 ----------------------------------------------------------------
 fresh
 ln -s "$R/rc" "$H/.ok"
-ln -s "$DIR/elsewhere" "$H/.drifted"
+mkdir -p "$DIR/case/old-checkout"
+printf 'old-rc\n' >"$DIR/case/old-checkout/rc"
+ln -s "$DIR/case/old-checkout/rc" "$H/.drifted"
 printf 'mine\n' >"$H/.real"
 before=$(snapshot "$DIR/case")
 check_all() {
