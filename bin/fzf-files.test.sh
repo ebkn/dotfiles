@@ -76,7 +76,10 @@ for i in 1 2 3 4 5; do
     # of non-ASCII; a double quote is still wrapped and escaped.
     printf 'x\n' >'say "hi".txt'
     printf 'x\n' >'漢字.txt'
-    git add 'say "hi".txt' '漢字.txt'
+    # A backslash is the byte a `read` without -r, `awk -v` or `echo -e`
+    # would rewrite downstream, so it pins the name surviving as bytes.
+    printf 'x\n' >'zz-back\slash.txt'
+    git add 'say "hi".txt' '漢字.txt' 'zz-back\slash.txt'
   fi
   git commit -qam "c$i"
 done
@@ -111,6 +114,7 @@ t "and comes before the unchanged files" "yes" \
 t "a recently committed name with a double quote keeps its commit label" \
   "[ $(printf '%-11s' "$c3(-3)") ]" "$(label_of 'say "hi".txt')"
 t "and a non-ASCII one" "[ $(printf '%-11s' "$c3(-3)") ]" "$(label_of '漢字.txt')"
+t "and one with a backslash" "[ $(printf '%-11s' "$c3(-3)") ]" "$(label_of 'zz-back\slash.txt')"
 t "untracked comes before staged" "yes" "$([ "$(first_of untracked.txt)" -lt "$(first_of staged.txt)" ] && echo yes || echo no)"
 t "staged before unstaged" "yes" "$([ "$(first_of staged.txt)" -lt "$(first_of unstaged.txt)" ] && echo yes || echo no)"
 t "changed files before the rest" "yes" "$([ "$(first_of unstaged.txt)" -lt "$(first_of sub/rest-sub.txt)" ] && echo yes || echo no)"
