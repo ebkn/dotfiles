@@ -417,6 +417,17 @@ rm -rf "$STUB_CLAUDE_OUT"
 $RUN "$skill" case-a >/dev/null
 t "a case without claude_md gets no CLAUDE.md" "absent" "$(cat "$STUB_CLAUDE_OUT/claude_md")"
 
+# Excluded only when brought in. Excluding it always would hide a CLAUDE.md the
+# skill writes itself -- init-project's -- from `git add -A`, and its eval's
+# clean-tree check would pass all the same, since an excluded file is not in
+# status either.
+rm -rf "$STUB_CLAUDE_OUT"
+# shellcheck disable=SC2016  # expanded by the stub's own shell, not this one
+STUB_CLAUDE_ACTION='echo mine >CLAUDE.md && git status --porcelain >"$STUB_CLAUDE_OUT/status_after"' \
+  $RUN "$skill" case-a >/dev/null
+contains "a CLAUDE.md the skill writes itself stays visible to git status" "?? CLAUDE.md" \
+  "$(cat "$STUB_CLAUDE_OUT/status_after")"
+
 mkdir -p "$skills_dir/$skill/evals/case-f" "$skills_dir/$skill/evals/case-g"
 cat >"$skills_dir/$skill/evals/case-f/prompt.md" <<'EOF'
 ---
