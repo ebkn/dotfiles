@@ -33,15 +33,15 @@ review_test_fixture_init() {
 # to stderr and the status is 1, with nothing on stdout.
 parse_quantity() {
   local input="$1"
-  local normalized
-  normalized="$(printf '%s' "$input" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[tT]$//')"
-  if [ -z "$normalized" ]; then
-    printf 'invalid quantity: %s\n' "$input" >&2
-    return 1
-  fi
+  local normalized="$input"
+  # Trimmed and matched as one string, not line by line as sed and grep would:
+  # "abc<newline>5" is not a weight.
+  normalized="${normalized#"${normalized%%[![:space:]]*}"}"
+  normalized="${normalized%"${normalized##*[![:space:]]}"}"
+  normalized="${normalized%[tT]}"
   # Leading `-` is not matched, so a negative weight is refused here rather
   # than compared numerically afterwards.
-  if ! printf '%s' "$normalized" | grep -qE '^[0-9]+(\.[0-9]+)?$'; then
+  if ! [[ "$normalized" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
     printf 'invalid quantity: %s\n' "$input" >&2
     return 1
   fi
@@ -49,7 +49,8 @@ parse_quantity() {
 }
 
 # sum_quantities [<input>...]
-# Print the total of every argument, in tonnes. No arguments is 0.
+# Print the total of every argument, in tonnes, to 10 significant digits. No
+# arguments is 0.
 # If any one of them is refused by parse_quantity, the total is refused too:
 # status 1, nothing on stdout. A partial sum is never printed.
 sum_quantities() {
@@ -58,7 +59,7 @@ sum_quantities() {
     if ! value="$(parse_quantity "$input")"; then
       return 1
     fi
-    total="$(awk -v a="$total" -v b="$value" 'BEGIN { printf "%g", a + b }')"
+    total="$(awk -v a="$total" -v b="$value" 'BEGIN { printf "%.10g", a + b }')"
   done
   printf '%s\n' "$total"
 }
