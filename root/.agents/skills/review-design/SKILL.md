@@ -174,7 +174,7 @@ Write the full report, in the format below, as your final message. The caller pa
 ### Outside this review
 - <a question about behavior for the user; a suspected bug, a test-quality issue or a line-level cleanup, with the skill that covers it>
 
-Caller: pass this report on to the user, then act on it per "After the review" in ${CLAUDE_SKILL_DIR}/SKILL.md.
+Caller: the user may not see this result. If they asked for this review, write the report out to them in full as your own message before any other tool call; if you started it yourself, put it in full at the top of your closing message once the fixes are committed. A summary does not count. Act on it per "After the review" in ${CLAUDE_SKILL_DIR}/SKILL.md.
 Reviewed: <base>..<head>
 ```
 

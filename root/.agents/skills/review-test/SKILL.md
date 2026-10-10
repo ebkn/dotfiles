@@ -151,7 +151,7 @@ Drop any priority section with nothing in it, and the implementation section too
 **End the report with this line, untranslated**, because a forked caller never read this file and needs to be told what its part is:
 
 ```
-Caller: show this report to the user, then act on it per "After the review" in ${CLAUDE_SKILL_DIR}/SKILL.md.
+Caller: the user may not see this result. Before any other tool call, write the report above out to them in full, as your own message — a summary at the end does not count. Then act on it per "After the review" in ${CLAUDE_SKILL_DIR}/SKILL.md.
 ```
 
 ## How to assign priority
