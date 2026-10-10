@@ -163,6 +163,22 @@ runs — every case's frontmatter is checked first, so a bad one further down is
 not reached only after the ones ahead of it were paid for — and a typo would
 otherwise measure `SKILL.md` alone under the other name.
 
+**Pair such a case with one that leaves the file out** — same prompt, fixture
+and grader — so the difference between them is the file's. `review-test` has
+the pair, and it is why the option exists. Measured 2026-10-10 with sonnet:
+
+| Case | Started review-test on its own |
+| --- | --- |
+| `proactive-after-writing-tests` (no CLAUDE.md) | 0 of 7 (4 forked, 3 with the fork lines removed) |
+| `proactive-with-claude-md` (`root/CLAUDE.md`) | 3 of 3 |
+
+So the auto-start rests on `root/CLAUDE.md`, not on the description. None of
+the three passed as a whole, though, and not for the trigger: in all three the
+caller acted on the forked report without writing it out first, and in two the
+review found real defects in the fixture's `lib/quantity.sh` (`%g` printing
+`1e+06`, a multi-line input passing the `grep`), so the tests that exposed them
+failed and the caller stopped to ask.
+
 ## Divergences from the monorepo harness
 
 - **The fixture is shell, not TypeScript.** This repo is shell, and a shell
@@ -226,8 +242,9 @@ asserts each FAIL appears. It costs nothing and CI runs it. It also takes the
 Makefile out of the fenced `make` block in `references/swift.md` instead of copying
 it, so the documented snippet is executed rather than trusted.
 
-`review-test/evals/assert.test.sh` does the same for all three of that skill's
-cases, and `review-design/evals/assert.test.sh` for all eight of its. A case there is graded on the transcript as much as on the tree, so it
+`review-test/evals/assert.test.sh` does the same for that skill's cases (the
+fourth, `proactive-with-claude-md`, runs the third's scaffold and grader, so it
+is pinned through that one), and `review-design/evals/assert.test.sh` for all eight of its. A case there is graded on the transcript as much as on the tree, so it
 writes synthetic transcripts, and two things about them are worth copying:
 
 - **A synthetic transcript carries the loaded SKILL.md.** The Skill tool puts
