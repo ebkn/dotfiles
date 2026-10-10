@@ -162,6 +162,27 @@ t "a renamed file is listed under its new name, staged" "[ staged      ]|b.txt" 
 t "the entry after a rename is not lost" "[ staged      ]|c.txt" \
   "$(printf '%s\n' "$r_labels" | grep -F '|c.txt')"
 
+# --- a path that is not valid UTF-8, in history ---------------------------------------
+# .zshenv exports LC_ALL=en_US.UTF-8, and in that locale macOS's tr ("Illegal
+# byte sequence") and awk ("towc: multibyte conversion failure") both abort on
+# an invalid byte sequence -- the awk that reads the log lines is what emptied
+# --label under set -e, so fixing tr alone leaves this red. APFS cannot create
+# such a file, so it arrives only through a commit made elsewhere: built here
+# with plumbing. GNU tr and awk are byte-wise, so on Linux this passes either
+# way; it is a macOS check.
+repo4="$TMP/repo4"
+git init -q "$repo4"
+cd "$repo4" || exit 1
+git config user.email t@e
+git config user.name t
+printf 'x\n' >ok.txt
+git add ok.txt
+blob=$(printf 'x\n' | git hash-object -w --stdin)
+git update-index --add --cacheinfo "100644,$blob,$(printf 'bad\377.txt')"
+git commit -qm 'a name from elsewhere'
+t "a path that is not UTF-8 in recent history does not empty the listing" "[ $(printf '%-11s' "$(git log --format=%h -1)(-1)") ]|ok.txt" \
+  "$(LC_ALL=en_US.UTF-8 ff --label | awk -F'\t' '{ print (NF > 1 ? $1 : "") "|" $NF }' | grep -F '|ok.txt')"
+
 # --- outside a repository ------------------------------------------------------------
 mkdir -p "$TMP/plain"
 cd "$TMP/plain" || exit 1

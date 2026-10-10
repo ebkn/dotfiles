@@ -13,6 +13,11 @@
 #   Priority: untracked > staged > unstaged > committed (first label wins per file).
 
 set -euo pipefail
+# Paths are bytes here, never text: they are compared, prefix-stripped and
+# printed back. In the UTF-8 locale .zshenv exports, macOS's tr and awk both
+# abort on a name that is not valid UTF-8 (one committed from another OS), and
+# under set -e that ended the picker empty. Nothing below needs the locale.
+export LC_ALL=C
 
 label_mode=false
 if [[ "${1-}" == "--label" ]]; then
