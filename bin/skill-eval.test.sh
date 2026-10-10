@@ -198,13 +198,18 @@ EOF
 cat >"$skills_dir/$skill/evals/case-a/scaffold.sh" <<'EOF'
 #!/bin/bash
 set -eo pipefail
-[ -z "${STUB_SCAFFOLD_FAIL:-}" ] || { [ -z "${STUB_SCAFFOLD_CWD:-}" ] || pwd -P >"$STUB_SCAFFOLD_CWD"; exit 4; }
+[ -z "${STUB_SCAFFOLD_CWD:-}" ] || pwd -P >"$STUB_SCAFFOLD_CWD"
+[ -z "${STUB_SCAFFOLD_FAIL:-}" ] || exit 4
 source "$SKILL_EVAL_LIB_DIR/skill-eval-scaffold.sh"
 echo hello >tracked.txt
 skill_eval_init_repo
 echo changed >tracked.txt
 mkdir -p bin
 printf '%s\n' "$SKILL_EVAL_REPO_ROOT" >bin/repo_root
+# Succeeds, but leaves .git/info a plain file: the runner's own append to
+# .git/info/exclude then fails under set -e -- a mid-case exit that is not
+# the scaffold's.
+[ -z "${STUB_SCAFFOLD_BREAK_GIT_INFO:-}" ] || { rm -rf .git/info; : >.git/info; }
 EOF
 cat >"$skills_dir/$skill/evals/case-a/assert.sh" <<'EOF'
 #!/bin/bash
@@ -547,6 +552,37 @@ mkdir -p "$DIR/multi-tmp"
 TMPDIR="$DIR/multi-tmp" $RUN "$skill" >"$DIR/multi-out" 2>&1
 contains "a run of every case reaches case-b" "[PASS] $skill/case-b run-1" "$(cat "$DIR/multi-out")"
 t "and leaves nothing in TMPDIR" "" "$(ls -Ap "$DIR/multi-tmp" 2>&1)"
+
+# A mid-case exit that is not the scaffold's -- here the runner's own write
+# into .git/info failing under set -e -- removes the working directory too:
+# without --keep, a run leaves nothing whichever way it ends.
+rm -rf "$STUB_CLAUDE_OUT" "$DIR/scaffold-cwd"
+mkdir -p "$DIR/midcase-tmp"
+if TMPDIR="$DIR/midcase-tmp" STUB_SCAFFOLD_BREAK_GIT_INFO=1 STUB_SCAFFOLD_CWD="$DIR/scaffold-cwd" \
+  $RUN "$skill" case-a >/dev/null 2>&1; then
+  printf 'FAIL a run whose runner step failed still exited 0\n'
+  fails=$((fails + 1))
+else
+  printf 'ok   a runner step failing mid-case exits non-zero\n'
+fi
+midcase_cwd=$(cat "$DIR/scaffold-cwd" 2>/dev/null)
+t "the scaffold ran before the failure" "yes" "$([ -n "$midcase_cwd" ] && echo yes || echo no)"
+t "and the working directory is removed" "gone" "$([ -e "$midcase_cwd" ] && echo kept || echo gone)"
+t "and nothing is left in TMPDIR" "" "$(ls -Ap "$DIR/midcase-tmp" 2>&1)"
+
+# --keep is for investigating a failure, and a broken scaffold is one: its
+# half-built fixture is kept and named, while the runner's own files go.
+rm -rf "$STUB_CLAUDE_OUT" "$DIR/scaffold-cwd"
+mkdir -p "$DIR/keepfail-tmp"
+keepfail_out=$(TMPDIR="$DIR/keepfail-tmp" STUB_SCAFFOLD_FAIL=1 STUB_SCAFFOLD_CWD="$DIR/scaffold-cwd" \
+  $RUN "$skill" case-a --keep 2>&1)
+keepfail_cwd=$(cat "$DIR/scaffold-cwd" 2>/dev/null)
+t "--keep keeps a failed scaffold's working directory" "kept" \
+  "$([ -n "$keepfail_cwd" ] && [ -d "$keepfail_cwd" ] && echo kept || echo gone)"
+# The stub records `pwd -P`; the runner prints the path as it made it.
+keepfail_named=$(printf '%s\n' "$keepfail_out" | sed -n 's/^ *work: //p')
+t "and names it" "$keepfail_cwd" "$(cd "$keepfail_named" 2>/dev/null && pwd -P)"
+t "and it is the only thing left in TMPDIR" "$(basename "$keepfail_cwd")/" "$(ls -Ap "$DIR/keepfail-tmp" 2>&1)"
 
 # --- allowed-tools is read from the frontmatter only ---
 # A body line that happens to start with the key -- an example in the skill's

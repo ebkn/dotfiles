@@ -193,12 +193,21 @@ timestamp="$(date +%Y%m%d-%H%M%S)"
 tmp_root="${TMPDIR:-/tmp}"
 tmp_root="${tmp_root%/}"
 summary_file="$(mktemp "$tmp_root/skill-eval.XXXXXX")"
-# The cost file is per case and removed at the case's end; the trap covers an
-# exit in the middle of one (a failed scaffold, or a command failing under
-# set -e). It holds only the case in progress, so each case still removes its
-# own and clears the variable.
+# The cost file is per case and the working directory per run; each is removed
+# when its case or run ends, and the trap covers an exit in the middle (a failed
+# scaffold, or any command failing under set -e). The variables hold only what
+# is in progress, so each owner still removes its own and clears them. Without
+# --keep a run leaves nothing in TMPDIR, whichever way it ends.
 case_cost_file=
-trap 'rm -f "$summary_file" ${case_cost_file:+"$case_cost_file"}' EXIT
+work=
+# shellcheck disable=SC2329 # invoked by the EXIT trap below
+cleanup() {
+  rm -f "$summary_file" ${case_cost_file:+"$case_cost_file"}
+  if [ -n "$work" ] && [ "$keep" -eq 0 ]; then
+    rm -rf "$work"
+  fi
+}
+trap cleanup EXIT
 
 any_failed=0
 for case_name in "${cases[@]}"; do
@@ -252,14 +261,15 @@ for case_name in "${cases[@]}"; do
     rm -rf "$work/.claude/skills/$skill/evals"
 
     # A broken scaffold is the harness failing, not the skill, so it stops the
-    # run rather than being graded -- but by name, and without leaving the
-    # working directory behind as `set -e` used to.
+    # run rather than being graded -- but by name. The trap removes the
+    # working directory, unless --keep asked for it: a half-built fixture is
+    # exactly what fixing the scaffold needs to look at.
     scaffold_exit=0
     (cd "$work" && SKILL_EVAL_LIB_DIR="$lib_dir" SKILL_EVAL_REPO_ROOT="$repo_root" bash "$case_dir/scaffold.sh") ||
       scaffold_exit=$?
     if [ "$scaffold_exit" -ne 0 ]; then
       printf 'case %s: scaffold.sh exited %s\n' "$case_name" "$scaffold_exit" >&2
-      rm -rf "$work"
+      [ "$keep" -eq 0 ] || printf '    work: %s\n' "$work" >&2
       exit 1
     fi
 
@@ -366,6 +376,7 @@ for case_name in "${cases[@]}"; do
     else
       rm -rf "$work"
     fi
+    work=
   done
 
   case_cost="$(jq -s 'add // 0' "$case_cost_file")"
