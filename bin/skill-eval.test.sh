@@ -198,7 +198,7 @@ EOF
 cat >"$skills_dir/$skill/evals/case-a/scaffold.sh" <<'EOF'
 #!/bin/bash
 set -eo pipefail
-[ -z "${STUB_SCAFFOLD_FAIL:-}" ] || exit 4
+[ -z "${STUB_SCAFFOLD_FAIL:-}" ] || { [ -z "${STUB_SCAFFOLD_CWD:-}" ] || pwd -P >"$STUB_SCAFFOLD_CWD"; exit 4; }
 source "$SKILL_EVAL_LIB_DIR/skill-eval-scaffold.sh"
 echo hello >tracked.txt
 skill_eval_init_repo
@@ -521,6 +521,12 @@ rm -rf "$STUB_CLAUDE_OUT"
 check_fails "a failing scaffold names the case" "case case-a: scaffold.sh exited 4" \
   env STUB_SCAFFOLD_FAIL=1 $RUN "$skill" case-a
 t "and claude is never called" "absent" "$([ -e "$STUB_CLAUDE_OUT/args" ] && echo present || echo absent)"
+# The scaffold says where it ran, so the check names that directory rather than
+# guessing at mktemp's location (macOS's ignores TMPDIR in this form).
+STUB_SCAFFOLD_FAIL=1 STUB_SCAFFOLD_CWD="$DIR/scaffold-cwd" $RUN "$skill" case-a >/dev/null 2>&1
+scaffold_cwd=$(cat "$DIR/scaffold-cwd" 2>/dev/null)
+t "the failing scaffold ran in a working directory" "yes" "$([ -n "$scaffold_cwd" ] && echo yes || echo no)"
+t "and that directory is removed" "gone" "$([ -e "$scaffold_cwd" ] && echo kept || echo gone)"
 
 # --- allowed-tools is read from the frontmatter only ---
 # A body line that happens to start with the key -- an example in the skill's
