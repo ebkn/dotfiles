@@ -44,6 +44,8 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   # subdir prefix (and drop anything outside it) so the output lines up with
   # `rg --files`, which is cwd-relative. `git log --relative` is LFS-safe (it diffs
   # committed trees, never the working copy) so it keeps --relative directly.
+  # The prefix reaches awk through ENVIRON, not `-v`: `-v` interprets escapes in
+  # the value, so a directory named back\slash stopped matching its own files.
   prefix=$(git rev-parse --show-prefix)
 
   # NUL-separated, so no path is quoted. The default output wraps a name with a
@@ -70,7 +72,8 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     # Use HASH: prefix marker to distinguish commit hashes from filenames.
     changed=$(
       {
-        porcelain_status | awk -v pfx="$prefix" '
+        porcelain_status | FZF_FILES_PREFIX="$prefix" awk '
+          BEGIN { pfx = ENVIRON["FZF_FILES_PREFIX"] }
           # A rename or copy is "XY new" followed by its old name on a line of
           # its own; the old name is not a file to open.
           skip { skip = 0; next }
@@ -106,7 +109,8 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     # Plain mode: no labels
     changed=$(
       {
-        porcelain_status | awk -v pfx="$prefix" '
+        porcelain_status | FZF_FILES_PREFIX="$prefix" awk '
+          BEGIN { pfx = ENVIRON["FZF_FILES_PREFIX"] }
           skip { skip = 0; next }
           {
             path = substr($0, 4)

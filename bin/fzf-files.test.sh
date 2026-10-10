@@ -144,6 +144,25 @@ t "from a subdirectory, a changed file there is cwd-relative" "[ unstaged    ]|i
   "$(printf '%s\n' "$sub_labels" | grep -F '|in-sub.txt' | head -1)"
 t "and files outside it are left out" "0" "$(printf '%s\n' "$sub_labels" | grep -c 'staged.txt')"
 
+# A subdirectory with a backslash in its name: the prefix stripped from git
+# status paths must reach awk as data. `awk -v` interprets escapes in the value,
+# so "back\slash/" became "backslash/", matched nothing, and every changed file
+# there lost its label and its place at the top.
+cd .. || exit 1
+mkdir -p 'back\slash'
+printf 'x\n' >'back\slash/a-old.txt'
+git add 'back\slash/a-old.txt'
+git commit -qm 'a dir with a backslash'
+printf 'x\n' >'back\slash/z-new.txt'
+cd 'back\slash' || exit 1
+bs_labels=$(ff --label | awk -F'\t' '{ print (NF > 1 ? $1 : "") "|" $NF }')
+t "from a directory with a backslash, a changed file there keeps its label" "[ untracked   ]|z-new.txt" \
+  "$(printf '%s\n' "$bs_labels" | grep -F '|z-new.txt' | head -1)"
+# Plain mode strips the prefix the same way. rg alone would put a-old.txt
+# first; the status entry has to win.
+t "and plain mode lists it first" "z-new.txt" "$(ff | head -1)"
+cd ../sub || exit 1
+
 # --- a rename -------------------------------------------------------------------
 # A rename is reported as the new name followed by the old one as an entry of
 # its own. The new name is the file; the old one must be dropped -- without
