@@ -453,6 +453,17 @@ cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-g/
 check_fails "a claude_md that does not exist says why, before spending anything" \
   "case case-g: claude_md not found: no/such/CLAUDE.md" $RUN "$skill" case-g
 
+# "Before spending anything" means before any case runs, not before this one:
+# run as a whole skill, a bad case further down the list would otherwise be
+# reached only after the ones before it were paid for. One check per key, since
+# each is validated on its own.
+for bad in case-d case-e case-g; do
+  rm -rf "$STUB_CLAUDE_OUT"
+  $RUN "$skill" case-a "$bad" >/dev/null 2>&1
+  t "a bad $bad is refused before case-a runs" "absent" \
+    "$(if [ -e "$STUB_CLAUDE_OUT/args" ]; then echo present; else echo absent; fi)"
+done
+
 # --- the transcript readers, against a fixture transcript ---
 #
 # The review skills' read-only boundary is graded by ORDER: "nothing written

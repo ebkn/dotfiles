@@ -158,8 +158,10 @@ claude_md: root/CLAUDE.md
 
 The runner copies it in as the fixture's `CLAUDE.md` after the scaffold, and
 excludes it from git only then, so a skill that writes a `CLAUDE.md` of its own
-still sees that one. A path that does not exist is refused before the case
-runs: a typo would otherwise measure `SKILL.md` alone under the other name.
+still sees that one. A path that does not exist is refused before any case
+runs — every case's frontmatter is checked first, so a bad one further down is
+not reached only after the ones ahead of it were paid for — and a typo would
+otherwise measure `SKILL.md` alone under the other name.
 
 ## Divergences from the monorepo harness
 

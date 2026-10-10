@@ -210,6 +210,13 @@ case_settings() {
   fi
 }
 
+# Every case is checked before the first one runs. Checked one at a time inside
+# the loop, a bad case further down would be refused only after the ones ahead
+# of it had been paid for.
+for case_name in "${cases[@]}"; do
+  case_settings "$case_name" || exit 1
+done
+
 timestamp="$(date +%Y%m%d-%H%M%S)"
 summary_file="$(mktemp)"
 trap 'rm -f "$summary_file"' EXIT
