@@ -144,24 +144,33 @@ t "from a subdirectory, a changed file there is cwd-relative" "[ unstaged    ]|i
   "$(printf '%s\n' "$sub_labels" | grep -F '|in-sub.txt' | head -1)"
 t "and files outside it are left out" "0" "$(printf '%s\n' "$sub_labels" | grep -c 'staged.txt')"
 
-# A subdirectory with a backslash in its name: the prefix stripped from git
-# status paths must reach awk as data. `awk -v` interprets escapes in the value,
-# so "back\slash/" became "backslash/", matched nothing, and every changed file
-# there lost its label and its place at the top.
-cd .. || exit 1
-mkdir -p 'back\slash'
-printf 'x\n' >'back\slash/a-old.txt'
-git add 'back\slash/a-old.txt'
-git commit -qm 'a dir with a backslash'
-printf 'x\n' >'back\slash/z-new.txt'
-cd 'back\slash' || exit 1
+# A subdirectory with backslashes in its name: the prefix stripped from git
+# status paths must reach awk as data. `awk -v` interprets escapes in the value.
+# The name holds `\\`, whose meaning every POSIX awk defines (one backslash):
+# a lone `\s` is undefined, and mawk -- Ubuntu's, so CI's -- keeps it as is,
+# which would let the old code pass there. Under `-v`, "back\\slash/" became
+# "back\slash/", matched nothing, and every git status entry there lost its label
+# and its place at the top.
+cd "$repo" || exit 1
+mkdir -p 'back\\slash'
+printf 'x\n' >'back\\slash/a-old.txt'
+git add 'back\\slash/a-old.txt'
+git commit -qm 'a dir with backslashes'
+printf 'x\n' >'back\\slash/z-new.txt'
+cd 'back\\slash' || exit 1
 bs_labels=$(ff --label | awk -F'\t' '{ print (NF > 1 ? $1 : "") "|" $NF }')
-t "from a directory with a backslash, a changed file there keeps its label" "[ untracked   ]|z-new.txt" \
+t "from a directory with backslashes, a changed file there keeps its label" "[ untracked   ]|z-new.txt" \
   "$(printf '%s\n' "$bs_labels" | grep -F '|z-new.txt' | head -1)"
-# Plain mode strips the prefix the same way. rg alone would put a-old.txt
-# first; the status entry has to win.
-t "and plain mode lists it first" "z-new.txt" "$(ff | head -1)"
-cd ../sub || exit 1
+# The log half: a file committed there just now is labelled, under its
+# cwd-relative name. The only case that checks recent_log's output from a
+# subdirectory, so the only one guarding --relative.
+t "and a file committed there recently keeps its commit label, cwd-relative" \
+  "[ $(printf '%-11s' "$(git log --format=%h -1)(-1)") ]|a-old.txt" \
+  "$(printf '%s\n' "$bs_labels" | grep -F '|a-old.txt' | head -1)"
+# Plain mode strips the prefix the same way, and lists status entries before
+# log ones: a-old.txt is in the newest commit, so if the status entry were lost
+# it would come first from the log half.
+t "plain mode strips the prefix too: the untracked file there comes first" "z-new.txt" "$(ff | head -1)"
 
 # --- a rename -------------------------------------------------------------------
 # A rename is reported as the new name followed by the old one as an entry of

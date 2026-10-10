@@ -45,7 +45,8 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   # `rg --files`, which is cwd-relative. `git log --relative` is LFS-safe (it diffs
   # committed trees, never the working copy) so it keeps --relative directly.
   # The prefix reaches awk through ENVIRON, not `-v`: `-v` interprets escapes in
-  # the value, so a directory named back\slash stopped matching its own files.
+  # the value, so a directory whose name holds a backslash sequence (`\\`
+  # everywhere, `\s` on BWK awk and gawk) stopped matching its own files.
   prefix=$(git rev-parse --show-prefix)
 
   # NUL-separated, so no path is quoted. The default output wraps a name with a
