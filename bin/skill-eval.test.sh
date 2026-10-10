@@ -549,8 +549,13 @@ t "and nothing the run made is left in TMPDIR" "" "$(ls -Ap "$DIR/scaffold-tmp" 
 # file; a single-case run would not notice if one stopped doing so.
 rm -rf "$STUB_CLAUDE_OUT" "$SKILL_EVAL_OUT_DIR"
 mkdir -p "$DIR/multi-tmp"
-TMPDIR="$DIR/multi-tmp" $RUN "$skill" >"$DIR/multi-out" 2>&1
+multi_rc=0
+TMPDIR="$DIR/multi-tmp" $RUN "$skill" >"$DIR/multi-out" 2>&1 || multi_rc=$?
 contains "a run of every case reaches case-b" "[PASS] $skill/case-b run-1" "$(cat "$DIR/multi-out")"
+# Every other check of the exit status looks for non-zero. Under set -e the
+# EXIT trap's return value replaces a clean `exit 0`, so a cleanup that ended
+# on a false test would turn every passing run red -- with nothing else noticing.
+t "a run where every case passes exits 0" "0" "$multi_rc"
 t "and leaves nothing in TMPDIR" "" "$(ls -Ap "$DIR/multi-tmp" 2>&1)"
 
 # A mid-case exit that is not the scaffold's -- here the runner's own write

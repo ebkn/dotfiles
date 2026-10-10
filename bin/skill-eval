@@ -203,6 +203,8 @@ work=
 # shellcheck disable=SC2329 # invoked by the EXIT trap below
 cleanup() {
   rm -f "$summary_file" ${case_cost_file:+"$case_cost_file"}
+  # `return 0`, not a bare `return`: under set -e this function's status
+  # replaces the script's own, so a false test here would fail a passing run.
   [ -n "$work" ] || return 0
   # A run cut short is the failure --keep is for, so it is named here whatever
   # ended it; a finished run names its own and clears $work first.
