@@ -62,7 +62,9 @@ nothing is written before it.
 back as the Skill's result, ending in its `Caller:` line, and the caller went
 straight to the fixes and a commit without writing it out, so the user never
 saw it. The ordering graders needed no change: a report counts once the caller
-writes it, which is what SKILL.md asks of a requested review.
+writes it, which is what SKILL.md asks of a requested review. Once the `Caller:`
+line said when and in full, two more runs both wrote the report out before
+acting on it; one passed, and the other's report had no interface list.
 
 **Before `context: fork`.** Everything below was measured with the review
 running inline in the caller's context.
