@@ -62,8 +62,12 @@ rec_edit() { rec_tool "$1" "$(jq -nc --arg p "$2" '{file_path: $p}')"; }
 # report template included, as a user text record inside the fork; the fork's
 # own tool calls, tagged with the Skill call's id as parent_tool_use_id; and
 # the report coming back as the Skill's tool_result. The shape was measured on
-# real forked runs of review-design (review-test never started on its own in
-# one); the Read inside the fork is a stand-in.
+# real forked runs of review-design and of review-test (proactive-with-claude-md);
+# the Read inside the fork is a stand-in.
+# The fork emitted no text record of its own in any of them, which is all that
+# keeps a heading inside the fork from counting as the caller's: the heading
+# check reads every assistant text, tagged or not. Tool calls inside the fork
+# are counted on purpose -- they are the skill's own -- text must not be.
 # None of it is the caller's words, so none of it counts as having reported --
 # the caller still has to write the report out. What happens inside the fork is
 # the skill's own doing, though, and its boundary holds there too.
@@ -413,6 +417,31 @@ proactive_run '' "$well_report" "$proactive_write"
 grade "JUDGE_FAIL"
 expect_fail "proactive: the P1/P2 judge reads the final response" \
   "reaches a conclusion about P1 and P2"
+
+# ============================================================
+# proactive-with-claude-md
+# ============================================================
+# Its scaffold and grader are proactive-after-writing-tests's own, by exec. The
+# prompt cannot be, so what keeps the pair a pair -- the same request under the
+# same tools -- is checked here: edited on one side only, the difference
+# between the two cases would no longer be the CLAUDE.md's.
+pair_part() { # <case> body|allowed_tools
+  awk -v part="$2" '
+    NR == 1 && $0 == "---" { inside = 1; next }
+    inside && $0 == "---" { inside = 0; next }
+    inside { if (part == "allowed_tools" && index($0, "allowed_tools:") == 1) print; next }
+    part == "body" { print }
+  ' "$evals_dir/$1/prompt.md"
+}
+for part in body allowed_tools; do
+  without="$(pair_part proactive-after-writing-tests "$part")"
+  with="$(pair_part proactive-with-claude-md "$part")"
+  if [ -n "$without" ] && [ "$without" = "$with" ]; then
+    ok "the CLAUDE.md pair shares its prompt $part"
+  else
+    bad "the CLAUDE.md pair shares its prompt $part"
+  fi
+done
 
 if [ "$fails" -eq 0 ]; then
   printf '\nall review-test grader tests passed\n'
