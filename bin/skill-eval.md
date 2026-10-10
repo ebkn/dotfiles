@@ -220,9 +220,12 @@ writes synthetic transcripts, and two things about them are worth copying:
   whether or not a report was written. "reports under a test-review heading"
   did exactly that, and also counted any mention of a test review, a preamble
   included. Headings are now looked for in the model's own text blocks only,
-  and need the colon (`evals/grading.sh`). The record's shape is taken from
-  Claude Code's session log; whether stream-json emits it has not been checked
-  against a real run, and the controls do not depend on it.
+  and need the colon (`evals/grading.sh`). The shape is the one a real run of
+  a forked skill emitted: the body is a user text record carrying the Skill
+  call's id as `parent_tool_use_id`, the fork's own tool calls carry it too,
+  and the report comes back as the Skill's `tool_result`. That result does not
+  count as reported either — the caller has to write it out, and a real run of
+  `review-design` that went straight to its fixes is what the control pins.
 - **`check_llm` is pinned by its wiring, not its rubric.** A stub judge fails
   exactly when its input contains `JUDGE_FAIL`, so planting the marker in the
   text a judged check is meant to read shows that it reads that text. Whether
