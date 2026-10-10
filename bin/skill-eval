@@ -187,7 +187,12 @@ read_prompt() {
 }
 
 timestamp="$(date +%Y%m%d-%H%M%S)"
-summary_file="$(mktemp)"
+# Every temp path takes an explicit template: macOS's bare `mktemp` ignores
+# TMPDIR, so without one nothing -- a test included -- could say where they go.
+# macOS's TMPDIR ends in a slash, kept off so a path reads the same as `pwd`.
+tmp_root="${TMPDIR:-/tmp}"
+tmp_root="${tmp_root%/}"
+summary_file="$(mktemp "$tmp_root/skill-eval.XXXXXX")"
 trap 'rm -f "$summary_file"' EXIT
 
 any_failed=0
@@ -227,13 +232,13 @@ for case_name in "${cases[@]}"; do
   fi
 
   case_passed=0
-  case_cost_file="$(mktemp)"
+  case_cost_file="$(mktemp "$tmp_root/skill-eval.XXXXXX")"
   case_duration_ms=0
 
   for ((i = 1; i <= runs; i++)); do
     artifacts="$out_root/$skill/$case_name/$timestamp/run-$i"
     mkdir -p "$artifacts"
-    work="$(mktemp -d)"
+    work="$(mktemp -d "$tmp_root/skill-eval.XXXXXX")"
 
     # Carry in the skill but not its evals/: with evals/ present the model can
     # read the grader while answering the prompt.

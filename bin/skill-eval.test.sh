@@ -522,7 +522,7 @@ check_fails "a failing scaffold names the case" "case case-a: scaffold.sh exited
   env STUB_SCAFFOLD_FAIL=1 $RUN "$skill" case-a
 t "and claude is never called" "absent" "$([ -e "$STUB_CLAUDE_OUT/args" ] && echo present || echo absent)"
 # The scaffold says where it ran, so the check names that directory rather than
-# guessing at mktemp's location (macOS's ignores TMPDIR in this form).
+# inferring it from what is left in TMPDIR.
 STUB_SCAFFOLD_FAIL=1 STUB_SCAFFOLD_CWD="$DIR/scaffold-cwd" $RUN "$skill" case-a >/dev/null 2>&1
 scaffold_cwd=$(cat "$DIR/scaffold-cwd" 2>/dev/null)
 t "the failing scaffold ran in a working directory" "yes" "$([ -n "$scaffold_cwd" ] && echo yes || echo no)"
