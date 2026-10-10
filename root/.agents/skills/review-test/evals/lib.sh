@@ -50,9 +50,10 @@ parse_quantity() {
 
 # sum_quantities [<input>...]
 # Print the total of every argument, in tonnes, rounded once to 10 significant
-# digits. A total of at least 0.0001 and below 1e10 prints as a plain decimal;
-# outside that range it prints in exponent form ("1e-05"), which parse_quantity
-# does not read back. No arguments is 0.
+# digits. A rounded total of at least 0.0001 and below 1e10 prints as a plain
+# decimal, and zero as 0; any other prints in exponent form ("1e-05", and
+# "1e+10" for 9999999999.5), which parse_quantity does not read back. No
+# arguments is 0.
 # If any one of them is refused by parse_quantity, the total is refused too:
 # status 1, nothing on stdout. A partial sum is never printed.
 sum_quantities() {
