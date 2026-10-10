@@ -71,6 +71,10 @@ rec_edit() { rec_tool "$1" "$(jq -nc --arg p "$2" '{file_path: $p}')"; }
 # None of it is the caller's words, so none of it counts as having reported.
 # What happens inside the fork is the skill's own doing, though, and its
 # boundary holds there too.
+# The fork emitted no text record of its own in any measured run, which is all
+# that keeps a heading inside the fork from counting as the caller's: the
+# heading check reads every assistant text, tagged or not. Tool calls inside
+# the fork are counted on purpose; text must not be.
 # Set for one call:
 #   skill_inside  records the fork makes, in rec_* calls (default: one git diff)
 #   skill_result  what the Skill hands back (default: a placeholder)

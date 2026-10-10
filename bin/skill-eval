@@ -41,7 +41,8 @@
 #
 # A case overrides both in prompt.md's frontmatter (max_turns / budget_usd),
 # because a long scenario is a property of the case, not of the machine running
-# it.
+# it. The same frontmatter adds tools (allowed_tools) and brings in a CLAUDE.md
+# (claude_md); see bin/skill-eval.md.
 
 set -eo pipefail
 

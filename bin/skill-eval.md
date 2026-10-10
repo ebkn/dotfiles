@@ -46,7 +46,7 @@ Three files in `root/.agents/skills/<skill>/evals/<case>/`:
 
 | File | Role |
 | --- | --- |
-| `prompt.md` | the prompt for `claude -p`. Leading YAML frontmatter is stripped before it is passed, and carries the case's own `allowed_tools` / `max_turns` / `budget_usd` |
+| `prompt.md` | the prompt for `claude -p`. Leading YAML frontmatter is stripped before it is passed, and carries the case's own `allowed_tools` / `max_turns` / `budget_usd` / `claude_md` (see [What the eval can and cannot see](#what-the-eval-can-and-cannot-see)) |
 | `scaffold.sh` | builds the fixture; cwd is an empty temp dir. Source `$SKILL_EVAL_LIB_DIR/skill-eval-scaffold.sh` and call `skill_eval_init_repo`, which tags the starting state `eval-base` |
 | `assert.sh` | grades; cwd is the working directory after the run. Source `$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh`, emit one `check` per assertion, end with `skill_eval_finish` |
 
@@ -159,12 +159,16 @@ claude_md: root/CLAUDE.md
 The runner copies it in as the fixture's `CLAUDE.md` after the scaffold, and
 excludes it from git only then, so a skill that writes a `CLAUDE.md` of its own
 still sees that one. A path that does not exist is refused before any case
-runs — every case's frontmatter is checked first, so a bad one further down is
-not reached only after the ones ahead of it were paid for — and a typo would
-otherwise measure `SKILL.md` alone under the other name.
+runs, since a typo would otherwise measure `SKILL.md` alone under the other
+name. Every case's frontmatter is checked before the first one starts, so a bad
+case further down is not reached only after the ones ahead of it were paid for.
 
 **Pair such a case with one that leaves the file out** — same prompt, fixture
-and grader — so the difference between them is the file's. `review-test` has
+and grader — so the difference between them is the file's. `review-test`'s
+pair also differs in `max_turns` / `budget_usd`, which matter only to a run that
+starts the skill: the runs without the file ended in 6 or 7 turns at about
+0.08 USD, so the ceilings did not decide the result. Raise them on both sides
+before comparing runs that do start it. `review-test` has
 the pair, and it is why the option exists. Measured 2026-10-10 with sonnet:
 
 | Case | Started review-test on its own |
@@ -242,9 +246,9 @@ asserts each FAIL appears. It costs nothing and CI runs it. It also takes the
 Makefile out of the fenced `make` block in `references/swift.md` instead of copying
 it, so the documented snippet is executed rather than trusted.
 
-`review-test/evals/assert.test.sh` does the same for that skill's cases (the
-fourth, `proactive-with-claude-md`, runs the third's scaffold and grader, so it
-is pinned through that one), and `review-design/evals/assert.test.sh` for all eight of its. A case there is graded on the transcript as much as on the tree, so it
+`review-test/evals/assert.test.sh` does the same for that skill's cases (`proactive-with-claude-md` runs
+`proactive-after-writing-tests`'s scaffold and grader, so it is pinned through
+that one), and `review-design/evals/assert.test.sh` for all eight of its. A case there is graded on the transcript as much as on the tree, so it
 writes synthetic transcripts, and two things about them are worth copying:
 
 - **A synthetic transcript carries the loaded SKILL.md.** The Skill tool puts

@@ -11,8 +11,11 @@
 # - the template itself, which the Skill tool loads as part of the SKILL.md
 #   body, and the forked skill's report, which comes back as the Skill's
 #   tool_result and which the user does not necessarily see -- so it is
-#   searched for in the caller's text blocks only, never in the transcript as a
-#   whole: a report counts once the caller has written it out;
+#   searched for in assistant text blocks only, never in the transcript as a
+#   whole: a report counts once the caller has written it out. Those blocks are
+#   the caller's only because the fork emitted no text record of its own in any
+#   measured run; transcript_first_text_index does not look at
+#   parent_tool_use_id;
 # - a preamble such as "テストレビューを始めます", which would move "nothing
 #   written before the report" to before the write. The colon after the title
 #   is what tells the two apart.
