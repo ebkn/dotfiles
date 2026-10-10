@@ -521,17 +521,32 @@ rm -rf "$STUB_CLAUDE_OUT"
 check_fails "a failing scaffold names the case" "case case-a: scaffold.sh exited 4" \
   env STUB_SCAFFOLD_FAIL=1 $RUN "$skill" case-a
 t "and claude is never called" "absent" "$([ -e "$STUB_CLAUDE_OUT/args" ] && echo present || echo absent)"
-# The scaffold says where it ran, so the check names that directory rather than
-# inferring it from what is left in TMPDIR.
-STUB_SCAFFOLD_FAIL=1 STUB_SCAFFOLD_CWD="$DIR/scaffold-cwd" $RUN "$skill" case-a >/dev/null 2>&1
-scaffold_cwd=$(cat "$DIR/scaffold-cwd" 2>/dev/null)
-t "the failing scaffold ran in a working directory" "yes" "$([ -n "$scaffold_cwd" ] && echo yes || echo no)"
-t "and that directory is removed" "gone" "$([ -e "$scaffold_cwd" ] && echo kept || echo gone)"
-# Nor anything else the run made in TMPDIR: the per-case cost file used to
-# outlive this exit, one more empty file in the temp dir per failed scaffold.
+# The scaffold says where it ran (into a file kept outside TMPDIR), which is
+# the positive control for the emptiness check below: it proves the failing
+# branch ran AND that the run's temp files were placed in this TMPDIR, so an
+# empty directory means cleaned up, not never written to. The per-case cost
+# file used to outlive this exit.
 mkdir -p "$DIR/scaffold-tmp"
-TMPDIR="$DIR/scaffold-tmp" STUB_SCAFFOLD_FAIL=1 $RUN "$skill" case-a >/dev/null 2>&1
-t "and nothing the run made is left in TMPDIR" "" "$(ls -A "$DIR/scaffold-tmp")"
+TMPDIR="$DIR/scaffold-tmp" STUB_SCAFFOLD_FAIL=1 STUB_SCAFFOLD_CWD="$DIR/scaffold-cwd" \
+  $RUN "$skill" case-a >/dev/null 2>&1
+scaffold_cwd=$(cat "$DIR/scaffold-cwd" 2>/dev/null)
+scaffold_tmp=$(cd "$DIR/scaffold-tmp" && pwd -P)
+case "$scaffold_cwd" in
+  "$scaffold_tmp"/?*) under_tmp=yes ;;
+  *) under_tmp=no ;;
+esac
+t "the failing scaffold ran in a working directory under TMPDIR" "yes" "$under_tmp"
+t "and that directory is removed" "gone" "$([ -e "$scaffold_cwd" ] && echo kept || echo gone)"
+t "and nothing the run made is left in TMPDIR" "" "$(ls -Ap "$DIR/scaffold-tmp" 2>&1)"
+
+# A run of several cases that finishes leaves nothing either. The trap knows
+# only the case in progress, so each finished case must remove its own cost
+# file; a single-case run would not notice if one stopped doing so.
+rm -rf "$STUB_CLAUDE_OUT" "$SKILL_EVAL_OUT_DIR"
+mkdir -p "$DIR/multi-tmp"
+TMPDIR="$DIR/multi-tmp" $RUN "$skill" >"$DIR/multi-out" 2>&1
+contains "a run of every case reaches case-b" "[PASS] $skill/case-b run-1" "$(cat "$DIR/multi-out")"
+t "and leaves nothing in TMPDIR" "" "$(ls -Ap "$DIR/multi-tmp" 2>&1)"
 
 # --- allowed-tools is read from the frontmatter only ---
 # A body line that happens to start with the key -- an example in the skill's
