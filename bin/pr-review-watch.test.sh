@@ -112,8 +112,10 @@ case "$endpoint" in
 esac
 [ -f "$fixture" ] || { echo "gh stub: missing $fixture" >&2; exit 1; }
 # A list endpoint without --paginate gets its first page only, as GitHub would
-# give it -- here a page of one item, so every fixture with more than one spans
-# pages. Ignoring the flag instead made a dropped --paginate invisible, while
+# give it -- here a page of one item. Spanning pages is not enough on its own:
+# each endpoint's fixture has to put an item the cases expect QUEUED past the
+# first, or losing the flag there changes nothing they assert (see
+# review_comments.json). Ignoring the flag instead made a dropped --paginate invisible, while
 # for real it hides everything past the 30th item, oldest first: the newest
 # feedback on a busy PR.
 case "$endpoint" in
@@ -192,10 +194,13 @@ cat >"$FIX/reviews.json" <<'EOF'
 ]
 EOF
 
+# Own reply first: the stub's page 1 is then an item that is dropped anyway, so
+# inline:21 is reachable only through --paginate. In the other order this
+# endpoint could lose its flag with every case green.
 cat >"$FIX/review_comments.json" <<'EOF'
 [
- {"id":21,"user":{"login":"bob"},"path":"a.ts","line":10,"original_line":10,"body":"rename this","created_at":"2026-09-07T10:00:05Z"},
- {"id":22,"user":{"login":"alice"},"path":"a.ts","line":11,"original_line":11,"body":"my own reply","created_at":"2026-09-07T10:00:07Z"}
+ {"id":22,"user":{"login":"alice"},"path":"a.ts","line":11,"original_line":11,"body":"my own reply","created_at":"2026-09-07T10:00:07Z"},
+ {"id":21,"user":{"login":"bob"},"path":"a.ts","line":10,"original_line":10,"body":"rename this","created_at":"2026-09-07T10:00:05Z"}
 ]
 EOF
 
