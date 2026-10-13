@@ -58,10 +58,11 @@ set -uo pipefail
 printf '%s\n' "$*" >>"$GHLOG"
 all="$*"
 sub=${1:-}; shift
-jqexpr=""
+jqexpr=""; fields=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --jq) jqexpr=$2; shift 2 ;;
+    --json) fields=$2; shift 2 ;;
     *) shift ;;
   esac
 done
@@ -75,7 +76,14 @@ case "$all" in
   *) echo "gh stub: unsupported subcommand $sub" >&2; exit 2 ;;
 esac
 [ -f "$fixture" ] || { echo "gh stub: missing $fixture" >&2; exit 1; }
-if [ -n "$jqexpr" ]; then jq -r "$jqexpr" <"$fixture"; else cat "$fixture"; fi
+# Like the real gh, only the fields asked for with --json come back. A fixture
+# field the script stopped requesting would otherwise still arrive, and a row
+# built from it would pass here while real gh leaves the column empty.
+data=$(cat "$fixture")
+if [ -n "$fields" ] && [ -n "$data" ]; then
+  data=$(printf '%s' "$data" | jq -c "map({$fields})")
+fi
+if [ -n "$jqexpr" ]; then printf '%s' "$data" | jq -r "$jqexpr"; else printf '%s' "$data"; fi
 EOF
 
 cat >"$STUB/ghq" <<'EOF'
@@ -145,14 +153,18 @@ ctx() { # ctx <context> <state>
 STATE="$TMP/state"
 JOB="$STATE/jobs/acme__widget__42__conflict.json"
 
+# EXTRA_REPOS names a directory that does not exist: "" is defaulted with `:-`
+# to the real ~/dotfiles, which made the "no local checkout" cases depend on
+# that repo's origin. The lookup itself is pinned in pr-review-common.test.sh.
 run() {
   : >"$TMP/gh.log"
   PATH="$STUB:$PATH" FIX="$FIX" GHLOG="$TMP/gh.log" \
     PR_REVIEW_WATCH_STATE_DIR="$STATE" \
-    PR_REVIEW_WATCH_EXTRA_REPOS="" \
+    PR_REVIEW_WATCH_EXTRA_REPOS="$TMP/no-extra-repos" \
     "$WATCH" "$@" 2>&1
 }
 job() { jq -r "$1" "$JOB" 2>/dev/null; }
+exists() { [ -f "$1" ] && echo yes || echo no; }
 
 echo "-- a conflicting PR is queued for the session on that branch --"
 prs CONFLICTING
@@ -188,12 +200,18 @@ echo "-- a new push that still does not merge IS announced again --"
 # The other half of keying on the head oid, and the reason the key is not simply
 # "already told them once": the session pushed, the branch still conflicts, and
 # that is precisely when it needs to hear so a second time.
+# The precondition is asserted, or a fresh job would pass this as well.
+eq 'precondition: a job exists at the old head' 'abc1234' "$(job .conflictHead)"
 prs CONFLICTING false newsha
 out=$(run)
 has 'the new head re-queues' "$out" 'queue acme/widget#42'
 eq 'and the stored head advances' 'newsha' "$(job .conflictHead)"
+# One item, REPLACED: the conflict at the old head describes a head that no
+# longer exists, so accumulating would hand the session a stale instruction.
+eq 'pending holds only the new head' 'conflict:newsha' "$(job '[.pending[].id] | join(" ")')"
 
 echo "-- becoming mergeable clears the job --"
+eq 'precondition: a conflict is pending' '1' "$(job '.pending|length')"
 prs MERGEABLE false newsha
 run >/dev/null
 eq 'pending is emptied' '0' "$(job '.pending|length')"
@@ -348,6 +366,33 @@ eq 'and its own lock is released afterwards' 'absent' \
   "$([ -d "$STATE/.state-lock" ] || echo absent)"
 eq "the watcher's lock is left alone" "$$" "$(cat "$STATE/.lock/pid")"
 
+echo "-- its own lock, held by a live process, stops the pass --"
+# The case above would still pass if the program stopped locking altogether.
+# This one would not: two overlapping passes interleave writes to one job.
+STATE="$TMP/state-ownlock"
+JOB="$STATE/jobs/acme__widget__42__conflict.json"
+mkdir -p "$STATE/jobs" "$STATE/.state-lock"
+printf '%s' "$$" >"$STATE/.state-lock/pid"
+prs CONFLICTING false sha-o
+out=$(run)
+rc=$?
+eq 'a live holder makes the pass exit 0 silently' '0:' "$rc:$out"
+eq 'it makes no request' '0' "$(wc -l <"$TMP/gh.log" | tr -d ' ')"
+eq 'it writes no job' 'no' "$(exists "$JOB")"
+eq "and leaves the holder's lock" "$$" "$(cat "$STATE/.state-lock/pid")"
+
+echo "-- a failed open search is reported, not read as nothing open --"
+# The search API's 30/min limit makes this the likeliest failure of all, and an
+# empty answer from a failed request looks exactly like a week with no PRs.
+STATE="$TMP/state-searchfail"
+JOB="$STATE/jobs/acme__widget__42__conflict.json"
+mv "$FIX/search.json" "$FIX/search.json.off"
+prs CONFLICTING false sha-s
+out=$(run)
+has 'it says the search failed' "$out" 'could not search for open pull requests'
+eq 'and writes nothing' 'no' "$(exists "$JOB")"
+mv "$FIX/search.json.off" "$FIX/search.json"
+
 echo "-- arguments --"
 out=$(run --help)
 rc=$?
@@ -407,6 +452,29 @@ prs MERGEABLE false head1 feature/x "[$(ctx ci/legacy FAILURE)]"
 run >/dev/null
 has 'the commit status is named' "$(cijob '[.pending[0].checks[]]|join(",")')" 'ci/legacy'
 
+echo "-- every failing conclusion and state counts, every pending one waits --"
+# One case per branch of checkstate: a typo in any one is otherwise invisible,
+# because the others keep the filter looking like it works -- the same reason
+# pr-review-watch.test.sh tests each NOISE marker.
+i=0
+for roll in "$(check lint COMPLETED TIMED_OUT)" "$(check lint COMPLETED STARTUP_FAILURE)" \
+  "$(ctx ci/legacy ERROR)"; do
+  i=$((i + 1))
+  STATE="$TMP/state-ci-fail-$i"
+  CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+  prs MERGEABLE false head1 feature/x "[$roll]"
+  run >/dev/null
+  eq "a failure: $(printf '%s' "$roll" | jq -r '.conclusion // .state')" 'yes' "$(exists "$CIJOB")"
+done
+for st in PENDING EXPECTED; do
+  STATE="$TMP/state-ci-wait-$st"
+  CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+  prs MERGEABLE false head1 feature/x "[$(check lint COMPLETED FAILURE),$(ctx ci/legacy "$st")]"
+  out=$(run)
+  eq "a status $st is still running: nothing queued" 'no' "$(exists "$CIJOB")"
+  has "and the pass says it is waiting ($st)" "$out" 'waiting'
+done
+
 echo "-- CANCELLED is not a failure --"
 # Concurrency groups cancel the previous run on every push. Treating that as a
 # failure would queue a job for the act of pushing twice.
@@ -458,6 +526,50 @@ eq 'the conflict is queued' 'yes' \
   "$([ -f "$STATE/jobs/acme__widget__42__conflict.json" ] && echo yes || echo no)"
 eq 'and the CI failure waits for it' 'no' "$([ -f "$CIJOB" ] && echo yes || echo no)"
 
+echo "-- a PR whose mergeability is UNKNOWN gets no CI job yet, and waits as one PR --"
+# UNKNOWN is the answer GitHub gives seconds before CONFLICTING, so treating it
+# as "not conflicting" queues exactly the CI job the case above withholds, one
+# pass early. It waits a pass instead, as the conflict half does, and the wait
+# counts the PR once rather than once per half.
+STATE="$TMP/state-ci8u"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs UNKNOWN false head1 feature/x "[$(check lint COMPLETED FAILURE)]"
+out=$(run)
+eq 'no CI job while mergeability is unknown' 'no' "$([ -f "$CIJOB" ] && echo yes || echo no)"
+has 'the pass says it is waiting on the PR' "$out" 'waiting on 1 PR(s)'
+prs UNKNOWN false head1 feature/x "[$(check lint COMPLETED FAILURE),$(check build IN_PROGRESS '')]"
+out=$(run)
+has 'unknown and still running is still one PR' "$out" 'waiting on 1 PR(s)'
+prs MERGEABLE false head1 feature/x "[$(check lint COMPLETED FAILURE)]"
+out=$(run)
+has 'and the failure is queued once it turns out mergeable' "$out" 'queue acme/widget#42: checks failing'
+eq 'at the head it was seen at' 'head1' "$(cijob .ciHead)"
+
+echo "-- an UNKNOWN pass does not re-announce a failure at a new head either --"
+# The likelier way to meet UNKNOWN: a push makes GitHub recompute mergeability,
+# so the first pass after a red push asks while the answer is not in yet.
+STATE="$TMP/state-ci8v"
+CIJOB="$STATE/jobs/acme__widget__42__ci.json"
+prs MERGEABLE false head1 feature/x "[$(check lint COMPLETED FAILURE)]"
+run >/dev/null
+prs UNKNOWN false head2 feature/x "[$(check lint COMPLETED FAILURE)]"
+out=$(run)
+eq 'a red push is not re-announced while mergeability is unknown' '' \
+  "$(printf '%s' "$out" | grep '^queue' || true)"
+eq 'and the job keeps the old head' 'head1' "$(cijob .ciHead)"
+prs MERGEABLE false head2 feature/x "[$(check lint COMPLETED FAILURE)]"
+out=$(run)
+has 'it is re-announced once it turns out mergeable' "$out" 'queue acme/widget#42: checks failing'
+
+echo "-- checks going green are withdrawn even while mergeability is unknown --"
+# Only queueing waits for the answer. No answer to come would make a passing
+# check worth delivering, and an undelivered red left in the queue for another
+# pass is delivered to a session the moment one appears.
+prs UNKNOWN false head2 feature/x "[$(check lint COMPLETED SUCCESS)]"
+run >/dev/null
+eq 'the job is resolved' 'resolved' "$(cijob .status)"
+eq 'and nothing is left owed' '0' "$(cijob '.pending|length')"
+
 echo "-- a PR with no checks at all is not a failure --"
 STATE="$TMP/state-ci9"
 CIJOB="$STATE/jobs/acme__widget__42__ci.json"
@@ -494,8 +606,11 @@ prs MERGEABLE false head1 feature/x "[$(check lint COMPLETED FAILURE)]"
 run >/dev/null
 eq 'exactly one open pr list call for the repo' '1' "$(grep '^pr list' "$TMP/gh.log" | grep -c -- '--state open')"
 has 'and it asks for the rollup inline' "$(grep '^pr list' "$TMP/gh.log")" 'statusCheckRollup'
-eq 'no checks/run subcommand is called at all' '0' \
-  "$(grep -cE '^(run|checks|api) ' "$TMP/gh.log" || true)"
+# The whole log, not a blacklist: a per-PR call is logged as `pr view …` or
+# `pr checks …`, which a pattern for `^(run|checks|api)` never matched. Three
+# requests is the pass -- the open search, the one list, the merged search.
+eq 'the pass makes exactly three requests' '3' "$(wc -l <"$TMP/gh.log" | tr -d ' ')"
+eq 'and none is a per-PR call' '0' "$(grep -cvE '^(search prs|pr list) ' "$TMP/gh.log" || true)"
 
 # --- merged ------------------------------------------------------------------
 # A merged PR drops out of the open search, so it is found by a search of its
@@ -545,7 +660,6 @@ arrange_merged() {
 }
 MJOB() { printf '%s' "$STATE/jobs/acme__widget__42__merged.json"; }
 mjob() { jq -r "$1" "$(MJOB)" 2>/dev/null; }
-exists() { [ -f "$1" ] && echo yes || echo no; }
 
 echo "-- a merged PR is queued for the session on that branch --"
 arrange_merged state-m1

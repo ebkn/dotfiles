@@ -77,8 +77,9 @@ The popup is display-only by construction (it runs `tmux list-keys` and nothing
 else): a list you open to remember "how do I kill this pane" must not kill the
 pane.
 
-It is **not** guarded against nesting the way `prefix + p/t/o/a` are, since it
-opens no tmux session and mutates nothing.
+It **is** guarded against nesting, like `prefix + p/t/o/a`: it opens no tmux
+session and mutates nothing, but pressed inside a session popup it stacked a
+popup on top of it, which is what `@in_popup` exists to stop.
 
 ## Testing
 

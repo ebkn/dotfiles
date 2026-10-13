@@ -11,9 +11,12 @@
 #     and no backup ever replaces an earlier one;
 #   - a destination that already IS the source through a symlinked parent is
 #     left alone -- moving it would move the repo's own file (25339e9);
-#   - LINK_CHECK=1 reports and touches nothing;
-#   - relink applies only on an explicit yes, and an apply that left a link
-#     missing or wrong exits non-zero rather than saying "done.".
+#   - a missing source is a warning and exit 0, so a setup run carries on;
+#   - LINK_CHECK=1 reports and touches nothing, a dangling link included;
+#   - every source link_dotfiles names exists, and one apply leaves no drift;
+#   - relink applies only on an explicit yes, never calls launchctl, and an
+#     apply that left a link missing or wrong exits non-zero rather than saying
+#     "done.".
 #
 # Every case runs against a throwaway $HOME and $BACKUP_DIR. The unit cases use
 # a small fake repo; the relink cases read the real checkout (only read: every
@@ -23,6 +26,10 @@ set -u
 
 DIR=$(mktemp -d)
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
+# The caller's PATH, for the relink runs below to prepend their stub to. `unit`
+# changes PATH only inside its subshell, so $PATH would do as well -- but the
+# linter cannot tell, and flags every later read of it (SC2031).
+BASE_PATH=$PATH
 fails=0
 trap 'rm -rf "$DIR"' EXIT
 
@@ -117,14 +124,20 @@ unit link_with_backup "$R/rc" "$H/.rc"
 eq "a correct link is left exactly as it was" "$before" "$(snapshot "$DIR/case")"
 eq "and says nothing" "" "$(cat "$DIR/out" "$DIR/err")"
 
+# The target EXISTS: a link into an old checkout still resolves, and a check
+# that took any live link for a correct one would leave it pointing there for
+# good, with relink reporting "up to date". (A dangling one is the case below.)
 fresh
-ln -s "$DIR/elsewhere" "$H/.rc"
+mkdir -p "$DIR/case/old-checkout"
+printf 'old-rc\n' >"$DIR/case/old-checkout/rc"
+ln -s "$DIR/case/old-checkout/rc" "$H/.rc"
 unit link_with_backup "$R/rc" "$H/.rc"
-eq "a link pointing elsewhere is replaced" "$R/rc" "$(readlink "$H/.rc")"
-eq "and the old link is kept in the backup dir" "$DIR/elsewhere" "$(readlink "$B/.rc")"
+eq "a live link pointing elsewhere is replaced" "$R/rc" "$(readlink "$H/.rc")"
+eq "and the old link is kept in the backup dir" "$DIR/case/old-checkout/rc" "$(readlink "$B/.rc")"
 
 fresh
 unit link_with_backup "$R/nope" "$H/.nope"
+eq "a missing source returns 0, so a setup run carries on" "0" "$?"
 has "a missing source is warned about on stderr" "$(cat "$DIR/err")" "missing source"
 if [ -e "$H/.nope" ] || [ -L "$H/.nope" ]; then
   fail "and no link is created for it"
@@ -168,7 +181,9 @@ eq "two same-second backups of one name and the earlier backup all survive" \
 # --- LINK_CHECK=1 ----------------------------------------------------------------
 fresh
 ln -s "$R/rc" "$H/.ok"
-ln -s "$DIR/elsewhere" "$H/.drifted"
+mkdir -p "$DIR/case/old-checkout"
+printf 'old-rc\n' >"$DIR/case/old-checkout/rc"
+ln -s "$DIR/case/old-checkout/rc" "$H/.drifted"
 printf 'mine\n' >"$H/.real"
 before=$(snapshot "$DIR/case")
 check_all() {
@@ -190,14 +205,67 @@ has "a real file is reported as drift" "$out" "drift:   $H/.real does not point 
 has "and drift is recorded for relink" "$out" "after-all:1"
 lacks "a correct link is not reported" "$out" "$H/.ok"
 
+# A script moved inside bin/ leaves ~/.local/bin/<name> dangling, and every
+# caller sends stderr to /dev/null -- so this is the one place it shows.
+fresh
+mkdir -p "$H/.local/bin"
+ln -s "$R/old-name" "$H/.local/bin/tool"
+LINK_CHECK=1 unit link_with_backup "$R/rc" "$H/.local/bin/tool"
+has "a dangling link is reported as drift" "$(cat "$DIR/out")" "drift:   $H/.local/bin/tool"
+unit link_with_backup "$R/rc" "$H/.local/bin/tool"
+eq "and re-pointed when applied" "$R/rc" "$(readlink "$H/.local/bin/tool")"
+
+# --- link_dotfiles over an empty $HOME -------------------------------------------
+# The real list, against this checkout. Check mode on an empty home must only
+# report: the one missing source it may warn about is ~/CLAUDE.md, the source
+# of the chained ~/AGENTS.md link, which check mode has not created. Any other
+# missing source is a typo in links.sh -- the link would never be made, and
+# relink would never notice.
+dotfiles() { # [LINK_CHECK=1] dotfiles -- link_dotfiles into $RH; prints the drift
+  # shellcheck disable=SC2016 # expanded by the inner bash, against its own env
+  HOME="$RH" BACKUP_DIR="$RH/backup" DOTFILES_DIR="$REPO" bash -c '
+    . "$DOTFILES_DIR/bin/init/common.sh"
+    . "$DOTFILES_DIR/bin/init/links.sh"
+    trap - ERR
+    LINK_DRIFT=0
+    link_dotfiles
+    echo "drift=$LINK_DRIFT"' >"$DIR/out" 2>"$DIR/err"
+}
+RH="$DIR/dotfiles-home"
+rm -rf "$RH"
+mkdir -p "$RH"
+LINK_CHECK=1 dotfiles
+eq "check mode on an empty home warns only about the chained CLAUDE.md" "$RH/CLAUDE.md" \
+  "$(sed -n 's/^warning: missing source for link (skipping): \(.*\) -> .*/\1/p' "$DIR/err")"
+eq "and creates nothing at all" "$RH/" "$(snapshot "$RH")"
+dotfiles
+eq "applying it warns about no missing source" "0" "$(grep -c 'missing source' "$DIR/err")"
+LINK_CHECK=1 dotfiles
+eq "after which a check finds no drift" "drift=0" "$(tail -n 1 "$DIR/out")"
+# Skills are linked one by one so the consumer dir stays a real directory, and
+# a tool installing a skill there writes outside the repo.
+if [ -d "$RH/.claude/skills" ] && [ ! -L "$RH/.claude/skills" ]; then
+  ok "the Claude skills dir is a real directory, not a link into the repo"
+else
+  fail "the Claude skills dir is a real directory, not a link into the repo"
+fi
+eq "holding a link per owned skill" "$REPO/root/.agents/skills/review-test" \
+  "$(readlink "$RH/.claude/skills/review-test")"
+
 # --- relink, over the real link_dotfiles ---------------------------------------
+# launchctl is stubbed to record any call: relink links LaunchAgents but never
+# loads them, which is a decision about the machine that bin/launchd-load makes
+# on request.
+mkdir -p "$DIR/lstub"
+printf '#!/bin/sh\necho "$*" >>"%s/launchctl.log"\n' "$DIR" >"$DIR/lstub/launchctl"
+chmod +x "$DIR/lstub/launchctl"
 relink_run() { # <stdin text or -> ; uses $RH as HOME
   if [ "$1" = - ]; then
-    HOME="$RH" BACKUP_DIR="$RH/backup" DOTFILES_DIR="$REPO" "$REPO/bin/relink" \
-      </dev/null >"$DIR/out" 2>"$DIR/err"
+    HOME="$RH" BACKUP_DIR="$RH/backup" DOTFILES_DIR="$REPO" PATH="$DIR/lstub:$BASE_PATH" \
+      "$REPO/bin/relink" </dev/null >"$DIR/out" 2>"$DIR/err"
   else
     printf '%s\n' "$1" | HOME="$RH" BACKUP_DIR="$RH/backup" DOTFILES_DIR="$REPO" \
-      "$REPO/bin/relink" >"$DIR/out" 2>"$DIR/err"
+      PATH="$DIR/lstub:$BASE_PATH" "$REPO/bin/relink" >"$DIR/out" 2>"$DIR/err"
   fi
 }
 RH="$DIR/relink-home"
@@ -229,6 +297,21 @@ eq "a link chained through another link is created on apply" "$RH/CLAUDE.md" "$(
 relink_run -
 out=$(cat "$DIR/out")
 eq "a second run finds nothing to do" "dotfiles symlinks are up to date." "$out"
+eq "and no run touched launchctl" "no" "$([ -e "$DIR/launchctl.log" ] && echo yes || echo no)"
+
+# On that synced home, one link moved into an old checkout that still exists.
+# relink decides "up to date" from LINK_DRIFT alone, so the drift line is not
+# enough: a flag set only for missing links would print it and then say up to
+# date, fixing nothing.
+mkdir -p "$DIR/old-checkout"
+printf 'old\n' >"$DIR/old-checkout/.tmux.conf"
+ln -sfn "$DIR/old-checkout/.tmux.conf" "$RH/.tmux.conf"
+relink_run -
+has "a live link into an old checkout is listed as drift" "$(cat "$DIR/out")" \
+  "drift:   $RH/.tmux.conf does not point to $REPO/.tmux.conf"
+lacks "and relink does not call the home up to date" "$(cat "$DIR/out")" "up to date"
+relink_run y
+eq "and answering y re-points it" "$REPO/.tmux.conf" "$(readlink "$RH/.tmux.conf")"
 
 # An apply that left links undone must not report success. update-all runs
 # relink last, so "done." and exit 0 here read as a synced machine.

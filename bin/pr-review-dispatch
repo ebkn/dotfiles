@@ -103,7 +103,11 @@ esac
 
 lock="$STATE_DIR/.dispatch-lock"
 if ! take_lock "$lock"; then exit 0; fi
-trap 'release_lock "$lock"' EXIT
+# The snapshot each delivery is built from (see deliver_snapshot). Outside the
+# state directory on purpose: a queue that refuses writes must still be able to
+# send, so that the failure lands on marking, where it is reported.
+snap=$(mktemp "${TMPDIR:-/tmp}/pr-review-dispatch.XXXXXX") || exit 1
+trap 'release_lock "$lock"; /bin/rm -f "$snap"' EXIT
 
 # Everything below is skipped when there is nothing to deliver, and that matters
 # more than it reads. launchd fires this every 30 seconds with stdout AND stderr
@@ -512,20 +516,37 @@ post_to_socket() {
 # The partial file is removed because nothing else would ever touch it: the job
 # scan globs *.json, so a left-over *.json.tmp is never matched, never cleaned,
 # and never noticed.
+#
+# Only the items in the snapshot that was delivered are removed. The watchers
+# append to the same file under their own locks, not this one, so an item can
+# arrive between the snapshot and this write -- and clearing `pending` wholesale
+# dropped it while its id sat in `seen`, where no later poll would queue it again.
 mark_delivered() {
-  local job=$1 how=$2
-  if jq --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg how "$how" '
+  local job=$1 how=$2 delivered_ids
+  delivered_ids=$(jq -c '[.pending[].id]' "$snap") || return 1
+  if jq --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg how "$how" \
+    --argjson ids "$delivered_ids" '
     # `seen` is untouched: it is the watcher high-water and must survive
     # delivery, or the same feedback is queued again on the next poll.
     .deliveredAt = $now
     | .deliveredVia = $how
-    | .deliveredCount = ((.deliveredCount // 0) + (.pending | length))
-    | .status = "delivered"
-    | .pending = []' "$job" >"$job.tmp" && mv "$job.tmp" "$job"; then
+    | .deliveredCount = ((.deliveredCount // 0) + ($ids | length))
+    | .pending |= map(select(.id as $i | $ids | index($i) | not))
+    | .status = (if (.pending | length) == 0 then "delivered" else "pending" end)' \
+    "$job" >"$job.tmp" && mv "$job.tmp" "$job"; then
     return 0
   fi
   /bin/rm -f "$job.tmp" 2>/dev/null
   return 1
+}
+
+# Freeze the job into $snap and write the prompt file from that copy, so the
+# prompt, the message and mark_delivered all describe the same items however the
+# job file moves meanwhile. Fails when either write does: the message is only a
+# pointer to the prompt file, and sending it after a failed write points the
+# session at a missing file, or at the previous delivery's.
+snapshot_and_write_prompt() {
+  cp "$1" "$snap" 2>/dev/null && write_prompt_file "$snap" "$2" 2>/dev/null
 }
 
 # The message is out; only the bookkeeping failed. Counting it as delivered is
@@ -591,8 +612,16 @@ for job in "${jobs_todo[@]}"; do
     # than starting fresh -- but only when asked to, and never while a TUI is
     # open, which is the case that reaches here at all.
     sid=$(jq -r '.sessionId // empty' "$job")
-    if [ "$RESUME" != 1 ] || [ -z "$sid" ]; then
+    if [ "$RESUME" != 1 ]; then
       printf 'hold  %s: no live session (set PR_REVIEW_DISPATCH_RESUME=1 to resume it)\n' "$label"
+      held=$((held + 1))
+      continue
+    fi
+    # Both detectors write a null sessionId when no session was live as they
+    # queued, which is the common case here. Pointing at the variable that is
+    # already set would send the reader round in a circle.
+    if [ -z "$sid" ]; then
+      printf 'hold  %s: no live session, and the job names none to resume\n' "$label"
       held=$((held + 1))
       continue
     fi
@@ -604,8 +633,12 @@ for job in "${jobs_todo[@]}"; do
     prompt_file="${job%.json}.prompt.md"
     printf 'send  %s: resuming %s in the background\n' "$label" "$sid"
     [ "$dry_run" -eq 0 ] || continue
-    write_prompt_file "$job" "$prompt_file"
-    if (cd "$worktree" && claude --bg --resume "$sid" "$(prompt_text "$job" "$prompt_file")" >/dev/null 2>&1); then
+    if ! snapshot_and_write_prompt "$job" "$prompt_file"; then
+      printf 'hold  %s: could not write %s\n' "$label" "$prompt_file"
+      held=$((held + 1))
+      continue
+    fi
+    if (cd "$worktree" && claude --bg --resume "$sid" "$(prompt_text "$snap" "$prompt_file")" >/dev/null 2>&1); then
       mark_delivered "$job" "resume" || report_unmarked "$label" "the resumed job"
       delivered=$((delivered + 1))
     else
@@ -632,9 +665,13 @@ for job in "${jobs_todo[@]}"; do
   [ "$dry_run" -eq 0 ] || continue
 
   prompt_file="${job%.json}.prompt.md"
-  write_prompt_file "$job" "$prompt_file"
+  if ! snapshot_and_write_prompt "$job" "$prompt_file"; then
+    printf 'hold  %s: could not write %s\n' "$label" "$prompt_file"
+    held=$((held + 1))
+    continue
+  fi
 
-  if ! post_to_socket "$sock" "$(prompt_text "$job" "$prompt_file")"; then
+  if ! post_to_socket "$sock" "$(prompt_text "$snap" "$prompt_file")"; then
     printf 'hold  %s: could not post to %s\n' "$label" "$sock"
     held=$((held + 1))
     continue

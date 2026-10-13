@@ -461,14 +461,18 @@ embed_images() {
         continue
       fi
       path="${dir}/$(basename -- "${path}")"
-
-      # `pwd -P` settled the directory, not the file: a symlink named logo.png
-      # beside the document can still point at ~/.ssh/id_rsa, and -f, wc and
-      # base64 below all follow it. Resolve it too, so the containment test
-      # judges where the bytes really come from. Empty on failure, which the
-      # test then refuses.
+      # The file itself, too. `pwd -P` settled the directory, not the file: a
+      # symlink named logo.png beside the document can still point at
+      # ~/.ssh/id_rsa, and -f, wc and base64 below all follow it. Resolve it,
+      # so the containment test judges where the bytes really come from. A
+      # link that cannot be resolved (dangling, a loop) is "not found", which
+      # is what it is wherever it points.
       if [ -L "${path}" ]; then
         path="$(readlink -f -- "${path}" 2>/dev/null)" || path=""
+        if [ -z "${path}" ]; then
+          printf 'read-doc: image not found: %s\n' "${ref}" >&2
+          continue
+        fi
       fi
 
       case "${path}" in

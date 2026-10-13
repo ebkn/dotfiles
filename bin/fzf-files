@@ -13,6 +13,11 @@
 #   Priority: untracked > staged > unstaged > committed (first label wins per file).
 
 set -euo pipefail
+# Paths are bytes here, never text: they are compared, prefix-stripped and
+# printed back. In the UTF-8 locale .zshenv exports, macOS's tr and awk both
+# abort on a name that is not valid UTF-8 (one committed from another OS), and
+# under set -e that ended the picker empty. Nothing below needs the locale.
+export LC_ALL=C
 
 label_mode=false
 if [[ "${1-}" == "--label" ]]; then
@@ -39,18 +44,44 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   # subdir prefix (and drop anything outside it) so the output lines up with
   # `rg --files`, which is cwd-relative. `git log --relative` is LFS-safe (it diffs
   # committed trees, never the working copy) so it keeps --relative directly.
+  # The prefix reaches awk through ENVIRON, not `-v`: `-v` interprets escapes in
+  # the value, so a directory whose name holds a backslash sequence (`\\`
+  # everywhere, `\s` on BWK awk and gawk) stopped matching its own files.
   prefix=$(git rev-parse --show-prefix)
+
+  # NUL-separated, so no path is quoted. The default output wraps a name with a
+  # space or a non-ASCII character in quotes and escapes it, and such a path
+  # then failed the existence check below and lost its place at the top.
+  # One entry per line after tr; a name containing a newline is the one thing
+  # this cannot carry, and fzf could not show it either.
+  porcelain_status() {
+    git status --porcelain=v1 -z -uall -- . 2>/dev/null | tr '\0' '\n'
+  }
+  # The last five commits' files, NUL-separated for the same reason. Turning
+  # core.quotePath off was not enough: it stops only the octal escaping of
+  # non-ASCII, and a name with a double quote or a backslash was still wrapped
+  # and escaped, so it lost its commit label. A HASH: line still starts a line
+  # after tr. `|| true` because a branch with no commits yet makes git log exit
+  # 128, which under set -e ended the whole listing before it printed anything
+  # -- an empty picker right after `git init`.
+  recent_log() {
+    { git log -z --relative --name-only "$@" -5 -- . 2>/dev/null || true; } | tr '\0' '\n'
+  }
 
   if "$label_mode"; then
     # Build labeled list: [ label    ]\tpath
     # Use HASH: prefix marker to distinguish commit hashes from filenames.
     changed=$(
       {
-        git status --porcelain -uall -- . 2>/dev/null | awk -v pfx="$prefix" '
+        porcelain_status | FZF_FILES_PREFIX="$prefix" awk '
+          BEGIN { pfx = ENVIRON["FZF_FILES_PREFIX"] }
+          # A rename or copy is "XY new" followed by its old name on a line of
+          # its own; the old name is not a file to open.
+          skip { skip = 0; next }
           {
             xy = substr($0, 1, 2)
             path = substr($0, 4)
-            i = index(path, " -> "); if (i > 0) path = substr(path, i + 4)  # rename: keep new name
+            if (xy ~ /[RC]/) skip = 1
             if (pfx != "") { if (index(path, pfx) != 1) next; path = substr(path, length(pfx) + 1) }
             # Bucket by category, emit in priority order (untracked > staged > unstaged)
             # in END so display order does not depend on git status sort order.
@@ -63,7 +94,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
             for (k = 1; k <= ns; k++) printf "[ staged      ]\t%s\n", s[k]
             for (k = 1; k <= ng; k++) printf "[ unstaged    ]\t%s\n", g[k]
           }'
-        git log --relative --name-only --pretty='format:HASH:%h' -5 -- . |
+        recent_log --pretty='format:HASH:%h' |
           awk '/^HASH:/{n++; hash=$0; sub(/^HASH:/,"",hash); next} NF{printf "[ %-11s ]\t%s\n", hash"(-"n")", $0}'
       }
     )
@@ -79,14 +110,16 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     # Plain mode: no labels
     changed=$(
       {
-        git status --porcelain -uall -- . 2>/dev/null | awk -v pfx="$prefix" '
+        porcelain_status | FZF_FILES_PREFIX="$prefix" awk '
+          BEGIN { pfx = ENVIRON["FZF_FILES_PREFIX"] }
+          skip { skip = 0; next }
           {
             path = substr($0, 4)
-            i = index(path, " -> "); if (i > 0) path = substr(path, i + 4)
+            if (substr($0, 1, 2) ~ /[RC]/) skip = 1
             if (pfx != "") { if (index(path, pfx) != 1) next; path = substr(path, length(pfx) + 1) }
             print path
           }'
-        git log --relative --name-only --pretty=format: -5 -- .
+        recent_log --pretty=format:
       } | awk 'NF && !seen[$0]++'
     )
 

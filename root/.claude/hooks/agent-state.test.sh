@@ -1220,6 +1220,96 @@ else
   bad "busy spawned jq $(count_calls jq) time(s) with a subagent registered"
 fi
 
+# The path that pays most often: with a subagent registered the no-change exit is
+# off by design, so every batch of every actor publishes. Its count is the only
+# thing that notices a broken stop condition in publish()'s re-derive loop --
+# the options come out identical, just written five times over.
+: >"$countdir/tmux-calls"
+counted_run busy "$(agent_json A Explore)"
+if [[ "$(count_calls tmux)" -eq 1 ]]; then
+  ok "a batch with a subagent registered publishes in one tmux call"
+else
+  bad "a batch with a subagent registered cost $(count_calls tmux) tmux calls, want 1"
+fi
+
+# A state that does change still has to reach the pane, and that is not a cold
+# path: every prompt submitted flips the pane to busy, every turn end flips it
+# back, and while a subagent runs no publish can take the no-change exit at all.
+# Each tmux client is its own process round trip, and six of them measured
+# ~114 ms on a laptop against ~17 ms for the same commands chained with `\;` --
+# time the session spends blocked before its next model request.
+#
+# Checked both with and without a note, because they leave the pane through
+# different commands (set vs unset) and either one could fall out of the chain.
+run clear
+: >"$countdir/tmux-calls"
+counted_run busy '{"hook_event_name":"PostToolBatch"}'
+if [[ "$(count_calls tmux)" -eq 1 ]]; then
+  ok "a state change without a note publishes in one tmux call"
+else
+  bad "a state change without a note cost $(count_calls tmux) tmux calls, want 1"
+fi
+# One call is only a saving if the chain still delivers every option.
+assert_opt @claude_state busy
+assert_opt @claude_glyph '▶ '
+assert_opt @claude_note ''
+if [[ -n "$(get_opt @claude_since)" ]]; then
+  ok "@claude_since set by the chained publish"
+else
+  bad "@claude_since empty after the chained publish"
+fi
+if [[ "$(get_opt @claude_agents)" == "busy${US}"* ]]; then
+  ok "@claude_agents set by the chained publish"
+else
+  bad "@claude_agents after the chained publish: [$(get_opt @claude_agents)]"
+fi
+
+: >"$countdir/tmux-calls"
+counted_run notify "$(notify_json permission_prompt 'Bash: rm x')"
+if [[ "$(count_calls tmux)" -eq 1 ]]; then
+  ok "a state change with a note publishes in one tmux call"
+else
+  bad "a state change with a note cost $(count_calls tmux) tmux calls, want 1"
+fi
+assert_opt @claude_state waiting
+assert_opt @claude_note 'Bash: rm x'
+
+# And back to a noteless state: the unset has to run, and must not cut the chain
+# short of the listing when there is something to unset.
+: >"$countdir/tmux-calls"
+counted_run busy '{"hook_event_name":"PostToolBatch"}'
+assert_opt @claude_state busy
+assert_opt @claude_note ''
+if [[ "$(get_opt @claude_agents)" == "busy${US}"* ]]; then
+  ok "@claude_agents follows the state back to busy"
+else
+  bad "@claude_agents after returning to busy: [$(get_opt @claude_agents)]"
+fi
+
+section "a ';' in a note is published intact"
+# tmux reads an argument that ENDS in ';' as a command separator, even on a
+# single `set-option` invoked through argv: a permission prompt for `cd /x;`
+# published `cd /x`, a bare `;` published nothing, and `echo a\;` lost its
+# backslash, because a trailing `\;` is tmux's own escape for a literal ';'.
+# Notes are free text (a tool's command, an MCP server's message), so this is an
+# input, not a curiosity. @claude_agents never had the problem -- it always ends
+# in RS -- which is why it is checked here too: it is the control.
+#
+# A ';' anywhere else must NOT be escaped: tmux unescapes `\;` only at the end of
+# an argument, so escaping every ';' would leave a stray backslash mid-note --
+# and with every other case still green, since no other fixture carries one.
+for note in 'Bash: cd /x;' ';' 'Bash: echo a\;' 'Bash: cd /x; ls'; do
+  run clear
+  run notify "$(notify_json permission_prompt "$note")"
+  assert_opt @claude_state waiting
+  assert_opt @claude_note "$note"
+  if [[ "$(get_opt @claude_agents)" == *"${US}${note}${RS}" ]]; then
+    ok "@claude_agents keeps the note [$note] as its last field"
+  else
+    bad "@claude_agents with note [$note]: [$(get_opt @claude_agents)]"
+  fi
+done
+
 section "free text cannot forge a record separator"
 # The notes come from a permission prompt, a question, or an MCP server's
 # elicitation dialog, and the last of those is third-party text. RS and US were

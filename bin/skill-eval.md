@@ -47,8 +47,11 @@ Three files in `root/.agents/skills/<skill>/evals/<case>/`:
 | File | Role |
 | --- | --- |
 | `prompt.md` | the prompt for `claude -p`. Leading YAML frontmatter is stripped before it is passed, and carries the case's own `allowed_tools` / `max_turns` / `budget_usd` / `claude_md` (see [What the eval can and cannot see](#what-the-eval-can-and-cannot-see)) |
-| `scaffold.sh` | builds the fixture; cwd is an empty temp dir. Source `$SKILL_EVAL_LIB_DIR/skill-eval-scaffold.sh` and call `skill_eval_init_repo`, which tags the starting state `eval-base` |
-| `assert.sh` | grades; cwd is the working directory after the run. Source `$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh`, emit one `check` per assertion, end with `skill_eval_finish` |
+| `scaffold.sh` | builds the fixture; cwd is an empty temp dir. Source `$SKILL_EVAL_LIB_DIR/skill-eval-scaffold.sh` and call `skill_eval_init_repo`, which tags the starting state `eval-base`. A non-zero exit stops the whole run as `case <name>: scaffold.sh exited N` — a broken harness is not graded as a failing skill. With `--keep` the half-built working directory is kept and named |
+| `assert.sh` | grades; cwd is the working directory after the run. Source `$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh`, emit one `check` per assertion, end with `skill_eval_finish`. Any `FAIL` line in its output fails the run even if the script exits 0, so a grader that forgets `skill_eval_finish` cannot report `[PASS]` |
+
+`allowed-tools` is read from `SKILL.md`'s frontmatter only; a body line starting
+with the key is documentation, not configuration.
 
 Functions available to `assert.sh`: `check`, `check_eq`, `check_match`,
 `check_not_match`, `transcript_denials`, `transcript_commands`,
@@ -135,11 +138,20 @@ which is an order of magnitude more than a `review-test` review.
 
 ## What the eval can and cannot see
 
-The working directory is created **outside this repo** (`mktemp`). Inside it,
-Claude Code would read this repo's `CLAUDE.md` and grade the fixture against
-dotfiles' conventions rather than the skill's own contract. `--setting-sources
+The working directory is created **outside this repo**, under `$TMPDIR` (an
+explicit `mktemp` template, since macOS's bare `mktemp` ignores `TMPDIR`). Inside
+the repo, Claude Code would read this repo's `CLAUDE.md` and grade the fixture
+against dotfiles' conventions rather than the skill's own contract. `--setting-sources
 project` and `--strict-mcp-config` keep the caller's user settings and MCP
 servers out for the same reason.
+
+What the runner leaves in `$TMPDIR`: **nothing without `--keep`, however the
+run ends** — finished, stopped by a failed scaffold, or cut short by any step
+failing under `set -e` (the EXIT trap removes the summary, the case's cost file
+and the run's working directory; the cost file once outlived a failed
+scaffold). With `--keep` the working directory stays and is named, **a failed
+scaffold's included**: a half-built fixture is what fixing the scaffold needs
+to look at. Each of those is pinned.
 
 The consequence is the limit worth knowing: **by default a case measures only
 what `SKILL.md` achieves on its own.** Read that the other way round and it is

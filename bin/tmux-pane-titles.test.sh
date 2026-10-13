@@ -169,6 +169,44 @@ set_opts "$t9" 0 '@ssh_host=remote1'
 add_pane "$t9" "$work/bravo" '@ssh_host=remote2'
 check 'several ssh panes collapse to one marker' '≫' "$(title_of "$t9")"
 
+# --- which window ------------------------------------------------------------
+# Every case above runs the script through `run-shell -t` on the window that
+# new_window just made current, so "the caller's window" and "the session's
+# active window" were always the same one. The real callers are shells inside a
+# pane, resolved through $TMUX_PANE -- and the shell running a hook is usually
+# NOT in the active window (a background tab's prompt redraw, a cd in a pane you
+# are not looking at). So here the caller's window is a background one.
+caller=$(new_window "$work/bravo")
+caller_pane=$(tmux -L "$socket" list-panes -t "$caller" -F '#{pane_id}')
+# Created last, so it is the active window. -a: inserted after the caller's,
+# since `-t t` here resolves to an index that is already taken.
+active=$(tmux -L "$socket" new-window -a -t "$caller" -c "$work/alpha" -P -F '#{window_id}' "$IDLE")
+check 'harness: the caller is not the active window' 'no' \
+  "$([ "$(tmux -L "$socket" display-message -p -t t '#{window_id}')" = "$caller" ] && echo yes || echo no)"
+tmux -L "$socket" rename-window -t "$caller" before-caller
+tmux -L "$socket" rename-window -t "$active" before-active
+# Run from INSIDE the caller's pane, as the zsh hooks do: tmux resolves "the
+# current window" for a command run from a pane by that pane's tty. (Setting
+# TMUX_PANE from outside is not the same thing -- tmux resolved the active
+# window for it.)
+tmux -L "$socket" respawn-pane -k -t "$caller_pane" -c "$work/bravo" \
+  "'$PWD/bin/tmux-pane-titles'; exec $IDLE"
+for _ in $(seq 1 20); do
+  [ "$(tmux -L "$socket" display-message -p -t "$caller" '#{window_name}')" != before-caller ] && break
+  sleep 0.15
+done
+check "the caller's own window is named" 'bravo' \
+  "$(tmux -L "$socket" display-message -p -t "$caller" '#{window_name}')"
+check 'the active window is left alone' 'before-active' \
+  "$(tmux -L "$socket" display-message -p -t "$active" '#{window_name}')"
+
+# --- a label is text, never a format ----------------------------------------
+# Labels come from directory and branch names, and awk's printf reads its first
+# argument as a format: a directory called 100% must not break the name.
+mkdir -p "$work/100%"
+t11=$(new_window "$work/100%")
+check 'a % in a directory name is shown as is' '100%' "$(title_of "$t11")"
+
 if [ "$failures" -ne 0 ]; then
   printf '\n%d test(s) failed\n' "$failures"
   exit 1

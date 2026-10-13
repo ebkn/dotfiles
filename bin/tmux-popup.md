@@ -65,21 +65,21 @@ in a popup".
 
 `bin/tmux-tig` runs tig and holds the popup open on failure (`prefix + t`).
 
-**Pinned by `bin/tmux-tig.test.sh`**, with tig stubbed and the script run in a
-pty through util-linux `script(1)`, its input a fifo: held open, it shows the
-popup still standing before any key; one byte, no Enter, closes it with tig's
-status. Container or CI only, through the tmux suites' guard — BSD `script(1)`
-refuses a fifo on stdin, and the pause reads `/dev/tty`, which on a developer's
-machine is their own terminal.
+Tested in `tmux-popup.test.sh`, with tig stubbed. The failing path runs in a
+pane of a throwaway server (`remain-on-exit on`) because the pause reads one key
+from a real terminal, so it cannot be checked by piping:
 
-By hand, against a throwaway tmux server
-(`tmux -L <name> -f /dev/null new-session -d -c <dir> tmux-tig`), check both
-paths with the real tig:
-
-- in a non-git directory the pane must show tig's own
-  `tig: Not a git repository` **plus** the pause line, and must survive until
-  `send-keys x` (one key, no Enter) closes it;
-- in a repository tig must open as before and `q` must exit with no pause.
+- a failing tig leaves its own message **plus** the pause line on screen, the
+  pane is still alive half a second later, and `send-keys x` (one key, no Enter)
+  closes it with tig's exit status;
+- a succeeding tig exits 0 at once with no pause, and its arguments reach tig.
 
 Asserting on exit status alone proves nothing — the bug this fixes was a popup
 that vanished, not one that errored.
+
+## fzf-nvim
+
+`bin/fzf-nvim` is the `prefix + o` command, tested in the same suite with fzf and
+nvim stubbed: the pick is opened after `--` (a file named like an option is still
+a file), the preview reads the last tab-separated field, and cancelling still
+opens nvim — the popup closes the moment its command exits.

@@ -405,6 +405,13 @@ fzf on stdin, so a stub `fzf` that copies stdin out and exits non-zero captures
 exactly what the user would have seen and makes the script take its `|| exit 0`
 path before the jump.
 
+**Each phase starts on a fresh server** (`fresh_server`): listing, correction
+and `--sync`, remote hosts, the jump, and the empty case each rebuild the base
+fixtures rather than inheriting what the phase before added, renamed or killed.
+The cases against a real client stay on one server, since they share the
+attached pty client, and arrange their own sessions (the `--jump-check` cases
+use a `jc` session of their own instead of borrowing a surviving one).
+
 Two traps found while writing it, both of which made the scripts look broken
 when they were not:
 

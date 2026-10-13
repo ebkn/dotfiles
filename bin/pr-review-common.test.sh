@@ -220,6 +220,11 @@ rp() { # rp <owner/name> <extra>: the path, or "none" with a non-zero status
 
 GHQ_OUT="$TMP/ghq/acme/tool"
 eq 'a ghq checkout is found' "$TMP/ghq/acme/tool" "$(rp acme/tool "")"
+# ghq is asked first: an extra repo that also matches does not win over it.
+mkdir -p "$TMP/ghq/acme/widget"
+GHQ_OUT="$TMP/ghq/acme/widget"
+eq 'a ghq checkout is returned before a matching extra repo' "$TMP/ghq/acme/widget" \
+  "$(rp acme/widget "$TMP/x/ssh")"
 GHQ_OUT="$TMP/ghq/gone"
 eq 'a ghq answer that is not a directory falls through to the extra repos' \
   "$TMP/x/ssh" "$(rp acme/widget "$TMP/x/ssh")"
@@ -232,6 +237,7 @@ eq 'an extra repo is matched on an https origin without .git' "$TMP/x/https" \
 # acme/thing, and taking it would act on somebody else's repository.
 eq 'an owner that merely ends in the same letters is not a match' 'none' \
   "$(rp acme/thing "$TMP/x/lookalike")"
+eq 'while the real owner does' "$TMP/x/lookalike" "$(rp notacme/thing "$TMP/x/lookalike")"
 eq 'nothing anywhere is a non-zero exit' 'none' "$(rp acme/absent "$TMP/x/ssh:$TMP/x/https")"
 
 echo

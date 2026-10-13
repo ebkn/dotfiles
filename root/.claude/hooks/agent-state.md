@@ -422,6 +422,20 @@ what was last published, which is what pays for the file work: a subagent
 reporting `busy` on a pane that is already `busy` now costs no fork at all, where
 the previous version spent four `tmux` calls on every batch.
 
+A publish that does change something goes out as **one** `tmux` invocation: the
+five option writes and the redraw are queued and chained with `;` argv
+separators (`queue_cmd` … `queue_run`). Six separate clients measured ~114 ms
+on a laptop against ~17 ms chained, and that is paid before the session's next
+model request on every prompt, every turn end, and — since the no-change exit is
+off while subagents are registered — every batch of every actor in a multi-agent
+phase. Measured from a debug log before the change, the `PostToolBatch` hook
+held the next request for 190–600 ms.
+
+tmux abandons a chain at its first failing command, so **order is part of the
+contract**: `refresh-client -S` fails with `no current client` on a session
+nobody is attached to and must stay last, and a note of a bare `;` would fail
+with `empty value` were it not escaped (below).
+
 ## The publish race
 
 **The note is consulted only while no subagent is registered, and the hook
@@ -462,6 +476,14 @@ Not merely collapsed to one line: RS and US separate the records, so a message
 carrying one splits its own record and the picker renders a phantom row whose
 state is the tail of the note. The text is not always Claude's own — an
 `elicitation_dialog` message comes from whichever MCP server raised it.
+
+## A trailing `;` is escaped on the way into tmux
+
+tmux reads an argument that *ends* in `;` as a command separator, even when the
+command arrives through argv, so a prompt for `cd /x;` used to publish `cd /x`
+and a trailing `\;` lost its backslash. `queue_set` inserts a `\` before a
+trailing `;`, tmux's own escape for a literal one; a `;` anywhere else is passed
+as is, because tmux unescapes only at the end of an argument.
 
 ## `asking` cannot come from `Notification`
 
@@ -559,9 +581,12 @@ skips** without them.
   alone rather than publish a glyph-less one) and the two asymmetries: the
   pending note goes with the block, and `asking` survives a correction towards
   blocked.
-- **Cost** — three cases assert cost rather than output: no JSON parsing on the
+- **Cost** — these cases assert cost rather than output: no JSON parsing on the
   busy path while the pane has one actor, one jq pass once a subagent is
-  registered, no tmux round trip when nothing a consumer can see has changed.
+  registered, no tmux round trip when nothing a consumer can see has changed,
+  and exactly one when something has — with and without a note, and on a batch
+  while a subagent is registered, where the count is also the only thing that
+  notices a broken stop condition in the re-derive loop.
   Those are documented invariants that no functional test notices: break them and
   everything still passes, the hook merely taxes the inner agent loop. They wrap
   the real `jq` and `tmux` rather than faking them, since what is counted is how

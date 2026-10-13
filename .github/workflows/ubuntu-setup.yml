@@ -14,7 +14,26 @@ jobs:
       - name: Place the checkout at ~/dotfiles
         run: ln -s "$GITHUB_WORKSPACE" "$HOME/dotfiles"
 
+      # Teed so the steps below can read it; `shell: bash` for pipefail, so
+      # tee's status cannot hide a failed bootstrap.
       - name: Run install script
-        run: bash bin/init/bootstrap-ubuntu.sh
+        shell: bash
+        run: bash bin/init/bootstrap-ubuntu.sh 2>&1 | tee "$RUNNER_TEMP/setup.log"
         env:
           DOTFILES_SKIP_UPDATE: '1'
+
+      # See macos-setup.yml: a missing link source is a warning and exit 0.
+      - name: No link was skipped for a missing source
+        run: |
+          if grep -n 'missing source for link' "$RUNNER_TEMP/setup.log"; then
+            exit 1
+          fi
+
+      # update-all re-syncs links only through relink, and only if it is on
+      # PATH. ubuntu.sh links inline rather than through link_dotfiles, so relink
+      # may well report drift here; what is checked is that it is linked and
+      # runs to its prompt (declined via </dev/null) rather than failing.
+      - name: relink is linked and runs
+        run: |
+          [ -L "$HOME/.local/bin/relink" ]
+          "$HOME/.local/bin/relink" </dev/null

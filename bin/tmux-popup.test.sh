@@ -17,7 +17,12 @@
 # tmux can then attach is tmux's business and is unchanged from when this
 # command line was written inline in .tmux.conf.
 #
-# Run: bash bin/tmux-popup.test.sh   (exit 0 = pass)
+# The commands the popups run are tested below it: fzf-nvim with fzf and nvim
+# stubbed, and tmux-tig in a pane of a throwaway server, since its pause reads
+# one key from a real terminal -- which is also why this suite is guarded even
+# though tmux-popup itself only ever meets a stub.
+#
+# Run: bin/test-in-docker bin/tmux-popup.test.sh   (exit 0 = pass)
 set -uo pipefail
 # A tmux suite: container or CI only (see bin/tmux-test-guard.sh).
 # shellcheck source=bin/tmux-test-guard.sh
@@ -127,6 +132,98 @@ case "$out" in *"not inside tmux"*) ;; *)
   failures=$((failures + 1))
   ;;
 esac
+
+# --- the commands the popups run: tmux-tig and fzf-nvim ----------------------
+# Both used to be verified by hand only. tig, fzf and nvim are stubbed: what is
+# pinned is what these scripts do around them.
+mkdir -p "$work/tools"
+cat >"$work/tools/tig" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$@" >"$TOOLS_LOG/tig.argv"
+[ -z "${TIG_FAIL:-}" ] && exit 0
+echo 'tig: Not a git repository' >&2
+exit "$TIG_FAIL"
+STUB
+cat >"$work/tools/fzf" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$@" >"$TOOLS_LOG/fzf.argv"
+[ -n "${FZF_PICK:-}" ] || exit 130
+printf '%s\n' "$FZF_PICK"
+STUB
+cat >"$work/tools/nvim" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$@" >"$TOOLS_LOG/nvim.argv"
+STUB
+chmod +x "$work/tools"/*
+tools() { (cd "$work/cwd" && PATH="$work/tools:$PATH" TOOLS_LOG="$work" "$@" 2>&1); }
+
+# A tig that succeeds is left alone: no pause, its status, its arguments.
+out=$(tools "$PWD/bin/tmux-tig" --all)
+rc=$?
+check 'tmux-tig: a successful tig exits 0 at once' 'rc=0' "rc=$rc"
+check 'tmux-tig: and prints no pause line' '' "$out"
+check 'tmux-tig: arguments reach tig' '--all' "$(cat "$work/tig.argv")"
+
+# A failing one must HOLD the popup until one key -- no Enter -- is pressed, and
+# then exit with tig's status. That needs a terminal, so it runs in a pane of a
+# throwaway server, with remain-on-exit so the status can be read afterwards.
+unset TMUX
+sock="popup-test-$$"
+trap 'tmux -L "$sock" kill-server 2>/dev/null; rm -rf "$work"' EXIT
+printf 'set -g remain-on-exit on\n' >"$work/tmux.conf"
+tmux -L "$sock" -f "$work/tmux.conf" new-session -d -s tig -x 100 -y 20 -c "$work/cwd" \
+  "PATH='$work/tools':\$PATH TOOLS_LOG='$work' TIG_FAIL=3 '$PWD/bin/tmux-tig'"
+pane_text() { tmux -L "$sock" capture-pane -p -t tig: 2>/dev/null; }
+pane_dead() { tmux -L "$sock" display-message -p -t tig: '#{pane_dead}' 2>/dev/null; }
+for _ in $(seq 1 50); do
+  case "$(pane_text)" in *'Press any key'*) break ;; esac
+  sleep 0.1
+done
+screen=$(pane_text)
+case "$screen" in
+  *'tig: Not a git repository'*'tig exited with status 3. Press any key to close.'*)
+    printf 'ok   tmux-tig: a failing tig leaves its message and a pause line on screen\n'
+    ;;
+  *)
+    printf 'FAIL tmux-tig: a failing tig leaves its message and a pause line on screen\n  screen: %s\n' "$screen"
+    failures=$((failures + 1))
+    ;;
+esac
+# Still alive after a pause: the popup must not vanish on its own.
+sleep 0.5
+check 'tmux-tig: the pane waits instead of closing' '0' "$(pane_dead)"
+tmux -L "$sock" send-keys -t tig: x
+for _ in $(seq 1 50); do
+  [ "$(pane_dead)" = 1 ] && break
+  sleep 0.1
+done
+check 'tmux-tig: one key, no Enter, closes it' '1' "$(pane_dead)"
+check "tmux-tig: and it exits with tig's status" '3' \
+  "$(tmux -L "$sock" display-message -p -t tig: '#{pane_dead_status}' 2>/dev/null)"
+tmux -L "$sock" kill-server 2>/dev/null
+
+# fzf-nvim: the picked path is opened, after `--`, so a file named like an
+# option is still a file.
+out=$(FZF_PICK='-weird name.txt' tools "$PWD/bin/fzf-nvim")
+check 'fzf-nvim: the picked file is opened, after --' '--
+-weird name.txt' "$(cat "$work/nvim.argv")"
+# The preview reads the LAST tab-separated field: the list may carry a hidden
+# label column (FZF_DEFAULT_OPTS sets --delimiter=\t --nth=-1).
+case "$(cat "$work/fzf.argv")" in
+  *'{-1}'*) printf 'ok   fzf-nvim: the preview reads the last field\n' ;;
+  *)
+    printf 'FAIL fzf-nvim: the preview reads the last field\n  fzf argv: %s\n' "$(cat "$work/fzf.argv")"
+    failures=$((failures + 1))
+    ;;
+esac
+# Cancelling still opens nvim: the popup closes the moment its command exits,
+# so returning early would look like the chord had failed.
+rm -f "$work/nvim.argv"
+out=$(FZF_PICK='' tools "$PWD/bin/fzf-nvim")
+check 'fzf-nvim: cancelling still opens nvim' 'ran' \
+  "$([ -f "$work/nvim.argv" ] && echo ran || echo 'nvim never ran')"
+# (The stub prints one line per argument, so no arguments is one empty line.)
+check 'fzf-nvim: with no file' '' "$(cat "$work/nvim.argv" 2>/dev/null)"
 
 if [ "$failures" -ne 0 ]; then
   printf '\n%d test(s) failed\n' "$failures"

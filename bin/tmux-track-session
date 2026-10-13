@@ -103,8 +103,11 @@ case "${1:-}" in
           # which sits after an absolute path in the monitor's argv -- falls off
           # the end. The match would then never succeed on Linux and every
           # reconnect would leak a monitor, silently. BSD ps accepts it too.
+          # The conn_id is matched as a whole argument, with the space after
+          # it: as a bare substring, `local-5` also matched the monitor of
+          # `local-50` and killed another connection's.
           case "$(ps -ww -p "$stale_pid" -o command= 2>/dev/null)" in
-            *"${SELF##*/}"*monitor*"$conn_id"*) kill "$stale_pid" 2>/dev/null ;;
+            *"${SELF##*/} monitor $conn_id "*) kill "$stale_pid" 2>/dev/null ;;
           esac
           ;;
       esac
@@ -180,7 +183,15 @@ $saved
     # previous connection's monitor on every reconnect, so this fired every
     # time the link came back. tmux reports only a non-zero exit or a signal,
     # so exiting 0 is what keeps the reconnect silent.
-    trap 'rm -f "$PID_DIR/$conn_id"; exit 0' TERM INT HUP
+    #
+    # The pid file is removed only while it still names this process. The trap
+    # runs once the `sleep 2` below returns, which is usually AFTER `attach` has
+    # started this monitor's replacement -- and removing the file outright took
+    # the replacement's pid with it, so the next reconnect had nothing to kill.
+    release_pid() {
+      [ "$(cat "$PID_DIR/$conn_id" 2>/dev/null)" = "$$" ] && rm -f "$PID_DIR/$conn_id"
+    }
+    trap 'release_pid; exit 0' TERM INT HUP
 
     # Record monitor PID so attach can kill us on reconnect
     printf '%s' "$$" >"$PID_DIR/$conn_id"
@@ -215,7 +226,7 @@ $saved
       # those have to grow with it, or the suite fails on timing alone.
       sleep 2
     done
-    rm -f "$PID_DIR/$conn_id"
+    release_pid
     ;;
 
   adopt)

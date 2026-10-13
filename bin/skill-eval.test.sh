@@ -68,6 +68,68 @@ flag_value() { # <argv file> <flag>
 DIR=$(mktemp -d)
 trap 'rm -rf "$DIR"' EXIT
 
+# --- the grading library, on its own ------------------------------------------
+# Every eval case grades through bin/skill-eval-assert.sh, and the runner cases
+# below only reach the helpers one stub case happens to call. The ordering
+# helpers are the read-only boundary checks of review-test and review-design,
+# and their graders read an EMPTY index as "never happened" -- so a helper that
+# always returned empty would pass every one of those checks vacuously. Each is
+# run here against a transcript whose indices are known.
+lib="$DIR/lib"
+mkdir -p "$lib"
+cat >"$lib/transcript.jsonl" <<'EOF'
+{"type":"system","subtype":"init"}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"a.sh"}}]}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"## Test review: a.sh"}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"bash a.test.sh"}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{"file_path":"a.sh","old_string":"## Test review","new_string":"x"}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"git commit -m fix\nbody"}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Skill","input":{"skill":"review-test"}}]}}
+{"type":"result","result":"all done","permission_denials":[{"tool_name":"Write"},{"tool_name":"Edit"}]}
+EOF
+tail -n 1 "$lib/transcript.jsonl" >"$lib/result.json"
+# lib_eval <snippet> -- run it with the library sourced against that transcript.
+lib_eval() {
+  SKILL_EVAL_TRANSCRIPT="$lib/transcript.jsonl" SKILL_EVAL_RESULT_FILE="$lib/result.json" \
+    bash -c '. bin/skill-eval-assert.sh; '"$1" 2>&1
+}
+t "transcript_first_tool_index finds the first call" "1" "$(lib_eval 'transcript_first_tool_index Read')"
+t "and the first of several" "3" "$(lib_eval 'transcript_first_tool_index Bash')"
+t "and is empty for a tool never called" "" "$(lib_eval 'transcript_first_tool_index Write')"
+t "transcript_first_text_index matches text blocks" "2" "$(lib_eval 'transcript_first_text_index "^## Test review"')"
+# Only index 4 -- a tool call's input -- holds the bare heading, which must not
+# count as having reported it.
+t "and ignores the same words inside a tool input" "" "$(lib_eval 'transcript_first_text_index "^## Test review$"')"
+t "transcript_first_command_index matches one kind of command" "5" "$(lib_eval 'transcript_first_command_index "^git commit"')"
+t "and is empty when no command matches" "" "$(lib_eval 'transcript_first_command_index "^git push"')"
+t "transcript_tool_uses_precede: Edit at 4 precedes 4" "yes" "$(lib_eval 'transcript_tool_uses_precede Edit 4 && echo yes || echo no')"
+t "but not 3" "no" "$(lib_eval 'transcript_tool_uses_precede Edit 3 && echo yes || echo no')"
+t "and a tool never called precedes nothing" "no" "$(lib_eval 'transcript_tool_uses_precede Write 99 && echo yes || echo no')"
+t "transcript_tool_uses counts calls" "2" "$(lib_eval 'transcript_tool_uses Bash')"
+t "transcript_commands folds newlines, one call per line" 'bash a.test.sh
+git commit -m fix\nbody' "$(lib_eval 'transcript_commands')"
+t "transcript_skill_uses counts the Skill tool" "1" "$(lib_eval 'transcript_skill_uses review-test')"
+t "transcript_denials counts refusals" "2" "$(lib_eval 'transcript_denials')"
+t "transcript_result_text is the final response" "all done" "$(lib_eval 'transcript_result_text')"
+
+# Each check in both directions, and the flag that skill_eval_finish turns into
+# the exit status: a check that printed FAIL but forgot to set it would let the
+# case pass.
+for c in 'check l true' 'check_eq l a a' 'check_match l "^a" abc' 'check_not_match l "^z" abc'; do
+  t "$c passes and leaves the case passing" "PASS  l|0" \
+    "$(lib_eval "$c; printf '|'; (skill_eval_finish); echo \$?" | tr -d '\n')"
+done
+for c in 'check l false' 'check_eq l a b' 'check_match l "^z" abc' 'check_not_match l "^a" abc'; do
+  out=$(lib_eval "$c; (skill_eval_finish); echo \"|\$?\"" | tr -d '\n')
+  case "$out" in
+    FAIL\ \ l*"|1") printf 'ok   %s fails and fails the case\n' "$c" ;;
+    *)
+      printf 'FAIL %s fails and fails the case\n       got: %s\n' "$c" "$out"
+      fails=$((fails + 1))
+      ;;
+  esac
+done
+
 # The claude stub records the arguments and the state of the fixture it was
 # called in, optionally acts on the fixture ($STUB_CLAUDE_ACTION), and returns
 # the smallest stream-json the runner will accept.
@@ -92,6 +154,7 @@ for arg in "$@"; do
 done
 printf '%s\n' "$@" >"$STUB_CLAUDE_OUT/args"
 pwd >"$STUB_CLAUDE_OUT/cwd"
+printf '%s\n' "${PATH%%:*}" >"$STUB_CLAUDE_OUT/path_head"
 git status --porcelain >"$STUB_CLAUDE_OUT/status" 2>/dev/null || true
 git ls-files >"$STUB_CLAUDE_OUT/tracked" 2>/dev/null || true
 if [ -e ".claude/skills/$STUB_SKILL/evals" ]; then
@@ -140,12 +203,18 @@ EOF
 cat >"$skills_dir/$skill/evals/case-a/scaffold.sh" <<'EOF'
 #!/bin/bash
 set -eo pipefail
+[ -z "${STUB_SCAFFOLD_CWD:-}" ] || pwd -P >"$STUB_SCAFFOLD_CWD"
+[ -z "${STUB_SCAFFOLD_FAIL:-}" ] || exit 4
 source "$SKILL_EVAL_LIB_DIR/skill-eval-scaffold.sh"
 echo hello >tracked.txt
 skill_eval_init_repo
 echo changed >tracked.txt
 mkdir -p bin
 printf '%s\n' "$SKILL_EVAL_REPO_ROOT" >bin/repo_root
+# Succeeds, but leaves .git/info a plain file: the runner's own append to
+# .git/info/exclude then fails under set -e -- a mid-case exit that is not
+# the scaffold's.
+[ -z "${STUB_SCAFFOLD_BREAK_GIT_INFO:-}" ] || { rm -rf .git/info; : >.git/info; }
 EOF
 cat >"$skills_dir/$skill/evals/case-a/assert.sh" <<'EOF'
 #!/bin/bash
@@ -161,6 +230,7 @@ fi
 if [ -n "${STUB_USE_JUDGE:-}" ]; then
   check_llm "judged" "the rubric"
 fi
+[ -z "${STUB_NO_FINISH:-}" ] || exit 0
 skill_eval_finish
 EOF
 cp "$skills_dir/$skill/evals/case-a/prompt.md" "$skills_dir/$skill/evals/case-b/prompt.md"
@@ -216,6 +286,12 @@ t "only the fixture's project settings load" "project" \
   "$(flag_value "$STUB_CLAUDE_OUT/args" --setting-sources)"
 t "the caller's MCP servers stay out" "1" \
   "$(grep -cxF -- --strict-mcp-config "$STUB_CLAUDE_OUT/args")"
+# A scaffold puts its stubs (gh, a fake test runner) in bin/; they only stand in
+# for the real tools if they come first.
+t "the fixture's bin/ is first on PATH" "$(cat "$STUB_CLAUDE_OUT/cwd")/bin" \
+  "$(cat "$STUB_CLAUDE_OUT/path_head")"
+t "the working directory is removed after the run" "gone" \
+  "$([ -e "$(cat "$STUB_CLAUDE_OUT/cwd")" ] && echo kept || echo gone)"
 contains "the run is reported" "[PASS] $skill/case-a run-1" "$output"
 
 # --- prompt.md's allowed_tools are added to the skill's own ---
@@ -249,6 +325,9 @@ t "a case with no budget_usd falls back to the default" "1" \
   "$(grep -A1 -e '^--max-budget-usd$' "$STUB_CLAUDE_OUT/args" | tail -n 1)"
 
 # --- fixture isolation ---
+# Its own run, rather than the recordings the defaults case left behind.
+rm -rf "$STUB_CLAUDE_OUT"
+$RUN "$skill" case-a >/dev/null
 t "the .claude/ and bin/ we brought in stay out of git status" " M tracked.txt" \
   "$(cat "$STUB_CLAUDE_OUT/status")"
 # A clean status alone cannot see this: the skill is copied in *before* the
@@ -280,7 +359,15 @@ t "git add -A in the fixture commits neither .claude/ nor bin/" "tracked.txt" \
   "$(cat "$STUB_CLAUDE_OUT/committed")"
 
 # --- artifacts ---
-run_dir="$(find "$SKILL_EVAL_OUT_DIR/$skill/case-a" -type d -name 'run-1' | head -n 1)"
+# A fresh output dir and one run, so the run dir is this run's and not whichever
+# `find | head` reached first among the runs above. The skill commits, so the
+# log can show what eval-base..HEAD holds: without the scaffold's eval-base tag
+# that range fails and the file is empty, which an existence check accepts.
+rm -rf "$STUB_CLAUDE_OUT" "$SKILL_EVAL_OUT_DIR"
+# shellcheck disable=SC2016  # expanded by the stub's own shell, not this one
+STUB_CLAUDE_ACTION='echo more >tracked.txt && git commit -qam "fix: by the skill"' \
+  $RUN "$skill" case-a >/dev/null
+run_dir="$(find "$SKILL_EVAL_OUT_DIR/$skill/case-a" -type d -name 'run-1')"
 for artifact in transcript.jsonl result.json assert.log git-log.txt git-status.txt; do
   if [ -f "$run_dir/$artifact" ]; then
     printf 'ok   artifact %s is kept\n' "$artifact"
@@ -290,6 +377,16 @@ for artifact in transcript.jsonl result.json assert.log git-log.txt git-status.t
   fi
 done
 contains "the grading log holds the PASS lines" "PASS  denials" "$(cat "$run_dir/assert.log")"
+contains "git-log.txt holds the skill's own commit" "fix: by the skill" "$(cat "$run_dir/git-log.txt")"
+absent "and not the scaffold's commit before eval-base" "chore: initial" "$(cat "$run_dir/git-log.txt")"
+
+# --- --keep leaves the working directory for inspection ---
+rm -rf "$STUB_CLAUDE_OUT"
+output="$($RUN "$skill" case-a --keep)"
+kept="$(cat "$STUB_CLAUDE_OUT/cwd")"
+contains "--keep names the working directory" "work: $kept" "$output"
+t "and leaves it in place" "kept" "$([ -d "$kept" ] && echo kept || echo gone)"
+rm -rf "$kept"
 
 # --- a failed assertion reaches the exit status ---
 rm -rf "$STUB_CLAUDE_OUT"
@@ -370,31 +467,32 @@ check_fails() {
   fi
   contains "$label" "$needle" "$out"
 }
-# case-d is created here, not with the others, because a case present from the
-# start would join the "with no case named" run above and fail it.
-mkdir -p "$skills_dir/$skill/evals/case-d"
-cat >"$skills_dir/$skill/evals/case-d/prompt.md" <<'EOF'
+# The malformed cases live in a skill of their own. In stub-skill they would
+# join every "with no case named" run and fail it, which used to make where in
+# this file they were created load-bearing.
+bad="stub-skill-bad"
+mkdir -p "$skills_dir/$bad/evals/case-d" "$skills_dir/$bad/evals/case-e"
+cp "$skills_dir/$skill/SKILL.md" "$skills_dir/$bad/SKILL.md"
+cat >"$skills_dir/$bad/evals/case-d/prompt.md" <<'EOF'
 ---
 name: case-d
 max_turns: soon
 ---
 do it
 EOF
-cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-d/scaffold.sh"
-cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-d/assert.sh"
-
 # case-e is the same check on the other key. Two validations exist, so two are
 # tested: one of them could be deleted and the other would keep the suite green.
-mkdir -p "$skills_dir/$skill/evals/case-e"
-cat >"$skills_dir/$skill/evals/case-e/prompt.md" <<'EOF'
+cat >"$skills_dir/$bad/evals/case-e/prompt.md" <<'EOF'
 ---
 name: case-e
 budget_usd: plenty
 ---
 do it
 EOF
-cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-e/scaffold.sh"
-cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-e/assert.sh"
+for c in case-d case-e; do
+  cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-a/assert.sh" \
+    "$skills_dir/$bad/evals/$c/"
+done
 
 check_fails "no skill prints the usage" "usage:" $RUN
 check_fails "--runs 0 says why" "--runs takes an integer" $RUN "$skill" case-a --runs 0
@@ -405,9 +503,122 @@ check_fails "an incomplete case names the missing file" "case no-such-case has n
 # with its own message, and the runner would grade that failed run as a FAIL of
 # the skill. Refusing before the API call is what keeps the two apart.
 check_fails "an unparsable max_turns says why, before spending anything" \
-  "case case-d: max_turns takes an integer" $RUN "$skill" case-d
+  "case case-d: max_turns takes an integer" $RUN "$bad" case-d
 check_fails "an unparsable budget_usd says why, before spending anything" \
-  "case case-e: budget_usd takes a number" $RUN "$skill" case-e
+  "case case-e: budget_usd takes a number" $RUN "$bad" case-e
+# An option given no value used to die on `shift 2` under set -e: exit 1 and
+# not a word about why.
+check_fails "--runs with no value says why" "--runs needs a value" $RUN "$skill" case-a --runs
+check_fails "--model with no value says why" "--model needs a value" $RUN "$skill" case-a --model
+
+# --- an assert.sh that never calls skill_eval_finish ---
+# Its FAIL lines are in the log while the script exits 0, and the runner used
+# to grade on the exit status alone: [PASS], with the failures visible only to
+# someone who opened assert.log.
+rm -rf "$STUB_CLAUDE_OUT"
+if output="$(STUB_ASSERT_FAIL=1 STUB_NO_FINISH=1 $RUN "$skill" case-a 2>&1)"; then
+  printf 'FAIL a FAIL line without skill_eval_finish still exited 0\n'
+  fails=$((fails + 1))
+else
+  printf 'ok   a FAIL line fails the run even without skill_eval_finish\n'
+fi
+contains "and the run is reported as FAIL" "[FAIL] $skill/case-a run-1" "$output"
+
+# --- a scaffold that fails ---
+# It used to abort the whole run under set -e, naming no case and leaving the
+# working directory behind.
+rm -rf "$STUB_CLAUDE_OUT"
+check_fails "a failing scaffold names the case" "case case-a: scaffold.sh exited 4" \
+  env STUB_SCAFFOLD_FAIL=1 $RUN "$skill" case-a
+t "and claude is never called" "absent" "$([ -e "$STUB_CLAUDE_OUT/args" ] && echo present || echo absent)"
+# The scaffold says where it ran (into a file kept outside TMPDIR), which is
+# the positive control for the emptiness check below: it proves the failing
+# branch ran AND that the run's temp files were placed in this TMPDIR, so an
+# empty directory means cleaned up, not never written to. The per-case cost
+# file used to outlive this exit.
+mkdir -p "$DIR/scaffold-tmp"
+TMPDIR="$DIR/scaffold-tmp" STUB_SCAFFOLD_FAIL=1 STUB_SCAFFOLD_CWD="$DIR/scaffold-cwd" \
+  $RUN "$skill" case-a >/dev/null 2>&1
+scaffold_cwd=$(cat "$DIR/scaffold-cwd" 2>/dev/null)
+scaffold_tmp=$(cd "$DIR/scaffold-tmp" && pwd -P)
+case "$scaffold_cwd" in
+  "$scaffold_tmp"/?*) under_tmp=yes ;;
+  *) under_tmp=no ;;
+esac
+t "the failing scaffold ran in a working directory under TMPDIR" "yes" "$under_tmp"
+t "and that directory is removed" "gone" "$([ -e "$scaffold_cwd" ] && echo kept || echo gone)"
+t "and nothing the run made is left in TMPDIR" "" "$(ls -Ap "$DIR/scaffold-tmp" 2>&1)"
+
+# A run of several cases that finishes leaves nothing either. The trap knows
+# only the case in progress, so each finished case must remove its own cost
+# file; a single-case run would not notice if one stopped doing so.
+rm -rf "$STUB_CLAUDE_OUT" "$SKILL_EVAL_OUT_DIR"
+mkdir -p "$DIR/multi-tmp"
+multi_rc=0
+TMPDIR="$DIR/multi-tmp" $RUN "$skill" >"$DIR/multi-out" 2>&1 || multi_rc=$?
+contains "a run of every case reaches case-b" "[PASS] $skill/case-b run-1" "$(cat "$DIR/multi-out")"
+# Every other check of the exit status looks for non-zero. Under set -e the
+# EXIT trap's return value replaces a clean `exit 0`, so a cleanup that ended
+# on a false test would turn every passing run red -- with nothing else noticing.
+t "a run where every case passes exits 0" "0" "$multi_rc"
+t "and leaves nothing in TMPDIR" "" "$(ls -Ap "$DIR/multi-tmp" 2>&1)"
+
+# A mid-case exit that is not the scaffold's -- here the runner's own write
+# into .git/info failing under set -e -- removes the working directory too:
+# without --keep, a run leaves nothing whichever way it ends.
+# Each run below records its cwd in a file of its own, so no case can pass on
+# a path a previous one left behind.
+#
+# run_failing <name> <args...> -- run the runner with TMPDIR=$DIR/<name>-tmp and
+# STUB_SCAFFOLD_CWD=$DIR/<name>-cwd; sets out, rc, cwd (the scaffold's pwd -P)
+# and named (the `work:` path the runner printed, resolved with pwd -P).
+run_failing() {
+  local name=$1
+  shift
+  mkdir -p "$DIR/$name-tmp"
+  rc=0
+  out=$(env TMPDIR="$DIR/$name-tmp" STUB_SCAFFOLD_CWD="$DIR/$name-cwd" "$@" 2>&1) || rc=$?
+  cwd=$(cat "$DIR/$name-cwd" 2>/dev/null)
+  named=$(printf '%s\n' "$out" | sed -n 's/^ *work: //p')
+  [ -z "$named" ] || named=$(cd "$named" 2>/dev/null && pwd -P)
+}
+
+rm -rf "$STUB_CLAUDE_OUT"
+run_failing midcase STUB_SCAFFOLD_BREAK_GIT_INFO=1 $RUN "$skill" case-a
+t "a runner step failing mid-case exits non-zero" "nonzero" "$([ "$rc" -ne 0 ] && echo nonzero || echo zero)"
+# Not the scaffold's failure dressed up as one: the scaffold returned 0, and
+# the run stopped at the runner's own write.
+absent "and the scaffold itself did not fail" "scaffold.sh exited" "$out"
+contains "it stopped at the runner's write into .git/info" ".git/info/exclude" "$out"
+t "the working directory is removed" "gone" "$([ -n "$cwd" ] && [ ! -e "$cwd" ] && echo gone || echo kept)"
+t "and nothing is left in TMPDIR" "" "$(ls -Ap "$DIR/midcase-tmp" 2>&1)"
+
+# --keep is for investigating a failure, and a broken scaffold is one: its
+# half-built fixture is kept and named, while the runner's own files go, and
+# the run still fails as a broken harness.
+rm -rf "$STUB_CLAUDE_OUT"
+run_failing keepfail STUB_SCAFFOLD_FAIL=1 $RUN "$skill" case-a --keep
+t "--keep still fails a broken scaffold" "nonzero" "$([ "$rc" -ne 0 ] && echo nonzero || echo zero)"
+contains "and still names the failing case" "case case-a: scaffold.sh exited 4" "$out"
+t "and keeps its working directory" "kept" "$([ -n "$cwd" ] && [ -d "$cwd" ] && echo kept || echo gone)"
+t "and names it" "$cwd" "$named"
+t "and it is the only thing left in TMPDIR" "$(basename "$cwd")/" "$(ls -Ap "$DIR/keepfail-tmp" 2>&1)"
+
+# The same for any other mid-case exit: a run cut short under --keep names the
+# directory it kept, or it is an unnamed skill-eval.XXXXXX among the others.
+rm -rf "$STUB_CLAUDE_OUT"
+run_failing keepmid STUB_SCAFFOLD_BREAK_GIT_INFO=1 $RUN "$skill" case-a --keep
+t "--keep keeps a run cut short mid-case" "kept" "$([ -n "$cwd" ] && [ -d "$cwd" ] && echo kept || echo gone)"
+t "and names it" "$cwd" "$named"
+
+# --- allowed-tools is read from the frontmatter only ---
+# A body line that happens to start with the key -- an example in the skill's
+# own documentation, say -- must not widen what the run may do.
+printf '\nallowed-tools: Write, Edit\n' >>"$skills_dir/$skill/SKILL.md"
+rm -rf "$STUB_CLAUDE_OUT"
+$RUN "$skill" case-a >/dev/null
+absent "a body line is not read as allowed-tools" "Write" "$(cat "$STUB_CLAUDE_OUT/args")"
+contains "while the frontmatter's still is" "Bash(git status *)" "$(cat "$STUB_CLAUDE_OUT/args")"
 
 # --- claude_md: a case that measures a CLAUDE.md rule opts in to one ---
 # By default no CLAUDE.md reaches the fixture, so a case measures what SKILL.md

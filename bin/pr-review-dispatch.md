@@ -260,6 +260,20 @@ whose branch was merged is a human's decision, and the queue is the only copy.
 `seen` is deliberately untouched by delivery: it is the watcher's high-water, and
 clearing it re-queues everything on the next poll.
 
+**Delivery removes only what it delivered.** The watchers append to the same job
+file under their own locks, not `.dispatch-lock`, so an item can land between
+the prompt being written and the job being marked. Marking used to set
+`pending = []`, which dropped such an item while its id was already in `seen` —
+lost for good, with nothing said. Each delivery is now built from a snapshot
+(outside the state directory, so an unwritable queue still fails at *marking*,
+where it is reported), and marking removes exactly the snapshot's ids; anything
+left keeps the job `pending` for the next run. A prompt file that cannot be
+written holds the job instead of sending a pointer to a missing or stale file.
+
+A job queued with a null `sessionId` — both detectors write that when no session
+was live — holds under `PR_REVIEW_DISPATCH_RESUME=1` with "the job names none to
+resume", not with advice to set the variable that is already set.
+
 ## nc or socat
 
 Auto-detected, with `PR_REVIEW_DISPATCH_SOCK_TOOL` to force one. The override

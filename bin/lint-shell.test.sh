@@ -89,7 +89,7 @@ trap 'rm -rf "$work"' EXIT
 # assert on the target list, and succeeds -- except the one named as failing,
 # which exits 1 as a checker does on a finding, so a case can see whether a
 # finding reaches the exit status.
-make_stubs() {
+make_stubs() { # make_stubs <dir> [failing-tool]
   local dir=$1 failing=${2:-} tool code
   mkdir -p "$dir"
   for tool in shellcheck shfmt zsh; do
@@ -130,9 +130,10 @@ run_lint() {
 }
 
 # --- a failed listing must reach the exit status -----------------------------
-# The regression this file exists for. The stub still prints a usable listing:
-# with empty output, a lint-shell that ignored the status would fall through to
-# the empty-listing guard below and fail anyway, for the wrong reason.
+# The regression this file exists for. The stub still prints a usable listing,
+# the way a git that dies part-way does: with empty output, a lint-shell that
+# ignored the status would fall through to the empty-listing guard below and
+# fail anyway, for the wrong reason.
 make_stubs "$work/failed"
 make_git_stub "$work/failed" 1 "bin/lint-shell
 "
@@ -148,12 +149,13 @@ make_git_stub "$work/empty" 0 ""
 assert_nonzero "an empty git ls-files exits non-zero" "$(run_lint "$work/empty")"
 
 # --- a normal listing checks the files it was given --------------------------
+# bin/init/macos.sh is a real `#!/bin/zsh` script outside zsh/, so only its
+# shebang can route it -- the case a loosened pattern (`^#!.*sh`, or `\bsh\b`
+# matching the `sh` inside `zsh`) would wrongly hand to shellcheck.
 make_stubs "$work/normal"
-# bin/init/macos.sh is `#!/bin/zsh` outside zsh/, so only its shebang can route
-# it -- and `\bsh\b` must not match the `sh` inside `zsh`.
 make_git_stub "$work/normal" 0 "bin/lint-shell
-zsh/alias.zsh
 bin/init/macos.sh
+zsh/alias.zsh
 README.md
 "
 assert_eq "a normal listing exits 0" "0" "$(run_lint "$work/normal")"
@@ -161,11 +163,36 @@ assert_arg "the bash script reaches shellcheck" "$work/normal/shellcheck.argv" "
 assert_arg "the zsh module reaches zsh -n" "$work/normal/zsh.argv" "zsh/alias.zsh"
 assert_arg "a zsh-shebang script outside zsh/ reaches zsh -n" "$work/normal/zsh.argv" "bin/init/macos.sh"
 refute_arg "and not shellcheck" "$work/normal/shellcheck.argv" "bin/init/macos.sh"
-assert_arg "the zsh entrypoints are always checked" "$work/normal/zsh.argv" ".zshrc"
-assert_arg "the sourced fragments are always checked" "$work/normal/shellcheck.argv" "bin/init/common.sh"
+# The entrypoints have no shebang and live outside zsh/, so only their inline
+# names put them in front of zsh -n.
+assert_arg "the zsh entrypoint .zshrc is always checked" "$work/normal/zsh.argv" ".zshrc"
+assert_arg "the zsh entrypoint .zshenv is always checked" "$work/normal/zsh.argv" ".zshenv"
 for tool in shellcheck shfmt zsh; do
   refute_arg "a file with no shell shebang reaches no checker ($tool)" "$work/normal/$tool.argv" "README.md"
 done
+
+# --- every sourced fragment is a target --------------------------------------
+# Fragments carry no shebang, so discovery cannot find them and they are named
+# inline. A new fragment that is not added to that list is checked by nobody,
+# silently. The invariant is read from the real repository: every tracked file
+# declaring `# shellcheck shell=` without a shebang must reach shellcheck.
+if ! fragments=$(git grep -l -E '^# shellcheck shell=(bash|sh)' -- . ':!*.md'); then
+  fail "the fragment listing worked" "git grep failed"
+fi
+nfrag=0
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  case "$(head -n 1 "$f")" in '#!'*) continue ;; esac
+  nfrag=$((nfrag + 1))
+  grep -qxF "$f" "$work/normal/shellcheck.argv" ||
+    fail "sourced fragment $f reaches shellcheck" "it is not named in bin/lint-shell"
+done <<<"$fragments"
+# A listing that found nothing would make the loop vacuous.
+if [ "$nfrag" -ge 5 ]; then
+  ok "all $nfrag sourced fragments reach shellcheck"
+else
+  fail "the fragment listing found the fragments" "found only $nfrag"
+fi
 
 # --- zsh never reaches shfmt -------------------------------------------------
 # shfmt parses as bash. Handing it a zsh module would reformat constructs it
@@ -188,13 +215,23 @@ assert_arg "--write asks shfmt to rewrite" "$work/write/shfmt.argv" "-w"
 
 # --- a finding from any checker fails the run --------------------------------
 # The verdict itself: every case above has checkers that always pass, so they
-# would stay green if a finding no longer reached the exit status.
+# would stay green if a finding no longer reached the exit status. And the
+# other checkers must still run: a failing first checker that skipped the
+# formatter would hide a second class of problem until the first was fixed.
 for tool in shellcheck shfmt zsh; do
   make_stubs "$work/finding-$tool" "$tool"
   make_git_stub "$work/finding-$tool" 0 "bin/lint-shell
 zsh/alias.zsh
 "
   assert_nonzero "a $tool finding exits non-zero" "$(run_lint "$work/finding-$tool")"
+  for other in shellcheck shfmt zsh; do
+    [ "$other" = "$tool" ] && continue
+    if [ -s "$work/finding-$tool/$other.argv" ]; then
+      ok "with $tool failing, $other still runs"
+    else
+      fail "with $tool failing, $other still runs" "$other was never called"
+    fi
+  done
 done
 assert_contains "a zsh -n failure names the file" "$(cat "$work/finding-zsh/out")" "FAIL zsh/alias.zsh"
 assert_nonzero "a finding fails --write too" "$(run_lint "$work/finding-shellcheck" --write)"

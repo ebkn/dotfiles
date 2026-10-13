@@ -191,18 +191,18 @@ new_client s1 || exit 1
 new_client s2 || exit 1
 ttyA=$(tty_on s1)
 ttyB=$(tty_on s2)
-record connA s1
-record connB s2
 "$SCRIPT" monitor connA "$ttyA" >/dev/null 2>&1 &
 MONITOR_PIDS="$MONITOR_PIDS $!"
 "$SCRIPT" monitor connB "$ttyB" >/dev/null 2>&1 &
 MONITOR_PIDS="$MONITOR_PIDS $!"
 
-# Both monitors have to be watching before anything is switched, or the switch
-# lands before anybody is looking and the failure surfaces much later, as the
-# next assertion going red for no visible reason.
-wait_running connA
-wait_running connB
+# Both monitors have to have made their FIRST claim before anything is switched.
+# The records are not pre-seeded and the pid file is not the signal: a monitor
+# writes its pid before its first claim, so a switch landing in between let
+# connA's first claim come after connB's, take s1 back and release connB -- a
+# stable wrong state, failing the case below on timing alone.
+t "monitor: connA claims its starting session" "s1" "$(wait_record connA s1)"
+t "monitor: connB claims its starting session" "s2" "$(wait_record connB s2)"
 
 tmux switch-client -c "$ttyB" -t '=s1'
 
@@ -224,6 +224,34 @@ t "monitor: no two conn_ids name the same session" "" "$dupes"
 kill_our_monitors
 for p in $MONITOR_PIDS; do wait_gone "$p"; done
 MONITOR_PIDS=""
+
+# ---------------------------------------------------------------------------
+# monitor: when it stops. It must end with its client, or every connection
+# leaves one polling forever -- and remove its pid file on the way, or the next
+# attach signals a pid the OS may have handed to someone else.
+# ---------------------------------------------------------------------------
+tmux new-session -d -s s3 "$IDLE"
+new_client s3 || exit 1
+ttyK=$(tty_on s3)
+"$SCRIPT" monitor connK "$ttyK" >/dev/null 2>&1 &
+monitor_k=$!
+MONITOR_PIDS="$MONITOR_PIDS $monitor_k"
+wait_record connK s3 >/dev/null
+tmux detach-client -t "$ttyK"
+t "monitor: ends once its client is gone" "gone" \
+  "$(wait_gone "$monitor_k" && echo gone || echo still-running)"
+t "monitor: and removes its pid file" "absent" \
+  "$([ -e "$PID_DIR/connK" ] && echo present || echo absent)"
+
+# run-shell is what expands #{client_tty}; if it ever reaches the monitor
+# unexpanded there is no client to watch, and the monitor must not start a loop
+# against the literal string.
+"$SCRIPT" monitor connL '#{client_tty}' >/dev/null 2>&1 &
+monitor_l=$!
+t "monitor: an unexpanded client_tty exits at once" "gone" \
+  "$(wait_gone "$monitor_l" && echo gone || echo still-running)"
+t "monitor: and starts nothing" "absent" \
+  "$([ -e "$PID_DIR/connL" ] && echo present || echo absent)"
 
 # ---------------------------------------------------------------------------
 # attach: resolution. It ends in `exec tmux new-session -A`, which attaches, so
@@ -283,11 +311,25 @@ if attach_as connD; then
     "$(tmux list-sessions -F '#{session_name} #{session_attached}' | grep -c '^connD 1$')"
 fi
 
-# A record naming a session that no longer exists is pruned rather than kept.
+# A record naming a session that no longer exists is pruned rather than kept --
+# and only that one. connF names a session that exists (held, with its client),
+# so it must survive the prune even though nothing follows it.
 record connE gone-session
-record connF free
-attach_as connF
+record connF held
+attach_as connE2
 t "attach: prunes a record naming a dead session" "<none>" "$(read_record connE)"
+t "attach: keeps another conn_id's record of a live session" "held" "$(read_record connF)"
+
+# The prefix boundary the script's two listings are newline-delimited for:
+# `local-5` must not be found inside `local-50`. local-50 is live and free;
+# local-5 does not exist, so connX's record of it is dead.
+tmux new-session -d -s local-50 "$IDLE"
+record connX local-5
+attach_as connX
+t "attach: a dead session is not matched inside a longer live name" \
+  "connX" "$(wait_record connX connX)"
+t "attach: and the connection gets its own session, not the longer one" "0" \
+  "$(tmux list-sessions -F '#{session_name} #{session_attached}' | grep -c '^local-50 1$')"
 
 # attach must also START the monitor, which is the half that keeps the record
 # up to date for the next reconnect. Nothing above reaches it: every case here
@@ -341,6 +383,28 @@ for _ in $(seq 1 50); do
 done
 kill -0 "$monitor_i" 2>/dev/null && gone=alive
 t "attach: still kills this conn_id's own stale monitor" "dead" "$gone"
+# ...and the pid file then names the NEW monitor, attach started. The old one's
+# trap runs only once its `sleep 2` returns -- after attach has started the new
+# monitor -- and it used to remove the pid file unconditionally, taking the new
+# monitor's with it. The next reconnect then had nothing to kill, and leaked it.
+new_pid=$(cat "$PID_DIR/connI" 2>/dev/null)
+t "attach: the pid file names the replacement monitor afterwards" "yes" \
+  "$(case "$(ps -ww -p "${new_pid:-0}" -o command= 2>/dev/null)" in
+    *"monitor connI "*) echo yes ;;
+    *) echo "no (pid file: ${new_pid:-missing})" ;;
+  esac)"
+
+# The identity check matches this conn_id as a whole argument. A process that is
+# the monitor of a LONGER conn_id (local-50's, holding a pid local-5's file
+# names) is somebody else's monitor, and killing it breaks that connection.
+# (`; exit 0` stops bash exec'ing sleep in its place, which would drop the argv.)
+bash -c 'sleep 600; exit 0' tmux-track-session monitor local-50 /dev/null &
+other_monitor=$!
+CLIENT_PIDS="$CLIENT_PIDS $other_monitor"
+printf '%s' "$other_monitor" >"$PID_DIR/local-5"
+attach_as local-5
+t "attach: a longer conn_id's monitor is not taken for this one's" "alive" \
+  "$(kill -0 "$other_monitor" 2>/dev/null && echo alive || echo dead)"
 
 # ---------------------------------------------------------------------------
 # adopt: the remote half of bin/tmux-restore-ssh-tabs. Each session it prints
