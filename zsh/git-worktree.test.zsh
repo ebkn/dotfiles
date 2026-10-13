@@ -64,8 +64,12 @@ cat >"$stub_bin/fzf" <<'STUB'
 # a case can pin gw against the defaults .zshenv exports. An index form this
 # stub cannot read (a range, a field name) exits 2 rather than searching
 # something else.
+# Exit statuses are fzf's own (man fzf, EXIT STATUS): unset FZF_PICK exits
+# 130 as ESC does, a pick matching nothing exits 1, and FZF_FAIL stands for
+# fzf failing (an option it does not know): a message and 2.
 tee "${FZF_MENU:-/dev/null}" > "$0.stdin"
-[ -n "${FZF_PICK:-}" ] || exit 1
+if [ -n "${FZF_FAIL:-}" ]; then echo "unknown option: $FZF_FAIL" >&2; exit 2; fi
+[ -n "${FZF_PICK:-}" ] || exit 130
 accept=
 search=
 with=
@@ -362,6 +366,19 @@ out=$(FZF_MENU="$work/menu-from-linked" run "$repo/git-worktrees/one" gw)
 check 'cancelling the picker leaves the shell where it was' \
   "PWD=$repo/git-worktrees/one" "$(pwd_of "$out")"
 check 'and is not an error' 0 "$(status_of "$out")"
+# Enter on a query that matches nothing exits 1: the user gave up, as with ESC.
+out=$(FZF_PICK=no-such-worktree run "$repo/git-worktrees/one" gw)
+check 'a pick that matches nothing leaves the shell where it was' \
+  "PWD=$repo/git-worktrees/one" "$(pwd_of "$out")"
+check 'and is not an error either' 0 "$(status_of "$out")"
+# fzf itself failing is not the user cancelling: an fzf too old for
+# --accept-nth exits 2, and returning 0 told an agent that gw had worked
+# while it stayed in the wrong checkout.
+out=$(FZF_FAIL=--accept-nth=3 run "$repo/git-worktrees/one" gw)
+check 'fzf failing makes gw fail with its status' 2 "$(status_of "$out")"
+contains 'and its message reaches the caller' 'unknown option: --accept-nth=3' "$out"
+check 'and leaves the shell where it was' \
+  "PWD=$repo/git-worktrees/one" "$(pwd_of "$out")"
 # Run from a linked worktree, where the main checkout and the current worktree
 # differ: the main one is what is left out, and paths stay relative to it. The
 # current worktree is offered like any other.

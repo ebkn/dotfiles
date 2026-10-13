@@ -101,7 +101,8 @@ _gw_worktree_add() {
 
 # Fuzzy-pick a linked worktree (never the main checkout) and print its
 # absolute path.
-# Returns 1 when there is nothing to pick or the user cancelled.
+# Returns 1 when there is nothing to pick, and otherwise fzf's own status
+# (1 no match, 130 cancelled, 2 fzf failed), which gw tells apart.
 _gw_pick_worktree() {
   # Resolve the main repo root so worktree paths can be rendered relative to it.
   local main_root
@@ -331,8 +332,18 @@ function gw() {
   fi
 
   if [[ -z "$input" ]]; then
-    local selected
-    selected=$(_gw_pick_worktree) || return 0
+    local selected rc
+    selected=$(_gw_pick_worktree)
+    rc=$?
+    # 1 is nothing to pick or a query matching nothing, 130 is ESC/CTRL-C:
+    # the user not choosing, which is not an error. Anything else is fzf
+    # failing (2 for an option it does not know, as an fzf too old for
+    # --accept-nth does), and returning 0 for it told an agent gw had worked.
+    case $rc in
+      0) ;;
+      1 | 130) return 0 ;;
+      *) return $rc ;;
+    esac
     [[ -n "$selected" ]] && cd "$selected"
     return
   fi

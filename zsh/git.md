@@ -39,7 +39,9 @@ Five things are worth knowing before editing it:
 4. **`run` reports the exit status as well as the final `PWD`**, because agents
    run `gw` and act on its status — a failure returning 0 would leave them working
    in the main checkout. "No `gh`" is a `PATH` holding only a symlink to git,
-   since on the CI runner a real `gh` shares `/usr/bin` with git.
+   since on the CI runner a real `gh` shares `/usr/bin` with git. The picker is
+   the same: the `fzf` stub exits as fzf does (130 for ESC, 1 for no match, 2
+   for an error), and only the first two may come back from `gw` as 0.
 5. **A case whose assertion is an absence needs a control.** The hook case first
    shows its fixture `post-checkout` hook firing on a plain `git worktree add`;
    without that, a hook that never ran would pass for nothing.
