@@ -258,7 +258,7 @@ silent.
 | `root/.agents/skills/retrospective/*.test.sh` | [NOTES.md](root/.agents/skills/retrospective/NOTES.md) |
 | `zsh/*.test.zsh` | [zsh/README.md](zsh/README.md) |
 | `bin/launchd-load.test.sh` | [launchd-load.md](bin/launchd-load.md) |
-| `bin/relink.test.sh` (also `link_with_backup`/`backup_path` in `bin/init/common.sh`, and `link_dotfiles`) | its header |
+| `bin/relink.test.sh` (also `link_with_backup`/`backup_path`/`ensure_ssh_base_include` in `bin/init/common.sh`, and `link_dotfiles`) | its header |
 | `bin/read-doc.test.sh` | [read-doc.md](bin/read-doc.md) — needs pandoc (pinned in CI) |
 | `bin/textlint-docs.test.sh` | [textlint-docs.md](bin/textlint-docs.md) (the rules themselves are checked by using them) |
 | `bin/git-generated.test.sh`, `bin/fzf-files.test.sh` | their headers |

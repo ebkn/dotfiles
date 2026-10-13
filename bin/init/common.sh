@@ -91,6 +91,8 @@ link_with_backup() {
   ln -s "$src" "$dest"
 }
 
+# ensure_ssh_base_include <config> [target=config_base]
+#
 # Make <config> (~/.ssh/config, machine-local) pull in the shared defaults as
 # its last lines, inside `Host *`:
 #
@@ -104,7 +106,9 @@ link_with_backup() {
 # appended after the last host (as macos.sh wrote) reached that one host only.
 #
 # Any existing Include of the target is removed first, so the broken forms are
-# repaired and a rerun changes nothing. A `Host *` directly above it goes too,
+# repaired and a rerun changes nothing. The target is matched as written,
+# ignoring only case and whitespace: `Include ~/.ssh/config_base` names the same
+# file to ssh but is a different line here, and is left where it is. A `Host *` directly above it goes too,
 # but only when nothing but blanks and comments follow the Include in that
 # block: a user who put settings there meant them for every host, and dropping
 # the header would fold them into the block before -- the same silent narrowing

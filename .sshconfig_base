@@ -8,8 +8,11 @@
 #
 # Only here, deliberately. Multiplexing ties every session to one TCP
 # connection: after a network change a new ssh attaches to the dead master and
-# hangs until ServerAlive gives up (15s x 6 = ~90s below), and an autossh host
-# such as ebiken would lose its 1-2s reconnect to exactly that.
+# hangs until ServerAlive gives up (15s x 6 = ~90s below). For an interactive
+# host such as ebiken that would be a plain `ssh`/`scp` -- or `myssh host cmd`,
+# which falls back to plain ssh -- hanging after every Wi-Fi switch, to save one
+# handshake per session. myssh's own autossh is unaffected either way: it runs
+# with -o ControlPath=none (zsh/ssh.zsh).
 Host github.com
   ControlMaster auto
   ControlPath ~/.ssh/sockets/%r@%h:%p
