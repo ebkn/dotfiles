@@ -244,15 +244,16 @@ paragraph broke its own instructions.
 
 ### Forward mode, without a terminal
 
-From an ssh session, `read-doc FILE` with stdout redirected to a file must emit
-three `SetUserVar=read_doc` copies (depths 0/1/2), with stderr carrying only the
-`sent <name>` confirmation, and
+The suite pins the sending half: the three `SetUserVar=read_doc` copies (depths
+0/1/2) byte for byte against bytes it spells out itself — depth 2 is
+`ESC P tmux ; ESC ESC P tmux ; ESC ESC ESC ESC ]` — the payload decoding to
+`<basename>` then the file, stderr carrying only the `sent <name>`
+confirmation, the fallback to stdout when the terminal cannot be written, and
+`--print` rendering rather than forwarding inside ssh.
 
-    grep -ao 'SetUserVar=read_doc=[A-Za-z0-9+/=]*' | head -1 |
-      sed 's/^SetUserVar=read_doc=//' | base64 -d
-
-must reproduce `<basename>` then the file verbatim. `od -c` confirms the nesting
-— depth 2 is `ESC P tmux ; ESC ESC P tmux ; ESC ESC ESC ESC ]`.
+It writes to `READ_DOC_TTY` instead of `/dev/tty`. That variable exists for the
+suite alone: run from a real terminal, a test writing to `/dev/tty` reaches the
+real WezTerm, which opens a browser.
 
 The receiving half needs a real WezTerm and cannot be checked this way.
 

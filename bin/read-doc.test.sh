@@ -9,7 +9,8 @@
 # reason the script exists -- stays a thing to look at in a browser.
 #
 # Everything goes through --print, which writes exactly the HTML the browser
-# would get, so nothing is opened. pandoc is REQUIRED and its absence fails the
+# would get, so nothing is opened; forward mode writes to READ_DOC_TTY, so
+# nothing reaches the real terminal either. pandoc is REQUIRED and its absence fails the
 # run: a suite that skipped without it would be a permanently green check
 # wherever it is missing. The runner has none, so CI installs a pinned one for
 # this suite (see read-doc.md, "Testing").
@@ -180,6 +181,54 @@ t "over the forwarding cap it exits 2" "2" "$rc"
 t "and says it is over the cap" "1" "$(printf '%s\n' "$out" | grep -c 'over the 10-byte forwarding cap')"
 t "and names the command to run from the terminal's machine" "1" \
   "$(printf '%s\n' "$out" | grep -c "read-doc .*:$doc/a.md")"
+
+# --- forward mode, under the cap -------------------------------------------------
+# What wezterm.lua decodes is the whole contract of this half, and every way of
+# breaking it is silent: a wrong payload, a missing depth or an ESC not doubled
+# just means no page opens. READ_DOC_TTY stands in for /dev/tty, which from a
+# real terminal would reach the real WezTerm.
+#
+# The expected bytes are spelt out rather than rebuilt the way read-doc builds
+# them, so a mistake in that construction cannot be copied into the check. Each
+# tmux layer strips one `ESC P tmux; ... ESC \` and halves the ESCs inside it.
+printf '# Forwarded\n\nbody\n' >"$doc/fwd.md"
+P=$(printf 'fwd.md\n# Forwarded\n\nbody' | base64 | tr -d '\n')
+printf '\033]1337;SetUserVar=read_doc=%s\007' "$P" >"$TMP/fwd.expected"
+# \134 is the backslash of the `ESC \` terminator.
+printf '\033Ptmux;\033\033]1337;SetUserVar=read_doc=%s\007\033\134' "$P" >>"$TMP/fwd.expected"
+printf '\033Ptmux;\033\033Ptmux;\033\033\033\033]1337;SetUserVar=read_doc=%s\007\033\033\134\033\134' \
+  "$P" >>"$TMP/fwd.expected"
+
+SSH_CONNECTION='10.0.0.1 1 10.0.0.2 22' READ_DOC_TTY="$TMP/fwd.tty" \
+  "$RD" "$doc/fwd.md" >"$TMP/fwd.out" 2>"$TMP/fwd.err"
+t "forwarding exits 0" "0" "$?"
+t "the terminal gets depths 0, 1 and 2, byte for byte" "same" \
+  "$(cmp -s "$TMP/fwd.expected" "$TMP/fwd.tty" && echo same || echo differs)"
+t "and the payload decodes to the name, then the source" \
+  "$(printf 'fwd.md\n# Forwarded\n\nbody')" \
+  "$(grep -ao 'SetUserVar=read_doc=[A-Za-z0-9+/=]*' "$TMP/fwd.tty" | head -1 |
+    sed 's/^SetUserVar=read_doc=//' | base64 -d)"
+t "nothing goes to stdout when the terminal can be written" "0" "$(wc -c <"$TMP/fwd.out" | tr -d ' ')"
+t "stderr confirms what was sent" "read-doc: sent fwd.md to the terminal's machine" "$(cat "$TMP/fwd.err")"
+
+# An earlier version tested -w first, which /dev/tty passes with no controlling
+# terminal, and exited 0 having emitted nothing. Unwritable, it falls back to
+# stdout -- the same bytes, so whatever reads that stream still gets them.
+SSH_CONNECTION='10.0.0.1 1 10.0.0.2 22' READ_DOC_TTY="$TMP/no-such-dir/tty" \
+  "$RD" "$doc/fwd.md" >"$TMP/fwd-fallback.out" 2>"$TMP/fwd-fallback.err"
+t "with no writable terminal it still exits 0" "0" "$?"
+t "and the same bytes go to stdout instead" "same" \
+  "$(cmp -s "$TMP/fwd.expected" "$TMP/fwd-fallback.out" && echo same || echo differs)"
+t "and the failed write leaves nothing on stderr but the confirmation" \
+  "read-doc: sent fwd.md to the terminal's machine" "$(cat "$TMP/fwd-fallback.err")"
+
+# --print is how a caller asks for HTML inside ssh; forwarding instead would
+# hand it escape sequences where it expected a page.
+SSH_CONNECTION='10.0.0.1 1 10.0.0.2 22' READ_DOC_TTY="$TMP/print.tty" \
+  "$RD" --print "$doc/fwd.md" >"$TMP/print-ssh.html" 2>/dev/null
+t "--print inside ssh renders instead of forwarding" "1" "$(count '<html' "$TMP/print-ssh.html")"
+t "and writes nothing to the terminal" "absent" \
+  "$([ -e "$TMP/print.tty" ] && echo present || echo absent)"
 
 # --- usage ---------------------------------------------------------------------------
 out=$("$RD" --print "$doc/a.md" "$doc/b.md" 2>&1)
