@@ -170,8 +170,11 @@ Keyed by socket *and* pane id: a pane id is only unique within one server.
 `SubagentStart` / `SubagentStop` maintain the set. **`Stop` deliberately does
 not clear it**, because a backgrounded agent outlives the turn that launched it
 and dropping it there would hide exactly the agent most likely to be waiting on
-you. The residue is a subagent that dies without firing `SubagentStop`, whose
-`busy` record then sticks until `SessionStart`/`SessionEnd` clears the pane.
+you. The residue is a subagent that dies without firing `SubagentStop` — the
+common case is one the user interrupts, since an interrupt fires no hook — whose
+`busy` record outranks main's `stalled`. The poller removes it once the CLI calls
+the session idle (`correct stalled`, below); without the poller it sticks until
+`SessionStart`/`SessionEnd` clears the pane.
 
 ## A permission prompt belongs to nobody
 
@@ -328,8 +331,8 @@ the same timestamp, derives byte-identically to what `.published` already holds,
 and the pane keeps the corrected ▶ with a modal open. One writer for the
 records, one publisher for the options.
 
-Two rules follow from the CLI's answer being about the **session**, not about an
-actor:
+Three rules follow from the CLI's answer being about the **session**, not about
+an actor:
 
 - A correction **away** from blocked demotes *every* blocked actor record to
   `busy`, not just `main`. The record that sticks is typically a subagent's — a
@@ -338,6 +341,18 @@ actor:
   also drops the pending note, whose call has just been shown to have been
   settled without a prompt. Demoted rather than deleted: forgetting a live
   subagent sends its next `PostToolBatch` to `main` (see `has_agents`).
+- A correction to **`stalled`** goes further and deletes *every* subagent
+  record. The CLI computes `busy` as `isLoading || delegatedActive`, and
+  `delegatedActive` is true while any `local_agent` / `remote_agent` /
+  `in_process_teammate` / `local_workflow` task is still running (read out of
+  the 2.1.296 bundle). So `idle` means no ordinary subagent is alive and the
+  reason for demoting does not apply, while a demoted `busy` is exactly the
+  record that stuck: an interrupted subagent held its pane at ▶ for the rest of
+  the session. Two kinds are exempt from `delegatedActive` and can outlive an
+  `idle` — an idle in-process teammate and a long-running remote agent — as can
+  a subagent starting between the CLI read and the correction. Forgetting any
+  of them costs its next batch being filed under `main` until a later tick
+  corrects the glyph, not a glyph stuck for the session.
 - A correction **towards** blocked never overwrites `asking`. The CLI reports
   the same `waiting` for a question and for a permission prompt, and the
   question text is the one thing no other surface carries.
@@ -580,7 +595,9 @@ skips** without them.
   remove. Beside it, the vocabulary guard (an unknown state must leave the pane
   alone rather than publish a glyph-less one) and the two asymmetries: the
   pending note goes with the block, and `asking` survives a correction towards
-  blocked.
+  blocked. Its counterpart is `stalled` over a subagent left `busy` by an
+  interrupt: the pane must reach 🟢, and stay there on the next `busy`/`done`,
+  which is what proves the record left the store and not just the aggregate.
 - **Cost** — these cases assert cost rather than output: no JSON parsing on the
   busy path while the pane has one actor, one jq pass once a subagent is
   registered, no tmux round trip when nothing a consumer can see has changed,

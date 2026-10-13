@@ -318,6 +318,22 @@ unblock_actors() {
   done
 }
 
+# Every subagent record goes. Used only by `correct stalled`, which the poller
+# sends when the CLI calls the session idle — and the CLI computes busy as
+# `isLoading || delegatedActive`, delegatedActive being any agent task still
+# running (read out of the 2.1.296 bundle). So no ordinary subagent is alive,
+# and unblock_actors' reason for demoting rather than deleting does not apply.
+# Two kinds are exempt from delegatedActive and can outlive an idle answer — an
+# idle in-process teammate and a long-running remote agent — and forgetting one
+# costs its next batch being filed under main, which the next tick corrects;
+# a record that never goes costs the glyph for the rest of the session. What
+# this clears is a subagent that died without SubagentStop: an interrupt fires
+# no hook, and its leftover `busy` outranks main's `stalled` until the session
+# ends.
+forget_agents() {
+  rm -f "$state_dir"/a_* 2>/dev/null || true
+}
+
 # --- the pending permission decision -----------------------------------------
 #
 # A permission prompt's Notification is ANONYMOUS. Measured against 2.1.270 by
@@ -674,7 +690,8 @@ case "$mode" in
     # subagent entries: a backgrounded agent outlives the turn that launched it,
     # and dropping it here would hide exactly the agent most likely to need you.
     # SubagentStop is what removes an entry; a subagent that dies without firing
-    # it leaves a stale `busy` until SessionStart/SessionEnd clears the pane.
+    # it (an interrupt fires nothing) leaves a stale `busy`, which only the
+    # poller's `correct stalled` or SessionStart/SessionEnd clears.
     record stalled
     publish
     ;;
@@ -713,7 +730,8 @@ case "$mode" in
         # Away from blocked, so nothing may be left claiming it — including a
         # pending note, whose call the CLI has just told us was settled without
         # a prompt. Leaving it would attribute the next dialog to that call.
-        unblock_actors
+        # Idle goes further: no subagent counts as running, so none is kept.
+        if [ "$2" = stalled ]; then forget_agents; else unblock_actors; fi
         drop_pending
         ;;
       waiting)

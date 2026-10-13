@@ -694,15 +694,60 @@ for blocked in waiting needs_input asking; do
   esac
 done
 
+# The opposite answer, and the opposite treatment. A subagent interrupted by the
+# user fires no SubagentStop -- an interrupt fires no hook at all -- so its `busy`
+# record outlives it, outranks main's `stalled`, and holds the tab at ▶ until the
+# session ends. Seen on a real pane: main `stalled` from Stop, one interrupted
+# general-purpose record `busy` behind it, for as long as the tab stayed open.
+#
+# `stalled` reaches this mode only when the CLI says idle (or shell, which refines
+# it), and the CLI computes busy as `isLoading || delegatedActive`, where
+# delegatedActive covers every running subagent task. So the reason `busy`
+# demotes instead of deleting -- a live subagent's next batch landing on main --
+# does not arise for an ordinary subagent. Deleted, then, not demoted: a demoted
+# `busy` is exactly the record that sticks.
+#
+# A blocked leftover too, not only a busy one: interrupting while a subagent's
+# dialog is open leaves its `waiting`, and demoting that to `busy` is the same
+# stuck ▶ by another route. forget_agents must not care which state it removes.
+for leftover in busy waiting; do
+  run clear
+  run busy
+  run subagent-start "$(agent_json A1 Worker)"
+  if [[ $leftover == waiting ]]; then prompt_for A1 Worker Bash 'rm -rf /'; fi
+  run 'done'
+  run_correct stalled
+  assert_opt @claude_state stalled
+  assert_opt @claude_glyph '🟢'
+  listing=$(get_opt @claude_agents)
+  case $listing in
+    *"${US}Worker${US}"*) bad "an idle session still lists its $leftover subagent: [$listing]" ;;
+    *) ok "an idle session's leftover $leftover subagent is forgotten" ;;
+  esac
+  # Forgotten in the store, not just hidden from the aggregate: a record left on
+  # disk would come straight back on the pane's next publish.
+  run busy
+  run 'done'
+  got=$(get_opt @claude_state)
+  if [[ "$got" == stalled ]]; then
+    ok "the forgotten $leftover subagent does not come back on the next busy/done"
+  else
+    bad "the forgotten $leftover subagent came back: the pane is [$got]"
+  fi
+done
+
 # A pending note belongs to a call that was about to be asked about. Once the
 # CLI says nothing is blocked, that call was settled without a prompt, and
-# leaving the note would attribute the NEXT dialog to it.
-run clear
-run busy
-run permission "$(permission_json '' '' Bash 'auto-approved')"
-run_correct busy
-run notify "$(notify_json permission_prompt 'Claude needs your permission')"
-assert_opt @claude_note 'Claude needs your permission'
+# leaving the note would attribute the NEXT dialog to it. Both corrections away
+# from blocked take different paths through the actors, and must both drop it.
+for away in busy stalled; do
+  run clear
+  run busy
+  run permission "$(permission_json '' '' Bash 'auto-approved')"
+  run_correct "$away"
+  run notify "$(notify_json permission_prompt 'Claude needs your permission')"
+  assert_opt @claude_note 'Claude needs your permission'
+done
 
 # The note is bounded here like every other caller's. The CLI's `waitingFor` is
 # arbitrary text, and derive() truncates only the AGGREGATE note -- the per-actor
