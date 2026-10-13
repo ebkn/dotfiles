@@ -449,15 +449,26 @@ check 'the picker leaves out the main checkout while it is detached' \
 # Under the FZF_DEFAULT_OPTS .zshenv exports, read from the file itself.
 # Its --nth=-1 (search the last visible column, the path) is set for
 # fzf-files; gw's own --nth=1,2 overrides it, and that override is all that
-# lets a worktree be picked by its branch. The branch here is not in the
-# path, so the path alone cannot find it -- with gw's flags it always would.
+# lets a worktree be picked by its branch. gw flattens feature/thing to
+# git-worktrees/feature-thing, so each spelling is in one column only: the
+# branch one finds it through column 1, the flattened one through column 2.
 repo=$(new_repo gw-pick-defaults)
-git -C "$repo" worktree add -q "$repo/git-worktrees/elsewhere" -b feat-x
+run "$repo" gw feature/thing >/dev/null
 zshenv_opts=$(zsh -f -c 'source "$1"; print -r -- "$FZF_DEFAULT_OPTS"' _ "${0:A:h}/../.zshenv")
 contains 'control: .zshenv still sets the --nth that gw has to override' '--nth=-1' "$zshenv_opts"
-out=$(FZF_DEFAULT_OPTS="$zshenv_opts" FZF_PICK=feat-x run "$repo" gw)
+# And the stub must really apply it: without gw's --nth, the branch spelling
+# finds nothing. Exit 1, not just no output -- an index the stub cannot read
+# exits 2 with no output too.
+printf 'feature/thing\tgit-worktrees/feature-thing\t/abs\n' |
+  FZF_DEFAULT_OPTS="$zshenv_opts" FZF_PICK=feature/thing \
+    "$stub_bin/fzf" --delimiter=$'\t' --with-nth=1,2 --accept-nth=3 >/dev/null 2>&1
+check 'control: the stub applies those defaults when gw does not override them' 1 "$?"
+out=$(FZF_DEFAULT_OPTS="$zshenv_opts" FZF_PICK=feature/thing run "$repo" gw)
 check 'under the FZF_DEFAULT_OPTS of .zshenv, the picker still finds a worktree by its branch' \
-  "PWD=$repo/git-worktrees/elsewhere" "$(pwd_of "$out")"
+  "PWD=$repo/git-worktrees/feature-thing" "$(pwd_of "$out")"
+out=$(FZF_DEFAULT_OPTS="$zshenv_opts" FZF_PICK=feature-thing run "$repo" gw)
+check 'and by its path, which its branch does not contain' \
+  "PWD=$repo/git-worktrees/feature-thing" "$(pwd_of "$out")"
 
 # PR URLs. The guard that matters is the origin check: without it,
 # `git fetch origin pull/<n>/head` reaches into whatever origin happens to be.
