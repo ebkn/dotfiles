@@ -206,7 +206,11 @@ the measurement that follows, plus the forwarding cap and the image pass's
 edges: a symlink inside the document's tree pointing out of it — which the
 directory-only resolution once let through — and one pointing at an image
 inside it, which must still inline; a symlinked directory; an unknown type; the
-size cap; and a `src=` the document only quotes. It also runs `HOST:FILE` on
+size cap; a `src=` the document only quotes; and an `<img>` pandoc wrapped
+across two lines. The CSP is matched as its whole value, not a prefix. Local
+mode runs with `open` stubbed on `PATH`, which pins the page path and its key,
+`READ_DOC_BROWSER`, and `--here` inside ssh. Pull mode also covers the `~/`
+quoting, a local file named like `HOST:FILE`, and a failed fetch. It also runs `HOST:FILE` on
 Linux, which is why every `mktemp` here takes an explicit `XXXXXX` template:
 GNU `mktemp -t name` refuses a template without one, which made `--print` and
 `HOST:FILE` exit 2 there.

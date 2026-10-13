@@ -55,7 +55,11 @@ env -u SSH_CONNECTION "$RD" --print "$doc/a.md" >"$TMP/a.html" 2>"$TMP/a.err"
 t "--print exits 0" "0" "$?"
 t "the page carries exactly one Content-Security-Policy" "1" \
   "$(count 'http-equiv="Content-Security-Policy"' "$TMP/a.html")"
-t "whose default is to load nothing" "1" "$(count "content=\"default-src 'none'; img-src data:" "$TMP/a.html")"
+# The whole value, closing quote included: a prefix match still passed with
+# `img-src data: https:` (the tracking image above would load) or a trailing
+# `connect-src *`.
+t "whose policy is exactly: load nothing but data: images and our own inline code" "1" \
+  "$(count "content=\"default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'\"" "$TMP/a.html")"
 t "and no stylesheet is linked rather than inlined" "0" "$(count '<link' "$TMP/a.html")"
 # The theme arrives inlined through header-includes; pandoc's own page CSS is
 # dropped (an empty document-css), or its 36em measure overrides ours.
@@ -136,6 +140,19 @@ t "an image over READ_DOC_IMAGE_MAX_BYTES is refused, naming the cap" "1" \
 t "and is not inlined" "0" "$(count 'src="data:' "$TMP/cap.html")"
 t "but left as written" "1" "$(count '<img src="a.svg"' "$TMP/cap.html")"
 
+# pandoc's html5 writer wraps at 72 columns, and a long alt splits the tag:
+# `<img src="..."` on one line and `alt="..." />` on the next. The collection
+# flattens newlines first; without that, only images with a short alt and path
+# were inlined, and every long one silently was not.
+printf '![a diagram of the reconnect sequence between the client and the remote host, with every retry](img/ok.gif)\n' \
+  >"$doc/wrap.md"
+env -u SSH_CONNECTION "$RD" --print "$doc/wrap.md" >"$TMP/wrap.html" 2>/dev/null
+# The precondition, so this case cannot quietly stop testing the wrap if
+# pandoc's output changes.
+t "pandoc does split this <img> across lines" "0" "$(count '<img .*/>' "$TMP/wrap.html")"
+t "and the split <img> is still inlined" "1" \
+  "$(count "src=\"data:image/gif;base64,$(printf 'GIF89a-beside' | base64 | tr -d '\n')\"" "$TMP/wrap.html")"
+
 # --- a document with no local tree inlines nothing -----------------------------
 # Only a document this machine named on the command line has neighbours. A
 # pulled one is read from a temp file, so a relative image would resolve into
@@ -162,6 +179,32 @@ t "a document on stdin inlines nothing from the current directory" "0" \
   "$(count "$neighbour_b64" "$TMP/stdin.html")"
 t "while both still render" "2" "$(cat "$TMP/pulled.html" "$TMP/stdin.html" | grep -c '<img')"
 
+# A leading ~ must reach the remote shell unquoted, or it looks for a directory
+# literally named "~" there.
+env -u SSH_CONNECTION TMPDIR="$TMP/tmpd" PATH="$TMP/stub:$PATH" \
+  "$RD" --print "farhost:~/notes/a.md" >/dev/null 2>&1
+t "a ~/ path keeps its tilde outside the quotes" \
+  "$(printf '%s\n' farhost "cat -- ~/'notes/a.md'")" "$(cat "$TMP/ssh.argv")"
+
+# A local file whose name looks like HOST:FILE is still a local file.
+/bin/rm -f "$TMP/ssh.argv"
+printf '# local, not pulled\n' >"$TMP/cwd/farhost:x.md"
+(cd "$TMP/cwd" && env -u SSH_CONNECTION PATH="$TMP/stub:$PATH" \
+  "$RD" --print "farhost:x.md" >"$TMP/colon.html" 2>/dev/null)
+t "an existing local file named like HOST:FILE is read locally" "1" "$(count 'local, not pulled' "$TMP/colon.html")"
+t "and ssh is never run" "absent" "$([ -e "$TMP/ssh.argv" ] && echo present || echo absent)"
+
+# A failed fetch must stop there: carried on, it renders the empty temp file
+# and exits 0 with a blank page.
+mkdir -p "$TMP/stub-fail"
+printf '#!/bin/sh\nexit 255\n' >"$TMP/stub-fail/ssh"
+chmod +x "$TMP/stub-fail/ssh"
+out=$(env -u SSH_CONNECTION TMPDIR="$TMP/tmpd" PATH="$TMP/stub-fail:$PATH" \
+  "$RD" --print "farhost:notes/a.md" 2>"$TMP/fetch.err")
+t "a failed fetch exits 2" "2" "$?"
+t "and says what it could not fetch" "1" "$(count 'failed to fetch farhost:notes/a.md' "$TMP/fetch.err")"
+t "and renders nothing" "" "$out"
+
 # --- source files are fenced by their shebang ------------------------------------
 # Extensionless executables are the norm in bin/, and matching on the name alone
 # rendered them as prose.
@@ -169,6 +212,19 @@ printf '#!/bin/bash\necho hi\n' >"$doc/tool"
 env -u SSH_CONNECTION "$RD" --print "$doc/tool" >"$TMP/tool.html" 2>/dev/null
 t "an extensionless #!/bin/bash file is highlighted as bash" "1" \
   "$(count 'class="sourceCode bash"' "$TMP/tool.html")"
+# The extension is the ordinary route, and `read-doc main.go` the usage line's
+# own example. An unknown extension falls back to prose, deliberately: fencing
+# a document hides it behind a scrollbar, which is worse than uncoloured code.
+printf 'package main\n\n// # not a heading\nfunc main() {}\n' >"$doc/main.go"
+env -u SSH_CONNECTION "$RD" --print "$doc/main.go" >"$TMP/go.html" 2>/dev/null
+t "a .go file is highlighted as go" "1" "$(count 'class="sourceCode go"' "$TMP/go.html")"
+t "and its # is code, not a heading" "0" "$(count '<h1' "$TMP/go.html")"
+printf '# A heading\n\nprose\n' >"$doc/notes.xyz"
+env -u SSH_CONNECTION "$RD" --print "$doc/notes.xyz" >"$TMP/xyz.html" 2>/dev/null
+t "an unknown extension is rendered as prose" "1" "$(count '<h1' "$TMP/xyz.html")"
+# Matched on the element: the inlined stylesheet quotes class="sourceCode" in
+# its comments.
+t "and is not fenced" "0" "$(count '<pre class="sourceCode' "$TMP/xyz.html")"
 
 # --- forward mode refuses over its cap ---------------------------------------------
 # Inside ssh the SOURCE is shipped to the terminal's machine; nothing documents a
@@ -229,6 +285,46 @@ SSH_CONNECTION='10.0.0.1 1 10.0.0.2 22' READ_DOC_TTY="$TMP/print.tty" \
 t "--print inside ssh renders instead of forwarding" "1" "$(count '<html' "$TMP/print-ssh.html")"
 t "and writes nothing to the terminal" "absent" \
   "$([ -e "$TMP/print.tty" ] && echo present || echo absent)"
+
+# --- local mode: the default, which opens a browser ---------------------------
+# `open` is stubbed on PATH, so nothing is launched; it records what it was asked
+# to open. The page is a file under $TMPDIR/read-doc, keyed on the document's
+# absolute path so a re-render reuses one tab, and it goes through the image
+# pass as well -- a separate call from --print's, which every other case uses.
+mkdir -p "$TMP/open-stub" "$TMP/local-tmp"
+cat >"$TMP/open-stub/open" <<STUB
+#!/bin/sh
+printf '%s\n' "\$@" >"$TMP/open.argv"
+STUB
+chmod +x "$TMP/open-stub/open"
+local_rd() { env -u SSH_CONNECTION -u READ_DOC_BROWSER TMPDIR="$TMP/local-tmp" PATH="$TMP/open-stub:$PATH" "$RD" "$@"; }
+
+local_rd "$doc/b.md" 2>"$TMP/local.err"
+t "local mode exits 0" "0" "$?"
+page=$(cat "$TMP/open.argv")
+t "it opens one page under \$TMPDIR/read-doc, named for the document" "yes" \
+  "$(printf '%s' "$page" | grep -qE "^$TMP/local-tmp/read-doc/[0-9a-f]{8}-b\.html$" && echo yes || echo no)"
+t "and says where on stderr" "read-doc: file://$page" "$(cat "$TMP/local.err" | grep -v '^read-doc: refusing')"
+t "the page it opens is the rendered document" "1" "$(count '<html' "$page")"
+t "with its images inlined" "1" \
+  "$(count "src=\"data:image/gif;base64,$(printf 'GIF89a-beside' | base64 | tr -d '\n')\"" "$page")"
+local_rd "$doc/b.md" 2>/dev/null
+t "a re-render of the same document opens the same page" "$page" "$(cat "$TMP/open.argv")"
+mkdir -p "$TMP/other"
+/bin/cp "$doc/b.md" "$TMP/other/b.md"
+local_rd "$TMP/other/b.md" 2>/dev/null
+t "a same-named document elsewhere gets a page of its own" "different" \
+  "$([ "$(cat "$TMP/open.argv")" != "$page" ] && echo different || echo same)"
+env -u SSH_CONNECTION READ_DOC_BROWSER=Firefox TMPDIR="$TMP/local-tmp" PATH="$TMP/open-stub:$PATH" \
+  "$RD" "$doc/b.md" 2>/dev/null
+t "READ_DOC_BROWSER picks the browser" "$(printf '%s\n' -a Firefox "$page")" "$(cat "$TMP/open.argv")"
+
+# --here is how to render on the far end of ssh on purpose.
+/bin/rm -f "$TMP/open.argv"
+SSH_CONNECTION='10.0.0.1 1 10.0.0.2 22' READ_DOC_TTY="$TMP/here.tty" TMPDIR="$TMP/local-tmp" \
+  PATH="$TMP/open-stub:$PATH" "$RD" --here "$doc/b.md" 2>/dev/null
+t "--here inside ssh renders and opens locally" "$page" "$(cat "$TMP/open.argv" 2>/dev/null)"
+t "and forwards nothing" "absent" "$([ -e "$TMP/here.tty" ] && echo present || echo absent)"
 
 # --- usage ---------------------------------------------------------------------------
 out=$("$RD" --print "$doc/a.md" "$doc/b.md" 2>&1)
