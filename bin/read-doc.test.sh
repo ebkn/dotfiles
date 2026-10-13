@@ -215,7 +215,9 @@ t "an extensionless #!/bin/bash file is highlighted as bash" "1" \
 # The extension is the ordinary route, and `read-doc main.go` the usage line's
 # own example. An unknown extension falls back to prose, deliberately: fencing
 # a document hides it behind a scrollbar, which is worse than uncoloured code.
-printf 'package main\n\n// # not a heading\nfunc main() {}\n' >"$doc/main.go"
+# The `#` line opens a line and follows a blank one, so read as prose it WOULD
+# be a heading; a `// #` comment would not be, and the next check could not fail.
+printf 'package main\n\nvar s = `\n\n# not a heading\n`\n' >"$doc/main.go"
 env -u SSH_CONNECTION "$RD" --print "$doc/main.go" >"$TMP/go.html" 2>/dev/null
 t "a .go file is highlighted as go" "1" "$(count 'class="sourceCode go"' "$TMP/go.html")"
 t "and its # is code, not a heading" "0" "$(count '<h1' "$TMP/go.html")"
@@ -308,8 +310,11 @@ t "and says where on stderr" "read-doc: file://$page" "$(cat "$TMP/local.err" | 
 t "the page it opens is the rendered document" "1" "$(count '<html' "$page")"
 t "with its images inlined" "1" \
   "$(count "src=\"data:image/gif;base64,$(printf 'GIF89a-beside' | base64 | tr -d '\n')\"" "$page")"
+# Cleared first, so the page compared is the one this run opened.
+/bin/rm -f "$TMP/open.argv"
 local_rd "$doc/b.md" 2>/dev/null
-t "a re-render of the same document opens the same page" "$page" "$(cat "$TMP/open.argv")"
+t "a re-render exits 0" "0" "$?"
+t "a re-render of the same document opens the same page" "$page" "$(cat "$TMP/open.argv" 2>/dev/null)"
 mkdir -p "$TMP/other"
 /bin/cp "$doc/b.md" "$TMP/other/b.md"
 local_rd "$TMP/other/b.md" 2>/dev/null
@@ -321,8 +326,8 @@ t "READ_DOC_BROWSER picks the browser" "$(printf '%s\n' -a Firefox "$page")" "$(
 
 # --here is how to render on the far end of ssh on purpose.
 /bin/rm -f "$TMP/open.argv"
-SSH_CONNECTION='10.0.0.1 1 10.0.0.2 22' READ_DOC_TTY="$TMP/here.tty" TMPDIR="$TMP/local-tmp" \
-  PATH="$TMP/open-stub:$PATH" "$RD" --here "$doc/b.md" 2>/dev/null
+env -u READ_DOC_BROWSER SSH_CONNECTION='10.0.0.1 1 10.0.0.2 22' READ_DOC_TTY="$TMP/here.tty" \
+  TMPDIR="$TMP/local-tmp" PATH="$TMP/open-stub:$PATH" "$RD" --here "$doc/b.md" 2>/dev/null
 t "--here inside ssh renders and opens locally" "$page" "$(cat "$TMP/open.argv" 2>/dev/null)"
 t "and forwards nothing" "absent" "$([ -e "$TMP/here.tty" ] && echo present || echo absent)"
 
