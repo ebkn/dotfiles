@@ -493,6 +493,10 @@ for c in case-d case-e; do
   cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-a/assert.sh" \
     "$skills_dir/$bad/evals/$c/"
 done
+# A valid case ahead of the bad ones, so "refused before case-a runs" below can
+# be asked of this skill too: without it the run stops at "no prompt.md" and
+# never reaches the frontmatter check it is meant to pin.
+cp -R "$skills_dir/$skill/evals/case-a" "$skills_dir/$bad/evals/case-a"
 
 check_fails "no skill prints the usage" "usage:" $RUN
 check_fails "--runs 0 says why" "--runs takes an integer" $RUN "$skill" case-a --runs 0
@@ -678,11 +682,17 @@ check_fails "a claude_md that does not exist says why, before spending anything"
 # "Before spending anything" means before any case runs, not before this one:
 # run as a whole skill, a bad case further down the list would otherwise be
 # reached only after the ones before it were paid for. One check per key, since
-# each is validated on its own.
-for bad in case-d case-e case-g; do
+# each is validated on its own. The message is checked as well as the absence
+# of a run: absence alone also holds when the run stops on something unrelated,
+# which is how two of these three once passed while pinning nothing.
+for row in "$bad case-d max_turns takes an integer" \
+  "$bad case-e budget_usd takes a number" \
+  "$skill case-g claude_md not found"; do
+  read -r owner bad_case reason <<<"$row"
   rm -rf "$STUB_CLAUDE_OUT"
-  $RUN "$skill" case-a "$bad" >/dev/null 2>&1
-  t "a bad $bad is refused before case-a runs" "absent" \
+  check_fails "a bad $bad_case is refused for the right reason" \
+    "case $bad_case: $reason" $RUN "$owner" case-a "$bad_case"
+  t "a bad $bad_case is refused before case-a runs" "absent" \
     "$(if [ -e "$STUB_CLAUDE_OUT/args" ]; then echo present; else echo absent; fi)"
 done
 
