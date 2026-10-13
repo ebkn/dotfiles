@@ -321,10 +321,16 @@ check 'the picker offers each linked worktree by branch and path relative to the
   "one | git-worktrees/one"$'\n'"two | git-worktrees/two" "$visible"
 unset FZF_MENU
 
-out=$(run "$repo/git-worktrees/one" gw)
+out=$(FZF_MENU="$work/menu-from-linked" run "$repo/git-worktrees/one" gw)
 check 'cancelling the picker leaves the shell where it was' \
   "PWD=$repo/git-worktrees/one" "$(pwd_of "$out")"
 check 'and is not an error' 0 "$(status_of "$out")"
+# Run from a linked worktree, where the main checkout and the current worktree
+# differ: the main one is what is left out, and paths stay relative to it. The
+# current worktree is offered like any other.
+check 'from inside a linked worktree the picker still leaves out the main checkout, not the current one' \
+  "one | git-worktrees/one"$'\n'"two | git-worktrees/two" \
+  "$(awk -F'\t' '{ sub(/ +$/, "", $1); print $1 " | " $2 }' "$work/menu-from-linked")"
 
 # A main checkout whose path holds `\\`. The human format of `git worktree
 # list` wraps such a path in quotes and escapes it, so cd was handed a path
@@ -382,6 +388,18 @@ FZF_MENU="$work/menu-main-linked" run "$repo" gw >/dev/null
 check 'and offers a linked worktree that has main checked out' \
   "main | git-worktrees/on-main" \
   "$(awk -F'\t' '{ sub(/ +$/, "", $1); print $1 " | " $2 }' "$work/menu-main-linked")"
+
+# The main checkout detached (mid-rebase, mid-bisect): left out by being the
+# main checkout, not by its branch. Excluding whatever branch the main checkout
+# is on would offer it as (detached), or hide every detached linked worktree.
+repo=$(new_repo gw-pick-main-detached)
+run "$repo" gw one >/dev/null
+git -C "$repo" worktree add -q --detach "$repo/git-worktrees/det"
+git -C "$repo" switch -q --detach
+FZF_MENU="$work/menu-main-detached" run "$repo" gw >/dev/null
+check 'the picker leaves out the main checkout while it is detached' \
+  "(detached) | git-worktrees/det"$'\n'"one | git-worktrees/one" \
+  "$(awk -F'\t' '{ sub(/ +$/, "", $1); print $1 " | " $2 }' "$work/menu-main-detached")"
 
 # PR URLs. The guard that matters is the origin check: without it,
 # `git fetch origin pull/<n>/head` reaches into whatever origin happens to be.
