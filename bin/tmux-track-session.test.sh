@@ -331,6 +331,25 @@ t "attach: a dead session is not matched inside a longer live name" \
 t "attach: and the connection gets its own session, not the longer one" "0" \
   "$(tmux list-sessions -F '#{session_name} #{session_attached}' | grep -c '^local-50 1$')"
 
+# The case above goes red only if BOTH checks lose their boundary: local-5 is
+# dead, so the prune drops the record before the free check ever reads it.
+# Here local-5 is live and held, so the record survives the prune and only the
+# free check stands between it and a join. Matched without its boundary,
+# local-5 is "found" among the free sessions inside local-50, and the
+# connection joins a session another client holds: two tabs, one session.
+tmux new-session -d -s local-5 "$IDLE"
+if new_client local-5; then
+  record connY local-5
+  if attach_as connY; then
+    t "attach: a held session is not taken for free inside a longer free name" "1" \
+      "$(tmux list-sessions -F '#{session_name} #{session_attached}' | grep -c '^local-5 1$')"
+    t "attach: so the connection gets its own session" "1" \
+      "$(tmux list-sessions -F '#{session_name} #{session_attached}' | grep -c '^connY 1$')"
+  fi
+else
+  t "setup: a client on local-5" "attached" "timed out"
+fi
+
 # attach must also START the monitor, which is the half that keeps the record
 # up to date for the next reconnect. Nothing above reaches it: every case here
 # asserts only where attach landed, and the monitor suite below starts a monitor
@@ -622,6 +641,21 @@ else
       "monitor pid $monitor_pid still alive after SIGTERM"
   fi
 fi
+
+# ---------------------------------------------------------------------------
+# The subcommands nobody calls by hand. tmux-restore-ssh-tabs tells an old
+# remote copy (no `adopt`) from one with nothing to adopt by this exit status:
+# answered 0, an unknown subcommand reads as "no detached sessions". The legacy
+# names are what old hooks in a running server still call, so they must stay a
+# silent 0, or tmux shows "returned 1" in the pane.
+# ---------------------------------------------------------------------------
+"$SCRIPT" no-such-subcommand >/dev/null 2>"$DIR/usage.err"
+t "an unknown subcommand exits 1" "1" "$?"
+t "and prints the usage" "1" "$(grep -c '^Usage: tmux-track-session' "$DIR/usage.err")"
+for legacy in register update cleanup; do
+  "$SCRIPT" "$legacy" >"$DIR/legacy.out" 2>&1
+  t "the legacy $legacy exits 0, silently" "0:" "$?:$(cat "$DIR/legacy.out")"
+done
 
 if [ "$fails" -eq 0 ]; then
   echo "PASS"
