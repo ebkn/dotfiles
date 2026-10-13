@@ -197,6 +197,62 @@ usage "an unknown option" --bogus
 usage "--width with no value" --width
 usage "--width with a non-number" --width wide
 
+# How the page leaves the screen. render() above cannot tell: it runs with
+# PAGER=cat and stdin closed, and strips the closing hint. In a popup opened
+# with -E the popup closes the moment the script exits, so a page that fits
+# must be held open until a key -- without the `read`, `prefix + ?` flashes and
+# is gone. A page taller than the popup must go through the pager instead, or
+# its first groups scroll off the top with no way back. Both are run in a real
+# pane of the fixture server, sized either side of the page height.
+cat >"$DIR/pager" <<STUB
+#!/bin/sh
+cat >"$DIR/paged"
+STUB
+chmod +x "$DIR/pager"
+tmux set-option -g remain-on-exit on
+sheet_pane() { # sheet_pane <name> <height>
+  tmux new-session -d -s "$1" -x 100 -y "$2" "PAGER='$DIR/pager' '$SCRIPT'"
+}
+pane_dead() { tmux display-message -p -t "$1:" '#{pane_dead}' 2>/dev/null; }
+wait_for() { # wait_for <name> <text>
+  for _ in $(seq 1 50); do
+    tmux capture-pane -p -t "$1:" 2>/dev/null | grep -qF "$2" && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+sheet_pane fits 40
+if wait_for fits '(any key to close)'; then
+  printf 'ok   a page that fits ends with the closing hint\n'
+else
+  printf 'FAIL a page that fits ends with the closing hint\n  screen: %s\n' "$(tmux capture-pane -p -t fits:)"
+  fails=$((fails + 1))
+fi
+sleep 0.5
+t "and stays open instead of closing the popup" "0" "$(pane_dead fits)"
+t "without going through the pager" "absent" "$([ -e "$DIR/paged" ] && echo present || echo absent)"
+tmux send-keys -t fits: x
+for _ in $(seq 1 50); do
+  [ "$(pane_dead fits)" = 1 ] && break
+  sleep 0.1
+done
+t "one key, no Enter, closes it" "1" "$(pane_dead fits)"
+
+# Cleared so this case can only see what the tall page itself sent: left over
+# from a fits case that wrongly paged, it would pass here for the wrong reason.
+/bin/rm -f "$DIR/paged"
+sheet_pane tall 6
+for _ in $(seq 1 50); do
+  [ -s "$DIR/paged" ] && [ "$(pane_dead tall)" = 1 ] && break
+  sleep 0.1
+done
+# A row of the fixture, so the pager is known to have had the page itself.
+t "a page taller than the popup goes through the pager" "yes" \
+  "$(grep -q 'focus left' "$DIR/paged" 2>/dev/null && echo yes || echo no)"
+t "with no closing hint, since the pager has its own" "0" "$(grep -c 'any key to close' "$DIR/paged" 2>/dev/null)"
+tmux set-option -g remain-on-exit off
+
 # Nothing annotated: say so, rather than print an empty page that looks like a
 # broken one.
 tmux unbind-key -a -T prefix

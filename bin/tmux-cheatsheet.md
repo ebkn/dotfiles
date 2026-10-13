@@ -100,7 +100,11 @@ otherwise required, since the real geometry comes from `stty`):
   command line printing the usage with exit 2. Only the frame's common left
   margin, its top margin and the closing hint are stripped, since those follow
   the terminal rather than the fixture. Each rule was mutated and went red,
-  including the `SUBSEP++` slip, per-line centring and per-line packing.
+  including the `SUBSEP++` slip, per-line centring and per-line packing. How
+  the page leaves the screen is checked separately, in real panes sized either
+  side of the page height: a page that fits shows the hint, stays open, and
+  closes on one key; a taller one goes to `$PAGER` (a stub that records it)
+  without the hint.
 - **`bin/tmux-conf.test.sh` (section 4) runs it against the real `.tmux.conf`**:
   every tagged category, and `COPY-MODE` whenever copy-mode-vi bindings carry
   notes, is a heading standing alone in its column (a substring match found
