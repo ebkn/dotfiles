@@ -55,16 +55,26 @@ t "and nothing reaches stderr" "" "$(cat "$TMP/err")"
 # --- flags: their values must not become the message ----------------------------
 # zsh-auto-notify passes urgency and an icon; libnotify's own flags take a
 # separate value, and that value is not the summary.
-ns -u critical -t 5000 -i terminal -a zsh -c im -h int:x:1 -r 7 "Summary" "Body"
-t "short flags skip their values" "$(osc9 'Summary: Body')" "$(written)"
-ns --urgency critical --expire-time 5000 --icon terminal --app-name zsh "Summary"
-t "long flags skip their values" "$(osc9 'Summary')" "$(written)"
-ns --urgency=low --icon=terminal "Summary" "Body"
-t "a --flag=value takes nothing after it" "$(osc9 'Summary: Body')" "$(written)"
-ns -w -p -e "Summary" "Body"
-t "a flag with no value takes nothing after it" "$(osc9 'Summary: Body')" "$(written)"
-ns --unknown-flag "Summary"
-t "an unknown flag is skipped" "$(osc9 'Summary')" "$(written)"
+# One flag per case, the positionals straight after it: with several flags in a
+# row, one that ate a word too many ate the next FLAG and the result was the
+# same.
+for f in -u --urgency -t --expire-time -i --icon -a --app-name -c --category \
+  -h --hint -r --replace-id; do
+  ns "$f" VALUE "Summary" "Body"
+  t "$f skips its value" "$(osc9 'Summary: Body')" "$(written)"
+done
+for f in --urgency=low --expire-time=5000 --icon=terminal --app-name=zsh --category=im \
+  --hint=int:x:1 --replace-id=7; do
+  ns "$f" "Summary" "Body"
+  t "$f takes nothing after it" "$(osc9 'Summary: Body')" "$(written)"
+done
+for f in -p --print-id -w --wait -e --transient --unknown-flag; do
+  ns "$f" "Summary" "Body"
+  t "$f takes nothing after it" "$(osc9 'Summary: Body')" "$(written)"
+done
+# The shape zsh-auto-notify actually sends: positionals first, flags after.
+ns "Summary" "Body" --app-name=zsh --hint=int:transient:1 --urgency=normal --expire-time=8000
+t "positionals before the flags, as zsh-auto-notify sends them" "$(osc9 'Summary: Body')" "$(written)"
 ns -- "-starts with a dash" "body"
 t "after --, a dash-led argument is the summary" "$(osc9 '-starts with a dash: body')" "$(written)"
 
