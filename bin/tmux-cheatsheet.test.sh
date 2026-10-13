@@ -242,7 +242,13 @@ t "one key, no Enter, closes it" "1" "$(pane_dead fits)"
 # Cleared so this case can only see what the tall page itself sent: left over
 # from a fits case that wrongly paged, it would pass here for the wrong reason.
 /bin/rm -f "$DIR/paged"
-sheet_pane tall 6
+# One row taller than the page itself, not far below it: the frame's top margin
+# and the two-line hint still do not fit there, so this is the edge the
+# threshold exists for. A popup far too short could not tell `lines - 4` from
+# `lines`, which would let a page one or two rows short of the popup scroll its
+# first heading away.
+page_rows=$(render --width 100 | wc -l | tr -d ' ')
+sheet_pane tall $((page_rows + 1))
 for _ in $(seq 1 50); do
   [ -s "$DIR/paged" ] && [ "$(pane_dead tall)" = 1 ] && break
   sleep 0.1
