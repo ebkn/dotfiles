@@ -143,6 +143,14 @@ sub_labels=$(ff --label | awk -F'\t' '{ print (NF > 1 ? $1 : "") "|" $NF }')
 t "from a subdirectory, a changed file there is cwd-relative" "[ unstaged    ]|in-sub.txt" \
   "$(printf '%s\n' "$sub_labels" | grep -F '|in-sub.txt' | head -1)"
 t "and files outside it are left out" "0" "$(printf '%s\n' "$sub_labels" | grep -c 'staged.txt')"
+# (-N) counts only the commits that touched the directory it was run from, not
+# the repository's last five: sub/ changed in nothing since base, seven commits
+# back, yet base is its (-1). Chosen so a quiet directory -- a package of a
+# monorepo, while others commit elsewhere -- still puts its own recent files
+# first; counted repo-wide, its labels would all vanish.
+t "from a subdirectory, (-N) counts the commits that touched it" \
+  "[ $(printf '%-11s' "$(git log --format=%h -1 -- .)(-1)") ]|rest-sub.txt" \
+  "$(printf '%s\n' "$sub_labels" | grep -F '|rest-sub.txt' | head -1)"
 
 # A subdirectory with backslashes in its name: the prefix stripped from git
 # status paths must reach awk as data. `awk -v` interprets escapes in the value.

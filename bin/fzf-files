@@ -8,9 +8,13 @@
 #     [ untracked   ] path
 #     [ staged      ] path
 #     [ unstaged    ] path
-#     [ hash(-N)    ] path   ← N = how many commits ago (1–5)
+#     [ hash(-N)    ] path   ← in the Nth newest commit (1–5) that touched cwd
 #     path                ← no label, no leading space
 #   Priority: untracked > staged > unstaged > committed (first label wins per file).
+#   From a subdirectory, N counts only commits that touched it, so (-1) there can
+#   be months old: counting the repository's last five instead would leave a
+#   quiet directory (a monorepo package others are not working in) with no
+#   labels at all, which is when putting its recent files first matters most.
 
 set -euo pipefail
 # Paths are bytes here, never text: they are compared, prefix-stripped and
@@ -63,7 +67,9 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   # and escaped, so it lost its commit label. A HASH: line still starts a line
   # after tr. `|| true` because a branch with no commits yet makes git log exit
   # 128, which under set -e ended the whole listing before it printed anything
-  # -- an empty picker right after `git init`.
+  # -- an empty picker right after `git init`. The `-- .` is what makes -5 mean
+  # five commits that touched cwd (see (-N) in the header); --relative alone
+  # only filters the files of the repository's last five.
   recent_log() {
     { git log -z --relative --name-only "$@" -5 -- . 2>/dev/null || true; } | tr '\0' '\n'
   }
