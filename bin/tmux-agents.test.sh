@@ -1175,6 +1175,7 @@ cat >"$work/stub/ssh" <<STUB
 # Stands in for the remote tmux. The last argument is the remote command; the
 # text between "-F '" and the first #{ is the host column this script asked the
 # far end to prefix, which is exactly what is under test here.
+printf '%s\n' "\$@" >"$work/ssh-argv"
 for a in "\$@"; do cmd=\$a; done
 echo "\$cmd" >>"$work/ssh-calls"
 fmt=\${cmd#*-F \'}
@@ -1237,8 +1238,33 @@ if run_picker; then
   else
     fail "two panes on one host are queried once, not twice" "ssh ran $calls time(s)"
   fi
+
+  # The bounds the picker's latency depends on. tmux-agents.md counts on a host
+  # that is asleep costing at most ConnectTimeout, and on no prompt ever being
+  # able to block the popup (BatchMode); the socket must be this script's own,
+  # never myssh's. The stub fails at once, so none of this is otherwise seen.
+  for opt in BatchMode=yes ConnectTimeout=3 "ControlPath=$HOME/.ssh/cm-agents-%r@%h:%p"; do
+    if grep -qxF -- "$opt" "$work/ssh-argv"; then
+      pass "the remote query runs with $opt"
+    else
+      fail "the remote query runs with $opt" "argv: [$(tr '\n' ' ' <"$work/ssh-argv")]"
+    fi
+  done
 else
   fail "the remote path produces a list" "fzf stub was never reached"
+fi
+
+# --rows is what the picker shows from its first refresh on: `start:reload`
+# replaces the first list almost at once. It has to carry the remote rows too,
+# or remote agents appear for a moment and vanish -- with every case above,
+# which reads only that first list, still green.
+if run_rows; then
+  case "$(grep 'remote-win' "$work/rows" | cut -f2-)" in
+    *bakery*) pass "the refreshed list keeps the remote rows" ;;
+    *) fail "the refreshed list keeps the remote rows" "rows: $(cut -f2- "$work/rows" | tr '\n' '|')" ;;
+  esac
+else
+  fail "the refreshed list keeps the remote rows" "--rows produced nothing: $(cat "$work/rows.err" 2>/dev/null)"
 fi
 
 # The `-u` on the remote command, which the stub above cannot see: it never runs
@@ -2432,6 +2458,47 @@ STUB
     wait_dead || true
     no_jump_since "a ctrl-o refused after the picker"
     tmux -L "$socket" set-option -p -t "$jump_target" @claude_state waiting
+
+    # enter on a REMOTE row. The agent lives in the remote tmux, so the jump
+    # lands on the local pane holding the ssh connection to that host: matched
+    # on @ssh_host, then window and pane read back in that order. Only the
+    # refusal ("no local pane is connected") was covered; a match on the wrong
+    # column, or the two ids swapped, would make every remote jump do nothing.
+    # The ssh pane here is b-jump's second pane, which the client shows and the
+    # WezTerm stub has a tab for. @ssh_my_machine stays unset, so the listing
+    # never tries to reach the host.
+    tmux -L "$socket" set-option -p -t "$jump_target" @ssh_host farhost
+    tmux -L "$socket" select-pane -t "$jump_other"
+    : >"$work/wezterm-calls"
+    cat >"$work/ostub/fzf" <<STUB
+#!/bin/sh
+cat >/dev/null
+printf '\nfarhost|@9|%%9|asking\tremote-win\n'
+exit 0
+STUB
+    chmod +x "$work/ostub/fzf"
+    tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
+      "sh -c 'SHELL=/bin/sh PATH=$work/ostub:$work/wstub:$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
+    wait_dead || true
+    if grep -q 'activate-tab --tab-id 77' "$work/wezterm-calls" 2>/dev/null; then
+      pass "enter on a remote row raises the tab of the pane connected to that host"
+    else
+      fail "enter on a remote row raises the tab of the pane connected to that host" \
+        "wezterm calls: [$(tr '\n' '|' <"$work/wezterm-calls" 2>/dev/null)]" "$(cat "$work/real2" 2>/dev/null)"
+    fi
+    active=$(tmux -L "$socket" display-message -p -t bindB:b-jump '#{pane_id}')
+    if [ "$active" = "$jump_target" ]; then
+      pass "and puts that ssh pane in front"
+    else
+      fail "and puts that ssh pane in front" "active pane is $active, wanted $jump_target"
+    fi
+    if tmux -L "$socket" show-messages 2>/dev/null | grep -F 'display-message' | grep -qF 'jumped to (remote window: farhost)'; then
+      pass "and says the last hop is in the remote's tmux"
+    else
+      fail "and says the last hop is in the remote's tmux" \
+        "$(tmux -L "$socket" show-messages 2>/dev/null | tail -3 | tr '\n' '|')"
+    fi
+    tmux -L "$socket" set-option -p -u -t "$jump_target" @ssh_host
 
     # And the ssh case: a client attached over ssh is never a WezTerm tab, so
     # the CLI must not be run at all. This is the normal state of every row when
