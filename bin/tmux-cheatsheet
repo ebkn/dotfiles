@@ -302,8 +302,10 @@ all tmux keys: C-q :list-keys -N     describe one key: C-q /"
 fi
 
 # Decide which closing hint belongs on the page BEFORE framing, so it gets the
-# same indent as the grid instead of clinging to the left edge. +4 covers the
-# top margin frame() can add.
+# same indent as the grid instead of clinging to the left edge. The 4 is what
+# goes on screen besides the page when it is held open: frame()'s top margin
+# (one row this close to the limit), the blank line, the hint and the cursor's
+# line. It pages one row early -- page + 4 would just fit -- which is harmless.
 if [ "$(printf '%s\n' "$page" | wc -l)" -ge $((lines - 4)) ]; then
   # Taller than the popup, so it has to scroll. less quits on q and needs no
   # hint of its own.
