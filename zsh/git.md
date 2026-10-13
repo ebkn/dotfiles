@@ -21,9 +21,14 @@ Five things are worth knowing before editing it:
    `/var/…`, git reports `/private/var/…`, and without that every path comparison
    is against the wrong prefix *and* `gw`'s "changing directory to repository
    root" branch fires on every call.
-2. **The `fzf` stub honours `--accept-nth`**, because `gw` depends on it: the menu
-   carries the absolute path in a hidden third column, and a stub returning the
-   whole line hands `cd` three tab-separated fields.
+2. **The `fzf` stub honours `--accept-nth`, and searches only the `--nth`
+   columns**, because `gw` depends on both: the menu carries the absolute path in
+   a hidden third column, and a stub returning the whole line hands `cd` three
+   tab-separated fields. Searching that hidden column too, as a plain `grep` of
+   the line does, made a wrong hidden path fail for the wrong reason, and a pick
+   fail whenever the temp dir's path contained the word picked. With `gw`'s flags
+   the `--nth` columns are what fzf searches, though in fzf it is `--with-nth`
+   that hides the third one; the stub does not read `--with-nth`.
 3. **The y/N prompt reads `/dev/tty` directly** — deliberately, since the branch
    list already occupies stdin — so **no redirection can answer it**.
    `_gdmerged_confirm` exists purely as the seam a test can override, and both

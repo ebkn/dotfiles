@@ -54,14 +54,30 @@ cat >"$stub_bin/fzf" <<'STUB'
 # FZF_MENU, when set, keeps a copy of everything the picker was offered.
 # --accept-nth is honoured because gw depends on it: the menu carries the
 # absolute path in a hidden column, and returning the whole line instead would
-# hand cd three tab-separated fields.
+# hand cd three tab-separated fields. The search is narrowed to the --nth
+# columns, which with gw's flags (--with-nth=1,2 --nth=1,2) is the range fzf
+# searches. (In fzf it is --with-nth that hides the third column; this stub
+# reads only --nth.) Matching the hidden path as well let a hidden column that
+# pointed at the wrong row fail for the wrong reason -- or a pick fail outright
+# whenever the temp dir's path happened to contain the word picked.
 tee "${FZF_MENU:-/dev/null}" > "$0.stdin"
 [ -n "${FZF_PICK:-}" ] || exit 1
 nth=
+search=
 for arg in "$@"; do
-  case "$arg" in --accept-nth=*) nth="${arg#--accept-nth=}" ;; esac
+  case "$arg" in
+    --accept-nth=*) nth="${arg#--accept-nth=}" ;;
+    --nth=*) search="${arg#--nth=}" ;;
+  esac
 done
-line=$(grep -F -- "$FZF_PICK" "$0.stdin") || exit 1
+line=$(awk -F'\t' -v cols="$search" '
+  BEGIN { pick = ENVIRON["FZF_PICK"] }
+  {
+    if (cols == "") hay = $0
+    else { hay = ""; k = split(cols, c, ","); for (i = 1; i <= k; i++) hay = hay "\t" $c[i] }
+    if (index(hay, pick)) print
+  }' "$0.stdin")
+[ -n "$line" ] || exit 1
 if [ -n "$nth" ]; then
   printf '%s\n' "$line" | awk -F'\t' -v n="$nth" '{print $n}'
 else
