@@ -356,6 +356,18 @@ else
   t "setup: a client on local-5" "attached" "timed out"
 fi
 
+# And the prune's own boundary, which the dead-local-5 case above cannot pin on
+# its own: there the free check discards connX's record anyway. Here the dead
+# record belongs to ANOTHER conn_id, which only the prune ever looks at. local-7
+# does not exist, local-70 does; matched without its boundary the record is
+# "found" inside local-70 and kept, and a later connection reusing connZ's id
+# would be handed a session name that means nothing.
+tmux new-session -d -s local-70 "$IDLE"
+record connZ local-7
+attach_as connZ2
+t "attach: prunes another conn_id's dead record even inside a longer live name" \
+  "<none>" "$(read_record connZ)"
+
 # attach must also START the monitor, which is the half that keeps the record
 # up to date for the next reconnect. Nothing above reaches it: every case here
 # asserts only where attach landed, and the monitor suite below starts a monitor
