@@ -130,6 +130,16 @@ case "$(cat "$tty")" in
   *) fail "attempt 3: the quoted line is centred on its visible width" "frame: $(cat -v "$tty")" ;;
 esac
 
+# --- a multi-line diagnostic: the LAST non-blank line is the one quoted -----
+# ssh's fatal messages are several lines, and the useful one comes last: a
+# changed host key prints a banner of @-lines first. A one-line log cannot tell
+# `tail -1` from `head -1`, nor a trailing blank line from content.
+printf '@@@@@@@@@@@@@@@@@@@@@@@@\n@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @\nHost key verification failed.\n\n   \n' \
+  >"$state.log"
+attempt 3 "$work/err-multi"
+same "a multi-line log: the last non-blank line is quoted" \
+  "reconnecting to thehost … (3)Host key verification failed." "$(visible "$tty")"
+
 # --- no terminal to draw on: the notice falls back to stderr ---------------
 # autossh started outside a terminal (a launchd job, say) has no /dev/tty, and
 # the write must not then vanish or print an error in its place.
