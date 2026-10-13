@@ -91,6 +91,97 @@ link_with_backup() {
   ln -s "$src" "$dest"
 }
 
+# Make <config> (~/.ssh/config, machine-local) pull in the shared defaults as
+# its last lines, inside `Host *`:
+#
+#   Host *
+#   Include config_base
+#
+# Both halves matter, and each was missed once. Last: ssh keeps the first value
+# it reads for an option, so defaults read last never override a host's own
+# setting (an Include at the top, as wsl.sh wrote, let them win). `Host *`: an
+# Include after a Host block is conditional on that block, so a bare Include
+# appended after the last host (as macos.sh wrote) reached that one host only.
+#
+# Any existing Include of the target is removed first, so the broken forms are
+# repaired and a rerun changes nothing. A `Host *` directly above it goes too,
+# but only when nothing but blanks and comments follow the Include in that
+# block: a user who put settings there meant them for every host, and dropping
+# the header would fold them into the block before -- the same silent narrowing
+# this function exists to undo.
+#
+# The file is rewritten only when its content changes, and never from a failed
+# read: it is the user's own file and no backup is taken, so an unreadable one
+# is left alone and the call returns 1 (callers run without errexit, or under
+# `||`, as much as with it).
+ensure_ssh_base_include() {
+  local config target tmp
+  config="$1"
+  target="${2:-config_base}"
+  tmp="${config}.tmp"
+
+  mkdir -p "$(dirname "$config")"
+  if [ -f "$config" ]; then
+    if ! awk -v inc="include $target" '
+        function norm(s) {
+          sub(/^[ \t]+/, "", s)
+          sub(/[ \t]+$/, "", s)
+          gsub(/[ \t]+/, " ", s)
+          return tolower(s)
+        }
+        { line[NR] = $0 }
+        END {
+          for (i = 1; i <= NR; i++) {
+            if (norm(line[i]) != tolower(inc)) continue
+            drop[i] = 1
+            if (i == 1 || norm(line[i - 1]) != "host *") continue
+            rest_empty = 1
+            for (j = i + 1; j <= NR; j++) {
+              n = norm(line[j])
+              if (n ~ /^(host|match)( |$)/) break
+              if (n != "" && substr(n, 1, 1) != "#") {
+                rest_empty = 0
+                break
+              }
+            }
+            if (rest_empty) drop[i - 1] = 1
+          }
+          # Blank lines left at either end by a removed Include are dropped.
+          first = 0
+          last = 0
+          for (i = 1; i <= NR; i++) {
+            if (drop[i] || norm(line[i]) == "") continue
+            if (!first) first = i
+            last = i
+          }
+          for (i = first; i <= last && first; i++)
+            if (!drop[i]) print line[i]
+          if (last > 0) print ""
+        }
+      ' "$config" >"$tmp"; then
+      rm -f "$tmp"
+      printf "warning: could not read %s (left as is)\n" "$config" >&2
+      return 1
+    fi
+  else
+    : >"$tmp"
+  fi
+  if ! printf 'Host *\nInclude %s\n' "$target" >>"$tmp"; then
+    rm -f "$tmp"
+    printf "warning: could not write %s (left as is)\n" "$tmp" >&2
+    return 1
+  fi
+
+  if [ -f "$config" ] && cmp -s "$tmp" "$config"; then
+    rm -f "$tmp"
+  elif ! mv "$tmp" "$config"; then
+    rm -f "$tmp"
+    printf "warning: could not replace %s (left as is)\n" "$config" >&2
+    return 1
+  fi
+  chmod 600 "$config"
+}
+
 detect_brew_bin() {
   local candidate
 

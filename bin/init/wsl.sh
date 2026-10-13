@@ -142,16 +142,8 @@ log_step "Configuring SSH"
 mkdir -p "${HOME}/.ssh/sockets"
 chmod 700 "${HOME}/.ssh" "${HOME}/.ssh/sockets"
 link_with_backup "${DOTFILES_DIR}/.sshconfig_base" "${HOME}/.ssh/config_base"
-# Ensure shared SSH defaults are loaded via Include.
-if ! grep -qF 'Include config_base' "${HOME}/.ssh/config" 2>/dev/null; then
-  {
-    echo 'Include config_base'
-    echo
-    cat "${HOME}/.ssh/config" 2>/dev/null || true
-  } >"${HOME}/.ssh/config.tmp"
-  mv "${HOME}/.ssh/config.tmp" "${HOME}/.ssh/config"
-  chmod 600 "${HOME}/.ssh/config"
-fi
+# Load the shared SSH defaults last, inside `Host *` (why both: common.sh).
+ensure_ssh_base_include "${HOME}/.ssh/config"
 
 log_step "Linking dotfiles"
 link_with_backup "${DOTFILES_DIR}/.zshrc" "${HOME}/.zshrc"

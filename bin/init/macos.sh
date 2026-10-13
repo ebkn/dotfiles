@@ -123,14 +123,8 @@ if [ -f "${HOME}/.sshconfig" ]; then
   mv "${HOME}/.sshconfig" "${HOME}/.ssh/config"
 fi
 link_with_backup "${DOTFILES_DIR}/.sshconfig_base" "${HOME}/.ssh/config_base"
-# Ensure shared SSH defaults are loaded via Include.
-# 末尾に追記する。OpenSSH は同一オプションの「最初に出現した値」を採用するため、
-# host 別 override より後に置くことで個別設定が確実に勝つ。
-if ! grep -qF 'Include config_base' "${HOME}/.ssh/config" 2>/dev/null; then
-  { cat "${HOME}/.ssh/config" 2>/dev/null || true; echo; echo 'Include config_base'; } > "${HOME}/.ssh/config.tmp"
-  mv "${HOME}/.ssh/config.tmp" "${HOME}/.ssh/config"
-  chmod 600 "${HOME}/.ssh/config"
-fi
+# Load the shared SSH defaults last, inside `Host *` (why both: common.sh).
+ensure_ssh_base_include "${HOME}/.ssh/config"
 # Platform-common $HOME symlinks (see bin/init/links.sh). `relink` re-runs this
 # to sync links added after a machine was provisioned.
 link_dotfiles

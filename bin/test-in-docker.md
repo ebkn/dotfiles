@@ -57,8 +57,10 @@ Every difference from the runner is a failure the container invents
 - **A non-root user.** As root the kernel ignores a `chmod 500`, and a permission
   case reports a bug that does not exist.
 - **`LANG=C.UTF-8`**, or tmux renders every wide glyph as `_`.
-- **`nc`, `procps`, `script(1)`**: present on the runner, absent from a bare
-  `ubuntu:24.04`.
+- **`nc`, `procps`, `script(1)`, `ssh`**: present on the runner, absent from a
+  bare `ubuntu:24.04`. `ssh` is for `relink.test.sh`, which checks the ssh
+  config it writes by what `ssh -G` resolves; it fails rather than skips
+  without it.
 - **No `TERM`.** `docker run` without `-t` leaves it unset, as the runner does.
   That is the one environment difference worth keeping, because the suites have
   to survive it.

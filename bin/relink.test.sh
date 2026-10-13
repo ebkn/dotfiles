@@ -16,7 +16,9 @@
 #   - every source link_dotfiles names exists, and one apply leaves no drift;
 #   - relink applies only on an explicit yes, never calls launchctl, and an
 #     apply that left a link missing or wrong exits non-zero rather than saying
-#     "done.".
+#     "done.";
+#   - ensure_ssh_base_include leaves the shared ssh defaults applying to every
+#     host while each host's own value still wins (see its section).
 #
 # Every case runs against a throwaway $HOME and $BACKUP_DIR. The unit cases use
 # a small fake repo; the relink cases read the real checkout (only read: every
@@ -350,6 +352,219 @@ else
 fi
 has "and names the directory it looked for" "$(cat "$DIR/err")" "dotfiles dir not found: $DIR/no-such-repo"
 eq "and creates nothing" "$RH/" "$(snapshot "$RH")"
+
+# --- ensure_ssh_base_include ---------------------------------------------------
+# ~/.ssh/config is machine-local; the shared Host * defaults are linked in as
+# config_base and pulled in by one Include. Where that line sits decides two
+# things, and both were wrong once:
+#   - scope: an Include after a Host block is conditional on that block, so a
+#     bare Include appended after the last host applied the defaults to that one
+#     host only (the macOS form: only mbp2022 got them);
+#   - precedence: ssh takes the first value it reads, so an Include at the top
+#     let the defaults beat every host's own setting (the WSL form).
+# The fix is "Host *" then the Include, last in the file. The ssh -G cases are
+# the contract; the text cases pin the migration of each broken form.
+#
+# The function rewrites a file the user owns, with no backup, so every case
+# compares the whole result, not just the lines it adds: what it must keep
+# matters as much as what it moves.
+SC="$DIR/ssh"
+ssh_case() { # <initial config, or - for none>
+  # Its own $HOME and $BACKUP_DIR (`unit` exports them), not the last section's.
+  fresh
+  rm -rf "$SC"
+  mkdir -p "$SC"
+  printf 'Host *\n  ServerAliveInterval 15\n' >"$SC/base"
+  # ssh refuses an Include target others can write, so under umask 002 an
+  # unchmodded base would fail every ssh -G case below for that reason alone.
+  chmod 644 "$SC/base"
+  [ "$1" = "-" ] || printf '%s' "$1" >"$SC/config"
+}
+# With an absolute target, for ssh -G: a relative Include resolves against the
+# passwd home, which a test cannot redirect.
+ensure() {
+  unit ensure_ssh_base_include "$SC/config" "$SC/base"
+  ST=$?
+}
+# As macos.sh and wsl.sh call it: no target, so the default config_base -- the
+# literal the old scripts left on every machine -- is what must be matched.
+ensure_default() {
+  unit ensure_ssh_base_include "$SC/config"
+  ST=$?
+}
+# The status and stderr of the last call: a caller runs under set -e, so a
+# non-zero return would stop setup there with the file already written.
+clean_run() { # <label>
+  eq "$1: exits 0" "0" "$ST"
+  eq "$1: says nothing" "" "$(cat "$DIR/err")"
+}
+# What ssh resolves for <host>, without connecting. ssh's own error is shown on
+# failure rather than discarded: an empty value says nothing about why.
+resolved() { # <host> <option>
+  local v
+  v=$(ssh -G -F "$SC/config" "$1" 2>"$DIR/ssh-err" | awk -v k="$2" '$1 == k { print $2 }')
+  if [ -n "$v" ]; then printf '%s' "$v"; else printf 'ssh -G failed: %s' "$(head -n 1 "$DIR/ssh-err")"; fi
+}
+flat() { paste -sd '|' - <"$SC/config"; }
+
+if ! command -v ssh >/dev/null 2>&1; then
+  # Not a skip: without ssh -G the cases below cannot see what they pin.
+  fail "ssh is installed for the ssh config cases"
+fi
+
+ssh_case "Host github.com
+  User git
+
+Host mbp2022
+  ServerAliveInterval 30
+
+Include $SC/base
+"
+eq "control: in the old macOS form the defaults miss an unrelated host" "0" "$(resolved example.com serveraliveinterval)"
+ensure
+clean_run "macOS form"
+eq "macOS form: the defaults now reach an unrelated host" "15" "$(resolved example.com serveraliveinterval)"
+eq "macOS form: and github.com" "15" "$(resolved github.com serveraliveinterval)"
+eq "macOS form: a host's own value still wins" "30" "$(resolved mbp2022 serveraliveinterval)"
+eq "macOS form: every host is kept and the Include moves inside Host *" \
+  "Host github.com|  User git||Host mbp2022|  ServerAliveInterval 30||Host *|Include $SC/base" "$(flat)"
+
+ssh_case "Include $SC/base
+
+Host mbp2022
+  ServerAliveInterval 30
+"
+eq "control: in the old WSL form the defaults beat a host's own value" "15" "$(resolved mbp2022 serveraliveinterval)"
+ensure
+clean_run "WSL form"
+eq "WSL form: a host's own value now wins" "30" "$(resolved mbp2022 serveraliveinterval)"
+eq "WSL form: the defaults still reach an unrelated host" "15" "$(resolved example.com serveraliveinterval)"
+eq "WSL form: the Include is moved to the end, not copied" \
+  "Host mbp2022|  ServerAliveInterval 30||Host *|Include $SC/base" "$(flat)"
+
+ssh_case "Host mbp2022
+  ServerAliveInterval 30
+"
+ensure
+clean_run "no Include yet"
+eq "no Include yet: the hosts are kept and the Include is appended" \
+  "Host mbp2022|  ServerAliveInterval 30||Host *|Include $SC/base" "$(flat)"
+eq "no Include yet: the defaults reach an unrelated host" "15" "$(resolved example.com serveraliveinterval)"
+
+ssh_case -
+ensure
+clean_run "no config at all"
+eq "no config at all: one is created holding just the Include" "Host *|Include $SC/base" "$(flat)"
+eq "no config at all: it is private to the user (0600 exactly)" "$SC/config" "$(find "$SC/config" -perm 600)"
+
+# The user's own Host * block is the user's. Mid-file it must survive; and when
+# it is the very block the Include sat in, with settings after the Include, its
+# header must stay, or those settings fold into the host block above.
+ssh_case "Host *
+  Compression yes
+
+Host mbp2022
+  ServerAliveInterval 30
+
+Include $SC/base
+"
+ensure
+eq "a user's own Host * block mid-file is kept" \
+  "Host *|  Compression yes||Host mbp2022|  ServerAliveInterval 30||Host *|Include $SC/base" "$(flat)"
+eq "and still reaches an unrelated host" "yes" "$(resolved example.com compression)"
+
+ssh_case "Host mbp2022
+  ServerAliveInterval 30
+
+Host *
+Include $SC/base
+  Compression yes
+"
+eq "control: a setting after the Include in Host * reaches an unrelated host" "yes" "$(resolved example.com compression)"
+ensure
+clean_run "settings after the Include"
+eq "settings after the Include keep their Host * scope" "yes" "$(resolved example.com compression)"
+eq "settings after the Include: the user's Host * stays, only the Include moves" \
+  "Host mbp2022|  ServerAliveInterval 30||Host *|  Compression yes||Host *|Include $SC/base" "$(flat)"
+
+# The literal forms the old scripts left behind, repaired through the default
+# target exactly as the callers invoke it.
+ssh_case "Host mbp2022
+  ServerAliveInterval 30
+
+Include config_base
+"
+ensure_default
+clean_run "old macos.sh output"
+eq "old macos.sh output: repaired in place" \
+  "Host mbp2022|  ServerAliveInterval 30||Host *|Include config_base" "$(flat)"
+
+# Old macos.sh appended to a config with no final newline, leaving the Include
+# right under a host's last setting, which must not go with it.
+ssh_case "Host mbp2022
+  ServerAliveInterval 30
+Include config_base
+"
+ensure_default
+eq "an Include right under a setting: the setting is kept" \
+  "Host mbp2022|  ServerAliveInterval 30||Host *|Include config_base" "$(flat)"
+
+# On a machine with no config, old wsl.sh wrote the Include then a blank line,
+# and old macos.sh a blank line then the Include.
+for old in "Include config_base
+
+" "
+Include config_base
+"; do
+  ssh_case "$old"
+  ensure_default
+  eq "an old config holding only the Include becomes just the two lines" "Host *|Include config_base" "$(flat)"
+done
+
+ssh_case "Include ~/.orbstack/ssh/config
+
+Host mbp2022
+  ServerAliveInterval 30
+
+Include config_base
+"
+ensure_default
+eq "an unrelated Include at the top stays at the top" \
+  "Include ~/.orbstack/ssh/config||Host mbp2022|  ServerAliveInterval 30||Host *|Include config_base" "$(flat)"
+
+# A run on every setup must converge: the second leaves the file untouched --
+# not rewritten with the same bytes. A hard link taken in between still names
+# the same file afterwards only if nothing was moved over it.
+ssh_case "Host mbp2022
+  ServerAliveInterval 30
+
+Include $SC/base
+"
+ensure
+cp "$SC/config" "$SC/after-first"
+ln "$SC/config" "$SC/same-file"
+ensure
+clean_run "a second run"
+if cmp -s "$SC/after-first" "$SC/config"; then ok "a second run leaves the bytes the same"; else fail "a second run leaves the bytes the same"; fi
+if [ "$SC/config" -ef "$SC/same-file" ]; then ok "a second run does not rewrite the file"; else fail "a second run does not rewrite the file"; fi
+
+# An unreadable config is the user's file in a state we cannot see. It must be
+# left exactly as it is and the call must say so, even with no errexit around
+# it. Needs a non-root runner: root reads a 000 file anyway.
+ssh_case "Host mbp2022
+  ServerAliveInterval 30
+"
+chmod 000 "$SC/config"
+ensure
+chmod 600 "$SC/config"
+if [ "$(id -u)" -eq 0 ]; then
+  fail "an unreadable config is left alone" "running as root, which reads it anyway"
+else
+  if [ "$ST" -ne 0 ]; then ok "an unreadable config returns non-zero"; else fail "an unreadable config returns non-zero"; fi
+  eq "an unreadable config is left as it was" "Host mbp2022|  ServerAliveInterval 30" "$(flat)"
+  has "an unreadable config is named in a warning" "$(cat "$DIR/err")" "could not read $SC/config"
+  eq "an unreadable config leaves no temp file" "" "$(find "$SC" -name 'config.tmp')"
+fi
 
 if [ "$fails" -eq 0 ]; then
   echo "all tests passed"
