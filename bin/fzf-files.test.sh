@@ -170,8 +170,9 @@ bs_labels=$(ff --label | awk -F'\t' '{ print (NF > 1 ? $1 : "") "|" $NF }')
 t "from a directory with backslashes, a changed file there keeps its label" "[ untracked   ]|z-new.txt" \
   "$(printf '%s\n' "$bs_labels" | grep -F '|z-new.txt' | head -1)"
 # The log half: a file committed there just now is labelled, under its
-# cwd-relative name. The only case that checks recent_log's output from a
-# subdirectory, so the only one guarding --relative.
+# cwd-relative name. With the (-N) case above it guards --relative; this one
+# alone does so under a name with backslashes, which matters if recent_log ever
+# strips the prefix itself instead.
 t "and a file committed there recently keeps its commit label, cwd-relative" \
   "[ $(printf '%-11s' "$(git log --format=%h -1)(-1)") ]|a-old.txt" \
   "$(printf '%s\n' "$bs_labels" | grep -F '|a-old.txt' | head -1)"
