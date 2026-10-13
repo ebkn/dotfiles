@@ -67,9 +67,15 @@ stub=$(mktemp -d)
 trap '/bin/rm -rf "$stub"' EXIT
 cat >"$stub/docker" <<'EOF'
 #!/bin/bash
-# `docker build` succeeds; `docker run` records one argument per line.
-[ "$1" = run ] && printf '%s\n' "$@" >"$DOCKER_ARGV"
-exit 0
+# `docker build` succeeds; `docker run` records one argument per line. With
+# DOCKER_EXEC set it then runs what follows the image name here, so the script
+# that would run in the container -- the pass/fail tally -- is exercised too.
+[ "$1" = run ] || exit 0
+printf '%s\n' "$@" >"$DOCKER_ARGV"
+[ -n "${DOCKER_EXEC:-}" ] || exit 0
+while [ $# -gt 0 ] && [ "$1" != dotfiles-test ]; do shift; done
+shift
+exec "$@"
 EOF
 chmod +x "$stub/docker"
 if PATH="$stub:$PATH" DOCKER_ARGV="$stub/argv" bash bin/test-in-docker >/dev/null 2>&1; then
@@ -90,6 +96,42 @@ if PATH="$stub:$PATH" DOCKER_ARGV="$stub/argv" bash bin/test-in-docker >/dev/nul
   fi
 else
   fail "test-in-docker failed with docker stubbed"
+fi
+
+# The tally, run for real through the stub. test-in-docker is the only way to
+# run the tmux suites locally, and its exit status is what a caller -- an agent
+# included -- believes. A broken `|| failed=...` would print a suite's FAIL and
+# then "all N suite(s) passed", exit 0. The fixtures are given by absolute path,
+# which the script inside resolves as the container would.
+tally=$(mktemp -d)
+trap '/bin/rm -rf "$stub" "$tally"' EXIT
+printf 'exit 0\n' >"$tally/pass.test.sh"
+printf 'exit 3\n' >"$tally/fail.test.sh"
+# Passes only under zsh, so a .zsh suite run by bash fails the tally.
+printf '[ -n "${ZSH_VERSION:-}" ]\n' >"$tally/only-zsh.test.zsh"
+run_tally() {
+  PATH="$stub:$PATH" DOCKER_ARGV="$stub/argv" DOCKER_EXEC=1 bash bin/test-in-docker "$@" 2>&1
+}
+if out=$(run_tally "$tally/pass.test.sh" "$tally/fail.test.sh" "$tally/only-zsh.test.zsh"); then
+  fail "test-in-docker exited 0 with a failing suite: $out"
+else
+  printf 'ok   a failing suite makes test-in-docker exit non-zero\n'
+fi
+case "$out" in
+  *"FAILED: $tally/fail.test.sh"$'\n'* | *"FAILED: $tally/fail.test.sh") printf 'ok   and it names exactly that suite\n' ;;
+  *) fail "test-in-docker did not name the failing suite alone: $out" ;;
+esac
+case "$out" in
+  *"suite(s) passed"*) fail "test-in-docker claimed a pass alongside a failure: $out" ;;
+  *) printf 'ok   and claims no pass\n' ;;
+esac
+if out=$(run_tally "$tally/pass.test.sh" "$tally/only-zsh.test.zsh"); then
+  case "$out" in
+    *"all 2 suite(s) passed"*) printf 'ok   all passing (a .zsh suite run by zsh) exits 0 and counts them\n' ;;
+    *) fail "test-in-docker passed without saying so: $out" ;;
+  esac
+else
+  fail "test-in-docker failed passing suites (is a .zsh suite run by zsh?): $out"
 fi
 
 # Refusal. Only checkable where the guard is meant to refuse: in a container

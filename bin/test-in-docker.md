@@ -34,7 +34,10 @@ not depend on anyone remembering it. It also requires the guard to come before
 the suite's first `trap` or `tmux` line — a cleanup trap registered above it
 would run `tmux kill-server` on the host on the very exit the guard causes — and
 it runs this script with `docker` stubbed, asserting that the suites it would
-run are exactly the guarded ones, mounted `:ro` and without `-t`. The two
+run are exactly the guarded ones, mounted `:ro` and without `-t`. The same stub
+can also run the container's script on the host against fixture suites, which
+pins the tally: one failing suite exits non-zero and is named, nothing claims a
+pass alongside it, and a `.zsh` suite runs under zsh. The two
 enroll by copies of one regex, and a drift would shrink the local run while it
 still printed "all N suite(s) passed". Matching the bare words `new-session` or
 `kill-server` would be wrong both ways: the stub suites only see them as text in
