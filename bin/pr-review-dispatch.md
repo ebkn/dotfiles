@@ -237,6 +237,12 @@ live session in the same worktree and hold its job forever. `kill -0` alone
 accepts a session that never bound one (bare mode binds none), and a leftover
 socket file alone accepts a crashed one.
 
+**The registry is read one file at a time**, like the queue. Because its files
+outlive their processes, a truncated one can stay there indefinitely, and a
+single `jq -s` over the glob fails as a whole on it: the registry read as empty,
+every job held as "no live session", and — with no entries left — the schema
+alarm above stayed quiet. A file that does not parse is skipped.
+
 ## The `--bg` resume fallback
 
 `PR_REVIEW_DISPATCH_RESUME=1` survives unchanged as the opt-in fallback for a PR

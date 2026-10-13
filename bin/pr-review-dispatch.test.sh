@@ -808,6 +808,25 @@ eq "the valid job is still delivered" "delivered" "$(job .status)"
 eq "the corrupt file is left alone" "not json at all" "$(cat "$STATE/jobs/acme__widget__41.json")"
 has "and the run reports only the real one" "$out" "delivered 1 job(s)"
 
+# The same holds for the session registry, which is no less a directory anything
+# can end up in -- and whose files outlive their processes, so a truncated one
+# can sit there for good. Read as one slurp, a single unparsable file emptied the
+# whole registry: every job held as "no live session", and with no entries left
+# the schema alarm stayed quiet too.
+printf 'corrupt registry file\n'
+reset
+PID=$(spawn_holder)
+WIRE="$TMP/wire-badsess"
+SOCKP="$TMP/sbadsess.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session live "$PID" "$WT" "$SOCKP" 100
+printf '{"pid": 1, "cwd": "/trunc' >"$SESS/truncated.json"
+make_job
+out=$(run)
+settle "$WIRE" || no "nothing reached the socket past the corrupt registry file"
+eq "a corrupt registry file does not hide a live session" "delivered" "$(job .status)"
+eq "the corrupt registry file is left alone" '{"pid": 1, "cwd": "/trunc' "$(cat "$SESS/truncated.json")"
+
 # --- two sessions in one worktree -------------------------------------------
 # Arbitrary but documented: pr-review-common.sh takes the NEWEST. Two sessions in
 # one worktree already break the one-writer rule the pipeline is built on, so

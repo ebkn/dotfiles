@@ -152,8 +152,15 @@ fi
 # Deliberately NOT minimised for process count the way bin/tmux-agents is:
 # launchd runs this with nobody waiting, so clarity wins.
 live_sessions_json() {
-  local all cand live_pids pid sock n_all n_cand
-  all=$(jq -s '[ .[] | select(.kind == "interactive") ]' "$SESSIONS_DIR"/*.json 2>/dev/null) || all='[]'
+  local all cand live_pids pid sock n_all n_cand f
+  # One file at a time, the way the job scan above reads the queue: a single
+  # `jq -s` over the glob fails as a whole on one truncated file, which emptied
+  # the registry and held every job -- with no entries left, the schema alarm
+  # below stayed quiet too. A file that does not parse is skipped.
+  all=$(for f in "$SESSIONS_DIR"/*.json; do
+    [ -f "$f" ] || continue
+    jq -c 'select(.kind == "interactive")' "$f" 2>/dev/null || true
+  done | jq -s '.' 2>/dev/null) || all='[]'
   [ -n "$all" ] || all='[]'
 
   # Addressable at all: both halves are needed to be a possible target. The
