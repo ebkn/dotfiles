@@ -42,11 +42,14 @@ while [ $# -gt 0 ]; do
       [ $# -ge 2 ] || break
       shift 2
       ;;
+    # The two arms below only document: each skips one word, exactly as the
+    # catch-all `-*)` does, so a form missing from them (--id-fd=3, -v) is
+    # still handled. The list that decides behaviour is the value-taking one
+    # above, and only it needs to follow libnotify.
     --urgency=* | --expire-time=* | --icon=* | --app-name=* | --category=* | --hint=* | --replace-id=* | --action=* | --app-icon=*)
       shift
       ;;
-    # libnotify's -e is --transient; -N and --hint-server are not its options
-    # and were dropped (any other -* below is skipped the same way anyway).
+    # libnotify's -e is --transient; -N and --hint-server are not its options.
     -p | --print-id | -w | --wait | -e | --transient)
       shift
       ;;

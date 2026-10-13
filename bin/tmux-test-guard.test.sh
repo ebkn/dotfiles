@@ -41,15 +41,13 @@ while IFS= read -r f; do
   # below is in its own text.
   [ "$f" = bin/tmux-test-guard.test.sh ] && continue
   count=$((count + 1))
-  # The sourcing line, the same match bin/test-in-docker enrolls by.
+  # Both lookups below are awk, not `grep -n | head -n 1`: under set -e and
+  # pipefail that form ends the suite in silence. A grep that finds nothing
+  # exits 1 -- for this first lookup, on exactly the suite whose missing guard
+  # the FAIL below should name. awk prints the first match's line number and
+  # exits 0 whether or not anything matched.
   #
-  # awk, not `grep -n | head -n 1`: under pipefail that pipeline failed the
-  # whole suite in silence. head exits after one line, grep's next write gets
-  # EPIPE once its output spans more than one write (tmux-agents.test.sh's
-  # does), and errexit ended the run on Linux every time -- CI was red with no
-  # FAIL line. grep finding nothing (exit 1) ended it the same way, hiding the
-  # very message below. awk prints the first match's line number and always
-  # exits 0.
+  # The sourcing line, the same match bin/test-in-docker enrolls by.
   guard_line=$(awk '/^\. .*tmux-test-guard\.sh" \|\| exit 2$/ { print NR; exit }' "$f")
   if [ -z "$guard_line" ]; then
     fail "$f is a tmux suite but does not source the guard (with || exit 2)"
@@ -58,6 +56,11 @@ while IFS= read -r f; do
   # And BEFORE anything that would act on the host when the guard refuses: a
   # trap registered above it runs its cleanup -- a bare `tmux kill-server` --
   # on the exit the guard itself causes.
+  #
+  # This is the lookup that turned CI red. It matches many lines (136 in
+  # tmux-agents.test.sh), so grep's output spans several writes; head exits
+  # after one line, grep's next write gets EPIPE, and pipefail plus errexit
+  # ended the run on every Linux run with no FAIL line. Do not put it back.
   first_act=$(awk '/^[[:space:]]*(trap |tmux )/ { print NR; exit }' "$f")
   if [ -n "$first_act" ] && [ "$first_act" -lt "$guard_line" ]; then
     fail "$f registers a trap or runs tmux (line $first_act) before the guard (line $guard_line)"
