@@ -57,9 +57,9 @@ t "and nothing reaches stderr" "" "$(cat "$TMP/err")"
 # separate value, and that value is not the summary.
 # One flag per case, the positionals straight after it: with several flags in a
 # row, one that ate a word too many ate the next FLAG and the result was the
-# same. The lists are libnotify's own (tools/notify-send.c), -A and -n included.
+# same. The lists are those of libnotify master's tools/notify-send.c.
 for f in -u --urgency -t --expire-time -i --icon -a --app-name -c --category \
-  -h --hint -r --replace-id -A --action -n --app-icon; do
+  -h --hint -r --replace-id -A --action -n --app-icon --id-fd --selected-action-fd --activation-token-fd; do
   ns "$f" VALUE "Summary" "Body"
   t "$f skips its value" "$(osc9 'Summary: Body')" "$(written)"
 done
