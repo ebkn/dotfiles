@@ -101,8 +101,8 @@ _gw_worktree_add() {
 
 # Fuzzy-pick a linked worktree (never the main checkout) and print its
 # absolute path.
-# Returns 1 when there is nothing to pick, and otherwise fzf's own status
-# (1 no match, 130 cancelled, 2 fzf failed), which gw tells apart.
+# Prints nothing and returns 0 when nothing was picked (no worktrees, or the
+# user did not choose); returns the picker's own status when it failed.
 _gw_pick_worktree() {
   # Resolve the main repo root so worktree paths can be rendered relative to it.
   local main_root
@@ -152,7 +152,7 @@ _gw_pick_worktree() {
     }')
   if [[ -z "$entries" ]]; then
     echo "No worktrees to pick" >&2
-    return 1
+    return 0
   fi
 
   # --no-preview overrides the global FZF_DEFAULT_OPTS file/dir preview.
@@ -163,9 +163,21 @@ _gw_pick_worktree() {
   # .zshenv's FZF_DEFAULT_OPTS sets --nth=-1 for fzf-files: without the
   # override only the path is searched, and a branch named unlike its
   # worktree cannot be found. Pinned in git-worktree.test.zsh.
-  fzf --reverse --no-preview \
+  local selected rc
+  selected=$(fzf --reverse --no-preview \
       --delimiter=$'\t' --with-nth=1,2 --nth=1,2 --accept-nth=3 \
-      --prompt='worktree> ' <<< "$entries"
+      --prompt='worktree> ' <<< "$entries")
+  rc=$?
+  # man fzf, EXIT STATUS: 1 is a query matching nothing and 130 is ESC or
+  # CTRL-C -- the user not choosing, which is not an error. Anything else is
+  # fzf failing (2 for an option it does not know, as an fzf too old for
+  # --accept-nth does), and must not read as success: agents act on gw's
+  # status.
+  case $rc in
+    0) print -r -- "$selected" ;;
+    1 | 130) return 0 ;;
+    *) return $rc ;;
+  esac
 }
 
 # Resolve a GitHub PR to a local branch: check it belongs to this repository,
@@ -332,19 +344,10 @@ function gw() {
   fi
 
   if [[ -z "$input" ]]; then
-    local selected rc
-    selected=$(_gw_pick_worktree)
-    rc=$?
-    # 1 is nothing to pick or a query matching nothing, 130 is ESC/CTRL-C:
-    # the user not choosing, which is not an error. Anything else is fzf
-    # failing (2 for an option it does not know, as an fzf too old for
-    # --accept-nth does), and returning 0 for it told an agent gw had worked.
-    case $rc in
-      0) ;;
-      1 | 130) return 0 ;;
-      *) return $rc ;;
-    esac
-    [[ -n "$selected" ]] && cd "$selected"
+    local selected
+    selected=$(_gw_pick_worktree) || return
+    [[ -z "$selected" ]] && return 0
+    cd "$selected"
     return
   fi
 
