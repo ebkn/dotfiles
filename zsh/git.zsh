@@ -114,9 +114,12 @@ _gw_pick_worktree() {
   # gives each worktree a paragraph starting "worktree <path>", the path raw;
   # a worktree with no "branch" line is detached (or bare). The branch column is
   # padded to (max branch length + 4) so all relative paths line up with at
-  # least a few spaces of breathing room.
+  # least a few spaces of breathing room. The root reaches awk through ENVIRON,
+  # not `-v`: `-v` interprets escapes in the value, so a root holding a
+  # backslash sequence stopped matching its own worktrees.
   local entries
-  entries=$(git worktree list --porcelain | awk -v root="$main_root" '
+  entries=$(git worktree list --porcelain | GW_MAIN_ROOT="$main_root" awk '
+    BEGIN { root = ENVIRON["GW_MAIN_ROOT"] }
     function flush() {
       if (abs_path == "") return
       rel_path = abs_path

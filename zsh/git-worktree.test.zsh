@@ -331,9 +331,17 @@ check 'and is not an error' 0 "$(status_of "$out")"
 # that does not exist.
 repo=$(new_repo 'gw-pick-back\\slash')
 run "$repo" gw one >/dev/null
+export FZF_MENU="$work/menu"
 out=$(FZF_PICK=one run "$repo" gw)
 check 'under a root with backslashes, the picker still moves into the worktree' \
   "PWD=$repo/git-worktrees/one" "$(pwd_of "$out")"
+# And the root must reach awk as data: `awk -v` interprets escapes in the
+# value, and `\\` means one backslash in every POSIX awk, so the root stopped
+# prefixing its own worktrees and the menu showed each by its absolute path.
+visible=$(awk -F'\t' '{ sub(/ +$/, "", $1); print $1 " | " $2 }' "$work/menu")
+check 'under a root with backslashes, the picker still shows the path relative to it' \
+  "one | git-worktrees/one" "$visible"
+unset FZF_MENU
 
 # A path with a space. `git worktree list` is column-aligned text, so splitting
 # it on whitespace took the first word of the path as the whole of it, and cd
