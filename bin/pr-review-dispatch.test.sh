@@ -665,6 +665,36 @@ has "which carries the feedback" "$(cat "$STATE/jobs/acme__widget__42.prompt.md"
 has "the resume runs in the background" "$(head -n 1 "$TMP/resume.log")" "--bg --resume sess-1"
 eq "from the job's worktree" "cwd=$WT" "$(grep '^cwd=' "$TMP/resume.log")"
 
+# The resume path has a dry-run guard of its own, separate from the socket
+# path's. Without it, a dry run would start a real background session nobody
+# asked for, and mark the job delivered on top.
+reset
+make_job
+out=$(RESUME=1 run --dry-run)
+has "a dry run reports the resume" "$out" "send  acme/widget#42: resuming sess-1"
+eq "but starts no session" "absent" "$([ -f "$TMP/resume.log" ] || echo absent)"
+eq "and leaves the job queued" "pending" "$(job .status)"
+eq "and writes no prompt file" "absent" \
+  "$([ -e "$STATE/jobs/acme__widget__42.prompt.md" ] || echo absent)"
+
+# Without claude on PATH the resume cannot happen; it must say so and hold,
+# not fail the run or mark anything. The real claude is on PATH on a dev
+# machine, so the PATH here is built without it rather than inherited.
+reset
+make_job
+nocl="$TMP/no-claude-bin"
+mkdir -p "$nocl"
+for tool in jq git nc socat; do
+  p=$(command -v "$tool") && ln -sf "$p" "$nocl/$tool"
+done
+out=$(PATH="$nocl:/usr/bin:/bin" RESUMELOG="$TMP/resume.log" \
+  PR_REVIEW_WATCH_STATE_DIR="$STATE" CLAUDE_SESSIONS_DIR="$SESS" \
+  PR_REVIEW_DISPATCH_RESUME=1 "$DISPATCH" 2>&1)
+rc=$?
+has "with no claude on PATH it holds and says why" "$out" "claude is not on PATH, cannot resume"
+eq "and exits 0" "0" "$rc"
+eq "and the job stays queued" "pending" "$(job .status)"
+
 # --- feedback that arrives while a delivery is in flight --------------------
 # pr-review-watch appends to the same job file under its own lock, not this
 # program's, so a poll can land between the prompt being written and the job
