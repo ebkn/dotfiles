@@ -195,12 +195,18 @@ assert_nonzero "an empty git ls-files exits non-zero" "$(run_lint "$work/empty")
 # matching the `sh` inside `zsh`) would wrongly hand to shellcheck.
 make_stubs "$work/normal"
 make_git_stub "$work/normal" 0 "bin/lint-shell
+bin/tmux-popup
 bin/init/macos.sh
 zsh/alias.zsh
 README.md
 "
 assert_eq "a normal listing exits 0" "0" "$(run_lint "$work/normal")"
 assert_arg "the bash script reaches shellcheck" "$work/normal/shellcheck.argv" "bin/lint-shell"
+# bin/tmux-popup is `#!/bin/sh`, like seven other scripts in bin/. Without one in
+# the listing, a pattern tightened to `\bbash\b` would drop all eight from both
+# checkers and still pass.
+assert_arg "a #!/bin/sh script reaches shellcheck" "$work/normal/shellcheck.argv" "bin/tmux-popup"
+assert_arg "and shfmt" "$work/normal/shfmt.argv" "bin/tmux-popup"
 assert_arg "the zsh module reaches zsh -n" "$work/normal/zsh.argv" "zsh/alias.zsh"
 assert_arg "a zsh-shebang script outside zsh/ reaches zsh -n" "$work/normal/zsh.argv" "bin/init/macos.sh"
 refute_arg "and not shellcheck" "$work/normal/shellcheck.argv" "bin/init/macos.sh"
