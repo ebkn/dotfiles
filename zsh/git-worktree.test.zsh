@@ -326,6 +326,24 @@ check 'cancelling the picker leaves the shell where it was' \
   "PWD=$repo/git-worktrees/one" "$(pwd_of "$out")"
 check 'and is not an error' 0 "$(status_of "$out")"
 
+# A main checkout whose path holds `\\`. The human format of `git worktree
+# list` wraps such a path in quotes and escapes it, so cd was handed a path
+# that does not exist.
+repo=$(new_repo 'gw-pick-back\\slash')
+run "$repo" gw one >/dev/null
+out=$(FZF_PICK=one run "$repo" gw)
+check 'under a root with backslashes, the picker still moves into the worktree' \
+  "PWD=$repo/git-worktrees/one" "$(pwd_of "$out")"
+
+# A path with a space. `git worktree list` is column-aligned text, so splitting
+# it on whitespace took the first word of the path as the whole of it, and cd
+# went nowhere.
+repo=$(new_repo 'gw-pick space')
+run "$repo" gw one >/dev/null
+out=$(FZF_PICK=one run "$repo" gw)
+check 'under a root with a space, the picker still moves into the worktree' \
+  "PWD=$repo/git-worktrees/one" "$(pwd_of "$out")"
+
 # PR URLs. The guard that matters is the origin check: without it,
 # `git fetch origin pull/<n>/head` reaches into whatever origin happens to be.
 repo=$(new_repo gw-pr)

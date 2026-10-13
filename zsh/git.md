@@ -43,6 +43,12 @@ columns say. Likewise every `gw` case but one runs from the main root, where the
 main checkout and the current worktree coincide; the case run from inside a linked
 worktree is the one that pins which of the two `gw` files new worktrees under.
 
+The picker reads `git worktree list --porcelain`, never the human format: that
+one splits a path with a space at its first word and quotes and escapes a path
+with a backslash, so `cd` lands somewhere else. Two cases build the main checkout
+under such a path to pin it — every other fixture lives under a plain temp
+directory, where the two formats agree.
+
 The `[gone]` upstream that `gdmerged` treats as consent is set up for real: push
 the branch, delete it in the bare origin, `fetch -p`.
 

@@ -56,8 +56,8 @@ gpushf() {
 # gw() creates or picks a worktree; gdmerged() deletes the ones whose branches
 # are merged. Both used to be one long function each; they are now split into
 # named helpers, such as the `git worktree list --porcelain` parse below, which
-# gdmerged used to open-code through a temp file. (open-worktree-tabs still
-# parses --porcelain on its own, and the picker reads the human format.)
+# gdmerged used to open-code through a temp file. (open-worktree-tabs and the
+# picker still parse --porcelain on their own.)
 #
 # Everything named `_gw_*` / `_gdmerged_*` is an implementation detail of the
 # function it is named after; nothing else calls them.
@@ -107,34 +107,35 @@ _gw_pick_worktree() {
   main_root=$(_git_main_root 2>/dev/null)
 
   # Build "<padded_branch>\t<rel_path>\t<abs_path>" lines from `git worktree
-  # list`, skipping the main branch. The branch is the bracketed last token
-  # ("[name]") when present; bare/detached worktrees have no brackets. The
-  # branch column is padded to (max branch length + 4) so all relative paths
-  # line up with at least a few spaces of breathing room.
+  # list --porcelain`, skipping the main branch. Porcelain, not the human
+  # format: that one is whitespace-aligned columns, so a path with a space was
+  # cut at its first word, and it wraps a path with a backslash in quotes and
+  # escapes it -- either way cd was handed a path that does not exist. Porcelain
+  # gives each worktree a paragraph starting "worktree <path>", the path raw;
+  # a worktree with no "branch" line is detached (or bare). The branch column is
+  # padded to (max branch length + 4) so all relative paths line up with at
+  # least a few spaces of breathing room.
   local entries
-  entries=$(git worktree list | awk -v root="$main_root" '
-    {
-      abs_path = $1
+  entries=$(git worktree list --porcelain | awk -v root="$main_root" '
+    function flush() {
+      if (abs_path == "") return
       rel_path = abs_path
       if (root != "" && index(abs_path, root "/") == 1) {
         rel_path = substr(abs_path, length(root) + 2)
       }
-      branch = ""
-      for (i = 2; i <= NF; i++) {
-        if ($i ~ /^\[.+\]$/) {
-          branch = substr($i, 2, length($i) - 2)
-          break
-        }
+      if (branch != "main") {
+        n++
+        branches[n] = branch
+        rels[n] = rel_path
+        abss[n] = abs_path
+        if (length(branch) > max_branch) max_branch = length(branch)
       }
-      if (branch == "") branch = "(detached)"
-      if (branch == "main") next
-      n++
-      branches[n] = branch
-      rels[n] = rel_path
-      abss[n] = abs_path
-      if (length(branch) > max_branch) max_branch = length(branch)
+      abs_path = ""
     }
+    /^worktree / { flush(); abs_path = substr($0, 10); branch = "(detached)"; next }
+    /^branch refs\/heads\// { branch = substr($0, 19) }
     END {
+      flush()
       pad = max_branch + 4
       for (i = 1; i <= n; i++) {
         printf "%-*s\t%s\t%s\n", pad, branches[i], rels[i], abss[i]
