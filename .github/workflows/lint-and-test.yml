@@ -339,6 +339,12 @@ jobs:
       - name: autossh-ssh shim
         run: bash bin/autossh-ssh.test.sh
 
+      # The WSL notify-send shim turns a notification into OSC 9. Every write
+      # ends in `|| true`, so a misparsed flag or an undoubled ESC is simply no
+      # notification. Run here, its #!/bin/sh is dash -- WSL's /bin/sh too.
+      - name: wsl notify-send shim
+        run: bash bin/wsl/notify-send.test.sh
+
       # The lock both review-pipeline programs take. Refusing to steal a dead
       # holder's lock stops the pipeline forever with no output, since both
       # programs exit 0 when they cannot take it; stealing a live one lets two

@@ -22,10 +22,22 @@ set -u
 
 summary=
 body=
+# The first two positionals are SUMMARY and BODY; any more are ignored.
+positional() {
+  if [ -z "$summary" ]; then
+    summary="$1"
+  elif [ -z "$body" ]; then
+    body="$1"
+  fi
+}
 while [ $# -gt 0 ]; do
   case "$1" in
     -u | --urgency | -t | --expire-time | -i | --icon | -a | --app-name | -c | --category | -h | --hint | -r | --replace-id)
-      shift 2 || break
+      # Counted first rather than `shift 2 || break`: shift is a special
+      # builtin, and in dash -- WSL's /bin/sh -- shifting past the end exits
+      # the shell before `||` is reached.
+      [ $# -ge 2 ] || break
+      shift 2
       ;;
     --urgency=* | --expire-time=* | --icon=* | --app-name=* | --category=* | --hint=* | --replace-id=*)
       shift
@@ -34,18 +46,17 @@ while [ $# -gt 0 ]; do
       shift
       ;;
     --)
+      # Everything after -- is positional. It used to break out without
+      # reading them, so `notify-send -- "msg"` said nothing at all.
       shift
+      for a in "$@"; do positional "$a"; done
       break
       ;;
     -*)
       shift
       ;;
     *)
-      if [ -z "$summary" ]; then
-        summary="$1"
-      elif [ -z "$body" ]; then
-        body="$1"
-      fi
+      positional "$1"
       shift
       ;;
   esac
@@ -64,11 +75,14 @@ esc=$(printf '\033')
 # raise real notifications.
 tty="${NOTIFY_SEND_TTY:-/dev/tty}"
 
+# The braces matter: with no controlling terminal the error comes from the
+# redirection, not from printf, so a bare `>"$tty" 2>/dev/null` still printed
+# it. Same idiom as bin/read-doc and bin/autossh-ssh.
 if [ -n "${TMUX-}" ]; then
   inner=$(printf '%s]9;%s\007' "$esc" "$msg" | sed "s/${esc}/${esc}${esc}/g")
   # \134 = octal for backslash; combined with the trailing ESC this is
   # the DCS String Terminator (ST = ESC \).
-  printf '%sPtmux;%s%s\134' "$esc" "$inner" "$esc" >"$tty" 2>/dev/null || true
+  { printf '%sPtmux;%s%s\134' "$esc" "$inner" "$esc" >"$tty"; } 2>/dev/null || true
 else
-  printf '%s]9;%s\007' "$esc" "$msg" >"$tty" 2>/dev/null || true
+  { printf '%s]9;%s\007' "$esc" "$msg" >"$tty"; } 2>/dev/null || true
 fi
