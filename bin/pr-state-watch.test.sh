@@ -420,6 +420,10 @@ eq 'its kind says ci, not conflict' 'ci' "$(cijob .kind)"
 eq 'it records the head it was seen at' 'head1' "$(cijob .ciHead)"
 has 'it names the failing check' "$(cijob '[.pending[0].checks[]]|join(",")')" 'lint'
 eq 'and not the passing one' 'false' "$(cijob '[.pending[0].checks[]]|index("build")!=null')"
+# Dispatch delivers by .worktree, so a ci job routed wrong would be a red build
+# reported to the wrong session -- or to none -- with every assertion above green.
+eq 'the worktree is resolved' "$WT" "$(cijob .worktree)"
+eq 'the session on that worktree is resolved' 'sess-1' "$(cijob .sessionId)"
 # The conflict job is a different file on purpose: one PR can be both, and two
 # detectors writing one file would each drop the other's pending.
 eq 'no conflict job is written for a mergeable PR' 'no' \
