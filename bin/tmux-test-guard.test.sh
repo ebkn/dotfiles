@@ -41,7 +41,15 @@ while IFS= read -r f; do
   [ "$f" = bin/tmux-test-guard.test.sh ] && continue
   count=$((count + 1))
   # The sourcing line, the same match bin/test-in-docker enrolls by.
-  guard_line=$(grep -n -E '^\. .*tmux-test-guard\.sh" \|\| exit 2$' "$f" | head -n 1 | cut -d: -f1)
+  #
+  # awk, not `grep -n | head -n 1`: under pipefail that pipeline failed the
+  # whole suite in silence. head exits after one line, grep's next write gets
+  # EPIPE once its output spans more than one write (tmux-agents.test.sh's
+  # does), and errexit ended the run on Linux every time -- CI was red with no
+  # FAIL line. grep finding nothing (exit 1) ended it the same way, hiding the
+  # very message below. awk prints the first match's line number and always
+  # exits 0.
+  guard_line=$(awk '/^\. .*tmux-test-guard\.sh" \|\| exit 2$/ { print NR; exit }' "$f")
   if [ -z "$guard_line" ]; then
     fail "$f is a tmux suite but does not source the guard (with || exit 2)"
     continue
@@ -49,7 +57,7 @@ while IFS= read -r f; do
   # And BEFORE anything that would act on the host when the guard refuses: a
   # trap registered above it runs its cleanup -- a bare `tmux kill-server` --
   # on the exit the guard itself causes.
-  first_act=$(grep -n -E '^[[:space:]]*(trap |tmux )' "$f" | head -n 1 | cut -d: -f1)
+  first_act=$(awk '/^[[:space:]]*(trap |tmux )/ { print NR; exit }' "$f")
   if [ -n "$first_act" ] && [ "$first_act" -lt "$guard_line" ]; then
     fail "$f registers a trap or runs tmux (line $first_act) before the guard (line $guard_line)"
   fi
