@@ -338,6 +338,12 @@ t "attach: and the connection gets its own session, not the longer one" "0" \
 # local-5 is "found" among the free sessions inside local-50, and the
 # connection joins a session another client holds: two tabs, one session.
 tmux new-session -d -s local-5 "$IDLE"
+# The longer free name is this case's own, not the local-50 the case above
+# left behind: without one, an unbounded match has nothing to match wrongly and
+# the case passes whatever the boundary does.
+tmux new-session -d -s local-51 "$IDLE"
+t "setup: local-51 is free" "1" \
+  "$(tmux list-sessions -f '#{==:#{session_attached},0}' -F '#{session_name}' | grep -cx local-51)"
 if new_client local-5; then
   record connY local-5
   if attach_as connY; then
