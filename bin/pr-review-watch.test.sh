@@ -92,7 +92,10 @@ case "$endpoint" in
       exit 0
     fi
     fixture="$FIX/notifications.json" ;;
-  */pulls/*/reviews) fixture="$FIX/reviews.json" ;;
+  */pulls/*/reviews)
+    # A transient failure on one of the three item endpoints, on request.
+    [ -f "$FIX/fail-reviews" ] && exit 1
+    fixture="$FIX/reviews.json" ;;
   */pulls/*/comments) fixture="$FIX/review_comments.json" ;;
   */issues/*/comments) fixture="$FIX/issue_comments.json" ;;
   */pulls/*) fixture="$FIX/pull.json" ;;
@@ -224,7 +227,7 @@ EOF
 ]
 EOF
   printf '%s' "$REPO" >"$FIX/ghq-github.com_acme_widget"
-  /bin/rm -f "$FIX/not-modified" "$FIX/notifications-status" "$FIX/no-response"
+  /bin/rm -f "$FIX/not-modified" "$FIX/notifications-status" "$FIX/no-response" "$FIX/fail-reviews"
   # A failure here would surface as an unrelated assertion failure further
   # down, so it is fatal -- the same reason bin/lint-shell refuses to report ok
   # on a failed listing.
@@ -600,6 +603,35 @@ arrange_pr42 2026-09-07T10:02:00Z
 out=$(run)
 eq 'an unreadable PR is reported' 'skip acme/widget#42: could not read the PR' "$out"
 eq 'and neither writes a job' '0' "$(find "$STATE/jobs" -name '*.json' | wc -l | tr -d ' ')"
+
+echo "-- a PR that could not be read keeps the cursor where it was --"
+# A failed read is not "nothing new". Advanced past it, the next poll is a 304
+# and the review that triggered this one is never looked at again; for a PR
+# with no job yet, the next notification's cutoff then files it as history.
+# The cursor stays so the next poll returns the same notification and retries.
+arrange_pr42 2026-09-07T10:02:00Z
+STATE="$TMP/state-unread"
+mkdir -p "$STATE"
+printf 'Mon, 07 Sep 2026 09:00:00 GMT' >"$STATE/poll.last-modified"
+/bin/rm -f "$FIX/pull.json"
+run >/dev/null
+eq 'an unreadable PR leaves Last-Modified as it was' 'Mon, 07 Sep 2026 09:00:00 GMT' \
+  "$(cat "$STATE/poll.last-modified")"
+arrange_pr42 2026-09-07T10:02:00Z
+: >"$FIX/fail-reviews"
+out=$(run)
+eq 'unreadable reviews are reported, not taken for none' \
+  'skip acme/widget#42: could not read its review feedback' "$out"
+eq 'and write no job from the other two endpoints' 'no' \
+  "$([ -f "$STATE/jobs/acme__widget__42.json" ] && echo yes || echo no)"
+eq 'and leave Last-Modified as it was' 'Mon, 07 Sep 2026 09:00:00 GMT' \
+  "$(cat "$STATE/poll.last-modified")"
+/bin/rm -f "$FIX/fail-reviews"
+run >/dev/null
+eq 'the retry queues what the failed poll could not' 'true' \
+  "$(job '[.pending[].id]|index("review:12")!=null')"
+eq 'and only then advances Last-Modified' 'Mon, 07 Sep 2026 10:00:10 GMT' \
+  "$(cat "$STATE/poll.last-modified")"
 
 echo "-- a live lock holder means this run does nothing --"
 # launchd fires every 60s whether or not the last run finished; two polls

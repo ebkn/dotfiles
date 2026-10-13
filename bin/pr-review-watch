@@ -218,19 +218,24 @@ session_for_worktree() {
 #
 # Only reached for a PR that actually appeared in the notification delta, so the
 # cost is three requests per *active* PR, not per watched PR.
+#
+# Fails if any of the three requests does. An endpoint that failed must not read
+# as one that had nothing: the caller would then mark the batch done and move
+# the cursor past feedback it never saw.
 fetch_items() {
-  local repo=$1 pr=$2
-  {
+  local repo=$1 pr=$2 raw
+  raw=$({
     gh api --paginate "repos/$repo/pulls/$pr/reviews" --jq '.[] | {
       id: ("review:" + (.id|tostring)), kind: "review", author: .user.login,
-      state: .state, path: null, line: null, body: (.body // ""), at: .submitted_at }'
-    gh api --paginate "repos/$repo/pulls/$pr/comments" --jq '.[] | {
+      state: .state, path: null, line: null, body: (.body // ""), at: .submitted_at }' &&
+      gh api --paginate "repos/$repo/pulls/$pr/comments" --jq '.[] | {
       id: ("inline:" + (.id|tostring)), kind: "inline", author: .user.login,
-      state: null, path: .path, line: (.line // .original_line), body: (.body // ""), at: .created_at }'
-    gh api --paginate "repos/$repo/issues/$pr/comments" --jq '.[] | {
+      state: null, path: .path, line: (.line // .original_line), body: (.body // ""), at: .created_at }' &&
+      gh api --paginate "repos/$repo/issues/$pr/comments" --jq '.[] | {
       id: ("issue:" + (.id|tostring)), kind: "issue", author: .user.login,
       state: null, path: null, line: null, body: (.body // ""), at: .created_at }'
-  } 2>/dev/null | jq -s --arg me "$me" --arg noise "$NOISE" '
+  } 2>/dev/null) || return 1
+  printf '%s' "$raw" | jq -s --arg me "$me" --arg noise "$NOISE" '
     [ .[]
       # A PENDING review has no submitted_at: it is a draft only its author can
       # see, and it must not be queued as though it had been posted.
@@ -273,6 +278,10 @@ else
 fi
 
 queued_total=0
+# Set when a PR in the batch could not be read. Unlike the other skips, which
+# are standing facts about the PR (no checkout, no worktree), a failed read says
+# nothing about what is there, so the cursor must not move past it.
+unread=0
 
 while IFS=$'\t' read -r repo pr cutoff; do
   [ -n "${repo:-}" ] || continue
@@ -285,6 +294,7 @@ while IFS=$'\t' read -r repo pr cutoff; do
   meta=$(gh api "repos/$repo/pulls/$pr" --jq '{branch: .head.ref, url: .html_url, title: .title}' 2>/dev/null)
   [ -n "$meta" ] || {
     printf 'skip %s#%s: could not read the PR\n' "$repo" "$pr"
+    unread=1
     continue
   }
   branch=$(printf '%s' "$meta" | jq -r .branch)
@@ -302,7 +312,11 @@ while IFS=$'\t' read -r repo pr cutoff; do
   session=$(session_for_worktree "$path" "$worktree")
   job="$STATE_DIR/jobs/${repo//\//__}__${pr}.json"
 
-  items=$(fetch_items "$repo" "$pr")
+  items=$(fetch_items "$repo" "$pr") || {
+    printf 'skip %s#%s: could not read its review feedback\n' "$repo" "$pr"
+    unread=1
+    continue
+  }
   [ -n "$items" ] || continue
 
   if [ -f "$job" ]; then
@@ -348,8 +362,12 @@ done <<<"$candidates"
 
 # Advanced only after the whole batch is queued. Storing it earlier would mean a
 # crash mid-batch is indistinguishable from a clean run, and the 304 on the next
-# poll would hide the notifications this run never processed.
-if [ "$dry_run" -eq 0 ] && [ -n "$last_modified" ]; then
+# poll would hide the notifications this run never processed. A PR that could
+# not be read is the same case: the cursor stays, so the next poll returns its
+# notification again and retries it. A PR that never becomes readable keeps
+# every poll a 200 rather than a 304 -- louder on the rate limit, but a skip
+# line every minute, never a review dropped in silence.
+if [ "$dry_run" -eq 0 ] && [ -n "$last_modified" ] && [ "$unread" -eq 0 ]; then
   printf '%s' "$last_modified" >"$ims_file"
 fi
 

@@ -32,7 +32,15 @@ from the status line; trusting the exit code turns every quiet poll into an
 error.
 
 The stored value is advanced only after the whole batch is queued, since a crash
-mid-batch would otherwise be hidden by the next poll's 304.
+mid-batch would otherwise be hidden by the next poll's 304. **A PR that could not
+be read holds it too** — the PR itself, or any of its three item endpoints. Once
+a failed read was taken for "nothing new" and the cursor moved on; the next poll
+was a 304, and for a PR with no job yet the next notification's cutoff then filed
+the missed review as history, permanently. Holding the cursor makes the next poll
+a 200 that retries it. The cost is that a PR which *never* becomes readable keeps
+every poll a 200, printing its `skip` line each minute — louder, never silent.
+The standing skips (no checkout, no worktree) do not hold it: those are facts
+about the PR, not failures to learn them.
 
 ## `all=true` is deliberate
 
