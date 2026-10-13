@@ -99,7 +99,8 @@ _gw_worktree_add() {
   GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null worktree add "$@"
 }
 
-# Fuzzy-pick an existing worktree (excluding main) and print its absolute path.
+# Fuzzy-pick a linked worktree (never the main checkout) and print its
+# absolute path.
 # Returns 1 when there is nothing to pick or the user cancelled.
 _gw_pick_worktree() {
   # Resolve the main repo root so worktree paths can be rendered relative to it.
@@ -107,7 +108,11 @@ _gw_pick_worktree() {
   main_root=$(_git_main_root 2>/dev/null)
 
   # Build "<padded_branch>\t<rel_path>\t<abs_path>" lines from `git worktree
-  # list --porcelain`, skipping the main branch. Porcelain, not the human
+  # list --porcelain`, skipping the main checkout. That is the first record --
+  # git-worktree(1): "The main worktree is listed first" -- and is skipped by
+  # position, not by its branch: matching a branch called main offered the main
+  # checkout itself in a repository whose trunk is master, and hid a linked
+  # worktree that had main checked out. Porcelain, not the human
   # format: that one is whitespace-aligned columns, so a path with a space was
   # cut at its first word, and it wraps a path with a backslash in quotes and
   # escapes it -- either way cd was handed a path that does not exist. Porcelain
@@ -126,7 +131,7 @@ _gw_pick_worktree() {
       if (root != "" && index(abs_path, root "/") == 1) {
         rel_path = substr(abs_path, length(root) + 2)
       }
-      if (branch != "main") {
+      if (++records > 1) {
         n++
         branches[n] = branch
         rels[n] = rel_path

@@ -49,6 +49,13 @@ with a backslash, so `cd` lands somewhere else. Two cases build the main checkou
 under such a path to pin it — every other fixture lives under a plain temp
 directory, where the two formats agree.
 
+The picker leaves out the **main checkout**, which porcelain always lists first,
+not a branch called `main`: matching the name offered the main checkout itself in
+a repository whose trunk is `master`, and hid a linked worktree that had `main`
+checked out. `new_repo` puts the main checkout on `main`, where the two readings
+agree, so two cases break that — a trunk named `master`, and `main` checked out
+in a linked worktree.
+
 The `[gone]` upstream that `gdmerged` treats as consent is set up for real: push
 the branch, delete it in the bare origin, `fetch -p`.
 

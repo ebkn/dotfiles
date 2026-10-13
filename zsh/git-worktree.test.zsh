@@ -354,8 +354,7 @@ check 'under a root with a space, the picker still moves into the worktree' \
 
 # A detached worktree has no "branch" line in porcelain, so its branch must be
 # reset per record. As the only linked worktree it is listed right after main;
-# a branch carried over from that record would read `main` and drop it from the
-# menu without a word.
+# a branch carried over from that record would offer it as `main`.
 repo=$(new_repo gw-pick-detached)
 git -C "$repo" worktree add -q --detach "$repo/git-worktrees/det"
 out=$(FZF_PICK=det FZF_MENU="$work/menu-detached" run "$repo" gw)
@@ -363,6 +362,26 @@ visible=$(awk -F'\t' '{ sub(/ +$/, "", $1); print $1 " | " $2 }' "$work/menu-det
 check 'the picker offers a detached worktree as (detached)' \
   "(detached) | git-worktrees/det" "$visible"
 check 'and moves into it' "PWD=$repo/git-worktrees/det" "$(pwd_of "$out")"
+
+# What the picker leaves out is the main checkout, not a branch called main.
+# Matching the name offered the main checkout itself, by its absolute path, in
+# a repository whose trunk is master -- and hid a linked worktree that had main
+# checked out while the main checkout was on another branch.
+repo=$(new_repo gw-pick-master)
+git -C "$repo" branch -qm main master
+run "$repo" gw one >/dev/null
+FZF_MENU="$work/menu-master" run "$repo" gw >/dev/null
+check 'the picker leaves out the main checkout when its trunk is master' \
+  "one | git-worktrees/one" \
+  "$(awk -F'\t' '{ sub(/ +$/, "", $1); print $1 " | " $2 }' "$work/menu-master")"
+
+repo=$(new_repo gw-pick-main-linked)
+git -C "$repo" switch -qc dev
+git -C "$repo" worktree add -q "$repo/git-worktrees/on-main" main
+FZF_MENU="$work/menu-main-linked" run "$repo" gw >/dev/null
+check 'and offers a linked worktree that has main checked out' \
+  "main | git-worktrees/on-main" \
+  "$(awk -F'\t' '{ sub(/ +$/, "", $1); print $1 " | " $2 }' "$work/menu-main-linked")"
 
 # PR URLs. The guard that matters is the origin check: without it,
 # `git fetch origin pull/<n>/head` reaches into whatever origin happens to be.
