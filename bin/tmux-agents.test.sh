@@ -537,6 +537,10 @@ add_bound_pane corr-late busy "" sid-late
 # route (a worker agent, not a dialog here). A correction that only knew about
 # asking and waiting would leave exactly this one stuck.
 add_bound_pane corr-needs needs_input "a worker needs you" sid-needs
+# asking is the first blocked state, and without a fixture of its own a rule
+# that hard-coded `waiting|needs_input` instead of reading BLOCKED_STATES would
+# leave it stuck red -- the drift between copies that list exists to prevent.
+add_bound_pane corr-asking asking "which approach?" sid-asking
 add_bound_pane corr-unknown waiting "needs permission" sid-unknown
 # `shell` is NOT the example of an unknown status any more, because it is not one:
 # the CLI's own bundle derives it as `status === "idle" && <in a shell> ? "shell"
@@ -588,6 +592,7 @@ rows_for() { grep -cF "$1" "$work/rows"; }
 
 stub_claude '[{"sessionId":"sid-stale","status":"busy"},
               {"sessionId":"sid-needs","status":"busy"},
+              {"sessionId":"sid-asking","status":"busy"},
               {"sessionId":"sid-late","status":"waiting","waitingFor":"permission prompt"},
               {"sessionId":"sid-unknown","status":"teleporting"},
               {"sessionId":"sid-shell","status":"shell"},
@@ -617,6 +622,10 @@ else
   case "$(row_of corr-needs)" in
     '▶ '*) pass "needs_input counts as blocked when deciding to correct" ;;
     *) fail "needs_input counts as blocked when deciding to correct" "row: $(row_of corr-needs)" ;;
+  esac
+  case "$(row_of corr-asking)" in
+    '▶ '*) pass "asking counts as blocked when deciding to correct" ;;
+    *) fail "asking counts as blocked when deciding to correct" "row: $(row_of corr-asking)" ;;
   esac
 
   # The other direction: the Notification that publishes 🛑 is 6s behind the
@@ -1105,7 +1114,7 @@ else
 fi
 
 tmux -L "$socket" kill-window -t work:corr-blank 2>/dev/null
-for w in corr-stale corr-late corr-needs corr-unknown corr-shell corr-nobind corr-gone corr-idle corr-running corr-shellbusy corr-blankbusy corr-newbusy; do
+for w in corr-stale corr-late corr-needs corr-asking corr-unknown corr-shell corr-nobind corr-gone corr-idle corr-running corr-shellbusy corr-blankbusy corr-newbusy; do
   tmux -L "$socket" kill-window -t "work:$w" 2>/dev/null
 done
 
