@@ -2453,9 +2453,29 @@ printf '%s\n%s\n' ctrl-o "\$row"
 exit 0
 STUB
     chmod +x "$work/ostub/fzf"
+    # "Nothing happened" also holds for a script that died before deciding, or
+    # a stub that handed it an empty row. So the refusal itself is waited for:
+    # its sentence logged once more than before the run.
+    refusals() {
+      tmux -L "$socket" show-messages 2>/dev/null | grep -F 'display-message' |
+        grep -cF 'that session is not waiting on you' || true
+    }
+    refused_before=$(refusals)
     tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
       "sh -c 'SHELL=/bin/sh PATH=$work/ostub:$work/wstub:$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
-    wait_dead || true
+    if ! wait_dead; then
+      fail "the script handed a ctrl-o after the picker finishes" "$(screen)"
+    fi
+    for _ in $(seq 1 20); do
+      [ "$(refusals)" -gt "$refused_before" ] && break
+      sleep 0.1
+    done
+    if [ "$(refusals)" -gt "$refused_before" ]; then
+      pass "a ctrl-o on an idle row after the picker is refused, saying why"
+    else
+      fail "a ctrl-o on an idle row after the picker is refused, saying why" \
+        "output: $(cat "$work/real2" 2>/dev/null)"
+    fi
     no_jump_since "a ctrl-o refused after the picker"
     tmux -L "$socket" set-option -p -t "$jump_target" @claude_state waiting
 
