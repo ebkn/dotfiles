@@ -16,8 +16,8 @@ shellcheck was ~6.5s of an ~8s run on one core, and a gate this slow gets run
 less. It checks each file independently (`-x` follows sources per file), so the
 targets are split into contiguous chunks, one background job each — CPU count
 by default, `LINT_SHELL_JOBS=<n>` to override (a positive integer; empty means
-the default, and a negative value would never end the chunk loop, which is why
-it is checked). Measured on an 18-core Mac:
+the default; anything else is rejected, each reason beside the check in the
+script). Measured on an 18-core Mac:
 8.2s → 3.3s; what remains is mostly the chunk holding `tmux-agents.test.sh`
 and the shebang discovery loop.
 
@@ -51,9 +51,12 @@ somebody else's commit.
 ## Targets are discovered, not listed
 
 By shebang, so a new script is covered automatically. The two exceptions are
-named in the script: sourced fragments (`bin/init/common.sh`, `links.sh`,
-`bin/pr-review-common.sh` — no shebang, so they carry a
-`# shellcheck shell=bash` directive) and the `zsh/` modules.
+named in the script: the `zsh/` modules, and every sourced fragment (such as
+`bin/init/common.sh` or an eval's `lib.sh`) — never executed directly, so no
+shebang; each carries a `# shellcheck shell=bash` directive and **must be added
+to the inline list**, or nothing checks it. `lint-shell.test.sh` fails on a
+tracked fragment that is missing, which is how `review-test/evals/grading.sh`
+was found unchecked.
 
 Discovery is `git ls-files`, so an **untracked** script is skipped silently — run
 it after `git add`, or a brand-new file passes vacuously.

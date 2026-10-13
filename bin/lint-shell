@@ -66,8 +66,10 @@ while IFS= read -r f; do
   fi
 done <<<"$tracked"
 
-# Sourced by both zsh and bash, so they carry no shebang; each declares
-# `# shellcheck shell=bash` instead.
+# Sourced fragments: never executed directly, so they carry no shebang and the
+# discovery above cannot find them. Each declares `# shellcheck shell=bash`
+# instead, and must be named here -- a new fragment left out is checked by
+# nobody, which lint-shell.test.sh's "every sourced fragment" case catches.
 sh_targets+=(bin/init/common.sh bin/init/links.sh bin/pr-review-common.sh bin/tmux-test-guard.sh)
 sh_targets+=(bin/skill-eval-assert.sh bin/skill-eval-scaffold.sh)
 sh_targets+=(root/.agents/skills/review-test/evals/lib.sh root/.agents/skills/review-test/evals/grading.sh)
@@ -87,8 +89,12 @@ sh_targets+=(root/.agents/skills/init-project/evals/lib.sh)
 # interleaving. Every job's status is collected by its own `wait`: a bare
 # `wait` returns 0 regardless, and would swallow a finding.
 #
-# An empty LINT_SHELL_JOBS means the default, as an unset one does. A negative
-# value is what the check below exists for: the chunk loop would never end.
+# An empty LINT_SHELL_JOBS means the default, as an unset one does. Each
+# rejected shape below breaks the chunk arithmetic in its own way:
+#   ''         getconf printed nothing, so there is no count at all
+#   *[!0-9]*   a negative count never ends the chunk loop; text is no count
+#   0*         0 divides by zero, and bash reads a leading zero as octal --
+#              010 would silently mean 8 and 08 would be an error
 jobs=${LINT_SHELL_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}
 case "$jobs" in
   '' | *[!0-9]* | 0*)
