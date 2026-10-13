@@ -157,7 +157,11 @@ _gw_pick_worktree() {
   # --no-preview overrides the global FZF_DEFAULT_OPTS file/dir preview.
   # --with-nth=1,2 hides the absolute path column; --nth=1,2 lets users
   # search by branch or relative path; --accept-nth=3 returns the absolute
-  # path on selection so `cd` works regardless of $PWD.
+  # path on selection so `cd` works regardless of $PWD. --nth=1,2 looks
+  # redundant, since fzf searches every visible column by default, but
+  # .zshenv's FZF_DEFAULT_OPTS sets --nth=-1 for fzf-files: without the
+  # override only the path is searched, and a branch named unlike its
+  # worktree cannot be found. Pinned in git-worktree.test.zsh.
   fzf --reverse --no-preview \
       --delimiter=$'\t' --with-nth=1,2 --nth=1,2 --accept-nth=3 \
       --prompt='worktree> ' <<< "$entries"

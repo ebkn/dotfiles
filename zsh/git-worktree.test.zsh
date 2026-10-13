@@ -54,38 +54,59 @@ cat >"$stub_bin/fzf" <<'STUB'
 # FZF_MENU, when set, keeps a copy of everything the picker was offered.
 # --accept-nth is honoured because gw depends on it: the menu carries the
 # absolute path in a hidden column, and returning the whole line instead would
-# hand cd three tab-separated fields. The search is narrowed to the --nth
-# columns, which with gw's flags (--with-nth=1,2 --nth=1,2) is the range fzf
-# searches. (In fzf it is --with-nth that hides the third column; this stub
-# reads only --nth.) Matching the hidden path as well let a hidden column that
-# pointed at the wrong row fail for the wrong reason -- or a pick fail outright
-# whenever the temp dir's path happened to contain the word picked.
+# hand cd three tab-separated fields. The search covers what fzf searches: the
+# --nth columns, counted among the --with-nth ones as fzf counts them (a
+# negative index from the end), so the hidden path is never matched. Matching
+# it let a hidden column that pointed at the wrong row fail for the wrong
+# reason -- or a pick fail outright whenever the temp dir's path happened to
+# contain the word picked.
+# FZF_DEFAULT_OPTS is read first and the arguments override it, as in fzf, so
+# a case can pin gw against the defaults .zshenv exports. An index form this
+# stub cannot read (a range, a field name) exits 2 rather than searching
+# something else.
 tee "${FZF_MENU:-/dev/null}" > "$0.stdin"
 [ -n "${FZF_PICK:-}" ] || exit 1
-nth=
+accept=
 search=
-for arg in "$@"; do
+with=
+# Unquoted on purpose: word-split, the quoted --preview falls apart, but only
+# the --*nth= words are read.
+for arg in ${FZF_DEFAULT_OPTS:-} "$@"; do
   case "$arg" in
-    --accept-nth=*) nth="${arg#--accept-nth=}" ;;
+    --accept-nth=*) accept="${arg#--accept-nth=}" ;;
+    --with-nth=*) with="${arg#--with-nth=}" ;;
     --nth=*) search="${arg#--nth=}" ;;
   esac
 done
-line=$(awk -F'\t' -v cols="$search" '
+for cols in "$accept" "$search" "$with"; do
+  case "$cols" in
+    *[!0-9,-]*) echo "fzf stub: cannot read index '$cols'" >&2; exit 2 ;;
+  esac
+done
+awk -F'\t' -v accept="$accept" -v cols="$search" -v with="$with" '
   BEGIN { pick = ENVIRON["FZF_PICK"] }
   {
-    if (cols == "") hay = $0
-    else { hay = ""; k = split(cols, c, ","); for (i = 1; i <= k; i++) hay = hay "\t" $c[i] }
-    if (index(hay, pick)) print
-  }' "$0.stdin")
-[ -n "$line" ] || exit 1
-if [ -n "$nth" ]; then
-  printf '%s\n' "$line" | awk -F'\t' -v n="$nth" '{print $n}'
-else
-  printf '%s\n' "$line"
-fi
+    nv = 0
+    if (with == "") for (i = 1; i <= NF; i++) v[++nv] = i
+    else { k = split(with, w, ","); for (i = 1; i <= k; i++) v[++nv] = (w[i] < 0 ? NF + 1 + w[i] : w[i]) }
+    if (cols == "") { hay = ""; for (i = 1; i <= nv; i++) hay = hay "\t" $v[i] }
+    else { hay = ""; k = split(cols, c, ","); for (i = 1; i <= k; i++) hay = hay "\t" $v[c[i] < 0 ? nv + 1 + c[i] : c[i]] }
+    if (!index(hay, pick)) next
+    found = 1
+    if (accept == "") { print; next }
+    out = ""; k = split(accept, a, ",")
+    for (i = 1; i <= k; i++) out = out (i > 1 ? "\t" : "") $(a[i] < 0 ? NF + 1 + a[i] : a[i])
+    print out
+  }
+  END { exit !found }' "$0.stdin"
 STUB
 
 chmod +x "$stub_bin/gh" "$stub_bin/fzf"
+
+# `zsh <file>` reads ~/.zshenv, which on a machine with these dotfiles exports
+# FZF_DEFAULT_OPTS, and the stub honours it. Every case but the one that sets
+# it on purpose must see the same menu here and in CI.
+unset FZF_DEFAULT_OPTS
 
 check() {
   local desc="$1" want="$2" got="$3"
@@ -424,6 +445,19 @@ FZF_MENU="$work/menu-main-detached" run "$repo" gw >/dev/null
 check 'the picker leaves out the main checkout while it is detached' \
   "(detached) | git-worktrees/det"$'\n'"one | git-worktrees/one" \
   "$(awk -F'\t' '{ sub(/ +$/, "", $1); print $1 " | " $2 }' "$work/menu-main-detached")"
+
+# Under the FZF_DEFAULT_OPTS .zshenv exports, read from the file itself.
+# Its --nth=-1 (search the last visible column, the path) is set for
+# fzf-files; gw's own --nth=1,2 overrides it, and that override is all that
+# lets a worktree be picked by its branch. The branch here is not in the
+# path, so the path alone cannot find it -- with gw's flags it always would.
+repo=$(new_repo gw-pick-defaults)
+git -C "$repo" worktree add -q "$repo/git-worktrees/elsewhere" -b feat-x
+zshenv_opts=$(zsh -f -c 'source "$1"; print -r -- "$FZF_DEFAULT_OPTS"' _ "${0:A:h}/../.zshenv")
+contains 'control: .zshenv still sets the --nth that gw has to override' '--nth=-1' "$zshenv_opts"
+out=$(FZF_DEFAULT_OPTS="$zshenv_opts" FZF_PICK=feat-x run "$repo" gw)
+check 'under the FZF_DEFAULT_OPTS of .zshenv, the picker still finds a worktree by its branch' \
+  "PWD=$repo/git-worktrees/elsewhere" "$(pwd_of "$out")"
 
 # PR URLs. The guard that matters is the origin check: without it,
 # `git fetch origin pull/<n>/head` reaches into whatever origin happens to be.
