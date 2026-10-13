@@ -352,6 +352,18 @@ out=$(FZF_PICK=one run "$repo" gw)
 check 'under a root with a space, the picker still moves into the worktree' \
   "PWD=$repo/git-worktrees/one" "$(pwd_of "$out")"
 
+# A detached worktree has no "branch" line in porcelain, so its branch must be
+# reset per record. As the only linked worktree it is listed right after main;
+# a branch carried over from that record would read `main` and drop it from the
+# menu without a word.
+repo=$(new_repo gw-pick-detached)
+git -C "$repo" worktree add -q --detach "$repo/git-worktrees/det"
+out=$(FZF_PICK=det FZF_MENU="$work/menu-detached" run "$repo" gw)
+visible=$(awk -F'\t' '{ sub(/ +$/, "", $1); print $1 " | " $2 }' "$work/menu-detached")
+check 'the picker offers a detached worktree as (detached)' \
+  "(detached) | git-worktrees/det" "$visible"
+check 'and moves into it' "PWD=$repo/git-worktrees/det" "$(pwd_of "$out")"
+
 # PR URLs. The guard that matters is the origin check: without it,
 # `git fetch origin pull/<n>/head` reaches into whatever origin happens to be.
 repo=$(new_repo gw-pr)
