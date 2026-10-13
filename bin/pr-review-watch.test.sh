@@ -58,11 +58,11 @@ cat >"$STUB/gh" <<'EOF'
 set -uo pipefail
 [ "${1:-}" = "api" ] || { echo "gh stub: unsupported subcommand ${1:-}" >&2; exit 2; }
 shift
-include=0; jqexpr=""; endpoint=""; cond=0
+include=0; jqexpr=""; endpoint=""; cond=0; paginate=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -i|--include) include=1; shift ;;
-    --paginate) shift ;;
+    --paginate) paginate=1; shift ;;
     --jq) jqexpr=$2; shift 2 ;;
     -H|--header) case "$2" in If-Modified-Since:*) cond=1 ;; esac; shift 2 ;;
     -*) shift ;;
@@ -102,6 +102,18 @@ case "$endpoint" in
   *) echo "gh stub: no fixture for $endpoint" >&2; exit 1 ;;
 esac
 [ -f "$fixture" ] || { echo "gh stub: missing $fixture" >&2; exit 1; }
+# A list endpoint without --paginate gets its first page only, as GitHub would
+# give it -- here a page of one item, so every fixture with more than one spans
+# pages. Ignoring the flag instead made a dropped --paginate invisible, while
+# for real it hides everything past the 30th item, oldest first: the newest
+# feedback on a busy PR.
+case "$endpoint" in
+  */reviews | */comments)
+    if [ "$paginate" -eq 0 ]; then
+      jq '.[0:1]' "$fixture" >"$FIX/page1.json"
+      fixture="$FIX/page1.json"
+    fi ;;
+esac
 if [ -n "$jqexpr" ]; then jq -r "$jqexpr" < "$fixture"; else cat "$fixture"; fi
 EOF
 
@@ -259,6 +271,18 @@ eq 'inline comment is queued' 'true' "$(job '[.pending[].id]|index("inline:21")!
 eq 'own comment is never queued' 'false' "$(job '[.pending[].id]|index("inline:22")!=null')"
 eq 'bot conversation comment is queued' 'true' "$(job '[.pending[].id]|index("issue:31")!=null')"
 eq 'pending is ordered oldest first' 'true' "$(job '[.pending[].at] == ([.pending[].at]|sort)')"
+
+# What dispatch renders into the prompt. Its own suite builds jobs by hand, so
+# a mapping broken here -- an inline comment arriving with no file or line --
+# would pass both suites; dispatch prints a null location as nothing at all.
+eq 'an inline item carries its kind, file and line' 'inline bob a.ts 10' \
+  "$(job '.pending[] | select(.id == "inline:21") | "\(.kind) \(.author) \(.path) \(.line)"')"
+eq 'a review item carries its verdict and no location' 'review CHANGES_REQUESTED null null' \
+  "$(job '.pending[] | select(.id == "review:12") | "\(.kind) \(.state) \(.path) \(.line)"')"
+eq 'a conversation item carries its kind and body' 'issue nit: typo' \
+  "$(job '.pending[] | select(.id == "issue:31") | "\(.kind) \(.body)"')"
+eq 'the job carries the PR url and title' 'https://github.com/acme/widget/pull/42 a title' \
+  "$(job '"\(.url) \(.title)"')"
 
 # "a review is running" is not review feedback. It must not reach `seen` either:
 # CodeRabbit edits this very comment into the walkthrough, and recording the id
@@ -650,6 +674,36 @@ eq 'it makes no request' '' "$(cat "$FIX/gh.log")"
 eq "and leaves the holder's lock" "$holder" "$(cat "$STATE/.lock/pid")"
 kill "$holder" 2>/dev/null
 wait "$holder" 2>/dev/null
+
+echo "-- an outdated inline comment keeps the line it was left on --"
+# Once a push moves the code out from under a comment, GitHub nulls .line and
+# keeps .original_line. Without the fallback the comment arrives with no line.
+arrange_pr42 2026-09-07T10:02:00Z
+cat >"$FIX/review_comments.json" <<'EOF'
+[
+ {"id":24,"user":{"login":"bob"},"path":"b.ts","line":null,"original_line":7,"body":"stale but real","created_at":"2026-09-07T10:01:00Z"}
+]
+EOF
+STATE="$TMP/state-outdated"
+run --pr acme/widget#42 >/dev/null
+eq 'an outdated comment falls back to original_line' 'b.ts 7' \
+  "$(job '.pending[] | select(.id == "inline:24") | "\(.path) \(.line)"')"
+
+echo "-- a mistyped invocation is refused, never run as a poll --"
+# Without the refusal, --dryrun would be a real poll: jobs written, cursor moved.
+STATE="$TMP/state-args"
+: >"$FIX/gh.log"
+out=$(run --dryrun)
+rc=$?
+eq 'an unknown argument exits 1' '1' "$rc"
+eq 'and names it' 'yes' "$(printf '%s' "$out" | grep -q 'unknown argument: --dryrun' && echo yes || echo no)"
+eq 'and makes no request' '' "$(cat "$FIX/gh.log")"
+out=$(run --pr)
+rc=$?
+eq '--pr with no value exits 1' '1' "$rc"
+eq 'and says what it wants' 'yes' "$(printf '%s' "$out" | grep -q 'owner/repo#number' && echo yes || echo no)"
+run --pr nonsense >/dev/null
+eq 'a malformed --pr exits 1' '1' "$?"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
