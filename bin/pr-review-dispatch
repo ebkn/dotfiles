@@ -98,8 +98,11 @@ esac
 
 # Same lock discipline as the watcher: launchd does not care that the previous
 # run is still going, and two dispatchers racing would deliver one job twice.
+# Checked, because there is no set -e: unchecked, take_lock below is then
+# undefined, its 127 reads as "lock held", and every run exits 0 doing nothing.
 # shellcheck source=pr-review-common.sh
-. "$(dirname "$(readlink -f "$0")")/pr-review-common.sh"
+. "$(dirname "$(readlink -f "$0")")/pr-review-common.sh" ||
+  die "cannot load pr-review-common.sh from beside $(readlink -f "$0")"
 
 lock="$STATE_DIR/.dispatch-lock"
 if ! take_lock "$lock"; then exit 0; fi

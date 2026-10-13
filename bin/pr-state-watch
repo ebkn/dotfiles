@@ -79,9 +79,12 @@ done
 mkdir -p "$STATE_DIR/jobs"
 
 # Resolved through the ~/.local/bin symlink so the fragment is found next to the
-# real script, not next to the link.
+# real script, not next to the link. Checked, because there is no set -e:
+# unchecked, take_lock below is then undefined, its 127 reads as "lock held",
+# and every run exits 0 doing nothing.
 # shellcheck source=pr-review-common.sh
-. "$(dirname "$(readlink -f "$0")")/pr-review-common.sh"
+. "$(dirname "$(readlink -f "$0")")/pr-review-common.sh" ||
+  die "cannot load pr-review-common.sh from beside $(readlink -f "$0")"
 
 # Its OWN lock, not the watcher's. The two detectors write disjoint job files
 # (this one appends __conflict to the name), so they do not need to exclude each

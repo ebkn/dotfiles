@@ -42,6 +42,15 @@ trap 'chmod -R u+w "$TMP" 2>/dev/null; /bin/rm -rf "$TMP"' EXIT
 # resolution every path comparison below is against the wrong prefix.
 TMP=$(cd "$TMP" && pwd -P)
 
+# Every case runs the script the way launchd does: through the ~/.local/bin
+# symlink, from a directory that does not hold pr-review-common.sh. Run by its
+# real path, a regression to `$(dirname "$0")` would pass here and stop the
+# pipeline in production.
+mkdir -p "$TMP/link"
+ln -s "$WATCH" "$TMP/link/pr-state-watch"
+REAL_WATCH=$WATCH
+WATCH="$TMP/link/pr-state-watch"
+
 FIX="$TMP/fixtures"
 STUB="$TMP/stub"
 mkdir -p "$FIX" "$STUB"
@@ -828,6 +837,16 @@ out=$(run)
 eq 'an empty but successful search is not reported as a failure' 'no' \
   "$(printf '%s' "$out" | grep -q 'could not search for open' && echo yes || echo no)"
 /bin/cp "$TMP/search.json.keep" "$FIX/search.json"
+
+echo "-- a library that cannot be loaded fails the run --"
+# Unchecked, the failed `.` left take_lock undefined; its 127 read as "lock
+# held" and the run exited 0 having done nothing, every pass, indefinitely.
+mkdir -p "$TMP/lonely"
+/bin/cp "$REAL_WATCH" "$TMP/lonely/pr-state-watch"
+STATE="$TMP/state-lonely"
+out=$(WATCH="$TMP/lonely/pr-state-watch" run)
+eq 'a missing pr-review-common.sh exits 1' '1' "$?"
+has 'and names it' "$out" 'cannot load'
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

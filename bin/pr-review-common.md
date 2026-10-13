@@ -20,6 +20,12 @@ real script rather than next to the `~/.local/bin` symlink (the idiom `read-doc`
 uses for its stylesheet). It carries no shebang, so it is named explicitly in
 `bin/lint-shell` and declares `# shellcheck shell=bash`.
 
+**Each caller checks the `.`**, because none runs under `set -e`. Unchecked, a
+failed load left `take_lock` undefined, its 127 read as "lock held", and the run
+exited 0 having done nothing — every pass, with the error only in the launchd
+log. All three suites run their script through a symlink in a directory that
+does not hold this fragment, so a regression to `$(dirname "$0")` fails them.
+
 ## The lock is pid-based, not time-based
 
 That is the whole point of it existing as a file. The first version stole any

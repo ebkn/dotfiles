@@ -44,6 +44,15 @@ trap 'chmod -R u+w "$TMP" 2>/dev/null; /bin/rm -rf "$TMP"' EXIT
 # resolution every path comparison below is against the wrong prefix.
 TMP=$(cd "$TMP" && pwd -P)
 
+# Every case runs the script the way launchd does: through the ~/.local/bin
+# symlink, from a directory that does not hold pr-review-common.sh. Run by its
+# real path, a regression to `$(dirname "$0")` would pass here and stop the
+# pipeline in production.
+mkdir -p "$TMP/link"
+ln -s "$WATCH" "$TMP/link/pr-review-watch"
+REAL_WATCH=$WATCH
+WATCH="$TMP/link/pr-review-watch"
+
 FIX="$TMP/fixtures"
 STUB="$TMP/stub"
 mkdir -p "$FIX" "$STUB"
@@ -704,6 +713,16 @@ eq '--pr with no value exits 1' '1' "$rc"
 eq 'and says what it wants' 'yes' "$(printf '%s' "$out" | grep -q 'owner/repo#number' && echo yes || echo no)"
 run --pr nonsense >/dev/null
 eq 'a malformed --pr exits 1' '1' "$?"
+
+echo "-- a library that cannot be loaded fails the run --"
+# Unchecked, the failed `.` left take_lock undefined; its 127 read as "lock
+# held" and the run exited 0 having done nothing, every minute, indefinitely.
+mkdir -p "$TMP/lonely"
+/bin/cp "$REAL_WATCH" "$TMP/lonely/pr-review-watch"
+STATE="$TMP/state-lonely"
+out=$(WATCH="$TMP/lonely/pr-review-watch" run)
+eq 'a missing pr-review-common.sh exits 1' '1' "$?"
+eq 'and names it' 'yes' "$(printf '%s' "$out" | grep -q 'cannot load .*pr-review-common.sh' && echo yes || echo no)"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

@@ -53,6 +53,14 @@ lacks() { case "$2" in *"$3"*) no "$1" "[$2] unexpectedly contains [$3]" ;; *) o
 
 TMP=$(mktemp -d)
 TMP=$(cd "$TMP" && pwd -P)
+# Every case runs the script the way launchd does: through the ~/.local/bin
+# symlink, from a directory that does not hold pr-review-common.sh. Run by its
+# real path, a regression to `$(dirname "$0")` would pass here and stop the
+# pipeline in production.
+mkdir -p "$TMP/link"
+ln -s "$DISPATCH" "$TMP/link/pr-review-dispatch"
+REAL_DISPATCH=$DISPATCH
+DISPATCH="$TMP/link/pr-review-dispatch"
 # The program runs in the caller's working directory, and its prompt heredocs
 # name git fetch/merge/push: one dropped backslash there executes them. Running
 # from the temp tree keeps such a regression away from the developer's checkout.
@@ -1315,6 +1323,15 @@ eq "a merged job whose worktree is gone is closed" "cleaned" "$(mjob .status)"
 eq "with nothing left owed" "0" "$(mjob '.pending | length')"
 has "and the closing is said once" "$out" "close acme/widget#42"
 lacks "and is not reported as held" "$out" "hold"
+
+printf 'a library that cannot be loaded\n'
+# Unchecked, the failed `.` left take_lock undefined; its 127 read as "lock
+# held" and the run exited 0 having done nothing, every pass, indefinitely.
+mkdir -p "$TMP/lonely"
+/bin/cp "$REAL_DISPATCH" "$TMP/lonely/pr-review-dispatch"
+out=$(DISPATCH="$TMP/lonely/pr-review-dispatch" run)
+eq "a missing pr-review-common.sh exits 1" "1" "$?"
+has "and names it" "$out" "cannot load"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
