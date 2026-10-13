@@ -60,12 +60,15 @@ else
 fi
 
 esc=$(printf '\033')
+# Only the test sets this: run from a real terminal, the suite would otherwise
+# raise real notifications.
+tty="${NOTIFY_SEND_TTY:-/dev/tty}"
 
 if [ -n "${TMUX-}" ]; then
   inner=$(printf '%s]9;%s\007' "$esc" "$msg" | sed "s/${esc}/${esc}${esc}/g")
   # \134 = octal for backslash; combined with the trailing ESC this is
   # the DCS String Terminator (ST = ESC \).
-  printf '%sPtmux;%s%s\134' "$esc" "$inner" "$esc" >/dev/tty 2>/dev/null || true
+  printf '%sPtmux;%s%s\134' "$esc" "$inner" "$esc" >"$tty" 2>/dev/null || true
 else
-  printf '%s]9;%s\007' "$esc" "$msg" >/dev/tty 2>/dev/null || true
+  printf '%s]9;%s\007' "$esc" "$msg" >"$tty" 2>/dev/null || true
 fi
