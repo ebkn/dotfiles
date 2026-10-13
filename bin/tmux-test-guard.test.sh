@@ -108,7 +108,9 @@ trap '/bin/rm -rf "$stub" "$tally"' EXIT
 printf 'exit 0\n' >"$tally/pass.test.sh"
 printf 'exit 3\n' >"$tally/fail.test.sh"
 # Passes only under zsh, so a .zsh suite run by bash fails the tally.
-printf '[ -n "${ZSH_VERSION:-}" ]\n' >"$tally/only-zsh.test.zsh"
+cat >"$tally/only-zsh.test.zsh" <<'EOF'
+[ -n "${ZSH_VERSION:-}" ]
+EOF
 run_tally() {
   PATH="$stub:$PATH" DOCKER_ARGV="$stub/argv" DOCKER_EXEC=1 bash bin/test-in-docker "$@" 2>&1
 }
