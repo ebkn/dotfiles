@@ -62,6 +62,20 @@ t "and then runs textlint on the target" "doc.md" "$(printf '%s\n' "$out" | tail
 td doc.md >/dev/null
 t "a second run does not reinstall" "" "$(cat "$NPM_LOG")"
 
+# The rules and the dictionary are copied on EVERY run, not only on install, so
+# an edit to textlint/ applies at once. Moved into the install branch, the
+# cache would keep linting with the old rules until the next dependency bump,
+# and the only symptom is fewer findings. A stale cached copy stands in for the
+# edit, so the repo's own files are never touched.
+for cfg in textlintrc.yml prh.yml textlintignore; do
+  printf '# stale\n' >"$TMP/cache/$cfg"
+done
+td doc.md >/dev/null
+for cfg in textlintrc.yml prh.yml textlintignore; do
+  t "an edited $cfg reaches the cache without a reinstall" "same" \
+    "$(cmp -s "$(dirname "$TD")/../textlint/$cfg" "$TMP/cache/$cfg" && echo same || echo stale)"
+done
+
 # A dependency change is what DOES reinstall: the cached manifests are compared
 # with textlint/'s, so a bumped version is not silently ignored in favour of the
 # toolchain already sitting in the cache.
