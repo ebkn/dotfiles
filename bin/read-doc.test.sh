@@ -217,7 +217,14 @@ t "an extensionless #!/bin/bash file is highlighted as bash" "1" \
 # a document hides it behind a scrollbar, which is worse than uncoloured code.
 # The `#` line opens a line and follows a blank one, so read as prose it WOULD
 # be a heading; a `// #` comment would not be, and the next check could not fail.
-printf 'package main\n\nvar s = `\n\n# not a heading\n`\n' >"$doc/main.go"
+cat >"$doc/main.go" <<'EOF'
+package main
+
+var s = `
+
+# not a heading
+`
+EOF
 env -u SSH_CONNECTION "$RD" --print "$doc/main.go" >"$TMP/go.html" 2>/dev/null
 t "a .go file is highlighted as go" "1" "$(count 'class="sourceCode go"' "$TMP/go.html")"
 t "and its # is code, not a heading" "0" "$(count '<h1' "$TMP/go.html")"
