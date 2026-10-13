@@ -391,6 +391,52 @@ else
 fi
 tmux -L "$socket" kill-session -t _popup_probe
 tmux -L "$socket" kill-session -t plain_probe
+
+# "Is this the remote's view?" is @ssh_view: an ssh pane here (@ssh_host), or a
+# session a myssh tab created on this machine (local-*). It colours the whole
+# status bar and the active border purple, and every failure is silent -- a
+# lost E: or a broken glob just leaves the chrome green. Evaluated as formats,
+# like @in_popup, in all three situations.
+tmux -L "$socket" new-session -d -s view_plain
+tmux -L "$socket" new-session -d -s local-7
+tmux -L "$socket" new-session -d -s view_ssh
+tmux -L "$socket" set-option -p -t view_ssh: @ssh_host box
+view_of() { tmux -L "$socket" display-message -p -t "$1:" "#{E:@ssh_view}#{E:status-style}|#{E:pane-active-border-style}"; }
+local_chrome='0bg=#1e2326 fg=#d3c6aa|fg=#a7c080'
+remote_chrome='1bg=#463f48 fg=#d3c6aa|fg=#d699b6'
+got_plain=$(view_of view_plain)
+got_local=$(view_of local-7)
+got_ssh=$(view_of view_ssh)
+if [ "$got_plain" = "$local_chrome" ] && [ "$got_local" = "$remote_chrome" ] && [ "$got_ssh" = "$remote_chrome" ]; then
+  pass "@ssh_view paints the bar and active border purple over ssh and in local-*, green otherwise"
+else
+  fail "@ssh_view paints the bar and active border purple over ssh and in local-*, green otherwise" \
+    "plain: [$got_plain]" "local-7: [$got_local]" "ssh pane: [$got_ssh]"
+fi
+
+# The tab title WezTerm reads. Two features count on what it contains: the
+# `🛑 N  C-q A` count in the tab bar counts BLOCKED_GLYPH in it, and the purple
+# ssh tab looks for SSH_TAB_MARK. Both ends are pinned elsewhere
+# (agent-state.test.sh, tmux-pane-titles.test.sh); this is the link between
+# them, and the marks are read from wezterm.lua so the two files cannot drift.
+ssh_mark=$(sed -n "s/^local SSH_TAB_MARK = '\(.*\)'\$/\1/p" wezterm.lua)
+glyph=$(sed -n "s/^local BLOCKED_GLYPH = '\(.*\)'\$/\1/p" wezterm.lua)
+tmux -L "$socket" rename-window -t view_plain: work
+tmux -L "$socket" set-option -p -t view_plain: @claude_glyph "$glyph "
+tmux -L "$socket" select-pane -t view_ssh: -T 'remote title'
+tmux -L "$socket" set-option -p -t view_ssh: @claude_glyph "$glyph "
+title_plain=$(tmux -L "$socket" display-message -p -t view_plain: '#{E:set-titles-string}')
+title_ssh=$(tmux -L "$socket" display-message -p -t view_ssh: '#{E:set-titles-string}')
+if [ -n "$ssh_mark" ] && [ -n "$glyph" ] &&
+  [ "$title_plain" = "$glyph work" ] && [ "$title_ssh" = "$glyph $ssh_mark remote title" ]; then
+  pass "the title carries the blocked glyph, and over ssh wezterm.lua's mark before the remote's title"
+else
+  fail "the title carries the blocked glyph, and over ssh wezterm.lua's mark before the remote's title" \
+    "marks from wezterm.lua: [$glyph] [$ssh_mark]" "plain: [$title_plain]" "ssh pane: [$title_ssh]"
+fi
+tmux -L "$socket" kill-session -t view_plain
+tmux -L "$socket" kill-session -t local-7
+tmux -L "$socket" kill-session -t view_ssh
 prefix_keys=$(tmux -L "$socket" list-keys -T prefix 2>/dev/null)
 for k in p t o a A g '?'; do
   # `?` is an ERE operator; every other key here is a literal already.
@@ -425,15 +471,34 @@ for k in p t o a A g '?'; do
     *) fail "prefix + $k still opens its popup outside one" "want [$want] in the else block" "got: $row" ;;
   esac
   # In a myssh pane the same chord belongs to the REMOTE tmux, so it is sent on.
+  # Matched in place, as the TRUE branch straight after the condition: with the
+  # branches swapped every word is still in the row, and the chord would then
+  # send C-q to every local pane while opening a popup over the remote's.
   case $k in
     p | t | o)
       case "$row" in
-        *"@ssh_my_machine"*"send-keys C-q $k"*) pass "prefix + $k is passed to the remote in a myssh pane" ;;
+        *"if-shell -F \"#{@ssh_my_machine}\" \"send-keys C-q $k\" \"display-popup "*)
+          pass "prefix + $k is passed to the remote in a myssh pane"
+          ;;
         *) fail "prefix + $k is passed to the remote in a myssh pane" "got: $row" ;;
       esac
       ;;
   esac
 done
+
+# prefix + A runs a script rather than a popup, so the loop above skips its else
+# block. Three things in it are load-bearing and each fails silently: run-shell
+# (display-popup does not expand #{client_name}), the absolute ~/.local/bin path
+# (run-shell uses the server's PATH), and the client name it hands over.
+# tmux-agents.test.sh calls the script directly, so only this sees the wiring.
+# tmux expands the ~ while parsing, into the fixture $HOME exported above.
+A_row=$(printf '%s\n' "$prefix_keys" | grep -E '^bind-key +(-N "[^"]*" +)?-T prefix +A ' | head -1)
+case "$A_row" in
+  *'already in a popup\"" {'*"run-shell -b \"$HOME/.local/bin/tmux-agents --answer-first '#{client_name}'\""*'}'*)
+    pass "prefix + A runs tmux-agents --answer-first for the client that pressed it"
+    ;;
+  *) fail "prefix + A runs tmux-agents --answer-first for the client that pressed it" "got: ${A_row:-<unbound>}" ;;
+esac
 
 # prefix + u is not a popup, but it is the other chord a myssh pane hands on.
 u_row=$(printf '%s\n' "$prefix_keys" | grep -E '^bind-key +(-N "[^"]*" +)?-T prefix +u ' | head -1)

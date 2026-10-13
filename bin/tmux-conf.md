@@ -188,6 +188,16 @@ What it asserts:
   and `p`/`t`/`o`/`a`/`A`/`g`/`?` each refuse on it as the TRUE branch. It is checked as a
   format on the loaded server, not as text, because the glob only means anything
   once tmux expands it.
+- `@ssh_view` is evaluated the same way, in a plain session, a `local-*` one and
+  an ssh pane, through the full `status-style` and `pane-active-border-style`
+  values, so a lost `E:` (which reads the unexpanded format as always true)
+  shows up.
+- `set-titles-string` evaluates to the blocked glyph plus the window name, and
+  over ssh to the glyph, the mark and the remote's title. The glyph and the
+  mark are read from `wezterm.lua`, which counts and matches them.
+- `p`/`t`/`o` send the chord on as the **true** branch of `@ssh_my_machine`,
+  matched in place; `A`'s else block runs `tmux-agents --answer-first` through
+  `run-shell` by absolute path with `#{client_name}`.
 - `C-]` leaves an agent view — read out of the **root** table, since a prefix
   chord there would reintroduce the nested-tmux ambiguity it exists to avoid —
   and `send-keys` the key through outside a view. Both are guarded on
