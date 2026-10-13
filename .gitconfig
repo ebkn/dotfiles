@@ -133,3 +133,12 @@
 	clean = git-lfs clean -- %f
 	smudge = git-lfs smudge -- %f
 	process = git-lfs filter-process
+# GitHub does not speak git-lfs's "pure SSH" protocol (git-lfs-transfer), yet
+# git-lfs tries it first on every push and LFS fetch: a full ssh handshake on
+# its own ControlPath, so the github.com multiplexing in .sshconfig_base does
+# not help, failing after ~1.5s before the working hybrid protocol runs.
+# Measured on `git lfs pre-push`: 2.4s -> 0.8s. Scoped to GitHub, where it is
+# known to fail. The key must be the ssh:// form -- git-lfs matches the SSH
+# remote, and an https://github.com/ key (the LFS endpoint) is silently ignored.
+[lfs "ssh://git@github.com/"]
+	sshtransfer = never
