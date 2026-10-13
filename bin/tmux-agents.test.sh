@@ -548,6 +548,29 @@ add_bound_pane corr-nobind waiting "needs permission" ""
 # A binding whose session the CLI does not list: the session ended while the
 # pane stayed open. Absence is not evidence that it is unblocked.
 add_bound_pane corr-gone waiting "needs permission" sid-gone
+# Running versus idle, neither one blocked. Hooks miss both directions: an
+# interrupted subagent fires no SubagentStop, so its `busy` record holds the pane
+# at ▶ after the session has gone idle; and a turn can start without
+# UserPromptSubmit (woken by a background task), leaving 🟢 on a running session.
+#
+# Each carries the listing the hook really publishes, because render_list builds
+# rows from the listing whenever there is one: corr-idle is the reported pane
+# (main stalled, an interrupted subagent busy), so the correction must drop the
+# listing here too, or its ▶ row is drawn regardless of the corrected aggregate.
+add_bound_pane corr-idle busy "" sid-idle
+tmux -L "$socket" set-option -p -t "$(tmux -L "$socket" list-panes -t work:corr-idle -F '#{pane_id}' | head -1)" \
+  @claude_agents "stalled${US}${now}${US}${US}${RS}busy${US}${now}${US}general-purpose${US}${RS}"
+add_bound_pane corr-running stalled "" sid-running
+tmux -L "$socket" set-option -p -t "$(tmux -L "$socket" list-panes -t work:corr-running -F '#{pane_id}' | head -1)" \
+  @claude_agents "stalled${US}${now}${US}${US}${RS}"
+# `shell` is idle, so a busy pane under it goes green, not left as running.
+add_bound_pane corr-shellbusy busy "" sid-shellbusy
+# What the running/idle rule must NOT reach, with the CLI saying busy so that
+# reaching it would show. A blank pane is routine on a running session -- `start`
+# clears the pane after every auto-compaction, mid-turn -- and must not light up.
+# A state the hooks publish that this script does not know is not its to guess.
+add_bound_pane corr-blankbusy "" "" sid-blankbusy
+add_bound_pane corr-newbusy compacting "" sid-newbusy
 
 run_rows() {
   rm -f "$work/rows"
@@ -567,7 +590,12 @@ stub_claude '[{"sessionId":"sid-stale","status":"busy"},
               {"sessionId":"sid-needs","status":"busy"},
               {"sessionId":"sid-late","status":"waiting","waitingFor":"permission prompt"},
               {"sessionId":"sid-unknown","status":"teleporting"},
-              {"sessionId":"sid-shell","status":"shell"}]'
+              {"sessionId":"sid-shell","status":"shell"},
+              {"sessionId":"sid-idle","status":"idle"},
+              {"sessionId":"sid-running","status":"busy"},
+              {"sessionId":"sid-shellbusy","status":"shell"},
+              {"sessionId":"sid-blankbusy","status":"busy"},
+              {"sessionId":"sid-newbusy","status":"busy"}]'
 
 if ! run_rows; then
   fail "--rows produces a list" "stderr: $(cat "$work/rows.err" 2>/dev/null)"
@@ -623,6 +651,37 @@ else
     '') fail "a shell status renders as stalled, the idle it refines" "the row disappeared" ;;
     *) fail "a shell status renders as stalled, the idle it refines" \
       "row: $(row_of corr-shell)" ;;
+  esac
+
+  # The glyph is named in both: the pre-existing rule left these rows alone as
+  # "both unblocked", so the hook's glyph surviving is the regression.
+  case "$(row_of corr-idle)" in
+    '🟢'*) pass "a session the CLI calls idle loses its stale ▶" ;;
+    *) fail "a session the CLI calls idle loses its stale ▶" "row: $(row_of corr-idle)" ;;
+  esac
+  if [ "$(rows_for corr-idle)" = 1 ]; then
+    pass "the interrupted subagent's ▶ row is dropped with the listing"
+  else
+    fail "the interrupted subagent's ▶ row is dropped with the listing" \
+      "$(rows_for corr-idle) rows: $(grep -F corr-idle "$work/rows" | cut -f2- | tr '\n' '|')"
+  fi
+  case "$(row_of corr-running)" in
+    '▶ '*) pass "a session the CLI calls busy loses its stale 🟢" ;;
+    *) fail "a session the CLI calls busy loses its stale 🟢" "row: $(row_of corr-running)" ;;
+  esac
+  case "$(row_of corr-shellbusy)" in
+    '🟢'*) pass "a busy pane whose session is at a shell goes green" ;;
+    *) fail "a busy pane whose session is at a shell goes green" "row: $(row_of corr-shellbusy)" ;;
+  esac
+  if [ "$(rows_for corr-blankbusy)" = 0 ]; then
+    pass "a blank pane on a running session gets no row"
+  else
+    fail "a blank pane on a running session gets no row" "row: $(row_of corr-blankbusy)"
+  fi
+  case "$(row_of corr-newbusy)" in
+    '🟢'*) pass "a hook state this script does not know is not corrected to running" ;;
+    *) fail "a hook state this script does not know is not corrected to running" \
+      "row: $(row_of corr-newbusy)" ;;
   esac
 
   # A session that started before the binding existed has no id, and must stay
@@ -770,7 +829,12 @@ stub_claude '[{"sessionId":"sid-stale","status":"busy"},
               {"sessionId":"sid-blank","status":"idle"},
               {"sessionId":"sid-late","status":"waiting","waitingFor":"permission prompt"},
               {"sessionId":"sid-unknown","status":"teleporting"},
-              {"sessionId":"sid-shell","status":"shell"}]'
+              {"sessionId":"sid-shell","status":"shell"},
+              {"sessionId":"sid-idle","status":"idle"},
+              {"sessionId":"sid-running","status":"busy"},
+              {"sessionId":"sid-shellbusy","status":"shell"},
+              {"sessionId":"sid-blankbusy","status":"busy"},
+              {"sessionId":"sid-newbusy","status":"busy"}]'
 
 if ! run_sync; then
   fail "--sync runs" "stderr: $(cat "$work/sync.err" 2>/dev/null)"
@@ -806,6 +870,40 @@ else
   else
     fail "a shell session's stale red is cleared off the pane too" \
       "state: [$(opt_of corr-shell @claude_state)]"
+  fi
+
+  # The reported symptom of the busy/idle half: a tab stuck at ▶ on an idle
+  # session, for as long as the tab stayed open.
+  if [ "$(opt_of corr-idle @claude_state)" = stalled ] &&
+    [ "$(opt_of corr-idle @claude_glyph)" = '🟢' ]; then
+    pass "a stale ▶ is cleared off the pane itself"
+  else
+    fail "a stale ▶ is cleared off the pane itself" \
+      "state: [$(opt_of corr-idle @claude_state)] glyph: [$(opt_of corr-idle @claude_glyph)]"
+  fi
+  if [ "$(opt_of corr-running @claude_state)" = busy ]; then
+    pass "a running session's stale 🟢 is replaced on the pane"
+  else
+    fail "a running session's stale 🟢 is replaced on the pane" \
+      "state: [$(opt_of corr-running @claude_state)]"
+  fi
+  if [ "$(opt_of corr-shellbusy @claude_state)" = stalled ]; then
+    pass "a busy pane whose session is at a shell is set to stalled"
+  else
+    fail "a busy pane whose session is at a shell is set to stalled" \
+      "state: [$(opt_of corr-shellbusy @claude_state)]"
+  fi
+  if [ -z "$(opt_of corr-blankbusy @claude_state)" ]; then
+    pass "a blank pane on a running session stays blank"
+  else
+    fail "a blank pane on a running session stays blank" \
+      "state: [$(opt_of corr-blankbusy @claude_state)]"
+  fi
+  if [ "$(opt_of corr-newbusy @claude_state)" = compacting ]; then
+    pass "a hook state this script does not know is left on the pane"
+  else
+    fail "a hook state this script does not know is left on the pane" \
+      "state: [$(opt_of corr-newbusy @claude_state)]"
   fi
 
   if [ -z "$(opt_of corr-blank @claude_state)" ]; then
@@ -1007,7 +1105,7 @@ else
 fi
 
 tmux -L "$socket" kill-window -t work:corr-blank 2>/dev/null
-for w in corr-stale corr-late corr-needs corr-unknown corr-shell corr-nobind corr-gone; do
+for w in corr-stale corr-late corr-needs corr-unknown corr-shell corr-nobind corr-gone corr-idle corr-running corr-shellbusy corr-blankbusy corr-newbusy; do
   tmux -L "$socket" kill-window -t "work:$w" 2>/dev/null
 done
 

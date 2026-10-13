@@ -496,22 +496,32 @@ correct_rows() { # $1 rows
         # transition into a shell either, so this poller is the only thing that
         # could ever clear it, and it declined to.
         if (s != "waiting" && s != "busy" && s != "idle" && s != "shell") { print; next }
-        # Only the blocked/not-blocked disagreement is acted on. When the two
-        # agree, the hook data is kept whole: its note names the tool and its
-        # per-actor listing names which subagent is blocked, and the CLI knows
-        # neither.
+        # When the two agree that a session is blocked, the hook data is kept
+        # whole: its note names the tool and its per-actor listing names which
+        # subagent is blocked, and the CLI knows neither.
         # Every state that prints 🛑 counts as blocked here: bset is built from
         # BLOCKED_STATES, the list the glyph and ctrl-o read. A state left out
         # of this test alone would stay stuck red, which is how needs_input
         # once did when it arrived after the correction was written.
         hook_blocked = ($6 in bset)
         cli_blocked = (s == "waiting")
-        if (hook_blocked == cli_blocked) { print; next }
-        if (cli_blocked) {
-          $6 = "waiting"; $8 = reason[sid]
+        unblocked = (s == "busy") ? "busy" : "stalled"
+        if (hook_blocked != cli_blocked) {
+          want = cli_blocked ? "waiting" : unblocked
+        } else if ($6 == "busy" || $6 == "stalled") {
+          # Running versus idle is corrected too, though neither is blocked. An
+          # interrupted subagent fires no SubagentStop, so its busy record held
+          # a pane at ▶ for the rest of the session; a turn woken by a background
+          # task fires no UserPromptSubmit and sits under 🟢. Only these two
+          # hook states: a blank pane must not light up because its session is
+          # running, and a state a newer hook invented is not this rule to guess.
+          want = unblocked
         } else {
-          $6 = (s == "busy") ? "busy" : "stalled"; $8 = ""
+          want = $6
         }
+        if (want == $6) { print; next }
+        $6 = want
+        $8 = (want == "waiting") ? reason[sid] : ""
         # The age becomes "since this was last confirmed", not "since the state
         # was entered": the CLI publishes no timestamp for its status, and
         # keeping the hooks one would date a state it disagrees with.

@@ -91,10 +91,18 @@ What the merge does, and does not, do:
   leaves exactly that state stuck red, and it is the kind of gap a merge opens
   quietly: `needs_input` arrived after this correction was written, and the
   pinned case is what caught it.
-- **Only the blocked/not-blocked disagreement is acted on.** When the two agree,
-  the hook data is kept whole — its note names the tool (`Bash: rm -rf …`) and
-  its per-actor listing names *which subagent* is blocked, and the CLI knows
-  neither.
+- **When both say blocked, the hook data is kept whole** — its note names the
+  tool (`Bash: rm -rf …`) and its per-actor listing names *which subagent* is
+  blocked, and the CLI knows neither.
+- **Running versus idle is corrected too, but only from `busy` or `stalled`.**
+  This was originally left alone as "both unblocked", and a pane then sat at ▶
+  for the rest of a session: a subagent the user interrupted fires no
+  `SubagentStop` (an interrupt fires no hook at all), so its `busy` record
+  outranked main's `stalled` while the CLI said `idle`. The opposite case — a
+  turn woken by a background task fires no `UserPromptSubmit` — left 🟢 on a
+  running session. A blank pane is deliberately excluded (a running session
+  whose hooks published nothing must not light up), and so is a state a newer
+  hook invented.
 - **A contradicted per-actor listing is dropped**, not re-rendered: it is
   derived from the same records that were just contradicted, so keeping it would
   put the stale rows straight back and the correction would be invisible.
@@ -146,9 +154,9 @@ how `needs_input` came to be missing from the one above.
 - **A tick with no Claude session under tmux costs one `tmux list-panes`.** The
   CLI call is guarded by "does any pane carry a binding", so an idle machine
   pays essentially nothing and the interval can stay short.
-- **A pane the CLI agrees with is left alone, including a blank one.** An idle
-  session whose hooks published nothing must not acquire a 🟢: "agree = do
-  nothing" is what stops a poller lighting up every Claude pane on the machine.
+- **A pane the CLI agrees with is left alone, and so is a blank one.** A session
+  whose hooks published nothing must not acquire a 🟢 or ▶: leaving blank panes
+  alone is what stops a poller lighting up every Claude pane on the machine.
 - **It never reaches a remote pane** (`collect_rows local`): an ssh round trip
   per tick is not a cost a background timer may impose, and a remote session's
   state is not this machine's to correct anyway.
@@ -471,7 +479,8 @@ one made of the note's tail — which is how the case was written.
 **Correction cases** drive `--rows` directly, with a stub `claude` — the real one
 would answer about the sessions the developer has open, which are not the
 fixtures. They pin both directions of the disagreement (a stale 🛑 becoming ▶, a
-dialog the hooks have not reported yet becoming 🛑), that a contradicted listing
+dialog the hooks have not reported yet becoming 🛑), both directions of running
+versus idle (a stale ▶ becoming 🟢 and back), that a contradicted listing
 is dropped rather than re-rendered, and the three cases where nothing may
 change: an unrecognised status, a pane with no `@claude_session_id`, and a CLI
 that fails. Each was confirmed against a mutated script — with the join
