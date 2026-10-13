@@ -32,8 +32,8 @@ positional() {
 }
 while [ $# -gt 0 ]; do
   case "$1" in
-    # The value-taking options of libnotify master's tools/notify-send.c
-    # (-n/--app-icon is newer than its 0.8.6 tag). -A and -n were missing, so
+    # The value-taking options of libnotify 0.8.8's tools/notify-send.c
+    # (-n and the three --*-fd arrived in 0.8.8). -A and -n were missing, so
     # `notify-send -A Open "Build done"` showed "Open".
     -u | --urgency | -t | --expire-time | -i | --icon | -a | --app-name | -c | --category | -h | --hint | -r | --replace-id | -A | --action | -n | --app-icon | --id-fd | --selected-action-fd | --activation-token-fd)
       # Counted first rather than `shift 2 || break`: shift is a special

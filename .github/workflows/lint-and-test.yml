@@ -270,7 +270,8 @@ jobs:
         run: bash bin/read-doc.test.sh
 
       # Every tmux suite must refuse to run on a developer machine, where one
-      # missed `unset TMUX` killed the real server. Static: it runs nothing.
+      # missed `unset TMUX` killed the real server. Runs no tmux: it reads the
+      # suites, and runs test-in-docker's tally against a stubbed docker.
       - name: tmux suites are guarded
         run: bash bin/tmux-test-guard.test.sh
 

@@ -14,7 +14,8 @@
 # (2) Refusal: outside a container and outside CI, sourcing the guard stops the
 #     caller with exit 2 before anything after it runs.
 #
-# Static and tmux-free itself, so it is safe to run anywhere.
+# tmux-free itself, so it is safe to run anywhere. It is not purely static: it
+# runs bin/test-in-docker against a stubbed docker, tally included.
 
 set -eo pipefail
 

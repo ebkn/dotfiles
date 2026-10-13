@@ -16,8 +16,8 @@
 # (the prefix prepended to every table, notes on tmux's own prefix keys only)
 # are the thing a stub would freeze. Isolated by TMUX_TMPDIR with TMUX unset,
 # like the other tmux suites. --width supplies the geometry, so no pty is
-# needed; PAGER=cat stands in for less when the page is taller than the
-# terminal tput falls back to.
+# needed; PAGER=cat stands in for less when the page, with its margin and
+# hint, would not fit the terminal tput falls back to.
 
 set -u
 # A tmux suite: container or CI only (see bin/tmux-test-guard.sh).
