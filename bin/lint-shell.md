@@ -50,8 +50,11 @@ somebody else's commit.
 
 ## Targets are discovered, not listed
 
-By shebang, so a new script is covered automatically. The two exceptions are
-named in the script: the `zsh/` modules, and every sourced fragment (such as
+By shebang, so a new script is covered automatically. The exceptions are named
+in the script: the zsh config (the `zsh/` modules, matched by path, and the
+`.zshrc`/`.zshenv` entrypoints, listed by name — a new shebang-less entrypoint
+such as `.zprofile` must be added there, and no test catches its absence), and
+every sourced fragment (such as
 `bin/init/common.sh` or an eval's `lib.sh`) — never executed directly, so no
 shebang; each carries a `# shellcheck shell=bash` directive and **must be added
 to the inline list**, or nothing checks it. `lint-shell.test.sh` fails on a

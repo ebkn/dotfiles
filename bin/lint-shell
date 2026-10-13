@@ -11,7 +11,8 @@
 # Targets are discovered by shebang, not from a hardcoded path list: a list rots
 # silently, and a script that falls out of it stops being checked without anyone
 # noticing. Two categories cannot be discovered that way and are named below:
-# sourced fragments (no shebang) and zsh config modules (sourced from .zshrc).
+# sourced fragments (no shebang) and the zsh config (the zsh/ modules, and the
+# .zshrc/.zshenv entrypoints).
 #
 # A GATE THAT DISCOVERS ITS OWN TARGETS FAILS BY CHECKING NOTHING AND REPORTING
 # OK, which is what happened here once; see bin/lint-shell.md.
