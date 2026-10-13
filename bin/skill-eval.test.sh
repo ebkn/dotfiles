@@ -109,6 +109,21 @@ t "transcript_tool_uses counts calls" "2" "$(lib_eval 'transcript_tool_uses Bash
 t "transcript_commands folds newlines, one call per line" 'bash a.test.sh
 git commit -m fix\nbody' "$(lib_eval 'transcript_commands')"
 t "transcript_skill_uses counts the Skill tool" "1" "$(lib_eval 'transcript_skill_uses review-test')"
+# The Skill tool's input key has changed between versions and the name can come
+# as "/<name>", so the reader matches any string value either way. Every other
+# fixture uses {skill: ...}, which a "simplified" `.input.skill == $name` also
+# passes -- while reading every other shape as 0 uses, which grades a skill that
+# fired as one that did not. A Skill call for another skill, and the name in a
+# different tool's input, must not count.
+cat >"$lib/skill-uses.jsonl" <<'EOF'
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Skill","input":{"skill":"review-test"}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Skill","input":{"command":"review-test","args":"x"}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Skill","input":{"skill":"/review-test"}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Skill","input":{"skill":"commit"}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"review-test"}}]}}
+EOF
+t "transcript_skill_uses counts any input key, and the /<name> form" "3" \
+  "$(SKILL_EVAL_TRANSCRIPT="$lib/skill-uses.jsonl" bash -c '. bin/skill-eval-assert.sh; transcript_skill_uses review-test' 2>&1)"
 t "transcript_denials counts refusals" "2" "$(lib_eval 'transcript_denials')"
 t "transcript_result_text is the final response" "all done" "$(lib_eval 'transcript_result_text')"
 
