@@ -20,6 +20,7 @@
 #   bin/lint-shell           check only (a shfmt diff fails the run)
 #   bin/lint-shell --write   apply shfmt's formatting in place
 # exit 0 = clean; run from anywhere in the repo.
+# LINT_SHELL_JOBS=<n> caps the parallel shellcheck jobs (default: CPU count).
 set -uo pipefail
 
 cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
@@ -78,8 +79,50 @@ sh_targets+=(root/.agents/skills/init-project/evals/lib.sh)
 # actually get at runtime. -P SCRIPTDIR is what makes that resolve: the source
 # paths are built from runtime variables shellcheck cannot evaluate, so it needs
 # to be told to look next to the script being checked.
-printf -- '--- shellcheck (%d files) ---\n' "${#sh_targets[@]}"
-if shellcheck -x -P SCRIPTDIR "${sh_targets[@]}"; then
+#
+# Most of the run is shellcheck (~6.5s of ~8s for ~100 files, one core), and it
+# checks each file on its own, so the targets are split into contiguous chunks
+# run as parallel jobs. Each job's output is held in a file and replayed in
+# chunk order, so the report reads exactly as a single run's would instead of
+# interleaving. Every job's status is collected by its own `wait`: a bare
+# `wait` returns 0 regardless, and would swallow a finding.
+#
+# An empty LINT_SHELL_JOBS means the default, as an unset one does. A negative
+# value is what the check below exists for: the chunk loop would never end.
+jobs=${LINT_SHELL_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}
+case "$jobs" in
+  '' | *[!0-9]* | 0*)
+    printf 'lint-shell: LINT_SHELL_JOBS must be a positive integer: %s\n' "$jobs" >&2
+    exit 1
+    ;;
+esac
+n=${#sh_targets[@]}
+# Ceiling division, so no chunk is empty: shellcheck handed no files fails.
+per=$(((n + jobs - 1) / jobs))
+
+if ! outdir=$(mktemp -d); then
+  printf 'lint-shell: mktemp failed\n' >&2
+  exit 1
+fi
+trap 'rm -rf "$outdir"' EXIT
+
+printf -- '--- shellcheck (%d files) ---\n' "$n"
+pids=()
+i=0
+while [ "$i" -lt "$n" ]; do
+  shellcheck -x -P SCRIPTDIR "${sh_targets[@]:i:per}" >"$outdir/$i.out" 2>"$outdir/$i.err" &
+  pids+=("$!")
+  i=$((i + per))
+done
+sc_status=0
+i=0
+for pid in "${pids[@]}"; do
+  wait "$pid" || sc_status=1
+  cat "$outdir/$i.out"
+  cat "$outdir/$i.err" >&2
+  i=$((i + per))
+done
+if [ "$sc_status" -eq 0 ]; then
   printf 'ok\n'
 else
   status=1

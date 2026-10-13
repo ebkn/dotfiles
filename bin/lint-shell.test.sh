@@ -86,9 +86,9 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
 # Stub the three checkers. Each records the argv it was handed so a case can
-# assert on the target list, and succeeds -- except the one named as failing,
-# which exits 1 as a checker does on a finding, so a case can see whether a
-# finding reaches the exit status.
+# assert on the target list, and one line per invocation in <tool>.calls, and
+# succeeds -- except the one named as failing, which exits 1 as a checker does
+# on a finding, so a case can see whether a finding reaches the exit status.
 make_stubs() { # make_stubs <dir> [failing-tool]
   local dir=$1 failing=${2:-} tool code
   mkdir -p "$dir"
@@ -98,10 +98,51 @@ make_stubs() { # make_stubs <dir> [failing-tool]
     cat >"$dir/$tool" <<STUB
 #!/usr/bin/env bash
 printf '%s\n' "\$@" >>"$dir/$tool.argv"
+echo call >>"$dir/$tool.calls"
 exit $code
 STUB
     chmod +x "$dir/$tool"
   done
+  make_shellcheck_stub "$dir" "$([ "$failing" = shellcheck ] && echo 1 || echo 0)"
+}
+
+# The shellcheck stub is a separate one, because the parallel split is only
+# observable through what each invocation was handed and what it printed:
+# - one `checked: <file>` line per file on stdout, so a split run's output can
+#   be compared line for line with a single job's;
+# - like the real one (`No files specified.`, exit 3), it fails when handed no
+#   files, so an empty job breaks a clean run instead of passing unseen;
+# - FAIL_ON=<file> fails only the invocation handed that file, with a finding on
+#   stdout and an error on stderr -- the real one reports an unreadable file on
+#   stderr alone. Only this stub honours it: shfmt is handed the same file, and
+#   its failure would mask a lost job;
+# - SLOW_ON=<file> holds back the invocation handed that file, so a job that
+#   finishes first is not also the one printed first by luck.
+make_shellcheck_stub() { # make_shellcheck_stub <dir> <exit code>
+  local dir=$1 code=$2
+  cat >"$dir/shellcheck" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "\$@" >>"$dir/shellcheck.argv"
+echo call >>"$dir/shellcheck.calls"
+files=0
+for a in "\$@"; do
+  case "\$a" in -x | -P | SCRIPTDIR) continue ;; esac
+  files=\$((files + 1))
+  [ "\$a" = "\${SLOW_ON:-}" ] && sleep 0.5
+  echo "checked: \$a"
+  if [ "\$a" = "\${FAIL_ON:-}" ]; then
+    echo "finding: \$a"
+    echo "error: \$a" >&2
+    exit 1
+  fi
+done
+if [ "\$files" -eq 0 ]; then
+  echo "No files specified." >&2
+  exit 3
+fi
+exit $code
+STUB
+  chmod +x "$dir/shellcheck"
 }
 
 # A stub git standing in for the listing. Every other subcommand is refused
@@ -235,6 +276,95 @@ zsh/alias.zsh
 done
 assert_contains "a zsh -n failure names the file" "$(cat "$work/finding-zsh/out")" "FAIL zsh/alias.zsh"
 assert_nonzero "a finding fails --write too" "$(run_lint "$work/finding-shellcheck" --write)"
+
+# --- splitting shellcheck across jobs changes nothing about what it checks ---
+# Most of the run's time is shellcheck, which checks each file on its own, so the
+# targets are split across parallel jobs. The split must neither drop nor
+# repeat a target, must hand every job the -x -P SCRIPTDIR that makes sourced
+# paths resolve, and must not let one job's finding be lost behind another
+# job's pass. One job is the baseline the split is compared against.
+split_listing="bin/lint-shell
+bin/relink
+bin/launchd-load
+bin/read-doc
+bin/fzf-files
+"
+targets_of() { grep -vxE -- '-x|-P|SCRIPTDIR' "$1" | sort; }
+calls_of() { wc -l <"$1" | tr -d ' '; }
+
+make_stubs "$work/one-job"
+make_git_stub "$work/one-job" 0 "$split_listing"
+assert_eq "one job exits 0" "0" "$(LINT_SHELL_JOBS=1 run_lint "$work/one-job")"
+assert_eq "one job runs shellcheck once" "1" "$(calls_of "$work/one-job/shellcheck.calls")"
+baseline=$(targets_of "$work/one-job/shellcheck.argv")
+first=$(grep -vxE -- '-x|-P|SCRIPTDIR' "$work/one-job/shellcheck.argv" | head -n 1)
+last=$(grep -vxE -- '-x|-P|SCRIPTDIR' "$work/one-job/shellcheck.argv" | tail -n 1)
+
+make_stubs "$work/split"
+make_git_stub "$work/split" 0 "$split_listing"
+assert_eq "a split run exits 0" "0" "$(LINT_SHELL_JOBS=4 run_lint "$work/split")"
+ncalls=$(calls_of "$work/split/shellcheck.calls")
+# Without this the cases below would compare one invocation against itself.
+if [ "$ncalls" -gt 1 ] && [ "$ncalls" -le 4 ]; then
+  ok "four jobs split shellcheck into 2..4 invocations ($ncalls)"
+else
+  fail "four jobs split shellcheck into 2..4 invocations" "got $ncalls"
+fi
+assert_eq "a split run checks exactly the targets one job does, each once" \
+  "$baseline" "$(targets_of "$work/split/shellcheck.argv")"
+assert_eq "every job is handed -x" "$ncalls" "$(grep -cxF -- -x "$work/split/shellcheck.argv")"
+assert_eq "every job is handed -P SCRIPTDIR" "$ncalls" "$(grep -cxF SCRIPTDIR "$work/split/shellcheck.argv")"
+
+# The report reads as one job's would: the first chunk is held back so it
+# finishes last, and must still be printed first. A run printing jobs as they
+# finish, or letting them write straight to the terminal, puts it last.
+make_stubs "$work/order"
+make_git_stub "$work/order" 0 "$split_listing"
+assert_eq "a split run with a slow first job exits 0" "0" \
+  "$(SLOW_ON=$first LINT_SHELL_JOBS=4 run_lint "$work/order")"
+assert_eq "a split run prints exactly what one job does, in the same order" \
+  "$(cat "$work/one-job/out")" "$(cat "$work/order/out")"
+
+# The edge where every chunk holds one file. The stub fails when handed no
+# files, as the real one does, so an empty job fails this run outright.
+make_stubs "$work/many-jobs"
+make_git_stub "$work/many-jobs" 0 "$split_listing"
+assert_eq "more jobs than targets exits 0, so no job is empty" "0" \
+  "$(LINT_SHELL_JOBS=64 run_lint "$work/many-jobs")"
+assert_eq "more jobs than targets checks exactly the targets one job does, each once" \
+  "$baseline" "$(targets_of "$work/many-jobs/shellcheck.argv")"
+
+# The first and the last target land in different jobs, so between them they
+# catch a run that only looks at one job's status. Both of the failing job's
+# streams must reach the output: each is held back and replayed.
+for target in "$first" "$last"; do
+  make_stubs "$work/finding-in-job"
+  make_git_stub "$work/finding-in-job" 0 "$split_listing"
+  assert_nonzero "a finding in the job checking $target exits non-zero" \
+    "$(FAIL_ON=$target LINT_SHELL_JOBS=4 run_lint "$work/finding-in-job")"
+  assert_contains "the job checking $target has its stdout shown" \
+    "$(cat "$work/finding-in-job/out")" "finding: $target"
+  assert_contains "the job checking $target has its stderr shown" \
+    "$(cat "$work/finding-in-job/out")" "error: $target"
+  rm -rf "$work/finding-in-job"
+done
+
+# Rejected by name, before any job starts. An exit status alone would not do:
+# both values also crash the chunk arithmetic (division by zero, an unset
+# variable under -u), so a run with no validation fails too, for that reason.
+for jobs in 0 abc; do
+  make_stubs "$work/bad-jobs"
+  make_git_stub "$work/bad-jobs" 0 "$split_listing"
+  assert_nonzero "LINT_SHELL_JOBS=$jobs is rejected" "$(LINT_SHELL_JOBS=$jobs run_lint "$work/bad-jobs")"
+  assert_contains "LINT_SHELL_JOBS=$jobs is named as the reason" \
+    "$(cat "$work/bad-jobs/out")" "LINT_SHELL_JOBS must be a positive integer"
+  if [ -e "$work/bad-jobs/shellcheck.calls" ]; then
+    fail "LINT_SHELL_JOBS=$jobs starts no job" "shellcheck was called"
+  else
+    ok "LINT_SHELL_JOBS=$jobs starts no job"
+  fi
+  rm -rf "$work/bad-jobs"
+done
 
 # --- an unknown argument is rejected -----------------------------------------
 make_stubs "$work/badarg"
