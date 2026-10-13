@@ -211,6 +211,11 @@ mkrepo() { # <dir> <origin url>
 mkrepo "$TMP/x/ssh" "git@github.com:acme/widget.git"
 mkrepo "$TMP/x/https" "https://github.com/acme/gadget"
 mkrepo "$TMP/x/lookalike" "git@github.com:notacme/thing.git"
+# The other two of the four shapes. ssh without .git is this checkout's own
+# origin (git@github.com:ebkn/dotfiles), so it is the shape the extra-repos
+# route exists for.
+mkrepo "$TMP/x/ssh-bare" "git@github.com:acme/bare"
+mkrepo "$TMP/x/https-git" "https://github.com/acme/suffixed.git"
 mkdir -p "$TMP/ghq/acme/tool"
 
 rp() { # rp <owner/name> <extra>: the path, or "none" with a non-zero status
@@ -233,6 +238,10 @@ eq 'an extra repo is matched on an ssh origin' "$TMP/x/ssh" \
   "$(rp acme/widget "$TMP/missing:$TMP/x/https:$TMP/x/ssh")"
 eq 'an extra repo is matched on an https origin without .git' "$TMP/x/https" \
   "$(rp acme/gadget "$TMP/x/ssh:$TMP/x/https")"
+eq 'an extra repo is matched on an ssh origin without .git' "$TMP/x/ssh-bare" \
+  "$(rp acme/bare "$TMP/x/ssh:$TMP/x/ssh-bare")"
+eq 'an extra repo is matched on an https origin with .git' "$TMP/x/https-git" \
+  "$(rp acme/suffixed "$TMP/x/ssh:$TMP/x/https-git")"
 # The owner/name tail must start at a path boundary: notacme/thing is not
 # acme/thing, and taking it would act on somebody else's repository.
 eq 'an owner that merely ends in the same letters is not a match' 'none' \
