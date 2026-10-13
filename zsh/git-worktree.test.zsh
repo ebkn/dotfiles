@@ -358,6 +358,7 @@ out=$(FZF_PICK=two run "$repo" gw)
 visible=$(awk -F'\t' '{ sub(/ +$/, "", $1); print $1 " | " $2 }' "$work/menu")
 check 'picking a worktree moves the shell into it' \
   "PWD=$repo/git-worktrees/two" "$(pwd_of "$out")"
+check 'and that is a success' 0 "$(status_of "$out")"
 check 'the picker offers each linked worktree by branch and path relative to the main checkout, not main' \
   "one | git-worktrees/one"$'\n'"two | git-worktrees/two" "$visible"
 unset FZF_MENU
@@ -462,6 +463,17 @@ FZF_MENU="$work/menu-main-detached" run "$repo" gw >/dev/null
 check 'the picker leaves out the main checkout while it is detached' \
   "(detached) | git-worktrees/det"$'\n'"one | git-worktrees/one" \
   "$(awk -F'\t' '{ sub(/ +$/, "", $1); print $1 " | " $2 }' "$work/menu-main-detached")"
+
+# A worktree whose directory was deleted by hand is still listed (porcelain
+# marks it prunable), so the picker offers it and cd fails. That failure must
+# reach the caller: a trailing `return 0` would put back the success-while-
+# staying-put that fzf's errors used to get.
+repo=$(new_repo gw-pick-gone)
+run "$repo" gw gone >/dev/null
+/bin/rm -rf "$repo/git-worktrees/gone"
+out=$(FZF_PICK=gone run "$repo" gw)
+check 'picking a worktree whose directory is gone fails' 1 "$(status_of "$out")"
+check 'and leaves the shell where it was' "PWD=$repo" "$(pwd_of "$out")"
 
 # Under the FZF_DEFAULT_OPTS .zshenv exports, read from the file itself.
 # Its --nth=-1 (search the last visible column, the path) is set for
