@@ -2367,6 +2367,63 @@ STUB
         fail "and asks WezTerm to focus that window" "no focus_window OSC reached the client's tty"
       fi
     fi
+
+    # A refused ctrl-o must not fall back to the jump -- and only HERE, with a
+    # client showing the window and a WezTerm tab to raise, is the jump able to
+    # happen at all. Every earlier "does not jump" case ran where the jump
+    # itself would have been refused, so it held whether or not the fallback
+    # existed. The row is made idle, which ctrl-o refuses and enter accepts.
+    tmux -L "$socket" set-option -p -t "$jump_target" @claude_state idle
+    no_jump_since() { # no_jump_since <label>
+      if grep -q 'activate-tab' "$work/wezterm-calls" 2>/dev/null; then
+        fail "$1 raises no tab" "wezterm calls: [$(tr '\n' '|' <"$work/wezterm-calls")]"
+      else
+        pass "$1 raises no tab"
+      fi
+      active=$(tmux -L "$socket" display-message -p -t bindB:b-jump '#{pane_id}')
+      if [ "$active" = "$jump_other" ]; then
+        pass "$1 leaves the agent's pane alone"
+      else
+        fail "$1 leaves the agent's pane alone" "active pane moved to $active"
+      fi
+    }
+    # Inside the picker: the binding refuses and the picker stays up.
+    tmux -L "$socket" select-pane -t "$jump_other"
+    : >"$work/wezterm-calls"
+    tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
+      "sh -c 'SHELL=/bin/sh PATH=$work/wstub:$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
+    if wait_screen b-jump; then
+      tmux -L "$socket" send-keys -t "$fzf_pane" b-jump
+      sleep 0.4
+      tmux -L "$socket" send-keys -t "$fzf_pane" C-o
+      if wait_screen 'not waiting on you'; then
+        pass "ctrl-o on a jumpable idle row is refused in the picker"
+      else
+        fail "ctrl-o on a jumpable idle row is refused in the picker" "$(screen)"
+      fi
+      no_jump_since "a ctrl-o refused in the picker"
+    else
+      fail "the picker lists the jump fixture (ctrl-o case)" "$(screen)"
+    fi
+    # After the picker: a picker that closed on ctrl-o regardless (an fzf whose
+    # binding no longer refuses) hands the script the key and the row. Its own
+    # check must refuse too, and stop there.
+    tmux -L "$socket" select-pane -t "$jump_other"
+    : >"$work/wezterm-calls"
+    mkdir -p "$work/ostub"
+    cat >"$work/ostub/fzf" <<STUB
+#!/bin/sh
+row=\$(grep b-jump)
+printf '%s\n%s\n' ctrl-o "\$row"
+exit 0
+STUB
+    chmod +x "$work/ostub/fzf"
+    tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
+      "sh -c 'SHELL=/bin/sh PATH=$work/ostub:$work/wstub:$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
+    wait_dead || true
+    no_jump_since "a ctrl-o refused after the picker"
+    tmux -L "$socket" set-option -p -t "$jump_target" @claude_state waiting
+
     # And the ssh case: a client attached over ssh is never a WezTerm tab, so
     # the CLI must not be run at all. This is the normal state of every row when
     # the picker itself runs on a remote host, and running wezterm there is pure
