@@ -331,6 +331,12 @@ check 'and is not an error' 0 "$(status_of "$out")"
 check 'from inside a linked worktree the picker still leaves out the main checkout, not the current one' \
   "one | git-worktrees/one"$'\n'"two | git-worktrees/two" \
   "$(awk -F'\t' '{ sub(/ +$/, "", $1); print $1 " | " $2 }' "$work/menu-from-linked")"
+# Picking from a linked worktree is where the absolute path earns its column:
+# from the main root a relative one lands in the same place, so the pick above
+# cannot tell them apart. Handed git-worktrees/two from inside one, cd fails.
+out=$(FZF_PICK=two run "$repo/git-worktrees/one" gw)
+check 'from inside a linked worktree, picking another moves there' \
+  "PWD=$repo/git-worktrees/two" "$(pwd_of "$out")"
 
 # A main checkout whose path holds `\\`. The human format of `git worktree
 # list` wraps such a path in quotes and escapes it, so cd was handed a path

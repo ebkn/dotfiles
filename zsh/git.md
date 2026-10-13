@@ -40,9 +40,11 @@ The picker's menu is asserted on its **visible columns only**: the hidden third
 column is the absolute path, which contains both the branch name and the relative
 path, so a substring match on the whole menu passes whatever the first two
 columns say. Likewise most `gw` cases run from the main root, where the main
-checkout and the current worktree coincide. Two run from inside a linked worktree
-to tell them apart: one pins which of the two `gw` files new worktrees under, the
-other that the picker leaves out the main checkout and keeps paths relative to it.
+checkout and the current worktree coincide. Three run from inside a linked
+worktree to tell them apart: one pins which of the two `gw` files new worktrees
+under; one that the picker leaves out the main checkout and keeps paths relative
+to it; and one that a pick hands `cd` the absolute path, since from the main root
+a relative one lands in the same place.
 
 The picker reads `git worktree list --porcelain`, never the human format: that
 one splits a path with a space at its first word and quotes and escapes a path
