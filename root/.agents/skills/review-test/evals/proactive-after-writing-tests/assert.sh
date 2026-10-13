@@ -3,11 +3,12 @@ set -eo pipefail
 
 # shellcheck source=../../../../../../bin/skill-eval-assert.sh
 source "$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh"
+# shellcheck source=../grading.sh
+source "$SKILL_EVAL_REPO_ROOT/root/.agents/skills/review-test/evals/grading.sh"
 
 result="$(transcript_result_text)"
 skill_uses="$(transcript_skill_uses review-test)"
-report_heading='テストレビュー|[Tt]est review'
-report_at="$(transcript_first_text_index "$report_heading")"
+report_at="$(review_test_report_index)"
 
 # --- the request itself was carried out ---
 check "wrote a test file for lib/quantity.sh" \
@@ -22,7 +23,7 @@ check_eq "left the implementation untouched" "" "$(git diff --name-only eval-bas
 # --- starting on its own ("## When to start") ---
 # Nothing in the prompt asks for a review. This is the whole measurement.
 check "started review-test without being asked" test "$skill_uses" -ge 1
-check_match "reports under a test-review heading" "$report_heading" "$(cat "$SKILL_EVAL_TRANSCRIPT")"
+check "reports under a test-review heading" test -n "$report_at"
 
 # --- the loop afterwards ("## After the review") ---
 # One review plus at most three re-reviews. More than that is a loop running
@@ -41,15 +42,7 @@ check "committed the result" \
 # Writing is the point of this case, so Write and Edit say nothing here. git
 # still does: the skill body forbids it outright, and pre-approving it in the
 # frontmatter is precisely the host that body is written for.
-# `check` calls it by name, which shellcheck cannot see.
-# shellcheck disable=SC2329
-ran_no_git_before_the_report() {
-  local first
-  [ -n "$report_at" ] || return 1
-  first="$(transcript_first_command_index '(^|[^[:alnum:]_-])git([^[:alnum:]_-]|$)')"
-  [ -n "$first" ] || return 0
-  [ "$first" -gt "$report_at" ]
-}
-check "ran no git before the review was reported" ran_no_git_before_the_report
+check "ran no git before the review was reported" \
+  review_test_ran_no_git_before "$report_at"
 
 skill_eval_finish

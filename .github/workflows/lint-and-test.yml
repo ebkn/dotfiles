@@ -158,6 +158,18 @@ jobs:
       - name: init-project swift case grader
         run: bash root/.agents/skills/init-project/evals/swift-makefile-entry-point/assert.test.sh
 
+      # The graders of every review-test case, against synthetic transcripts and
+      # a stub judge. Its first run found the heading check searching the whole
+      # transcript, loaded SKILL.md included, and counting a preamble as the
+      # report.
+      - name: review-test case graders
+        run: bash root/.agents/skills/review-test/evals/assert.test.sh
+
+      # The same for review-design's eight cases and the grading.sh they share:
+      # the heading forms it accepts, and which git counts as writing.
+      - name: review-design case graders
+        run: bash root/.agents/skills/review-design/evals/assert.test.sh
+
       # zsh is needed by the zsh unit tests below and does not ship with the
       # runner image.
       - name: Install zsh

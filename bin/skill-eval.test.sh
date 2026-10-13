@@ -163,6 +163,11 @@ else
   echo absent >"$STUB_CLAUDE_OUT/evals"
 fi
 cp bin/repo_root "$STUB_CLAUDE_OUT/repo_root" 2>/dev/null || echo none >"$STUB_CLAUDE_OUT/repo_root"
+if [ -f CLAUDE.md ]; then
+  head -n 1 CLAUDE.md >"$STUB_CLAUDE_OUT/claude_md"
+else
+  echo absent >"$STUB_CLAUDE_OUT/claude_md"
+fi
 if [ -n "${STUB_CLAUDE_ACTION:-}" ]; then
   bash -c "$STUB_CLAUDE_ACTION"
 fi
@@ -614,6 +619,72 @@ rm -rf "$STUB_CLAUDE_OUT"
 $RUN "$skill" case-a >/dev/null
 absent "a body line is not read as allowed-tools" "Write" "$(cat "$STUB_CLAUDE_OUT/args")"
 contains "while the frontmatter's still is" "Bash(git status *)" "$(cat "$STUB_CLAUDE_OUT/args")"
+
+# --- claude_md: a case that measures a CLAUDE.md rule opts in to one ---
+# By default no CLAUDE.md reaches the fixture, so a case measures what SKILL.md
+# does on its own. A rule that lives only in CLAUDE.md -- review-test's
+# auto-start -- is measurable only by a case that names the file it comes from.
+rm -rf "$STUB_CLAUDE_OUT"
+$RUN "$skill" case-a >/dev/null
+t "a case without claude_md gets no CLAUDE.md" "absent" "$(cat "$STUB_CLAUDE_OUT/claude_md")"
+
+# Excluded only when brought in. Excluding it always would hide a CLAUDE.md the
+# skill writes itself -- init-project's -- from `git add -A`, and its eval's
+# clean-tree check would pass all the same, since an excluded file is not in
+# status either.
+rm -rf "$STUB_CLAUDE_OUT"
+# shellcheck disable=SC2016  # expanded by the stub's own shell, not this one
+STUB_CLAUDE_ACTION='echo mine >CLAUDE.md && git status --porcelain >"$STUB_CLAUDE_OUT/status_after"' \
+  $RUN "$skill" case-a >/dev/null
+contains "a CLAUDE.md the skill writes itself stays visible to git status" "?? CLAUDE.md" \
+  "$(cat "$STUB_CLAUDE_OUT/status_after")"
+
+mkdir -p "$skills_dir/$skill/evals/case-f" "$skills_dir/$skill/evals/case-g"
+cat >"$skills_dir/$skill/evals/case-f/prompt.md" <<'EOF'
+---
+name: case-f
+claude_md: root/CLAUDE.md
+---
+do it
+EOF
+cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-f/scaffold.sh"
+cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-f/assert.sh"
+rm -rf "$STUB_CLAUDE_OUT"
+$RUN "$skill" case-f >/dev/null
+t "claude_md is copied in as the fixture's CLAUDE.md" "$(head -n 1 root/CLAUDE.md)" \
+  "$(cat "$STUB_CLAUDE_OUT/claude_md")"
+# Untracked, it is the user's work to a skill reading git status; committed by
+# the scaffold, it is the user's code.
+t "the CLAUDE.md we brought in stays out of git status" " M tracked.txt" \
+  "$(cat "$STUB_CLAUDE_OUT/status")"
+t "the fixture's first commit does not track the CLAUDE.md" "tracked.txt" \
+  "$(cat "$STUB_CLAUDE_OUT/tracked")"
+absent "the claude_md line stays out of the prompt" "claude_md:" "$(cat "$STUB_CLAUDE_OUT/args")"
+
+cat >"$skills_dir/$skill/evals/case-g/prompt.md" <<'EOF'
+---
+name: case-g
+claude_md: no/such/CLAUDE.md
+---
+do it
+EOF
+cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-g/scaffold.sh"
+cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-g/assert.sh"
+# A typo would otherwise run the case with no CLAUDE.md at all, and measure
+# SKILL.md alone while claiming to measure the rule.
+check_fails "a claude_md that does not exist says why, before spending anything" \
+  "case case-g: claude_md not found: no/such/CLAUDE.md" $RUN "$skill" case-g
+
+# "Before spending anything" means before any case runs, not before this one:
+# run as a whole skill, a bad case further down the list would otherwise be
+# reached only after the ones before it were paid for. One check per key, since
+# each is validated on its own.
+for bad in case-d case-e case-g; do
+  rm -rf "$STUB_CLAUDE_OUT"
+  $RUN "$skill" case-a "$bad" >/dev/null 2>&1
+  t "a bad $bad is refused before case-a runs" "absent" \
+    "$(if [ -e "$STUB_CLAUDE_OUT/args" ]; then echo present; else echo absent; fi)"
+done
 
 # --- the transcript readers, against a fixture transcript ---
 #

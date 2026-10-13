@@ -46,7 +46,7 @@ Three files in `root/.agents/skills/<skill>/evals/<case>/`:
 
 | File | Role |
 | --- | --- |
-| `prompt.md` | the prompt for `claude -p`. Leading YAML frontmatter is stripped before it is passed, and carries the case's own `allowed_tools` / `max_turns` / `budget_usd` |
+| `prompt.md` | the prompt for `claude -p`. Leading YAML frontmatter is stripped before it is passed, and carries the case's own `allowed_tools` / `max_turns` / `budget_usd` / `claude_md` (see [What the eval can and cannot see](#what-the-eval-can-and-cannot-see)) |
 | `scaffold.sh` | builds the fixture; cwd is an empty temp dir. Source `$SKILL_EVAL_LIB_DIR/skill-eval-scaffold.sh` and call `skill_eval_init_repo`, which tags the starting state `eval-base`. A non-zero exit stops the whole run as `case <name>: scaffold.sh exited N` — a broken harness is not graded as a failing skill. With `--keep` the half-built working directory is kept and named |
 | `assert.sh` | grades; cwd is the working directory after the run. Source `$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh`, emit one `check` per assertion, end with `skill_eval_finish`. Any `FAIL` line in its output fails the run even if the script exits 0, so a grader that forgets `skill_eval_finish` cannot report `[PASS]` |
 
@@ -153,11 +153,57 @@ scaffold). With `--keep` the working directory stays and is named, **a failed
 scaffold's included**: a half-built fixture is what fixing the scaffold needs
 to look at. Each of those is pinned.
 
-The consequence is the limit worth knowing: **a case can only measure what
-`SKILL.md` achieves on its own.** The auto-start rule in `root/CLAUDE.md` is not
-loaded, so its effect is not measured here. Read that the other way round and it
-is the point: a case that passes predicts the behaviour in a repository with no
+The consequence is the limit worth knowing: **by default a case measures only
+what `SKILL.md` achieves on its own.** Read that the other way round and it is
+the point: a case that passes predicts the behaviour in a repository with no
 `CLAUDE.md` of ours, and under an agent that reads only `.agents/skills/`.
+
+A rule that lives in a `CLAUDE.md` needs the opposite, and a case opts in by
+naming the file, as a path from the repo root:
+
+```yaml
+---
+name: proactive-with-claude-md
+claude_md: root/CLAUDE.md
+---
+```
+
+The runner copies it in as the fixture's `CLAUDE.md` after the scaffold, and
+excludes it from git only then, so a skill that writes a `CLAUDE.md` of its own
+still sees that one. A path that does not exist is refused before any case
+runs, since a typo would otherwise measure `SKILL.md` alone under the other
+name. Every case's frontmatter is checked before the first one starts, so a bad
+case further down is not reached only after the ones ahead of it were paid for.
+
+**Pair such a case with one that leaves the file out** — same prompt, fixture
+and grader — so the difference between them is the file's. `review-test`'s
+pair also differs in `max_turns` / `budget_usd`, which matter only to a run that
+starts the skill: the runs without the file ended in 6 or 7 turns at about
+0.08 USD, so the ceilings did not decide the result. Raise them on both sides
+before comparing runs that do start it. `review-test` has
+the pair, and it is why the option exists. Measured 2026-10-10 with sonnet:
+
+| Case | Started review-test on its own |
+| --- | --- |
+| `proactive-after-writing-tests` (no CLAUDE.md) | 0 of 7 (4 forked, 3 with the fork lines removed) |
+| `proactive-with-claude-md` (`root/CLAUDE.md`) | 9 of 9 |
+
+So the auto-start rests on `root/CLAUDE.md`, not on the description. Passing as
+a whole took two more things, each found by these runs:
+
+| Round | Passed | What failed |
+| --- | --- | --- |
+| first | 0 of 3 | the caller acted on the forked report without writing it out (3); the review found real defects in the fixture (`%g` printing `1e+06`, a multi-line input passing `grep`) and the caller stopped to ask (2) |
+| after the `Caller:` line was made explicit and the fixture fixed | 1 of 3 | the fixture fix itself rounded after every addition (2) |
+| after rounding once | 1 of 3 | no commit, since `root/CLAUDE.md` names a `commit` skill the fixture does not carry (1); P2 findings left as questions for the user (1) |
+
+From the second round on, every run wrote the report out before acting on it.
+**A fixture a good review can fault makes the case unsatisfiable**: the tests
+that expose a defect fail, and fixing it fails "left the implementation
+untouched". So the fixture's contract has to be one a careful reader finds
+complete. **A `CLAUDE.md` brought in whole also brings its references**: the
+`commit` skill it names is not in the fixture, which is a gap between the two,
+not something the skill under evaluation did.
 
 ## Divergences from the monorepo harness
 
@@ -221,6 +267,28 @@ reference scaffold, asserts it passes, then provokes every assertion in turn and
 asserts each FAIL appears. It costs nothing and CI runs it. It also takes the
 Makefile out of the fenced `make` block in `references/swift.md` instead of copying
 it, so the documented snippet is executed rather than trusted.
+
+`review-test/evals/assert.test.sh` does the same for that skill's cases (`proactive-with-claude-md` runs
+`proactive-after-writing-tests`'s scaffold and grader, so it is pinned through
+that one), and `review-design/evals/assert.test.sh` for all eight of its. A case there is graded on the transcript as much as on the tree, so it
+writes synthetic transcripts, and two things about them are worth copying:
+
+- **A synthetic transcript carries the loaded SKILL.md.** The Skill tool puts
+  the skill's body into the conversation, report template included, so a check
+  that searched the whole transcript for the report heading would find it
+  whether or not a report was written. "reports under a test-review heading"
+  did exactly that, and also counted any mention of a test review, a preamble
+  included. Headings are now looked for in the model's own text blocks only,
+  and need the colon (`evals/grading.sh`). The shape is the one a real run of
+  a forked skill emitted: the body is a user text record carrying the Skill
+  call's id as `parent_tool_use_id`, the fork's own tool calls carry it too,
+  and the report comes back as the Skill's `tool_result`. That result does not
+  count as reported either — the caller has to write it out, and a real run of
+  `review-design` that went straight to its fixes is what the control pins.
+- **`check_llm` is pinned by its wiring, not its rubric.** A stub judge fails
+  exactly when its input contains `JUDGE_FAIL`, so planting the marker in the
+  text a judged check is meant to read shows that it reads that text. Whether
+  the rubric is right is left to real runs.
 
 ## The runner's own test
 

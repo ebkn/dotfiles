@@ -40,7 +40,11 @@ nothing is written before it.
   it as `##` or as bold, and a preamble like "設計レビューを始めます" has no colon.
 - **Graders are checked before they are paid for.** Each case's checks were run
   against synthetic transcripts with a stub judge — a good run passing all of
-  them, each bad run failing only its own — before any real run.
+  them, each bad run failing only its own — before any real run. That check is
+  now `assert.test.sh`, which CI runs: a good run per case, then every
+  assertion provoked, each judged one fed a marker to show it reads the text
+  it claims to. It asserts that the provoked check fails, not that nothing
+  else does.
 - **`skill_eval_init_repo` used to commit the skill under test into the
   fixture**, where a doc-reviewing skill would read itself. Fixed in the harness.
 - **Pin the behaviour the tests do not reach.** Every case that lets the caller
@@ -53,10 +57,17 @@ nothing is written before it.
 
 ## Last measured
 
+**Forked, 2026-10-10, one run each.** `proactive-at-breakpoint` passed.
+`stale-doc-after-change` failed on the skill, not the graders: the report came
+back as the Skill's result, ending in its `Caller:` line, and the caller went
+straight to the fixes and a commit without writing it out, so the user never
+saw it. The ordering graders needed no change: a report counts once the caller
+writes it, which is what SKILL.md asks of a requested review. Once the `Caller:`
+line said when and in full, two more runs both wrote the report out before
+acting on it; one passed, and the other's report had no interface list.
+
 **Before `context: fork`.** Everything below was measured with the review
-running inline in the caller's context; the forked version has not been run
-yet. Expect the ordering graders to need a look: the report now reaches the
-transcript as the forked skill's result and is then relayed by the caller.
+running inline in the caller's context.
 
 On the final SKILL.md, every one of the eight cases has passed; the latest full
 run was 7/8, the miss being `hidden-clock-no-seam` reporting after its fix,
