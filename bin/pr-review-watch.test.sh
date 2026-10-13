@@ -647,6 +647,30 @@ out=$(run)
 eq 'an unreadable PR is reported' 'skip acme/widget#42: could not read the PR' "$out"
 eq 'and neither writes a job' '0' "$(find "$STATE/jobs" -name '*.json' | wc -l | tr -d ' ')"
 
+echo "-- a PR that can never be routed does not hold the cursor --"
+# The other half of the cursor rule below. No checkout and no worktree are
+# standing facts about the PR, not failures to learn something: holding the
+# cursor for them would make every poll a 200, re-reading the batch each minute
+# for as long as that PR sits in the notifications.
+arrange_pr42 2026-09-07T10:02:00Z
+STATE="$TMP/state-standing"
+mkdir -p "$STATE"
+printf 'Mon, 07 Sep 2026 09:00:00 GMT' >"$STATE/poll.last-modified"
+/bin/rm -f "$FIX/ghq-github.com_acme_widget"
+run >/dev/null
+eq 'no local checkout still advances Last-Modified' 'Mon, 07 Sep 2026 10:00:10 GMT' \
+  "$(cat "$STATE/poll.last-modified")"
+arrange_pr42 2026-09-07T10:02:00Z
+printf 'Mon, 07 Sep 2026 09:00:00 GMT' >"$STATE/poll.last-modified"
+cat >"$FIX/pull.json" <<'EOF'
+{"head":{"ref":"feature/nowhere"},"html_url":"https://github.com/acme/widget/pull/42","title":"a title"}
+EOF
+out=$(run)
+eq 'a branch in no worktree is reported' 'yes' \
+  "$(printf '%s' "$out" | grep -q 'not checked out in any worktree' && echo yes || echo no)"
+eq 'and still advances Last-Modified' 'Mon, 07 Sep 2026 10:00:10 GMT' \
+  "$(cat "$STATE/poll.last-modified")"
+
 echo "-- a PR that could not be read keeps the cursor where it was --"
 # A failed read is not "nothing new". Advanced past it, the next poll is a 304
 # and the review that triggered this one is never looked at again; for a PR
