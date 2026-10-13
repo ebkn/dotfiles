@@ -378,10 +378,16 @@ ssh_case() { # <initial config, or - for none>
   # ssh refuses an Include target others can write, so under umask 002 an
   # unchmodded base would fail every ssh -G case below for that reason alone.
   chmod 644 "$SC/base"
+  # What a relative Include reads: ssh resolves it under $HOME/.ssh, so with
+  # HOME="$H" a default-target case is checked by ssh -G as well. 17, not the
+  # real config_base's 15, so a run that forgot to pass HOME cannot pass by
+  # reading the developer's own file.
+  mkdir -p "$H/.ssh"
+  printf 'Host *\n  ServerAliveInterval 17\n' >"$H/.ssh/config_base"
+  chmod 644 "$H/.ssh/config_base"
   [ "$1" = "-" ] || printf '%s' "$1" >"$SC/config"
 }
-# With an absolute target, for ssh -G: a relative Include resolves against the
-# passwd home, which a test cannot redirect.
+# With an absolute target, so a case reads no file under $HOME at all.
 ensure() {
   unit ensure_ssh_base_include "$SC/config" "$SC/base"
   ST=$?
@@ -531,6 +537,57 @@ Include config_base
 ensure_default
 eq "an unrelated Include at the top stays at the top" \
   "Include ~/.orbstack/ssh/config||Host mbp2022|  ServerAliveInterval 30||Host *|Include config_base" "$(flat)"
+
+# The repo's .sshconfig template began with `Include ~/.ssh/config_base` -- the
+# same file to ssh, which reads a relative Include in a user config from
+# ~/.ssh -- and macos.sh moved it into place, then appended the bare form after
+# the last host. A Mac set up from it holds both; both must go, or the one at
+# the top keeps the defaults ahead of every host's own value.
+ssh_case "Include ~/.ssh/config_base
+
+Host github.com
+  User git
+
+Host mbp2022
+  ServerAliveInterval 30
+
+Include config_base
+"
+eq "control: from the old template the defaults beat a host's own value" \
+  "17" "$(HOME="$H" resolved mbp2022 serveraliveinterval)"
+ensure_default
+clean_run "a config from the old template"
+eq "a config from the old template: the ~/.ssh form at the top goes too" \
+  "Host github.com|  User git||Host mbp2022|  ServerAliveInterval 30||Host *|Include config_base" "$(flat)"
+eq "a config from the old template: a host's own value now wins" \
+  "30" "$(HOME="$H" resolved mbp2022 serveraliveinterval)"
+eq "a config from the old template: the defaults still reach an unrelated host" \
+  "17" "$(HOME="$H" resolved example.com serveraliveinterval)"
+
+# Only that exact spelling of the same file: another file under ~/.ssh is
+# someone else's Include, whether its name only starts like ours or only ends
+# like it.
+ssh_case "Include ~/.ssh/config_base.local
+Include ~/.ssh/old/config_base
+
+Host mbp2022
+  ServerAliveInterval 30
+"
+ensure_default
+eq "Includes of other files under ~/.ssh stay" \
+  "Include ~/.ssh/config_base.local|Include ~/.ssh/old/config_base||Host mbp2022|  ServerAliveInterval 30||Host *|Include config_base" "$(flat)"
+
+# The template itself must not reintroduce the line: setup places the Include,
+# and one written at the top of the template is the precedence bug again. A
+# template that cannot be read is a failure, not a pass: grep's "no match" and
+# "no file" must not collapse into one answer.
+if [ ! -f "$REPO/.sshconfig" ]; then
+  fail "the repo's .sshconfig template exists to be checked" "$REPO/.sshconfig"
+elif grep -qiE '^[[:space:]]*include[[:space:]=].*config_base' "$REPO/.sshconfig"; then
+  fail "the repo's .sshconfig template carries no Include of config_base" "$(grep -niE 'include' "$REPO/.sshconfig")"
+else
+  ok "the repo's .sshconfig template carries no Include of config_base"
+fi
 
 # A run on every setup must converge: the second leaves the file untouched --
 # not rewritten with the same bytes. A hard link taken in between still names

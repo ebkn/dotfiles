@@ -1,4 +1,6 @@
-Include ~/.ssh/config_base
+# Host-specific settings only. The shared defaults (config_base) are included
+# by setup, as the last lines inside `Host *` -- written here at the top they
+# would beat every host below (bin/init/common.sh ensure_ssh_base_include).
 
 Host github.com
         HostName github.com

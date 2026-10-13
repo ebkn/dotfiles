@@ -107,26 +107,39 @@ link_with_backup() {
 #
 # Any existing Include of the target is removed first, so the broken forms are
 # repaired and a rerun changes nothing. The target is matched as written,
-# ignoring only case and whitespace: `Include ~/.ssh/config_base` names the same
-# file to ssh but is a different line here, and is left where it is. A `Host *` directly above it goes too,
-# but only when nothing but blanks and comments follow the Include in that
-# block: a user who put settings there meant them for every host, and dropping
-# the header would fold them into the block before -- the same silent narrowing
-# this function exists to undo.
+# ignoring only case and whitespace -- plus, for a relative target, its
+# `~/.ssh/` spelling: ssh reads a relative Include in a user config from ~/.ssh, so
+# `Include ~/.ssh/config_base` is the same file, and the repo's old .sshconfig
+# template put exactly that line at the top. Nothing else is taken for it.
+#
+# A `Host *` directly above a removed Include goes too, but only when nothing
+# but blanks and comments follow the Include in that block: a user who put
+# settings there meant them for every host, and dropping the header would fold
+# them into the block before -- the same silent narrowing this function exists
+# to undo.
 #
 # The file is rewritten only when its content changes, and never from a failed
 # read: it is the user's own file and no backup is taken, so an unreadable one
 # is left alone and the call returns 1 (callers run without errexit, or under
 # `||`, as much as with it).
 ensure_ssh_base_include() {
-  local config target tmp
+  local config target tmp alias tilde
   config="$1"
   target="${2:-config_base}"
   tmp="${config}.tmp"
+  # The ~/.ssh/ spelling of a relative target, as text in the file -- the tilde
+  # is matched, never expanded. ssh draws the line the same way: only an
+  # absolute or ~ path names itself; any other, with a / or not, is read from
+  # ~/.ssh.
+  tilde='~'
+  case "$target" in
+    /* | "$tilde"*) alias="$target" ;;
+    *) alias="$tilde/.ssh/$target" ;;
+  esac
 
   mkdir -p "$(dirname "$config")"
   if [ -f "$config" ]; then
-    if ! awk -v inc="include $target" '
+    if ! awk -v inc="include $target" -v alt="include $alias" '
         function norm(s) {
           sub(/^[ \t]+/, "", s)
           sub(/[ \t]+$/, "", s)
@@ -136,7 +149,7 @@ ensure_ssh_base_include() {
         { line[NR] = $0 }
         END {
           for (i = 1; i <= NR; i++) {
-            if (norm(line[i]) != tolower(inc)) continue
+            if (norm(line[i]) != tolower(inc) && norm(line[i]) != tolower(alt)) continue
             drop[i] = 1
             if (i == 1 || norm(line[i - 1]) != "host *") continue
             rest_empty = 1
