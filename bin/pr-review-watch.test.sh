@@ -207,9 +207,14 @@ EOF
 # 33 is CodeRabbit's placeholder: posted the moment a push lands, long before
 # there is anything to say. It is the SAME comment that is later edited into the
 # walkthrough, so only the marker in the body tells the two apart.
+#
+# 31 is stamped EARLIER than review:12 and inline:21 (10:00:05). fetch_items
+# concatenates reviews, inline, then issue comments, so with 31 last in time as
+# well the concatenation was already oldest-first, and "pending is ordered
+# oldest first" passed with the sort removed.
 cat >"$FIX/issue_comments.json" <<'EOF'
 [
- {"id":31,"user":{"login":"coderabbitai[bot]"},"body":"nit: typo","created_at":"2026-09-07T10:00:08Z"},
+ {"id":31,"user":{"login":"coderabbitai[bot]"},"body":"nit: typo","created_at":"2026-09-07T10:00:03Z"},
  {"id":33,"user":{"login":"coderabbitai[bot]"},"body":"<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n<!-- This is an auto-generated comment: review in progress by coderabbit.ai -->\n\n> [!NOTE]\n> Currently processing new changes in this PR. This may take a few minutes, please wait...\n\n<!-- end of auto-generated comment: review in progress by coderabbit.ai -->","created_at":"2026-09-07T10:00:09Z"},
  {"id":35,"user":{"login":"coderabbitai[bot]"},"body":"<!-- This is an auto-generated comment: review paused by coderabbit.ai -->\n\n> [!NOTE]\n> ## Reviews paused","created_at":"2026-09-07T10:00:09Z"},
  {"id":36,"user":{"login":"coderabbitai[bot]"},"body":"<!-- This is an auto-generated comment: rate limited by coderabbit.ai -->\n\n> [!WARNING]\n> ## Rate limit exceeded","created_at":"2026-09-07T10:00:09Z"},
@@ -322,7 +327,7 @@ eq 'pending unchanged on re-poll' "$before" "$(job '.pending|length')"
 echo "-- a review arriving while the session is busy ACCUMULATES, never replaces --"
 cat >"$FIX/issue_comments.json" <<'EOF'
 [
- {"id":31,"user":{"login":"coderabbitai[bot]"},"body":"nit: typo","created_at":"2026-09-07T10:00:08Z"},
+ {"id":31,"user":{"login":"coderabbitai[bot]"},"body":"nit: typo","created_at":"2026-09-07T10:00:03Z"},
  {"id":32,"user":{"login":"bob"},"body":"one more thing","created_at":"2026-09-07T10:05:00Z"}
 ]
 EOF
@@ -338,7 +343,7 @@ echo "-- 304 short-circuits: no fetch, no write --"
 # find nothing, and pass every assertion here for the wrong reason.
 cat >"$FIX/issue_comments.json" <<'EOF'
 [
- {"id":31,"user":{"login":"coderabbitai[bot]"},"body":"nit: typo","created_at":"2026-09-07T10:00:08Z"},
+ {"id":31,"user":{"login":"coderabbitai[bot]"},"body":"nit: typo","created_at":"2026-09-07T10:00:03Z"},
  {"id":32,"user":{"login":"bob"},"body":"one more thing","created_at":"2026-09-07T10:05:00Z"},
  {"id":40,"user":{"login":"bob"},"body":"waiting behind the 304","created_at":"2026-09-07T10:10:00Z"}
 ]
@@ -358,7 +363,7 @@ echo "-- --force ignores the stored Last-Modified --"
 # exactly the regression --force exists to get past.
 cat >"$FIX/issue_comments.json" <<'EOF'
 [
- {"id":31,"user":{"login":"coderabbitai[bot]"},"body":"nit: typo","created_at":"2026-09-07T10:00:08Z"},
+ {"id":31,"user":{"login":"coderabbitai[bot]"},"body":"nit: typo","created_at":"2026-09-07T10:00:03Z"},
  {"id":32,"user":{"login":"bob"},"body":"one more thing","created_at":"2026-09-07T10:05:00Z"},
  {"id":38,"user":{"login":"bob"},"body":"after the 304","created_at":"2026-09-07T10:06:00Z"}
 ]
