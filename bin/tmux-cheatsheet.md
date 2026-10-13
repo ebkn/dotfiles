@@ -101,10 +101,11 @@ otherwise required, since the real geometry comes from `stty`):
   margin, its top margin and the closing hint are stripped, since those follow
   the terminal rather than the fixture. Each rule was mutated and went red,
   including the `SUBSEP++` slip, per-line centring and per-line packing. How
-  the page leaves the screen is checked separately, in real panes sized either
-  side of the page height: a page that fits shows the hint, stays open, and
-  closes on one key; a taller one goes to `$PAGER` (a stub that records it)
-  without the hint.
+  the page leaves the screen is checked separately, in real panes: with ample
+  room the page shows the hint, stays open, and closes on one key; in a pane
+  two rows taller than the page — the tallest where margin, page, blank line,
+  hint and cursor line still overflow and the first heading would scroll away —
+  it goes to `$PAGER` (a stub that records it) without the hint.
 - **`bin/tmux-conf.test.sh` (section 4) runs it against the real `.tmux.conf`**:
   every tagged category, and `COPY-MODE` whenever copy-mode-vi bindings carry
   notes, is a heading standing alone in its column (a substring match found

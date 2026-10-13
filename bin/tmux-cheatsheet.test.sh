@@ -201,9 +201,10 @@ usage "--width with a non-number" --width wide
 # PAGER=cat and stdin closed, and strips the closing hint. In a popup opened
 # with -E the popup closes the moment the script exits, so a page that fits
 # must be held open until a key -- without the `read`, `prefix + ?` flashes and
-# is gone. A page taller than the popup must go through the pager instead, or
-# its first groups scroll off the top with no way back. Both are run in a real
-# pane of the fixture server, sized either side of the page height.
+# is gone. A page that, with its margin and hint, does not fit the popup must
+# go through the pager instead, or its first groups scroll off the top with no
+# way back. Both are run in a real pane of the fixture server: one with ample
+# room, one at the tallest height that would still lose a heading.
 cat >"$DIR/pager" <<STUB
 #!/bin/sh
 cat >"$DIR/paged"
@@ -242,19 +243,20 @@ t "one key, no Enter, closes it" "1" "$(pane_dead fits)"
 # Cleared so this case can only see what the tall page itself sent: left over
 # from a fits case that wrongly paged, it would pass here for the wrong reason.
 /bin/rm -f "$DIR/paged"
-# One row taller than the page itself, not far below it: the frame's top margin
-# and the two-line hint still do not fit there, so this is the edge the
-# threshold exists for. A popup far too short could not tell `lines - 4` from
-# `lines`, which would let a page one or two rows short of the popup scroll its
-# first heading away.
+# What must fit is not the page alone but the top margin, the page, a blank
+# line, the hint and the cursor's line: page + 4 rows. Two rows taller than the
+# page is the tallest popup where holding the page open still loses its first
+# heading off the top, so that is where the pager has to take over. A popup far
+# shorter could not tell `lines - 4` from `lines - 1`, which would scroll that
+# heading away in exactly this popup.
 page_rows=$(render --width 100 | wc -l | tr -d ' ')
-sheet_pane tall $((page_rows + 1))
+sheet_pane tall $((page_rows + 2))
 for _ in $(seq 1 50); do
   [ -s "$DIR/paged" ] && [ "$(pane_dead tall)" = 1 ] && break
   sleep 0.1
 done
 # A row of the fixture, so the pager is known to have had the page itself.
-t "a page taller than the popup goes through the pager" "yes" \
+t "a page that would scroll its first heading away goes through the pager" "yes" \
   "$(grep -q 'focus left' "$DIR/paged" 2>/dev/null && echo yes || echo no)"
 t "with no closing hint, since the pager has its own" "0" "$(grep -c 'any key to close' "$DIR/paged" 2>/dev/null)"
 tmux set-option -g remain-on-exit off
