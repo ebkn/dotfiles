@@ -32,17 +32,21 @@ positional() {
 }
 while [ $# -gt 0 ]; do
   case "$1" in
-    -u | --urgency | -t | --expire-time | -i | --icon | -a | --app-name | -c | --category | -h | --hint | -r | --replace-id)
+    # The value-taking options of libnotify's tools/notify-send.c. -A and -n
+    # were missing, so `notify-send -A Open "Build done"` showed "Open".
+    -u | --urgency | -t | --expire-time | -i | --icon | -a | --app-name | -c | --category | -h | --hint | -r | --replace-id | -A | --action | -n | --app-icon)
       # Counted first rather than `shift 2 || break`: shift is a special
       # builtin, and in dash -- WSL's /bin/sh -- shifting past the end exits
       # the shell before `||` is reached.
       [ $# -ge 2 ] || break
       shift 2
       ;;
-    --urgency=* | --expire-time=* | --icon=* | --app-name=* | --category=* | --hint=* | --replace-id=*)
+    --urgency=* | --expire-time=* | --icon=* | --app-name=* | --category=* | --hint=* | --replace-id=* | --action=* | --app-icon=*)
       shift
       ;;
-    -p | --print-id | -w | --wait | -N | --transient | -e | --hint-server)
+    # libnotify's -e is --transient; -N and --hint-server are not its options
+    # and were dropped (any other -* below is skipped the same way anyway).
+    -p | --print-id | -w | --wait | -e | --transient)
       shift
       ;;
     --)
