@@ -218,7 +218,9 @@ if [ -n "${SSH_CONNECTION:-}" ] && [ "${print_only}" -eq 0 ] && [ "${force_here}
   # The braces matter: a bare `cmd > /dev/tty 2>/dev/null` still lets the
   # shell print its own "Device not configured" to stderr, because that
   # message is emitted by the redirect, not by the command.
-  if ! { printf '%s' "${emit}" >/dev/tty; } 2>/dev/null; then
+  # READ_DOC_TTY exists for the suite alone: run from a real terminal, a test
+  # writing to /dev/tty would reach the real WezTerm and open a browser.
+  if ! { printf '%s' "${emit}" >"${READ_DOC_TTY:-/dev/tty}"; } 2>/dev/null; then
     printf '%s' "${emit}"
   fi
 
