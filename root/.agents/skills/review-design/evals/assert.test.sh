@@ -56,26 +56,35 @@ bad() {
 #
 # Shards run on "$BASH", the interpreter running this file: through PATH they
 # would get Homebrew's bash 5, and nothing would exercise "written for bash 3.2".
-if [ -z "${REVIEW_DESIGN_SHARD:-}" ]; then
-  jobs="${REVIEW_DESIGN_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
-  case "$jobs" in '' | *[!0-9]* | 0) jobs=1 ;; esac
-  shard_dir="$(mktemp -d)"
-  trap 'rm -rf "$shard_dir"' EXIT
-  pids=()
-  k=0
-  while [ "$k" -lt "$jobs" ]; do
-    REVIEW_DESIGN_SHARD="$k" REVIEW_DESIGN_JOBS="$jobs" \
-      "$BASH" "$self" >"$shard_dir/$k" 2>&1 &
-    pids+=("$!")
-    k=$((k + 1))
-  done
-  shard_failed=0
-  for p in "${pids[@]}"; do wait "$p" || shard_failed=1; done
-  # \036 opens scenario <n>; \037 closes a shard, carrying its scenario count;
-  # \035 is the completion token. A line before a shard's first marker is its
-  # setup, kept at the top (idx resets per file, or it would join the previous
-  # shard's last scenario).
-  complete=$'\035complete'
+#
+# The protocol on a shard's stdout: \036<n> opens scenario <n>, \037<n> ends
+# the shard carrying how many it walked. Only the four functions below read or
+# write it.
+
+# shard_begin -- where a scenario begins. Returns 1 when it belongs to another
+# shard: the caller stops, and grade and expect_* do nothing for it.
+shard_begin() {
+  scenario=$((scenario + 1))
+  if [ $(((scenario - 1) % REVIEW_DESIGN_JOBS)) -ne "$REVIEW_DESIGN_SHARD" ]; then
+    skipping=1
+    return 1
+  fi
+  skipping=0
+  printf '\036%d\n' "$scenario"
+}
+
+# shard_end -- a shard's last line.
+shard_end() { printf '\037%d\n' "$scenario"; }
+
+# shard_merge <jobs> <shard output file>... -- the scenarios' blocks in source
+# order; 0 only when all <jobs> shards finished and every scenario 1..n left a
+# block holding a check. awk proves that with a token (\035) it prints only
+# then, so an awk that errors or prints nothing fails rather than passes. A
+# line before a shard's first marker is its setup, kept at the top (idx resets
+# per file, or it would join the previous shard's last scenario).
+shard_merge() {
+  local jobs="$1" merged complete=$'\035complete'
+  shift
   if ! merged="$(awk -v jobs="$jobs" '
     FNR == 1 { idx = 0 }
     /^\036/ { idx = substr($0, 2) + 0; seen[idx] = 1; next }
@@ -86,24 +95,51 @@ if [ -z "${REVIEW_DESIGN_SHARD:-}" ]; then
       for (i = 1; i <= total; i++) if (!(i in seen) || !(i in checked)) missing++
       if (shards == jobs && !bad && total > 0 && !missing) print "\035complete"
       else printf "FAIL shards: %d of %d finished, %s scenario(s), %d missing or without a check\n", shards, jobs, total, missing
-    }' "$shard_dir"/*)"; then
-    merged="FAIL the shard merge itself failed"
+    }' "$@")"; then
+    printf 'FAIL the shard merge itself failed\n'
+    return 1
   fi
-  finished=0
-  case "$merged" in *"$complete") finished=1 ;; esac
-  merged="${merged%"$complete"}"
+  case "$merged" in
+    *"$complete")
+      printf '%s' "${merged%"$complete"}"
+      return 0
+      ;;
+  esac
+  printf '%s\n' "$merged"
+  return 1
+}
+
+# shard_drive -- run this file as its shards, print the merge and a summary,
+# and exit with the verdict.
+shard_drive() {
+  local jobs shard_dir k p merged finished=1 shard_failed=0 pids=()
+  jobs="${REVIEW_DESIGN_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
+  case "$jobs" in '' | *[!0-9]* | 0) jobs=1 ;; esac
+  shard_dir="$(mktemp -d)"
+  trap 'rm -rf "$shard_dir"' EXIT
+  k=0
+  while [ "$k" -lt "$jobs" ]; do
+    REVIEW_DESIGN_SHARD="$k" REVIEW_DESIGN_JOBS="$jobs" \
+      "$BASH" "$self" >"$shard_dir/$k" 2>&1 &
+    pids+=("$!")
+    k=$((k + 1))
+  done
+  for p in "${pids[@]}"; do wait "$p" || shard_failed=1; done
+  merged="$(shard_merge "$jobs" "$shard_dir"/*)" || finished=0
   if [ "$shard_failed" -ne 0 ] && ! grep -q '^FAIL' <<<"$merged"; then
     merged="$merged
 FAIL a shard exited non-zero without reporting a failure"
   fi
-  printf '%s\n' "${merged%$'\n'}"
+  printf '%s\n' "$merged"
   if [ "$finished" -eq 1 ] && [ "$shard_failed" -eq 0 ] && ! grep -q '^FAIL' <<<"$merged"; then
     printf '\nall review-design grader tests passed (%s shard(s))\n' "$jobs"
     exit 0
   fi
   printf '\n%d review-design grader test(s) failed\n' "$(grep -c '^FAIL' <<<"$merged")"
   exit 1
-fi
+}
+
+[ -n "${REVIEW_DESIGN_SHARD:-}" ] || shard_drive
 
 scenario=0
 skipping=0
@@ -172,17 +208,10 @@ rec_skill() {
 # scenarios run here. Every scenario still mutates only its own copy. The
 # copies share commit hashes, which nothing here compares across scenarios.
 #
-# It is also where a scenario begins, so it decides whether this shard runs it
-# (see "shards" above). A skipped scenario returns 1 like a failed scaffold,
-# which stops the *_run caller; grade and expect_* then do nothing for it.
+# It is also where a scenario begins (see "shards" above): one that belongs to
+# another shard returns 1 like a failed scaffold, which stops the *_run caller.
 new_run() {
-  scenario=$((scenario + 1))
-  if [ $(((scenario - 1) % REVIEW_DESIGN_JOBS)) -ne "$REVIEW_DESIGN_SHARD" ]; then
-    skipping=1
-    return 1
-  fi
-  skipping=0
-  printf '\036%d\n' "$scenario"
+  shard_begin || return 1
   case_name="$1"
   work="$root_dir/work"
   art="$root_dir/art"
@@ -853,6 +882,6 @@ proactive_run "$work_records" "$closing_ok" "fix_kg; printf 'x\n' >stray.txt"
 grade "$proactive_closing"
 expect_fail "proactive: something left uncommitted is caught" "left nothing uncommitted"
 
-# A shard's ending: the merge in "shards" above prints the summary.
-printf '\037%d\n' "$scenario"
+# A shard's ending: shard_drive prints the summary.
+shard_end
 [ "$fails" -eq 0 ]
