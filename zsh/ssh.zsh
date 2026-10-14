@@ -226,6 +226,9 @@ _ssh_keepalive_owners_live() {
 # _ssh_keepalive_start <target> [owner-pid]
 # Registers this shell as needing a ping to <target> and makes sure one runs.
 # Sets _SSH_KEEPALIVE_OWNER, or leaves it empty when there is nothing to ping.
+# The supervisor is the last job it starts, so `$!` right after a call that
+# registered an owner is the supervisor's pid; ssh-keepalive.test.zsh waits on
+# it to tell a lost lock race from a slow one.
 _ssh_keepalive_start() {
   local target=$1 owner=${2:-$$}
   _SSH_KEEPALIVE_OWNER=""

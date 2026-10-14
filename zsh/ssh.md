@@ -84,8 +84,14 @@ scratch dir so a test never joins a live session's ping, and
 `_ssh_keepalive_start` takes the owner pid as an optional second argument so one
 test can play several shells and own processes it is allowed to kill.
 Disappearance and the expected count are polled for (`wait_gone`,
-`settled_pings`), so a slow start is waited out rather than miscounted; only "no
-extra ping appeared" is a fixed wait, because absence cannot be polled for.
+`settled_pings`), so a slow start is waited out rather than miscounted. An
+absence is read once, after the event that decides it: "no extra ping" after the
+supervisor that must lose the lock race has exited — the test takes its pid from
+`$!` right after `_ssh_keepalive_start`, so **the supervisor must stay the last
+job that function starts** — and "still pinging" after `wait_poll` has seen the
+supervisor prune a probe owner file (a pid that cannot exist) twice. The one
+fixed window left is `settled_pings 0`, 1 s, for a ping that must never start:
+nothing marks the moment it would have. See `bin/testing.md`, rule 1.
 
 The `ping` stub records the host it was asked for as well as its pid. One that
 accepted any argv stayed green with the target dropped, while the real `ping`
