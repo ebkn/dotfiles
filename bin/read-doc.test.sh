@@ -76,28 +76,52 @@ t "a remote image is left as a URL for the CSP to refuse, not fetched or inlined
 # YAML front matter is the document's to write, and pandoc reads it as template
 # variables: `css:` becomes a <link> placed BEFORE the CSP <meta>, which a CSP
 # delivered by <meta> cannot reach, and `title:` brings back the <h1> that
-# pagetitle exists to avoid. A block further down is metadata to pandoc too.
-cat >"$doc/fm.md" <<'EOF'
+# pagetitle exists to avoid. gfm reads only a block at the very top.
+cat >"$doc/fm.md" <<'MD'
 ---
 css: https://example.com/x.css
 title: Injected
 ---
 
 # Real heading
-
----
-css: https://example.com/y.css
-...
-EOF
+MD
 env -u SSH_CONNECTION "$RD" --print "$doc/fm.md" >"$TMP/fm.html" 2>"$TMP/fm.err"
 t "front matter: --print exits 0" "0" "$?"
-t "front matter links no stylesheet, at the top or further down" "0" "$(count '<link' "$TMP/fm.html")"
+t "front matter links no stylesheet" "0" "$(count '<link' "$TMP/fm.html")"
 t "and sets no title heading" "0" "$(count 'class="title"' "$TMP/fm.html")"
 # Still readable, since SKILL.md and most notes start with one: shown as YAML.
 t "the leading block is shown as YAML source" "1" \
   "$(count '<code class="sourceCode yaml">' "$TMP/fm.html")"
-t "with its text intact" "yes" \
-  "$(grep -q 'Injected' "$TMP/fm.html" && echo yes || echo no)"
+# Each value once, which is inside that block: `Injected` alone would also be
+# found in the <h1 class="title"> this exists to prevent.
+t "with every line of it kept: the css value" "1" "$(count 'example.com/x.css' "$TMP/fm.html")"
+t "and the title value" "1" "$(count 'Injected' "$TMP/fm.html")"
+
+# The other ways in: stdin (`ssh host cat doc.md | read-doc`), and YAML's own
+# `...` as the closing line.
+printf -- '---\ntitle: Piped\n...\n\n# Real\n' |
+  env -u SSH_CONNECTION "$RD" --print >"$TMP/fm-stdin.html" 2>/dev/null
+t "from stdin, a block closed by ... is shown as YAML too" "1" \
+  "$(count '<code class="sourceCode yaml">' "$TMP/fm-stdin.html")"
+t "and sets no title heading" "0" "$(count 'class="title"' "$TMP/fm-stdin.html")"
+
+# A block that never closes is not front matter. Every line must still be there:
+# the filter holds them back while it waits for the closing line.
+printf -- '---\nfirst line\nlast line\n' >"$doc/open.md"
+env -u SSH_CONNECTION "$RD" --print "$doc/open.md" >"$TMP/open.html" 2>/dev/null
+t "an unclosed block is not fenced" "0" "$(count '<code class="sourceCode yaml">' "$TMP/open.html")"
+t "and loses none of its lines" "yes" \
+  "$(grep -q 'first line' "$TMP/open.html" && grep -q 'last line' "$TMP/open.html" && echo yes || echo no)"
+
+# The reader spec on its own. CRLF line endings get past the filter, whose
+# `---` match is exact, so here nothing but the disabled yaml_metadata_block
+# stands between the block and pandoc's template.
+printf -- '---\r\ncss: https://example.com/x.css\r\ntitle: Injected\r\n---\r\n\r\n# Real\r\n' >"$doc/crlf.md"
+env -u SSH_CONNECTION "$RD" --print "$doc/crlf.md" >"$TMP/crlf.html" 2>/dev/null
+t "precondition: a CRLF block is not fenced, so the filter is not what stops it" "0" \
+  "$(count '<code class="sourceCode yaml">' "$TMP/crlf.html")"
+t "a CRLF block links no stylesheet" "0" "$(count '<link' "$TMP/crlf.html")"
+t "and sets no title heading" "0" "$(count 'class="title"' "$TMP/crlf.html")"
 
 # --- images: inlined from the document's own tree only ------------------------
 # A script the document smuggles in can carry out whatever is in the DOM, so an
