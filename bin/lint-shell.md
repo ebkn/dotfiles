@@ -1,7 +1,12 @@
 # lint-shell
 
 `shellcheck` + `shfmt` + `zsh -n` over every shell script. The same command CI
-runs (`.github/workflows/lint-and-test.yml`), so local and CI cannot disagree.
+runs (`.github/workflows/lint-and-test.yml`), so local and CI cannot disagree —
+except in the `zsh -n` pass, whose zsh is not pinned. CI's apt zsh 5.9 (and
+macOS `/bin/zsh`) evaluates a top-level `$(<file)` even under `-n` and fails
+when the file is absent, while Homebrew's 5.9.2 does not: main was red on that
+for a week with every local run green. Check zsh with `/bin/zsh -n` too, and
+read files in zsh tests with `$(cat …)`.
 
 - `shellcheck -x -P SCRIPTDIR` and `shfmt -d -i 2 -ci` over the sh/bash ones
 - `zsh -n` over the zsh ones (shellcheck cannot parse zsh — SC1071 — and shfmt

@@ -235,7 +235,9 @@ kill "$o1" "$o2"
 case_file nodir
 mkdir -m 500 "$work/ro"
 _SSH_KEEPALIVE_DIR="$work/ro/state" _ssh_keepalive_start 10.0.0.8 >"$work/nodir.out" 2>&1
-check 'an unwritable state dir is silent' '' "$(<"$work/nodir.out")"
+# cat, not $(<...): zsh 5.9 (CI's apt build, macOS /bin/zsh) reads that file
+# even under `zsh -n`, so bin/lint-shell failed on it; Homebrew's 5.9.2 does not.
+check 'an unwritable state dir is silent' '' "$(cat "$work/nodir.out")"
 check 'and registers nothing' '' "$_SSH_KEEPALIVE_OWNER"
 check 'and starts no ping' '0' "$(settled_pings 0)"
 chmod 700 "$work/ro"
