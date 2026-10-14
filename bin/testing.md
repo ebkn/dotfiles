@@ -154,9 +154,11 @@ stops being exercised on a Mac. `TEST_JOBS` overrides the shard count;
 hand — a shard run alone checks only its own subset.
 
 That is ~175 lines of harness, a third of it the merge's self-check (the
-`shard_*` functions; `shard_drive <script> <suite name>` is the one call a
-suite makes), so it stays in that suite until a second one needs it, then
-moves to `bin/test-lib.sh`. **That move is the trigger rule 6 names for
+`shard_*` functions). A suite calls it in three places: `shard_drive <script>
+<suite name>` once, before it creates anything needing cleanup (the driver sets
+its own EXIT trap and exits); `shard_begin` where each scenario starts; and
+`shard_end` as its last line. So it stays in that suite until a second one
+needs it, then moves to `bin/test-lib.sh`. **That move is the trigger rule 6 names for
 reconsidering bats-core** — decide it then and record the answer in rule 6.
 Weigh too what adoption costs a suite whatever the harness looks like: every
 helper that runs between scenarios needs the `skipping` guard, and any variable

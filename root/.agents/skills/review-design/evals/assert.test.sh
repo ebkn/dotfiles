@@ -186,7 +186,9 @@ EOF
 }
 
 # shard_drive <script> <suite name> -- run <script> as its shards, print the
-# merge and a summary naming the suite, and exit with the verdict.
+# merge and a summary naming the suite, and exit with the verdict. It never
+# returns and replaces any EXIT trap, so call it before the suite creates
+# anything that needs cleaning up (here, before root_dir).
 shard_drive() {
   local script="$1" name="$2" jobs shard_dir k p merged checks finished=1 shard_failed=0 pids=()
   checks="$(shard_check_merge)"
