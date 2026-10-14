@@ -90,14 +90,16 @@ shard_merge() {
   shift
   if ! merged="$(awk -v jobs="$jobs" '
     FNR == 1 { idx = 0 }
-    /^\036/ { idx = substr($0, 2) + 0; seen[idx] = 1; next }
+    /^\036/ { idx = substr($0, 2) + 0; seen[idx] = 1; if (idx > top) top = idx; next }
     /^\037/ { n = substr($0, 2) + 0; if (total == "") total = n; else if (n != total) bad = 1; shards++; next }
     { blk[idx] = blk[idx] $0 "\n"; if ($0 ~ /^(ok|FAIL) /) checked[idx] = 1 }
     END {
-      for (i = 0; i <= total; i++) printf "%s", blk[i]
+      # Up to the highest block seen, not the count: with no shard finished
+      # there is no count, and the blocks are then the only explanation.
+      for (i = 0; i <= top; i++) printf "%s", blk[i]
       for (i = 1; i <= total; i++) if (!(i in seen) || !(i in checked)) missing++
       if (shards == jobs && !bad && total > 0 && !missing) print "\035complete"
-      else printf "FAIL shards: %d of %d finished, %s scenario(s), %d missing or without a check\n", shards, jobs, total, missing
+      else printf "FAIL shards: %d of %d finished, %d scenario(s), %d missing or without a check\n", shards, jobs, total, missing
     }' "$@")"; then
     printf 'FAIL the shard merge itself failed\n'
     return 1
@@ -167,6 +169,15 @@ the last scenario never run|0|lost-last
 a scenario with no check|0|unchecked
 shards disagreeing on the count|0|disagrees
 EOF
+  # When every shard died -- an unbound variable kills them all alike -- what
+  # they printed is the only explanation there is, so it must not be dropped
+  # with the verdict.
+  printf '%s\n' "${o}1" 'ok   a' 'shard 0 died here' >"$d/died"
+  out="$(shard_merge 2 "$d/died" "$d/unfinished")"
+  case "$out" in
+    *'shard 0 died here'*'ok   d'*) ok "shard merge: a run where no shard finished still shows their output" ;;
+    *) bad "shard merge: a run where no shard finished still shows their output" ;;
+  esac
   rm -rf "$d"
 }
 
@@ -188,12 +199,14 @@ shard_drive() {
   done
   for p in "${pids[@]}"; do wait "$p" || shard_failed=1; done
   merged="$(shard_merge "$jobs" "$shard_dir"/*)" || finished=0
-  merged="$checks
-$merged"
   if [ "$shard_failed" -ne 0 ] && ! grep -q '^FAIL' <<<"$merged"; then
     merged="$merged
 FAIL a shard exited non-zero without reporting a failure"
   fi
+  # Joined only now: a FAIL among the checks must not stand in for the notice
+  # above, which is about the shards.
+  merged="$checks
+$merged"
   printf '%s\n' "$merged"
   if [ "$finished" -eq 1 ] && [ "$shard_failed" -eq 0 ] && ! grep -q '^FAIL' <<<"$merged"; then
     printf '\nall review-design grader tests passed (%s shard(s))\n' "$jobs"
