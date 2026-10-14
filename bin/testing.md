@@ -142,7 +142,8 @@ is unverified until they have been run concurrently a few times.
 
 The `test` job used to run ~45 suites as one serial job, and the first red step
 skipped every later one: from 2026-10-09 a broken pipe in
-`tmux-test-guard.test.sh` kept 28 suites from running at all. So:
+`tmux-test-guard.test.sh` kept 28 suites from running at all until it was fixed
+on 10-14. So:
 
 - test steps carry `if: ${{ !cancelled() }}`, so every suite reports;
 - suites are split into parallel jobs by the toolchain they need (none / zsh /
@@ -161,7 +162,6 @@ Estimates are from the measurements above, not yet confirmed by doing the work.
 
 | # | Change | Expected effect |
 | --- | --- | --- |
-| 0 | Make main green: the broken pipe in `tmux-test-guard.test.sh`, and `zsh -n` rejecting `zsh/ssh-keepalive.test.zsh` on zsh 5.9 | CI results mean something again |
 | 1 | `pr-review-dispatch`: close the socket on EOF. **macOS `nc -N` is not Linux's `-N`** (it sets write-timeout probes), so the fix cannot be one flag. Behaviour change: regression test first | CI −105 s |
 | 2 | review-design (then review-test, init-project) graders: rules 3 and 4 | macOS 112 s → est. 20–30 s |
 | 3 | CI per rule 8 | CI wall ≈ slowest job, all suites reported |
