@@ -27,6 +27,37 @@ function Write-Step {
     Write-Host "`n--- $Message ---" -ForegroundColor Cyan
 }
 
+# Ids whose install or upgrade failed. Collected rather than thrown so one bad
+# package does not skip the remap, AHK and WezTerm steps below; the script
+# exits non-zero at the end instead. Before this, winget's exit code was never
+# read, so a failed install still ended in "Setup complete" and a green CI run.
+$script:FailedPackages = @()
+
+# winget exit codes that are not failures (doc/windows/package-manager/winget/
+# returnCodes.md in microsoft/winget-cli): nothing to upgrade, already
+# installed, installed but finishes on reboot, installed version not older.
+$WingetOkCodes = @(
+    0,
+    -1978335189,  # 0x8A15002B UPDATE_NOT_APPLICABLE
+    -1978335135,  # 0x8A150061 PACKAGE_ALREADY_INSTALLED
+    -1978334967,  # 0x8A150109 INSTALL_REBOOT_REQUIRED_TO_FINISH
+    -1978335153   # 0x8A15004F UPGRADE_VERSION_NOT_NEWER
+)
+
+function Confirm-WingetResult {
+    param([string]$Id, [long]$Code)
+    # A scheduled task reports the code as an unsigned 32-bit value.
+    if ($Code -gt [int32]::MaxValue) { $Code -= 4294967296 }
+    if ($WingetOkCodes -contains $Code) { return }
+    Write-Host ("  FAILED: {0} (winget exit 0x{1:X8})" -f $Id, [int32]$Code) -ForegroundColor Red
+    $script:FailedPackages += $Id
+}
+
+# --silent: suppress the installer's own UI. The default only shows progress,
+# and on CI the GnuPG installer sat waiting for six hours until the job was
+# cancelled. --disable-interactivity: no winget prompts either.
+$WingetFlags = '--exact --silent --disable-interactivity --accept-source-agreements --accept-package-agreements'
+
 function Install-WingetPackage {
     param(
         [string]$Id,
@@ -39,7 +70,7 @@ function Install-WingetPackage {
 
     if ($Scope -eq 'user') {
         $taskName = 'DotfilesWingetInstall'
-        $wingetArgs = "install --exact --id $Id --scope user --accept-source-agreements --accept-package-agreements"
+        $wingetArgs = "install --id $Id --scope user $WingetFlags"
         $action = New-ScheduledTaskAction -Execute 'winget' -Argument $wingetArgs
         $taskPrincipal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
         Register-ScheduledTask -TaskName $taskName -Action $action -Principal $taskPrincipal -Force | Out-Null
@@ -47,17 +78,28 @@ function Install-WingetPackage {
         Write-Host "  Installing $Id as standard user (via scheduled task)..."
         do { Start-Sleep -Seconds 2 }
         while ((Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue).State -eq 'Running')
+        $result = (Get-ScheduledTaskInfo -TaskName $taskName).LastTaskResult
         Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+        # 0x41303 SCHED_S_TASK_HAS_NOT_RUN: an Interactive task needs a logged-on
+        # user, which a CI runner may not have. Not winget's answer, so it is
+        # reported rather than counted.
+        if ($result -eq 0x41303) {
+            Write-Host "  warning: the task for $Id never ran (no interactive session?)" -ForegroundColor Yellow
+            return
+        }
+        Confirm-WingetResult $Id $result
         return
     }
 
     $installed = winget list --exact --id $Id 2>$null
+    $flags = $WingetFlags -split ' '
     if ($LASTEXITCODE -eq 0 -and ($installed | Select-String -Pattern $Id -Quiet)) {
-        winget upgrade --exact --id $Id --accept-source-agreements --accept-package-agreements
+        winget upgrade --id $Id @flags
     }
     else {
-        winget install --exact --id $Id --accept-source-agreements --accept-package-agreements
+        winget install --id $Id @flags
     }
+    Confirm-WingetResult $Id $LASTEXITCODE
 }
 
 function Repair-DockerDesktopOwnership {
@@ -211,4 +253,8 @@ else {
 }
 
 # ------------------------------------------------------------------
+if ($script:FailedPackages.Count -gt 0) {
+    Write-Host ("`nwinget failed for: {0}" -f ($script:FailedPackages -join ', ')) -ForegroundColor Red
+    exit 1
+}
 Write-Step 'Setup complete'
