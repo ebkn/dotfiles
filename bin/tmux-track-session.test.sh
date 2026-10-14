@@ -796,7 +796,6 @@ else
   fi
 fi
 
-
 # ---------------------------------------------------------------------------
 # The subcommands nobody calls by hand. tmux-restore-ssh-tabs tells an old
 # remote copy (no `adopt`) from one with nothing to adopt by this exit status:
