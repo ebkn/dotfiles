@@ -101,8 +101,10 @@ centred() {
 # is 3 or more, and keyed on attempt 2 alone it left the stale frame and the
 # flood on screen. Nothing here sees whether the previous attempt connected
 # (this execs ssh), so its duration stands in: a failed attempt ends within
-# seconds, while one that ran OUTAGE_GAP or longer was a session. A slow failed
-# attempt or a long autossh backoff costs one extra clear, never a missed one.
+# seconds, while one that ran OUTAGE_GAP or longer was a session. It errs both
+# ways: a slow failed attempt or a long autossh backoff costs one extra clear,
+# and a session that dropped within OUTAGE_GAP of connecting is taken for a
+# failed attempt, leaving its frame and mouse modes up.
 OUTAGE_GAP=30
 new_outage=false
 [ "$attempt" -eq 2 ] && new_outage=true

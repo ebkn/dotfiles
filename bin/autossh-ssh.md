@@ -33,8 +33,10 @@ restart policy, backoff and exit handling untouched.
    that came back and dropped again starts its outage at attempt 3 or later;
    that first notice is recognised by the previous attempt having run 30s or
    more (the state file holds `<count> <start epoch>`). The shim execs ssh and
-   never learns whether an attempt connected, so duration is the stand-in, and
-   its error is one extra clear on a slow failure, never a missed one.
+   never learns whether an attempt connected, so duration is the stand-in. It
+   errs both ways: a slow failure or a long backoff costs one extra clear, and
+   a session that drops within 30s of connecting is taken for a failed attempt,
+   so its frame and mouse modes stay up for that outage.
 3. **ssh's stderr goes to a log rather than /dev/null, so the notice can quote
    its last line.** A changed host key retries forever otherwise, behind a line
    that cheerfully says "reconnecting" with the explanation nowhere.
