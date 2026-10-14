@@ -2,8 +2,9 @@
 #
 # ci-enrollment.test.sh
 #
-# Pins that every test suite in the repo is run by CI, or is named below with
-# the reason it is not. The workflow lists its suites by hand, one step each, so
+# Pins that every *.test.sh and *.test.zsh suite in the repo is run by CI, or is
+# named below with the reason it is not. A *.test.ps1 is NOT checked here: it is
+# enrolled by hand in windows-setup.yml, and nothing fails if it is not. The workflow lists its suites by hand, one step each, so
 # a suite can be written, documented as gating CI and still run nowhere --
 # which is how tmux-agent-view.test.sh, autossh-ssh.test.sh and
 # zshenv-autofs.test.zsh spent their lives until this check existed.
