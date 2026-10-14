@@ -86,17 +86,13 @@ set_opts() { # set_opts <target> <pane index> <opt=value ...>
 }
 
 title_of() { # title_of <window id> — run the script there, echo the resulting name
-  local target=$1 before after
-  before=$(tmux -L "$socket" display-message -p -t "$target" '#{window_name}')
-  # run-shell is asynchronous, so poll for the rename rather than sleeping once.
+  local target=$1
+  # Read at once: run-shell without -b returns only when the script has exited,
+  # and its rename-window has been applied by then (measured: a job that slept
+  # 1s and renamed held run-shell for 1.1s, and the name had changed). The poll
+  # this replaces slept 0.15s before its first look, on every call.
   tmux -L "$socket" run-shell -t "$target" "$PWD/bin/tmux-pane-titles"
-  after=$before
-  for _ in 1 2 3 4 5 6 7 8 9 10; do
-    sleep 0.15
-    after=$(tmux -L "$socket" display-message -p -t "$target" '#{window_name}')
-    [ "$after" != "$before" ] && break
-  done
-  printf '%s' "$after"
+  tmux -L "$socket" display-message -p -t "$target" '#{window_name}'
 }
 
 check() {
@@ -191,9 +187,9 @@ tmux -L "$socket" rename-window -t "$active" before-active
 # window for it.)
 tmux -L "$socket" respawn-pane -k -t "$caller_pane" -c "$work/bravo" \
   "'$PWD/bin/tmux-pane-titles'; exec $IDLE"
-for _ in $(seq 1 20); do
+for _ in $(seq 1 60); do
   [ "$(tmux -L "$socket" display-message -p -t "$caller" '#{window_name}')" != before-caller ] && break
-  sleep 0.15
+  sleep 0.05
 done
 check "the caller's own window is named" 'bravo' \
   "$(tmux -L "$socket" display-message -p -t "$caller" '#{window_name}')"
