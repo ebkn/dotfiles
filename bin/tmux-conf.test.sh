@@ -157,25 +157,25 @@ $outer -f /dev/null new-session -d -x 100 -y 30 "env -u TMUX tmux -L $socket att
 # view (menus are overlays, not pane content); pane_has is the guarded pane's.
 screen_has() {
   local _
-  for _ in $(seq 25); do
+  for _ in $(seq 100); do
     $outer capture-pane -p 2>/dev/null | grep -qF -- "$1" && return 0
-    sleep 0.2
+    sleep 0.05
   done
   return 1
 }
 screen_lacks() {
   local _
-  for _ in $(seq 25); do
+  for _ in $(seq 100); do
     $outer capture-pane -p 2>/dev/null | grep -qF -- "$1" || return 0
-    sleep 0.2
+    sleep 0.05
   done
   return 1
 }
 pane_has() {
   local _
-  for _ in $(seq 25); do
+  for _ in $(seq 100); do
     tmux -L "$socket" capture-pane -p -t "$1" 2>/dev/null | grep -qF -- "$2" && return 0
-    sleep 0.2
+    sleep 0.05
   done
   return 1
 }
@@ -290,9 +290,9 @@ tmux -L "$socket" select-pane -t "$ssh_pane"
 $outer send-keys C-q q
 screen_has 'kill this LOCAL pane' >/dev/null
 $outer send-keys l
-for _ in $(seq 25); do
+for _ in $(seq 100); do
   tmux -L "$socket" list-panes -t guard: -F '#{pane_id}' 2>/dev/null | grep -qxF "$ssh_pane" || break
-  sleep 0.2
+  sleep 0.05
 done
 if ! tmux -L "$socket" list-panes -t guard: -F '#{pane_id}' 2>/dev/null | grep -qxF "$ssh_pane" &&
   tmux -L "$socket" has-session -t guard 2>/dev/null; then
@@ -322,9 +322,9 @@ $outer send-keys n
 # silently. A second window keeps the session (and the client) alive after.
 window_gone() {
   local _
-  for _ in $(seq 25); do
+  for _ in $(seq 100); do
     tmux -L "$socket" list-windows -a -F '#{window_id}' 2>/dev/null | grep -qxF "$1" || return 0
-    sleep 0.2
+    sleep 0.05
   done
   return 1
 }
@@ -357,9 +357,9 @@ $outer send-keys C-q d
 menu_seen=0
 screen_has 'detach the LOCAL client' && menu_seen=1
 $outer send-keys l
-for _ in $(seq 25); do
+for _ in $(seq 100); do
   [ "$(clients)" = 0 ] && break
-  sleep 0.2
+  sleep 0.05
 done
 # Gated on the menu: with none, a client that died for any other reason passes.
 if [ "$menu_seen" = 1 ] && [ "$(clients)" = 0 ]; then
@@ -609,7 +609,8 @@ esac
 # --width avoids needing a pty; the real geometry comes from stty.
 tmux -L "$socket" run-shell "cd $PWD && PATH=$PWD/bin:\$PATH tmux-cheatsheet --width 120 >$work/wide 2>$work/wide.err"
 tmux -L "$socket" run-shell "cd $PWD && PATH=$PWD/bin:\$PATH tmux-cheatsheet --width 40 >$work/narrow 2>$work/narrow.err"
-# run-shell is asynchronous; wait for both files rather than sleeping blindly.
+# run-shell without -b returns once the job has exited, so both files are
+# there already; the loop is a guard that does not sleep on a green run.
 for _ in 1 2 3 4 5 6 7 8 9 10; do
   [ -s "$work/wide" ] && [ -s "$work/narrow" ] && break
   sleep 0.2
