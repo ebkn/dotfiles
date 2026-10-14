@@ -4,6 +4,10 @@
 # nothing; runs on Windows PowerShell 5.1 (CI) and pwsh 7.
 #
 # Run: powershell -ExecutionPolicy Bypass -File bin\init\winget-result.test.ps1
+# From macOS or Linux (amd64 image; under qemu pwsh now and then crashes at
+# startup, so rerun once before believing a failure):
+#   docker run --rm -v "$PWD/bin/init:/w:ro" mcr.microsoft.com/powershell:latest \
+#     pwsh -NoProfile -File /w/winget-result.test.ps1
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -12,9 +16,7 @@ $ErrorActionPreference = 'Stop'
 $fails = 0
 function Expect {
     param([string]$Name, [long]$Code, [bool]$Failed)
-    $script:FailedPackages = @()
-    Confirm-WingetResult 'pkg' $Code 6>$null
-    $got = $script:FailedPackages.Count -eq 1
+    $got = Test-WingetFailure $Code
     if ($got -eq $Failed) { Write-Output "ok   $Name" }
     else { Write-Output "FAIL $Name (counted as failed: $got)"; $script:fails++ }
 }
