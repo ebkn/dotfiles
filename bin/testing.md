@@ -26,8 +26,9 @@ Measured on macOS (Apple silicon, 2026-10), 200 calls each:
 So **the run time of a suite is roughly (processes spawned × 2 ms) + time spent
 waiting.** The number of cases is not the variable: `pr-state-watch.test.sh`
 checks 156 things in 7 s and spawns about 8 processes per check, while
-`review-design/evals/assert.test.sh` checks 169 in 112 s and spawns about 133
-per check (22,563 `jq`/`git`/`grep`/`sed`/`awk`/`cat` calls, counted with shims).
+`review-design/evals/assert.test.sh` checked 169 in 112 s before migration step
+2 and spawns about 133 per check (22,563 `jq`/`git`/`grep`/`sed`/`awk`/`cat`
+calls, counted with shims).
 Linux forks are roughly twice as cheap, so CI hides what macOS shows.
 
 The other cost is waiting, and the expensive waits were not in the tests: of
@@ -146,8 +147,14 @@ count). The merge fails closed: green needs a token printed only once every
 scenario left a block holding a check, so a shard that dies — or a merge that
 breaks — cannot become a shorter green run. Shards run on `"$BASH"`, not on
 PATH's bash, or the bash 3.2 constraint stops being exercised on a Mac.
-That is ~50 lines of harness, so it stays in that suite until a second one
-needs it, then moves to `bin/test-lib.sh`.
+That is ~50 lines of harness (the `shard_*` functions, knobs `TEST_JOBS` /
+`TEST_SHARD`), so it stays in that suite until a second one needs it, then
+moves to `bin/test-lib.sh`. **That move is the trigger rule 6 names for
+reconsidering bats-core** — decide it then and record the answer in rule 6.
+Weigh too what adoption costs a suite whatever the harness looks like: every
+helper that runs between scenarios needs the `skipping` guard, and any variable
+top-level code reads after a scenario must be initialised, because a shard walks
+the scenarios it skips.
 
 The tmux suites run the same way inside the `bin/test-in-docker` container.
 Their sockets look isolated (`$$`-suffixed or a private `TMUX_TMPDIR`), but that
