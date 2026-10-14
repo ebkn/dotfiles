@@ -4,104 +4,28 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 
 ## Structure
 
+Only what `ls` cannot tell you; the file names say the rest.
+
 ```
 .
-├── zsh/                # Zsh config modules sourced from .zshrc
-│   ├── alias.zsh       #   Shell aliases + rm/fd/his wrappers, imgcat
-│   ├── completion.zsh  #   Completion settings
-│   ├── directory.zsh   #   Directory navigation options
-│   ├── git.zsh         #   Git aliases, gs, gw/gdmerged worktree flow, ghq picker
-│   ├── gpg.zsh         #   GPG_TTY export for commit signing
-│   ├── history.zsh     #   History settings
-│   ├── lang.zsh        #   Language manager lazy-loading
-│   ├── path.zsh        #   PATH configuration
-│   ├── plugin.zsh      #   Zinit plugin definitions
-│   ├── ssh-agent.zsh   #   SSH agent selection (WSL only)
-│   ├── ssh.zsh         #   ssh/myssh wrappers publishing @ssh_host to tmux
-│   ├── update.zsh      #   update-all, and its uptime warning (macOS 26.0-26.3: TCP clock stops at 49.7 days)
-│   ├── *.test.zsh      #   Unit tests for the modules above
-│   └── .p10k.zsh       #   Powerlevel10k theme config
-├── vim/                # Neovim/Vim configuration
-│   ├── nvim/lua/plugins/
-│   │   ├── instantly/  #   Plugins loaded at startup
-│   │   └── lazy/       #   Plugins loaded on demand (filetype, etc.)
-│   ├── coc/            #   CoC (Conquer of Completion) extensions config
-│   ├── *.vim           #   Vim core config (base, color, keymap, view)
-│   └── lazy.lua        #   lazy.nvim bootstrap
-├── autohotkey/         # AutoHotkey v2 scripts for Windows
-│   └── keyremap.ahk   #   Key remapping (CapsLock→Ctrl, Alt→IME switch)
-├── bin/
-│   ├── init/           #   Platform setup scripts (macos.sh, ubuntu.sh, wsl.sh, windows.ps1)
-│   │   ├── common.sh   #     Shared setup helpers (link_with_backup, etc.)
-│   │   └── links.sh    #     link_dotfiles(): re-syncable $HOME symlinks (shared by macos.sh + relink)
-│   ├── wsl/               #   WSL-only helper scripts (e.g. notify-send OSC 9 shim)
-│   ├── relink             #   Re-sync symlinks from link_dotfiles() (drift check + prompt; called by update-all)
-│   ├── launchd-load       #   Load linked LaunchAgents that are not running (--status to look; NOT called by relink)
-│   ├── tmux-agents        #   Pick a Claude Code agent by state (prefix + a) and jump to its WezTerm tab
-│   ├── tmux-agent-view    #   Answer a blocked agent from the picker (ctrl-o): mirror its window in a popup
-│   ├── tmux-cheatsheet    #   Annotated key bindings, grouped into columns (prefix + ?)
-│   ├── tmux-tig           #   Run tig, holding the popup open on failure (prefix + t)
-│   ├── tmux-popup         #   Open the per-tab popup session (prefix + p/t/o all go through it)
-│   ├── fzf-nvim           #   Pick a file with fzf and open it in nvim (prefix + o)
-│   ├── tmux-pane-titles   #   Name the window after its panes' dirs/branches (called from zsh hooks)
-│   ├── tmux-restore-tabs  #   Re-open a WezTerm tab per orphaned tmux session, in the window it was run from
-│   ├── tmux-restore-ssh-tabs # Re-open a myssh tab per detached session on a remote host
-│   ├── tmux-track-session #   Remember the remote session an ssh pane was in, for autossh reconnect
-│   ├── tmux-session-swap  #   Swap two clients on prefix + w, so one tab keeps meaning one session
-│   ├── autossh-ssh        #   AUTOSSH_PATH shim: the reconnect notice myssh shows between attempts
-│   ├── fzf-files          #   List git-changed files first for fzf (symlinked to ~/.local/bin)
-│   ├── git-generated      #   Locally hide linguist-generated files from diffs via .git/info/attributes
-│   ├── lint-shell         #   shellcheck + shfmt + zsh -n over every shell script (same command CI runs)
-│   ├── lint-shell.test.sh #   Pins the target enumeration (a failed listing must not report ok)
-│   ├── ci-enrollment.test.sh # Every *.test.sh / *.test.zsh is a CI step, or listed as not_in_ci with its reason
-│   ├── test-in-docker     #   Run suites in a runner-matching container (+ .Dockerfile); the tmux suites run ONLY here
-│   ├── tmux-test-guard.sh #   Sourced by every tmux suite: refuses to run on the host (.test.sh enforces enrollment)
-│   ├── skill-eval         #   Run a skill's eval cases against a throwaway fixture (spends model usage)
-│   ├── skill-eval-*.sh    #   Assertions and fixture helpers the cases source
-│   ├── textlint-docs      #   Run textlint/ rules on any repo (symlinked to ~/.local/bin; backs the lint-docs skill)
-│   ├── read-doc           #   Typeset a document as HTML and open it in the browser (symlinked to ~/.local/bin)
-│   │                      #   (session-extract / session-review, which back the retrospective skill, live beside its SKILL.md and are linked the same way)
-│   ├── pr-review-common.sh  #   Pid-based lock + repo/worktree/session lookup shared by the three below
-│   ├── pr-review-watch    #   Poll GitHub for new PR review feedback and queue it per PR
-│   ├── pr-state-watch     #   Poll GitHub for PRs of yours that stopped merging or went red, same queue
-│   ├── pr-review-dispatch #   Post a queued job to that branch's session inbox socket
-│   └── install_minimum_vim.sh
-├── brewfiles/          #   Homebrew dependency lists by category
-│   ├── Brewfile-shell  #     Shell tools (tmux, fzf, ripgrep, etc.)
-│   ├── Brewfile-lang   #     Language runtimes and managers
-│   ├── Brewfile-xcode  #     Swift tools requiring Xcode.app
-│   ├── Brewfile-cask   #     GUI applications
-│   └── Brewfile-mas    #     Mac App Store apps
-├── root/               #   Home directory configs (symlinked to ~/)
-│   ├── CLAUDE.md       #     Global Claude Code instructions
-│   ├── .agents/skills/ #     Cross-tool agent skills (single source of truth)
-│   ├── .claude/        #     Claude Code settings and hooks
-│   ├── .codex/         #     Codex prefix rules
-│   └── opencode/       #     OpenCode config → ~/.config/opencode
-├── read-doc/           #   Presentation assets for bin/read-doc
-│   ├── style.css       #     Body face, measure, leading + Everforest syntax colours
-│   └── after-body.html #     Inline script: code-block copy buttons, link targets
-├── launchd/            #   macOS LaunchAgents (symlinked to ~/Library/LaunchAgents)
-│   ├── com.ebkn.pr-review-watch.plist     # 60s poll driving bin/pr-review-watch
-│   ├── com.ebkn.pr-state-watch.plist      # 300s poll driving bin/pr-state-watch
-│   ├── com.ebkn.pr-review-dispatch.plist  # 30s pass driving bin/pr-review-dispatch
-│   └── com.ebkn.tmux-agent-sync.plist     # 5s pass driving `tmux-agents --sync`
-├── textlint/           #   Japanese prose rules for bin/textlint-docs (not a project config)
-│   ├── textlintrc.yml  #     Rule set, each relaxation justified inline
-│   ├── prh.yml         #     Notation dictionary, split into universal / project-dependent
-│   ├── textlintignore  #     Category-level exclusions
-│   └── package.json    #     Pinned toolchain (+ package-lock.json)
-├── .textlintignore     #   This repo's own exclusions, overriding textlint/textlintignore (not linked to ~/)
-├── cursor/             #   Cursor editor settings and keybindings
-├── .github/workflows/  #   CI for setup script validation
-├── .shellcheckrc       #   external-sources/source-path, so an editor and bin/lint-shell agree
-├── .zshrc              #   Zsh entrypoint (sources zsh/ modules)
-├── .zshenv             #   Zsh early env (locale settings)
-├── .tmux.conf          #   Tmux configuration
-├── .gitconfig          #   Git configuration (includes .gitconfig-ebkn)
-├── wezterm.lua         #   WezTerm terminal configuration
-└── .*                  #   Other dotfiles (.tigrc, .ideavimrc, etc.)
+├── zsh/         # Modules sourced from .zshrc, one per concern; *.test.zsh beside them
+├── vim/         # Neovim (lazy.nvim) + core *.vim; coc/ extension config
+├── bin/         # Everything that ends up on $PATH; a non-trivial script has a sibling .md
+│   ├── init/    #   Platform setup; links.sh holds link_dotfiles(), shared with bin/relink
+│   └── wsl/     #   WSL-only helpers
+├── root/        # Agent and tool config linked into ~/ (CLAUDE.md, .claude/, .codex/, .agents/skills/)
+├── brewfiles/   # Brewfile-{shell,lang,xcode,cask,mas}
+├── launchd/     # LaunchAgents linked into ~/Library/LaunchAgents; linking is not loading (bin/launchd-load)
+├── systemd/     # systemd user units (ssh-agent relay)
+├── textlint/    # Rules bin/textlint-docs carries to OTHER repos; this repo's own is ./.textlintignore
+├── read-doc/    # Stylesheet and script bin/read-doc injects
+├── autohotkey/  # Windows key remapping (AutoHotkey v2)
+├── cursor/      # Cursor settings and keybindings
+└── .zshrc, .tmux.conf, .gitconfig, wezterm.lua, …  # Linked into ~/ as-is
 ```
+
+Scripts that back one skill (e.g. retrospective's `session-extract`) live beside
+its `SKILL.md`, not in `bin/`, and are linked to `~/.local/bin` the same way.
 
 `AGENTS.md` is a symlink to this file for Codex compatibility.
 
