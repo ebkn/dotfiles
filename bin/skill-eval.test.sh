@@ -177,6 +177,13 @@ if [ -e ".claude/skills/$STUB_SKILL/evals" ]; then
 else
   echo absent >"$STUB_CLAUDE_OUT/evals"
 fi
+# What the model is given to evaluate: the skill itself, as a real copy.
+if [ -f ".claude/skills/$STUB_SKILL/SKILL.md" ] && [ ! -L ".claude/skills/$STUB_SKILL" ]; then
+  echo copied >"$STUB_CLAUDE_OUT/skill"
+else
+  echo missing >"$STUB_CLAUDE_OUT/skill"
+fi
+find .claude -name evals >"$STUB_CLAUDE_OUT/evals_anywhere" 2>/dev/null || true
 cp bin/repo_root "$STUB_CLAUDE_OUT/repo_root" 2>/dev/null || echo none >"$STUB_CLAUDE_OUT/repo_root"
 if [ -f CLAUDE.md ]; then
   head -n 1 CLAUDE.md >"$STUB_CLAUDE_OUT/claude_md"
@@ -235,6 +242,7 @@ cat >"$skills_dir/$skill/evals/case-a/assert.sh" <<'EOF'
 #!/bin/bash
 set -eo pipefail
 source "$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh"
+[ -z "${STUB_ASSERT_CRASH:-}" ] || exit 3
 check_eq "denials" 0 "$(transcript_denials)"
 check_match "commands" 'git status' "$(transcript_commands)"
 check_eq "skill uses" 1 "$(transcript_skill_uses stub-skill)"
@@ -353,6 +361,10 @@ t "the .claude/ and bin/ we brought in stay out of git status" " M tracked.txt" 
 t "the fixture's first commit tracks nothing the runner carried in" "tracked.txt" \
   "$(cat "$STUB_CLAUDE_OUT/tracked")"
 t "evals/ is not carried into the working directory" "absent" "$(cat "$STUB_CLAUDE_OUT/evals")"
+# The absence above is also what no copy at all looks like, and a copy of the
+# skill's contents lands its evals/ beside the skills, not inside one.
+t "the skill under evaluation is copied in, SKILL.md and all" "copied" "$(cat "$STUB_CLAUDE_OUT/skill")"
+t "and no evals/ is carried in anywhere" "" "$(cat "$STUB_CLAUDE_OUT/evals_anywhere")"
 t "the scaffold can reach this repo through SKILL_EVAL_REPO_ROOT" "$PWD" \
   "$(cat "$STUB_CLAUDE_OUT/repo_root")"
 cwd="$(cat "$STUB_CLAUDE_OUT/cwd")"
@@ -542,6 +554,19 @@ else
   printf 'ok   a FAIL line fails the run even without skill_eval_finish\n'
 fi
 contains "and the run is reported as FAIL" "[FAIL] $skill/case-a run-1" "$output"
+
+# --- an assert.sh that dies before its first check ---
+# The other half of the rule above: no FAIL line at all, only the exit status.
+# A grader whose `source` failed, say, has measured nothing, and must not PASS.
+rm -rf "$STUB_CLAUDE_OUT"
+if output="$(STUB_ASSERT_CRASH=1 $RUN "$skill" case-a 2>&1)"; then
+  printf 'FAIL a grader that exited 3 before any check still exited 0\n'
+  fails=$((fails + 1))
+else
+  printf 'ok   a grader that exits non-zero before any check fails the run\n'
+fi
+contains "and the run is reported as FAIL" "[FAIL] $skill/case-a run-1" "$output"
+contains "and counted as 0/1" "0/1" "$output"
 
 # --- a scaffold that fails ---
 # It used to abort the whole run under set -e, naming no case and leaving the
