@@ -86,7 +86,7 @@ Secondary but still true: `padding` belongs on `pre > code`, not the scrolling
 overflow area — the inner element takes `width: max-content; min-width: 100%` so
 its padding travels with the scroll.
 
-## Four pandoc traps, all verified empirically
+## Five pandoc traps, all verified empirically
 
 1. **`-V document-css=` must be empty, not the documented `false`.** The template
    guard is `$if(document-css)$` and tests for non-emptiness, so the string
@@ -101,6 +101,12 @@ its padding travels with the scroll.
    text between them. Both are disabled in the reader spec.
 4. **`--metadata=title` also injects an `<h1 class="title">`** into the body,
    duplicating the document's own first heading, so `pagetitle` is used instead.
+5. **`gfm` reads YAML front matter by default, and its keys are template
+   variables the document controls.** `css: https://…` emitted a `<link>` *ahead
+   of* the CSP `<meta>`, which a `<meta>`-delivered policy cannot reach, and
+   `title:` brought back trap 4's heading. So `yaml_metadata_block` is off in the
+   reader spec, and `feed` fences a leading block as YAML source so a SKILL.md
+   still reads well rather than as a rule and a setext heading.
 
 ## Source files
 

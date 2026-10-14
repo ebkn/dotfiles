@@ -345,9 +345,14 @@ render() {
   # --sandbox limits reader/writer IO to the files named on the command line.
   # --include-after-body is read by the CLI itself and so still works; the
   # stylesheet is not, which is why it arrives via header-includes above.
+  #
+  # yaml_metadata_block is off because the document is untrusted and its
+  # metadata are template variables: `css:` emits a <link> ahead of the CSP
+  # <meta>, which such a CSP cannot reach, and `title:` the <h1> above. feed
+  # shows a leading block as YAML source instead.
   pandoc \
     --sandbox \
-    --from=gfm-tex_math_dollars-tex_math_gfm \
+    --from=gfm-tex_math_dollars-tex_math_gfm-yaml_metadata_block \
     --to=html5 \
     --standalone \
     --syntax-highlighting=default \
@@ -366,10 +371,26 @@ feed() {
     if [ -n "${src}" ]; then cat -- "${src}"; else cat; fi
     printf '\n~~~~~~~~\n'
   elif [ -n "${src}" ]; then
-    cat -- "${src}"
+    front_matter_as_code <"${src}"
   else
-    cat
+    front_matter_as_code
   fi
+}
+
+# A leading `---` ... `---`/`...` block, fenced as YAML. With metadata off it
+# would otherwise read as a rule and a setext heading made of its keys. An
+# unclosed block is passed through as it was.
+front_matter_as_code() {
+  awk 'NR == 1 && $0 == "---" { fm = 1; n = 0; next }
+       fm && ($0 == "---" || $0 == "...") {
+         print "~~~~~~~~yaml"
+         for (i = 1; i <= n; i++) print b[i]
+         print "~~~~~~~~"
+         fm = 0; next
+       }
+       fm { b[++n] = $0; next }
+       { print }
+       END { if (fm) { print "---"; for (i = 1; i <= n; i++) print b[i] } }'
 }
 
 # --- images: inline the document's own, as data: URIs -------------------------

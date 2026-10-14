@@ -73,6 +73,32 @@ t "\$PATH and \${VAR} stay text" "yes" \
 t "a remote image is left as a URL for the CSP to refuse, not fetched or inlined" "1" \
   "$(count 'src="https://example.com/track.png"' "$TMP/a.html")"
 
+# YAML front matter is the document's to write, and pandoc reads it as template
+# variables: `css:` becomes a <link> placed BEFORE the CSP <meta>, which a CSP
+# delivered by <meta> cannot reach, and `title:` brings back the <h1> that
+# pagetitle exists to avoid. A block further down is metadata to pandoc too.
+cat >"$doc/fm.md" <<'EOF'
+---
+css: https://example.com/x.css
+title: Injected
+---
+
+# Real heading
+
+---
+css: https://example.com/y.css
+...
+EOF
+env -u SSH_CONNECTION "$RD" --print "$doc/fm.md" >"$TMP/fm.html" 2>"$TMP/fm.err"
+t "front matter: --print exits 0" "0" "$?"
+t "front matter links no stylesheet, at the top or further down" "0" "$(count '<link' "$TMP/fm.html")"
+t "and sets no title heading" "0" "$(count 'class="title"' "$TMP/fm.html")"
+# Still readable, since SKILL.md and most notes start with one: shown as YAML.
+t "the leading block is shown as YAML source" "1" \
+  "$(count '<code class="sourceCode yaml">' "$TMP/fm.html")"
+t "with its text intact" "yes" \
+  "$(grep -q 'Injected' "$TMP/fm.html" && echo yes || echo no)"
+
 # --- images: inlined from the document's own tree only ------------------------
 # A script the document smuggles in can carry out whatever is in the DOM, so an
 # image path must not be able to reach anything that is not already beside the
