@@ -50,9 +50,36 @@ wait_until 5 test -s "$out" || fail "nothing was written"
 A **negative** assertion ("nothing was sent", "the view did not open") is the
 trap: polling for an absence always runs to the deadline. Wait instead for a
 positive event that proves the branch has been decided — a log line, a state
-file, the process exiting — and then check the absence once.
-`tmux-agents.test.sh`'s `wait_said` is the model; its own comment says why the
-`sleep 2` above it is wrong.
+file, the process exiting — and then check the absence once. **The event must
+come after the last moment the unwanted effect could start**, or it decides
+nothing: `tmux-agents` logs a refusal *before* the line where a missing
+`exit 0` would fall through to opening a view in the background, so waiting
+for the log line and then reading "no view" passed with that `exit 0` deleted.
+Models:
+
+- `tmux-agents.test.sh`'s `wait_said`: the refusal's line in tmux's message
+  log, for the effects that would come before it.
+- `ssh-keepalive.test.zsh`'s `settled_pings` waits for the supervisor that must
+  lose the lock race to exit; its `wait_poll` plants an owner file for a pid
+  that cannot exist and waits for a poll to prune it, twice.
+- `tmux-track-session.test.sh` starts a job that fails on purpose after the
+  monitor dies, waits for its report, and checks that nothing came before it.
+
+When nothing observable decides it, a short fixed window is the honest
+remainder, with a comment saying so: `tmux-agents`' `no_view_after` (1 s, the
+case above), `settled_pings 0` (1 s, a ping that should never start), and the
+0.5 s that `tmux-popup` and `tmux-cheatsheet` wait to show a pane does not
+close on its own.
+
+Two more ways to stop paying for a wait that is already over:
+
+- `tmux run-shell` **without `-b`**, and `display-popup` run from the command
+  line, **block** until their command exits (both measured on 3.7c), so what
+  that command did to the server is done when they return; a poll after them
+  only adds its first sleep. Not what the command *started*: a `run-shell -b`
+  or `&` inside it can still be on its way.
+- A wait for tmux's one-second `session_created` or an epoch-second stamp to
+  differ waits for the clock to pass that second, not for `sleep 1`.
 
 ### 2. Every interval in a program under test can be shortened from outside
 
@@ -202,12 +229,12 @@ Estimates are from the measurements above, not yet confirmed by doing the work.
 | 2 | **Done for review-design.** Rule 3 (112 → 94 s), then sharding per rule 7's exception (→ 34 s on 18 cores). The estimate assumed fixtures dominated; a profile showed the grader is ~70 % of a scenario. review-test (12 s) and init-project (11 s) are left: under the 10 s line by little, and not yet worth the harness | macOS 112 s → 34 s |
 | 3 | **Done.** `bin/test` (rule 7) and CI running it (rule 8). Not the slowest suite, as estimated: the Mac stops scaling at ~4 jobs | host suites: macOS 142 s → ~55 s |
 | 4 | `bin/test-in-docker` through `bin/test`, so the tmux suites run in parallel too; then `bin/test-lib.sh` (rules 5, 6) | — |
-| 5 | **Done for `tmux-track-session`:** rule 2 (`TMUX_TRACK_SESSION_POLL`), and its one negative wait read after a sentinel job instead. Left: rule 1 for the fixed sleeps in `tmux-agents`, `tmux-restore-tabs`, `tmux-popup`, `tmux-cheatsheet`, `ssh-keepalive` | track-session 23 s → 11 s in the container; a few s to ~15 s per suite |
+| 5 | **Done.** Rule 2 for `tmux-track-session` (`TMUX_TRACK_SESSION_POLL`); rule 1 for the fixed sleeps in `tmux-track-session`, `tmux-agents`, `ssh-keepalive`, `tmux-restore-tabs`, `tmux-pane-titles`, `agent-state`, and the 0.25/0.2 s steps of polls that run to a real wait cut to 0.05 s (those right after a blocking `run-shell`, which never sleep on a green run, left as they were). Left on purpose: `tmux-agents`' 2 s list refresh (`REFRESH`, readonly; a shorter one would reload under the cursor cases), the fixed windows rule 1 lists | in the container: track-session 23 → 11 s, tmux-agents 43 → 33 s, ssh-keepalive 12 → 4.5 s (host 11.4 → 4.3 s), pane-titles 5.3 → 2.7 s, agent-state 47 → 42 s, restore-tabs 3.1 → 2.6 s |
 
 Existing suites move to the helper fragment when they are next touched, not in
 one sweep: the rewrite would be large and the gain is consistency, not speed.
 
 Open: `zsh/ssh-keepalive.test.zsh` fails under load — once alone ("the last
 session ending stops it"), once in an 18-job `bin/test` run ("a session starts
-a ping"). Plausibly its ~4 s waits against the supervisor's 5 s poll interval;
-rule 2 (a shorter poll in the test) is the likely fix. Unconfirmed.
+a ping"). The suite already polls at 0.2 s, so the suspect is its 4 s
+deadlines (`first_ping`, `wait_gone`) on a loaded machine. Unconfirmed.
