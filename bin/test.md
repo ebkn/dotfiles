@@ -22,13 +22,13 @@ and run by nothing. Discovery has no list to be missing from.
 
 A bare run skips two kinds of suite, and `--list` says which and why:
 
-- **The exclusions in `bin/test.skip`**, `<path>|<reason>` per line:
-  `root/.claude/hooks/git-guard.test.sh` (not wired in yet) and
-  `root/.codex/rules/default.rules.test.sh`, which needs the codex CLI. On the
-  runner it would exit 0 with "skipping" — a permanently green check that proves
-  nothing — so run it by name after editing `default.rules`. A file rather than
-  a list inside the script, so `bin/test.test.sh` can give its fixture
-  repository a list of its own. Entries match the whole path (a substring match
+- **The exclusions in `bin/test.skip`**, `<path>|<reason>` per line; the
+  file is the list, and `bin/test --list` prints it with the reasons. A
+  suite that would exit 0 with "skipping" where its tool is missing belongs
+  there, not in the run: run anywhere without the tool, it is a permanently
+  green check that proves nothing. A file rather than a list inside the
+  script, so `bin/test.test.sh` can give its fixture repository a list of its
+  own. Entries match the whole path (a substring match
   would also skip a suite whose path is the tail of an excluded one), and an
   entry naming no tracked suite fails the run: only the runner can see one,
   since `--list` prints a skip only for a suite the listing found.
@@ -68,6 +68,15 @@ visible — then `N passed, M failed` and the failed suites by name.
 suites, with the real parallel. It overrides the two environment probes
 (`GITHUB_ACTIONS`, and `TEST_CONTAINER_MARK` for `/.dockerenv`), since it runs
 on a laptop, in the container and in CI and must see both answers in each.
+
+## Open: which bash runs a suite
+
+`bin/test` starts every `*.test.sh` with PATH's `bash` — Homebrew's 5.x on a
+developed Mac — whatever its shebang says. CI is unaffected (the workflow ran
+`bash <path>` before too), but the 19 suites declaring `#!/bin/bash` were the
+only place bash 3.2 was exercised, and only when run directly. Choosing the
+interpreter from the shebang would restore that; it is a behaviour change and
+may surface suites that pass only on bash 5, so it waits for its own change.
 
 ## GNU parallel
 
@@ -111,7 +120,16 @@ overload first: it waits on a real supervisor's poll.
 
 Why each suite is worth running on every push — moved here from the per-suite
 steps the workflow used to carry. The suite's own doc (CLAUDE.md, Testing)
-has the detail.
+has the detail. **This list is kept by hand and nothing checks that it is
+complete**: a suite missing from it still runs, since `bin/test` finds suites
+by itself. Add a line when you add a suite.
+
+- **`ci-enrollment.test.sh`** — CI no longer lists its suites, but it must
+  still run `bin/test`, and every suite must be run or skipped with a reason;
+  under the old hand-written list, three suites were documented as gating CI
+  and run by nothing.
+- **`test.test.sh`** — the runner fails the way a lint gate does, by running
+  less than it should and reporting green; this pins every way it could.
 
 - **Permission hooks** — `curl-guard`, `rm-guard`, `approve-multiline-commands`.
   These are the hooks that emit "allow", so a regression widens a permission

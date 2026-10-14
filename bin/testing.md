@@ -143,7 +143,8 @@ safe to share, which usually buys less than rule 3 does.
 hundreds of milliseconds in a program it cannot make cheaper** — the eval
 graders, where ~70 % of every scenario is the grader under test. There rule 3
 saved 16 % and sharding saved the rest:
-`review-design/evals/assert.test.sh` runs itself as one shard per CPU, each
+`review-design/evals/assert.test.sh` runs itself as `TEST_JOBS` shards (one
+per CPU alone, `bin/test`'s job count under `bin/test`), each
 scenario's output tagged with its index and merged back into source order, so
 the scenarios' output matches a sequential run line for line; the merge's
 self-check lines come first and the summary adds the shard count. The merge
@@ -152,7 +153,9 @@ holding a check, so a shard that dies — or a merge that breaks — cannot beco
 a shorter green run. Because a real run only ever exercises the green verdict,
 every run first checks the merge's failing verdicts against made-up shard
 output. Shards run on `"$BASH"`, not on PATH's bash, or the bash 3.2 constraint
-stops being exercised on a Mac. `TEST_JOBS` overrides the shard count;
+stops being exercised on a Mac — though under `bin/test`, which starts every
+bash suite with PATH's bash, `"$BASH"` is that one too (an open item in
+[test.md](test.md)). `TEST_JOBS` overrides the shard count;
 `TEST_SHARD` is the driver's handshake with each shard and is never set by
 hand — a shard run alone checks only its own subset.
 
