@@ -291,6 +291,16 @@ doubles as the escape hatch if an `nc` turns out not to speak `-U`.
 An override naming a tool that is not installed **fails rather than falling
 back**, since a silent fallback makes the override look honoured when it was not.
 
+**`nc` gets `-N` only when its help says `-N` means "shut down after EOF".**
+Linux's netcat-openbsd keeps the connection after stdin ends and idles out the
+whole `-w 5`, so every delivery there took 5 s (measured: 5.04 s without `-N`,
+0.02 s with it, against a peer that closes). macOS's `nc` closes at EOF on its
+own, and **its `-N` is an unrelated option that takes an argument**
+(`num_probes`): passed unconditionally, it would swallow `-U` and break delivery
+on the machine this runs on. A peer that never closes still meets the `-w 5`
+bound either way. The test pins both variants with a stubbed `nc -h`, because a
+Linux runner can only exercise one of them for real.
+
 ## Testing (`pr-review-dispatch.test.sh`)
 
 Runs against a **real** Unix domain socket, created with `nc -lU` and read back

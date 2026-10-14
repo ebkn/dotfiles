@@ -1036,6 +1036,76 @@ eq "and delivers" "delivered" "$(job .status)"
 # below this one silently runs with the override in place.
 unset PR_REVIEW_DISPATCH_SOCK_TOOL
 
+# --- nc closes on EOF -------------------------------------------------------
+# Linux's netcat-openbsd does not close the connection when stdin ends: without
+# -N it idles out the whole `-w 5`, so every delivery took 5 s on Linux (21 of
+# them were 105 s of this suite on CI) while macOS's nc returned at once. But
+# macOS's -N is a different option that TAKES AN ARGUMENT (num_probes), so
+# `nc -N -U` there would consume -U and break delivery on the platform that runs
+# this in production. The flag is therefore decided from the nc's own help, and
+# both variants are pinned here with stubs, since a Linux runner can only ever
+# exercise one of them for real.
+
+printf 'nc close on EOF\n'
+# stub_nc <help line for -N> -- an nc whose help carries that -N line, recording
+# its argv when it is used to send.
+stub_nc() {
+  cat >"$STUB/nc" <<EOF
+#!/bin/bash
+if [ "\$1" = -h ]; then
+  printf 'usage: nc [options]\n\t%s\n\t-U\t\tUse UNIX domain socket\n' '$1' >&2
+  exit 1
+fi
+printf '%s\n' "\$*" >"\$NCARGV"
+cat >/dev/null
+EOF
+  chmod +x "$STUB/nc"
+}
+# Sets ncargv rather than printing it: called as $(...), the listener's pid would
+# be recorded in a subshell and never reach cleanup.
+nc_argv_for() { # nc_argv_for <help line> -- the argv dispatch sends with
+  reset
+  stub_nc "$1"
+  PID=$(spawn_holder)
+  listen "$TMP/s-ncstub.sock" "$TMP/wire-ncstub" || no "listener came up"
+  session live "$PID" "$WT" "$TMP/s-ncstub.sock" 100
+  make_job
+  /bin/rm -f "$TMP/nc.argv"
+  PATH="$STUB:$PATH" NCARGV="$TMP/nc.argv" \
+    PR_REVIEW_WATCH_STATE_DIR="$STATE" CLAUDE_SESSIONS_DIR="$SESS" \
+    "$DISPATCH" >/dev/null 2>&1
+  ncargv=$(cat "$TMP/nc.argv" 2>/dev/null)
+  /bin/rm -f "$STUB/nc"
+}
+nc_argv_for '-N		Shutdown the network socket after EOF on stdin'
+eq "an nc whose -N shuts down on EOF (Linux) is given -N" \
+  "-N -U -w 5 $TMP/s-ncstub.sock" "$ncargv"
+nc_argv_for '-N num_probes                 Number of probes to send before generating a write timeout event'
+eq "an nc whose -N takes num_probes (macOS) is not" \
+  "-U -w 5 $TMP/s-ncstub.sock" "$ncargv"
+
+# The property itself, against whatever nc this machine really has: once the
+# peer closes, the delivery returns. A peer that keeps the connection still
+# meets the -w 5 bound, as before. SECONDS is coarse, but the gap it has to
+# tell apart is 0 s against 5 s.
+reset
+PID=$(spawn_holder)
+WIRE="$TMP/wire-eof"
+SOCKP="$TMP/seof.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session live "$PID" "$WT" "$SOCKP" 100
+make_job
+started=$SECONDS
+run >/dev/null
+took=$((SECONDS - started))
+settle "$WIRE" || no "nothing reached the socket (eof)"
+eq "the line is delivered" "user" "$(jq -r .type <"$WIRE" 2>/dev/null)"
+if [ "$took" -lt 3 ]; then
+  ok "a delivery returns once the peer closes (${took}s)"
+else
+  no "a delivery returns once the peer closes" "took ${took}s; nc idled out -w instead of closing on EOF"
+fi
+
 # --- argument handling ------------------------------------------------------
 # `usage()` reproduces the header with `sed -n '2,/^set -uo/p'`, so it silently
 # produces garbage if the header's shape changes. Nothing else would notice.

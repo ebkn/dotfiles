@@ -94,6 +94,19 @@ case "$SOCK_TOOL" in
   *) die "PR_REVIEW_DISPATCH_SOCK_TOOL must be nc or socat, got: $SOCK_TOOL" ;;
 esac
 
+# Linux's netcat-openbsd keeps the connection open after stdin ends and idles
+# out the whole -w, so every delivery took 5 s there; its -N shuts the socket
+# down at EOF instead. macOS's nc closes at EOF already, and its -N is a
+# different option that TAKES AN ARGUMENT (num_probes) -- passed blindly, it
+# would swallow -U and break delivery on the platform that runs this. So the
+# flag is chosen from the nc's own help. A here-string, not a pipe: grep -q
+# exiting early would SIGPIPE `nc -h` under pipefail.
+NC_EOF=
+if [ "$SOCK_TOOL" = nc ] &&
+  grep -qE '^[[:space:]]*-N[[:space:]]+Shutdown' <<<"$(nc -h 2>&1)"; then
+  NC_EOF=-N
+fi
+
 [ -d "$STATE_DIR/jobs" ] || exit 0
 
 # Same lock discipline as the watcher: launchd does not care that the previous
@@ -508,7 +521,7 @@ post_to_socket() {
   local sock=$1 text=$2 line
   line=$(jq -cn --arg c "$text" '{type:"user",message:{role:"user",content:$c}}') || return 1
   case "$SOCK_TOOL" in
-    nc) printf '%s\n' "$line" | nc -U -w 5 "$sock" >/dev/null 2>&1 ;;
+    nc) printf '%s\n' "$line" | nc ${NC_EOF:+"$NC_EOF"} -U -w 5 "$sock" >/dev/null 2>&1 ;;
     socat) printf '%s\n' "$line" | socat -t 5 - "UNIX-CONNECT:$sock" >/dev/null 2>&1 ;;
   esac
 }

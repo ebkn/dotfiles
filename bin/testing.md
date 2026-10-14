@@ -162,7 +162,7 @@ Estimates are from the measurements above, not yet confirmed by doing the work.
 
 | # | Change | Expected effect |
 | --- | --- | --- |
-| 1 | `pr-review-dispatch`: close the socket on EOF. **macOS `nc -N` is not Linux's `-N`** (it sets write-timeout probes), so the fix cannot be one flag. Behaviour change: regression test first | CI −105 s |
+| 1 | **Done.** `pr-review-dispatch`: close the socket on EOF. **macOS `nc -N` is not Linux's `-N`** (it sets write-timeout probes), so the fix cannot be one flag. Behaviour change: regression test first | CI −105 s |
 | 2 | review-design (then review-test, init-project) graders: rules 3 and 4 | macOS 112 s → est. 20–30 s |
 | 3 | CI per rule 8 | CI wall ≈ slowest job, all suites reported |
 | 4 | `bin/test-lib.sh` + `bin/test` (rules 5–7) | local wall ≈ slowest suite |
