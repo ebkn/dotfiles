@@ -35,8 +35,10 @@ function Test-WingetFailure {
 
 function Confirm-WingetResult {
     param([string]$Id, [long]$Code)
-    if (-not (Test-WingetFailure $Code)) { return }
+    # Converted first, and needed even though Test-WingetFailure converts too:
+    # the [int32] cast below throws on the unsigned form a scheduled task gives.
     $Code = ConvertTo-WingetCode $Code
+    if (-not (Test-WingetFailure $Code)) { return }
     Write-Host ("  FAILED: {0} (winget exit 0x{1:X8})" -f $Id, [int32]$Code) -ForegroundColor Red
     $script:FailedPackages += $Id
 }
