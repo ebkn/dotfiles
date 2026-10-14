@@ -133,6 +133,22 @@ assert_exit_zero() {
 RS=$'\036'
 US=$'\037'
 
+# next_second <epoch> -- return once the clock has passed <epoch>'s second. For
+# cases that need two stamps to differ: @claude_since is in whole seconds. A
+# stamp that is not a number falls back to a full second, so a broken read
+# cannot make the wait vanish along with what the case is about.
+next_second() {
+  case "$1" in
+    '' | *[!0-9]*)
+      sleep 1
+      return
+      ;;
+  esac
+  local i=0
+  # Bounded: a stamp from the future would otherwise hang the suite.
+  while (($(date +%s) <= $1 && i++ < 40)); do sleep 0.05; done
+}
+
 notify_json() { jq -cn --arg t "$1" --arg m "${2-}" '{notification_type:$t, message:$m}'; }
 
 # A payload from inside a subagent: $1 agent_id, $2 agent_type, and optionally
@@ -960,10 +976,11 @@ run clear
 run subagent-start "$(agent_json A Explore)"
 prompt_for A Explore Bash 'older'
 older=$(get_opt @claude_since)
-# A whole second of sleep, grudgingly: the records carry epoch seconds, so two
+# Into the next second, grudgingly: the records carry epoch seconds, so two
 # actors blocked inside the same second are a genuine tie and would exercise the
-# note tie-break instead of the age one this case is about.
-sleep 1
+# note tie-break instead of the age one this case is about. Waiting for the
+# clock to pass the stamp costs half a second on average; `sleep 1` cost one.
+next_second "$older"
 run notify "$(notify_json permission_prompt 'newer')"
 assert_opt @claude_since "$older"
 assert_opt @claude_note 'Explore: Bash: older'
@@ -1127,7 +1144,8 @@ section "an actor's timestamp is when it entered the state"
 # that actually repeats.
 run busy
 since_busy=$(get_opt @claude_since)
-sleep 1
+# A restamp inside the same second would be invisible, hence the wait.
+next_second "$since_busy"
 run busy
 if [[ "$(get_opt @claude_since)" == "$since_busy" ]]; then
   ok "a repeated busy does not restamp @claude_since"
