@@ -1083,11 +1083,20 @@ eq "an nc whose -N shuts down on EOF (Linux) is given -N" \
 nc_argv_for '-N num_probes                 Number of probes to send before generating a write timeout event'
 eq "an nc whose -N takes num_probes (macOS) is not" \
   "-U -w 5 $TMP/s-ncstub.sock" "$ncargv"
+# The rule is "only when -N is described as a shutdown", not "unless it is the
+# macOS one": an nc with no -N at all (ncat installed as nc), or a probe that
+# printed nothing, must not be handed a flag it would reject on every run.
+nc_argv_for '-n		Suppress name/port resolutions'
+eq "an nc with no -N at all is not" \
+  "-U -w 5 $TMP/s-ncstub.sock" "$ncargv"
 
 # The property itself, against whatever nc this machine really has: once the
 # peer closes, the delivery returns. A peer that keeps the connection still
-# meets the -w 5 bound, as before. SECONDS is coarse, but the gap it has to
-# tell apart is 0 s against 5 s.
+# meets the -w 5 bound, as before. The cut is 5 s because a regression cannot
+# come in under it -- nc waits out the full -w first -- so everything below it
+# is pass budget for the rest of the run (jq, git, the lock), which a slow
+# emulated container needs. SECONDS counts whole seconds, which is fine for a
+# 0 s against 5 s gap.
 reset
 PID=$(spawn_holder)
 WIRE="$TMP/wire-eof"
@@ -1100,7 +1109,7 @@ run >/dev/null
 took=$((SECONDS - started))
 settle "$WIRE" || no "nothing reached the socket (eof)"
 eq "the line is delivered" "user" "$(jq -r .type <"$WIRE" 2>/dev/null)"
-if [ "$took" -lt 3 ]; then
+if [ "$took" -lt 5 ]; then
   ok "a delivery returns once the peer closes (${took}s)"
 else
   no "a delivery returns once the peer closes" "took ${took}s; nc idled out -w instead of closing on EOF"
