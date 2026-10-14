@@ -521,9 +521,21 @@ aread() { cat "$ADOPT_SESSIONS/$1" 2>/dev/null || echo '<none>'; }
 # the point -- restored tabs should come back in the order they were opened.
 # session_created is in whole seconds, so the wait is for the clock to pass
 # zeta's second rather than a full second of sleep: half of one, on average.
+# The same helper as tmux-restore-tabs.test.sh's (until bin/test-lib.sh holds
+# one): a failed read falls back to the full second, and the wait is bounded.
+next_second() { # next_second <session>, on the adopt server
+  local created i=0
+  created=$(at display-message -p -t "=$1:" '#{session_created}')
+  case "$created" in
+    '' | *[!0-9]*)
+      sleep 1
+      return
+      ;;
+  esac
+  while [ "$(date +%s)" -le "$created" ] && [ $((i += 1)) -le 40 ]; do sleep 0.05; done
+}
 at -f /dev/null new-session -d -s zeta "$IDLE"
-zeta_created=$(at display-message -p -t '=zeta:' '#{session_created}')
-while [ "$(date +%s)" -le "$zeta_created" ]; do sleep 0.05; done
+next_second zeta
 at new-session -d -s alpha "$IDLE"
 at new-session -d -s _popup_1 "$IDLE"
 at new-session -d -s 'with/slash' "$IDLE"
