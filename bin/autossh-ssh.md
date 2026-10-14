@@ -52,6 +52,12 @@ handed, which is the shim's real contract with autossh: drop an argument and the
 reconnect itself breaks, on a path that only runs once the network has already
 gone wrong.
 
+**The outage cases run on a stubbed clock** (`date` on `PATH`, answering
+`FAKE_NOW`), attempt after attempt with no re-seeding between them. They first
+seeded `<count> <epoch>` by hand before each attempt, which passed with a shim
+that never wrote an epoch at all — myssh's own case, since its state file
+starts empty — so what is pinned now is the shim's write and its read-back.
+
 The notice is drawn on **`AUTOSSH_NOTICE_TTY`** (default `/dev/tty`; only the
 test sets it), pointed at a plain file so the frame is read back whole. The suite
 used to read the notice off the shim's stderr instead, which only works with no
