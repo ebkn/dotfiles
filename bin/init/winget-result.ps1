@@ -18,11 +18,25 @@ $WingetOkCodes = @(
     -1978335153   # 0x8A15004F UPGRADE_VERSION_NOT_NEWER
 )
 
+# The code as winget's signed exit status. A scheduled task reports the same
+# 32 bits unsigned.
+function ConvertTo-WingetCode {
+    param([long]$Code)
+    if ($Code -gt [int32]::MaxValue) { $Code -= 4294967296 }
+    return $Code
+}
+
+# Whether winget's exit code means the install or upgrade failed. Pure, so the
+# classification is tested apart from the recording below.
+function Test-WingetFailure {
+    param([long]$Code)
+    return -not ($WingetOkCodes -contains (ConvertTo-WingetCode $Code))
+}
+
 function Confirm-WingetResult {
     param([string]$Id, [long]$Code)
-    # A scheduled task reports the code as an unsigned 32-bit value.
-    if ($Code -gt [int32]::MaxValue) { $Code -= 4294967296 }
-    if ($WingetOkCodes -contains $Code) { return }
+    if (-not (Test-WingetFailure $Code)) { return }
+    $Code = ConvertTo-WingetCode $Code
     Write-Host ("  FAILED: {0} (winget exit 0x{1:X8})" -f $Id, [int32]$Code) -ForegroundColor Red
     $script:FailedPackages += $Id
 }
