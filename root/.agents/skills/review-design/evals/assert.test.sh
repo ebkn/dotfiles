@@ -112,10 +112,50 @@ shard_merge() {
   return 1
 }
 
+# shard_check_merge -- shard_merge against made-up shard output, before every
+# run. Its fail-closed verdicts are what stop a broken run from passing, and a
+# real run only ever exercises the green one, so each way of losing a scenario
+# is provoked here: a few awk calls, where a mutant of the whole suite costs
+# half a minute and runs only when someone remembers to.
+#
+# The markers come from $'...' rather than a printf format: there '\0361'
+# reads as one octal escape, not \036 followed by 1.
+shard_check_merge() {
+  local d out o=$'\036' e=$'\037' label file
+  d="$(mktemp -d)"
+  printf '%s\n' "${o}1" 'ok   a' "${o}3" 'ok   c' "${e}3" >"$d/0"
+  printf '%s\n' "${o}2" 'ok   b' "${e}3" >"$d/1"
+  printf '%s\n' "${e}3" >"$d/dropped"
+  printf '%s\n' "${o}2" '     detail only' "${e}3" >"$d/unchecked"
+  printf '%s\n' "${o}2" 'ok   b' "${e}4" >"$d/disagrees"
+  if out="$(shard_merge 2 "$d/0" "$d/1")" && [ "$out" = "ok   a
+ok   b
+ok   c" ]; then
+    ok "shard merge: two shards come back in source order"
+  else
+    bad "shard merge: two shards come back in source order"
+  fi
+  while IFS='|' read -r label file; do
+    # shellcheck disable=SC2086 # $file is empty for the missing shard: no argument
+    if shard_merge 2 "$d/0" $file >/dev/null; then
+      bad "shard merge: $label fails"
+    else
+      ok "shard merge: $label fails"
+    fi
+  done <<EOF
+a shard that never finished|
+a scenario that never ran|$d/dropped
+a scenario with no check|$d/unchecked
+shards disagreeing on the count|$d/disagrees
+EOF
+  rm -rf "$d"
+}
+
 # shard_drive -- run this file as its shards, print the merge and a summary,
 # and exit with the verdict.
 shard_drive() {
-  local jobs shard_dir k p merged finished=1 shard_failed=0 pids=()
+  local jobs shard_dir k p merged checks finished=1 shard_failed=0 pids=()
+  checks="$(shard_check_merge)"
   jobs="${TEST_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
   case "$jobs" in '' | *[!0-9]* | 0) jobs=1 ;; esac
   shard_dir="$(mktemp -d)"
@@ -129,6 +169,8 @@ shard_drive() {
   done
   for p in "${pids[@]}"; do wait "$p" || shard_failed=1; done
   merged="$(shard_merge "$jobs" "$shard_dir"/*)" || finished=0
+  merged="$checks
+$merged"
   if [ "$shard_failed" -ne 0 ] && ! grep -q '^FAIL' <<<"$merged"; then
     merged="$merged
 FAIL a shard exited non-zero without reporting a failure"
