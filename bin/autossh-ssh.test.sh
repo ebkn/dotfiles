@@ -134,33 +134,57 @@ esac
 # The counter lasts as long as myssh, so after a connection that came back is
 # lost again the first notice is attempt 3 or later. Keyed on attempt 2 alone,
 # that notice left the stale remote frame and the mouse flood on screen. What
-# tells the two apart is how long the previous attempt ran: the state file
-# records when it started.
-# outage_after <seconds-ago> -- attempt 6, the previous one started that long ago.
-outage_after() {
-  printf '5 %s' "$(($(date +%s) - $1))" >"$state"
+# tells the two apart is how long the previous attempt ran: each attempt records
+# when it started, and the next one reads that back.
+#
+# The clock is a stub on PATH so the shim's own write and read-back is what is
+# tested, attempt after attempt with no re-seeding: seeding the epoch by hand
+# passed with a shim that never wrote one, which is myssh's case, whose state
+# file starts empty.
+cat >"$work/bin/date" <<'STUB'
+#!/bin/sh
+[ "$1" = +%s ] && [ -n "${FAKE_NOW:-}" ] && { printf '%s\n' "$FAKE_NOW"; exit 0; }
+exec /bin/date "$@"
+STUB
+chmod +x "$work/bin/date"
+# at <epoch> -- the next attempt, at that time, carrying on from the last one.
+at() {
   /bin/rm -f "$state.log"
   : >"$tty"
-  AUTOSSH_NOTICE_STATE="$state" AUTOSSH_NOTICE_HOST="thehost" \
+  FAKE_NOW=$1 AUTOSSH_NOTICE_STATE="$state" AUTOSSH_NOTICE_HOST="thehost" \
     AUTOSSH_NOTICE_TTY="$tty" "$shim" "${ARGS[@]}" >"$work/out" 2>/dev/null
 }
-outage_after 600
-case "$(cat "$tty")" in
-  "$reset${E}[12;"*) pass "after a session that ran 10 minutes, the next notice resets and clears" ;;
-  *) fail "after a session that ran 10 minutes, the next notice resets and clears" "frame: $(cat -v "$tty")" ;;
-esac
-same "and still counts on" "reconnecting to thehost … (6)" "$(visible "$tty")"
-# The boundary: a failed attempt can take seconds (a connect timeout), and
-# clearing on those is the flicker attempt 3 above rules out.
-outage_after 2
-case "$(cat "$tty")" in
-  *"${E}[2J"*) fail "after an attempt that lasted 2s, it only repaints" "frame: $(cat -v "$tty")" ;;
-  *) pass "after an attempt that lasted 2s, it only repaints" ;;
-esac
-case "$(cat "$state")" in
-  6' '[0-9]*) pass "the state file records the count and this attempt's start" ;;
-  *) fail "the state file records the count and this attempt's start" "state: $(cat "$state")" ;;
-esac
+# clears -- what the last frame did: the full reset and clear first, a clear
+# somewhere else in it, or neither.
+clears() {
+  case "$(cat "$tty")" in
+    "$reset${E}[12;"*) echo clears ;;
+    *"${E}[2J"*) echo "clears late" ;;
+    *) echo repaints ;;
+  esac
+}
+# A count with no epoch is the format before this one, still read: no gap known.
+printf '5' >"$state"
+at 1000
+same "an old-format state file is carried on as attempt 6" "repaints" "$(clears)"
+same "and the attempt records its count and start" "6 1000" "$(cat "$state")"
+at 1029
+same "29s after the previous attempt began: still the same outage, a repaint" "repaints" "$(clears)"
+same "which draws the notice all the same" "reconnecting to thehost … (7)" "$(visible "$tty")"
+same "and records its own start, not the previous one's" "7 1029" "$(cat "$state")"
+at 1059
+same "30s after: the previous attempt was a session, so this one resets and clears" "clears" "$(clears)"
+same "and still counts on" "reconnecting to thehost … (8)" "$(visible "$tty")"
+at 1060
+same "1s later: back to repainting" "repaints" "$(clears)"
+same "with the count carried on" "9 1060" "$(cat "$state")"
+# A start that is not a number must not reach the arithmetic: dash exits there
+# ("value too great for base"), before the exec, and the reconnect is lost.
+printf '5 12abc' >"$state"
+/bin/rm -f "$SSH_STUB_ARGV"
+at 1000
+same "a garbled start is ignored, and ssh still runs" "$ARGV_WANT" "$(cat "$SSH_STUB_ARGV")"
+same "as attempt 6" "6 1000" "$(cat "$state")"
 
 # --- a multi-line diagnostic: the LAST non-blank line is the one quoted -----
 # ssh's fatal messages are several lines, and the useful one comes last: a
