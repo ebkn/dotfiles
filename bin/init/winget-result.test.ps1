@@ -53,5 +53,20 @@ Confirm-WingetResult 'two' 1603 6>$null
 if (($script:FailedPackages -join ',') -eq 'one,two') { Write-Output 'ok   failures accumulate, in order, successes left out' }
 else { Write-Output "FAIL failures accumulate: $($script:FailedPackages -join ',')"; $fails++ }
 
+# The verdict windows.ps1 exits with. Without it the collecting above is for
+# nothing: the run ends "Setup complete" and green, which is the bug it fixed.
+$script:FailedPackages = @()
+$out = Get-WingetExitStatus 6>&1
+if ("$out" -eq '0') { Write-Output 'ok   no failures: exit status 0, and nothing said' }
+else { Write-Output "FAIL no failures: got '$out'"; $fails++ }
+$script:FailedPackages = @('Zoom.Zoom', 'GnuPG.GnuPG')
+$out = @(Get-WingetExitStatus 6>&1)
+$status = $out | Where-Object { $_ -is [int] }
+$said = ($out | Where-Object { $_ -isnot [int] }) -join ''
+if ($status -eq 1) { Write-Output 'ok   with failures: exit status 1' }
+else { Write-Output "FAIL with failures: exit status '$status'"; $fails++ }
+if ($said -like '*winget failed for: Zoom.Zoom, GnuPG.GnuPG*') { Write-Output 'ok   and every failed id is named' }
+else { Write-Output "FAIL and every failed id is named: '$said'"; $fails++ }
+
 if ($fails -gt 0) { Write-Output "$fails failure(s)"; exit 1 }
 Write-Output 'PASS'
