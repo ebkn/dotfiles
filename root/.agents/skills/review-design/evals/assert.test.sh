@@ -94,18 +94,32 @@ rec_skill() {
 
 # --- running one scenario ---
 # new_run <case>: the fixture its scaffold builds, an empty transcript.
+#
+# Each case is scaffolded once and copied per scenario: a scaffold is a git
+# init and a few commits (~120 ms on macOS), a copy ~20 ms, and some 165
+# scenarios run here. Every scenario still mutates only its own copy. The
+# copies share commit hashes, which nothing here compares across scenarios.
+# -p keeps the mtimes the index recorded, so git status does not rehash.
 new_run() {
   case_name="$1"
   work="$root_dir/work"
   art="$root_dir/art"
+  local built="$root_dir/fixtures/$case_name"
   rm -rf "$work" "$art"
-  mkdir -p "$work" "$art"
-  (
-    cd "$work" || exit 1
-    SKILL_EVAL_LIB_DIR="$repo_root/bin" SKILL_EVAL_REPO_ROOT="$repo_root" \
-      bash "$evals_dir/$case_name/scaffold.sh" </dev/null
-    printf '.claude/\nbin/\n' >>.git/info/exclude
-  ) >/dev/null 2>&1 || return 1
+  mkdir -p "$art"
+  if [ ! -d "$built" ]; then
+    mkdir -p "$built"
+    (
+      cd "$built" || exit 1
+      SKILL_EVAL_LIB_DIR="$repo_root/bin" SKILL_EVAL_REPO_ROOT="$repo_root" \
+        bash "$evals_dir/$case_name/scaffold.sh" </dev/null
+      printf '.claude/\nbin/\n' >>.git/info/exclude
+    ) >/dev/null 2>&1 || {
+      rm -rf "$built"
+      return 1
+    }
+  fi
+  cp -Rp "$built" "$work" || return 1
   rec_init >"$art/transcript.jsonl"
 }
 
