@@ -87,11 +87,17 @@ If the program sleeps or times out, the test pays it unless the program reads
 the interval from the environment. Default unchanged; the test sets it small:
 
 ```bash
-: "${TMUX_TRACK_SESSION_POLL:=2}"   # in the program
-TMUX_TRACK_SESSION_POLL=0.05 tmux-track-session monitor …   # in the test
+POLL="${TMUX_TRACK_SESSION_POLL:-2}"     # in the program
+export TMUX_TRACK_SESSION_POLL=0.05      # in the test, before any tmux server starts
 ```
 
-`zsh/ssh.zsh`'s `_SSH_KEEPALIVE_POLL` already does this. Name the variable after
+**A program that tmux starts (`run-shell`, a hook, a key binding) runs with the
+tmux server's environment, not the test's**, so the variable has to be in the
+environment the server was started from. Prefixed to one command it reaches
+that command and nothing it asks tmux to start, and the suite is merely slow,
+not red ([tmux-track-session.md](tmux-track-session.md)).
+
+`zsh/ssh.zsh`'s `_SSH_KEEPALIVE_POLL` does the same. Name the variable after
 the program, and list it in the program's `.md`. This is a seam for time only;
 it does not license a test-only branch in the program.
 
@@ -228,7 +234,7 @@ Estimates are from the measurements above, not yet confirmed by doing the work.
 | 1 | **Done.** `pr-review-dispatch`: close the socket on EOF. **macOS `nc -N` is not Linux's `-N`** (it sets write-timeout probes), so the fix cannot be one flag. Behaviour change: regression test first | CI −105 s |
 | 2 | **Done for review-design.** Rule 3 (112 → 94 s), then sharding per rule 7's exception (→ 34 s on 18 cores). The estimate assumed fixtures dominated; a profile showed the grader is ~70 % of a scenario. review-test (12 s) and init-project (11 s) are left: under the 10 s line by little, and not yet worth the harness | macOS 112 s → 34 s |
 | 3 | **Done.** `bin/test` (rule 7) and CI running it (rule 8). Not the slowest suite, as estimated: the Mac stops scaling at ~4 jobs | host suites: macOS 142 s → ~55 s |
-| 4 | `bin/test-in-docker` through `bin/test`, so the tmux suites run in parallel too; then `bin/test-lib.sh` (rules 5, 6) | — |
+| 4 | `bin/test-in-docker` through `bin/test`, so the tmux suites run in parallel too; then `bin/test-lib.sh` (rules 5, 6), taking the copies that exist today: `next_second` (track-session, restore-tabs, agent-state) and a `wait_until` whose deadline is in seconds, not loop count × step | — |
 | 5 | **Done.** Rule 2 for `tmux-track-session` (`TMUX_TRACK_SESSION_POLL`); rule 1 for the fixed sleeps in `tmux-track-session`, `tmux-agents`, `ssh-keepalive`, `tmux-restore-tabs`, `tmux-pane-titles`, `agent-state`, and the 0.25/0.2 s steps of polls that run to a real wait cut to 0.05 s (those right after a blocking `run-shell`, which never sleep on a green run, left as they were). Left on purpose: `tmux-agents`' 2 s list refresh (`REFRESH`, readonly; a shorter one would reload under the cursor cases), the fixed windows rule 1 lists | in the container: track-session 23 → 11 s, tmux-agents 43 → 33 s, ssh-keepalive 12 → 4.5 s (host 11.4 → 4.3 s), pane-titles 5.3 → 2.7 s, agent-state 47 → 42 s, restore-tabs 3.1 → 2.6 s |
 
 Existing suites move to the helper fragment when they are next touched, not in
