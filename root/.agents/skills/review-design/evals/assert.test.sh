@@ -41,17 +41,21 @@ bad() {
 }
 
 # --- shards ---
-# Every scenario below builds its own fixture and runs a real grader, ~0.6 s
-# each on macOS, nearly all of it the grader's own processes -- and none of them
+# Every scenario below copies its fixture and runs a real grader, ~0.6 s each
+# on macOS, nearly all of it the grader's own processes -- and none of them
 # shares state with another. So the file runs itself as REVIEW_DESIGN_JOBS
 # shards (one per CPU by default): each shard walks every scenario but runs only
 # those whose index falls to it. Each scenario's output follows a marker line
 # carrying its index, which is how the blocks are put back in source order:
-# the result reads exactly as a sequential run would.
+# the result reads as a sequential run would, bar the summary line.
 #
-# A shard that died part-way would otherwise be a shorter green run. So each
-# shard ends by reporting how many scenarios it walked, and every index up to
-# that count must have produced a block.
+# A shard that died part-way would otherwise be a shorter green run, so the
+# merge fails CLOSED: green needs the token awk prints only when every shard
+# finished and every scenario 1..n left a block holding a check. An awk that
+# errors, or prints nothing, therefore cannot pass.
+#
+# Shards run on "$BASH", the interpreter running this file: through PATH they
+# would get Homebrew's bash 5, and nothing would exercise "written for bash 3.2".
 if [ -z "${REVIEW_DESIGN_SHARD:-}" ]; then
   jobs="${REVIEW_DESIGN_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
   case "$jobs" in '' | *[!0-9]* | 0) jobs=1 ;; esac
@@ -61,30 +65,39 @@ if [ -z "${REVIEW_DESIGN_SHARD:-}" ]; then
   k=0
   while [ "$k" -lt "$jobs" ]; do
     REVIEW_DESIGN_SHARD="$k" REVIEW_DESIGN_JOBS="$jobs" \
-      bash "$self" >"$shard_dir/$k" 2>&1 &
+      "$BASH" "$self" >"$shard_dir/$k" 2>&1 &
     pids+=("$!")
     k=$((k + 1))
   done
   shard_failed=0
   for p in "${pids[@]}"; do wait "$p" || shard_failed=1; done
-  # \036 opens scenario <n>; \037 closes a shard, carrying its scenario count.
-  # A line before any marker is shard setup and is kept, at the top.
-  merged="$(awk '
+  # \036 opens scenario <n>; \037 closes a shard, carrying its scenario count;
+  # \035 is the completion token. A line before a shard's first marker is its
+  # setup, kept at the top (idx resets per file, or it would join the previous
+  # shard's last scenario).
+  complete=$'\035complete'
+  if ! merged="$(awk -v jobs="$jobs" '
+    FNR == 1 { idx = 0 }
     /^\036/ { idx = substr($0, 2) + 0; seen[idx] = 1; next }
     /^\037/ { n = substr($0, 2) + 0; if (total == "") total = n; else if (n != total) bad = 1; shards++; next }
-    { blk[idx + 0] = blk[idx + 0] $0 "\n" }
+    { blk[idx] = blk[idx] $0 "\n"; if ($0 ~ /^(ok|FAIL) /) checked[idx] = 1 }
     END {
       for (i = 0; i <= total; i++) printf "%s", blk[i]
-      for (i = 1; i <= total; i++) if (!(i in seen)) missing++
-      if (shards != '"$jobs"' || bad || total == "" || total == 0 || missing)
-        printf "FAIL shards: %d of %d finished, %s scenario(s), %d missing\n", shards, '"$jobs"', total, missing
-    }' "$shard_dir"/*)"
+      for (i = 1; i <= total; i++) if (!(i in seen) || !(i in checked)) missing++
+      if (shards == jobs && !bad && total > 0 && !missing) print "\035complete"
+      else printf "FAIL shards: %d of %d finished, %s scenario(s), %d missing or without a check\n", shards, jobs, total, missing
+    }' "$shard_dir"/*)"; then
+    merged="FAIL the shard merge itself failed"
+  fi
+  finished=0
+  case "$merged" in *"$complete") finished=1 ;; esac
+  merged="${merged%"$complete"}"
   if [ "$shard_failed" -ne 0 ] && ! grep -q '^FAIL' <<<"$merged"; then
     merged="$merged
 FAIL a shard exited non-zero without reporting a failure"
   fi
-  printf '%s\n' "$merged"
-  if [ "$shard_failed" -eq 0 ] && ! grep -q '^FAIL' <<<"$merged"; then
+  printf '%s\n' "${merged%$'\n'}"
+  if [ "$finished" -eq 1 ] && [ "$shard_failed" -eq 0 ] && ! grep -q '^FAIL' <<<"$merged"; then
     printf '\nall review-design grader tests passed (%s shard(s))\n' "$jobs"
     exit 0
   fi
@@ -158,7 +171,6 @@ rec_skill() {
 # init and a few commits (~120 ms on macOS), a copy ~20 ms, and some 165
 # scenarios run here. Every scenario still mutates only its own copy. The
 # copies share commit hashes, which nothing here compares across scenarios.
-# -p keeps the mtimes the index recorded, so git status does not rehash.
 #
 # It is also where a scenario begins, so it decides whether this shard runs it
 # (see "shards" above). A skipped scenario returns 1 like a failed scaffold,
@@ -189,7 +201,7 @@ new_run() {
       return 1
     }
   fi
-  cp -Rp "$built" "$work" || return 1
+  cp -R "$built" "$work" || return 1
   rec_init >"$art/transcript.jsonl"
 }
 

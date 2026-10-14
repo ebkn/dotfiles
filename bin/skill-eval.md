@@ -293,10 +293,11 @@ writes synthetic transcripts, and two things about them are worth copying:
 **`review-design/evals/assert.test.sh` runs sharded** — one shard per CPU,
 `REVIEW_DESIGN_JOBS` to override (`1` is a sequential run) — because its ~165
 scenarios each spend ~0.45 s in the real grader, and that is not the place to
-save time. It took 112 s on macOS sequentially, 34 s sharded. The output is
-merged back into source order, and a shard that dies or a scenario that never
-ran is a FAIL. Each case is also scaffolded once and copied per scenario. See
-rule 7 in [testing.md](testing.md).
+save time. On macOS it took 112 s before; scaffolding each case once and
+copying it per scenario brought a sequential run to ~95 s, and sharding to
+~34 s. The output is merged back into source order, and the merge fails
+closed: a shard that dies, a scenario that never ran or asserted nothing, or a
+merge that itself breaks is a FAIL. See rule 7 in [testing.md](testing.md).
 
 ## The runner's own test
 
