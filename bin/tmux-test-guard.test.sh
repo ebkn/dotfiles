@@ -110,6 +110,22 @@ else
   fail "test-in-docker failed with docker stubbed"
 fi
 
+# bin/test holds a third copy of the regex, deciding which suites a laptop run
+# skips. Drift there is quiet one way: a non-tmux suite read as a tmux one is
+# skipped on every laptop and only CI still runs it. Its host-mode listing must
+# skip exactly the guarded suites, and no others, as tmux suites.
+if host_list=$(GITHUB_ACTIONS=false TEST_CONTAINER_MARK=/nonexistent bin/test --list); then
+  skipped=$(sed -n 's/^skip \([^ ]*\)  (a tmux suite: .*)$/\1/p' <<<"$host_list" | sort)
+  want=$(printf '%s\n' "$suites" | grep -vxF bin/tmux-test-guard.test.sh | sed '/^$/d' | sort)
+  if [ "$skipped" = "$want" ]; then
+    printf 'ok   bin/test skips exactly the %d guarded suites on a laptop\n' "$count"
+  else
+    fail "bin/test's tmux skips differ from the guarded suites: $(diff <(printf '%s\n' "$want") <(printf '%s\n' "$skipped") | tr '\n' ' ')"
+  fi
+else
+  fail "bin/test --list failed"
+fi
+
 # The tally, run for real through the stub. test-in-docker is the only way to
 # run the tmux suites locally, and its exit status is what a caller -- an agent
 # included -- believes. A broken `|| failed=...` would print a suite's FAIL and

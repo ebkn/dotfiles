@@ -39,7 +39,10 @@ can also run the container's script on the host against fixture suites, which
 pins the tally: one failing suite exits non-zero and is named, nothing claims a
 pass alongside it, and a `.zsh` suite runs under zsh. The two
 enroll by copies of one regex, and a drift would shrink the local run while it
-still printed "all N suite(s) passed". Matching the bare words `new-session` or
+still printed "all N suite(s) passed". `bin/test` holds a third
+copy, deciding which suites a laptop run skips, and the same test
+checks that its host-mode `--list` skips exactly the guarded suites as
+tmux suites. Matching the bare words `new-session` or
 `kill-server` would be wrong both ways: the stub suites only see them as text in
 a call log, and `zsh/ssh-session.test.zsh` quotes them without running tmux. It
 also checks that the guard really refuses outside a container. That half can

@@ -75,8 +75,9 @@ reason_for() {
 }
 
 # A tmux suite refuses a developer machine (bin/tmux-test-guard.sh), so it is
-# run only where the guard lets it. TEST_CONTAINER_MARK exists for this file's
-# own test, which must see both answers wherever it runs.
+# run only where the guard lets it. TEST_CONTAINER_MARK stands in for
+# /.dockerenv in tests -- bin/test.test.sh and bin/tmux-test-guard.test.sh --
+# which must see the laptop's answer wherever they run.
 tmux_allowed=false
 if [ -f "${TEST_CONTAINER_MARK:-/.dockerenv}" ] || [ "${GITHUB_ACTIONS:-}" = true ]; then
   tmux_allowed=true
@@ -104,7 +105,9 @@ else
     exit 1
   fi
   # The sourcing line itself, as bin/test-in-docker matches it: a suite that
-  # only mentions the guard is not a tmux suite. git grep exits 1 for "no
+  # only mentions the guard is not a tmux suite. A copy of that regex;
+  # bin/tmux-test-guard.test.sh checks that this one skips exactly the
+  # guarded suites. git grep exits 1 for "no
   # match", which is an answer; anything above that is a failure.
   tmux_suites=$(git grep -l -E '^\. .*tmux-test-guard\.sh" \|\| exit 2$' -- '*.test.sh' '*.test.zsh')
   if [ $? -gt 1 ]; then
