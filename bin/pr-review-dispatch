@@ -94,19 +94,6 @@ case "$SOCK_TOOL" in
   *) die "PR_REVIEW_DISPATCH_SOCK_TOOL must be nc or socat, got: $SOCK_TOOL" ;;
 esac
 
-# Linux's netcat-openbsd keeps the connection open after stdin ends and idles
-# out the whole -w, so every delivery took 5 s there; its -N shuts the socket
-# down at EOF instead. macOS's nc closes at EOF already, and its -N is a
-# different option that TAKES AN ARGUMENT (num_probes) -- passed blindly, it
-# would swallow -U and break delivery on the platform that runs this. So the
-# flag is chosen from the nc's own help. A here-string, not a pipe: grep -q
-# exiting early would SIGPIPE `nc -h` under pipefail.
-NC_EOF=
-if [ "$SOCK_TOOL" = nc ] &&
-  grep -qE '^[[:space:]]*-N[[:space:]]+Shutdown' <<<"$(nc -h 2>&1)"; then
-  NC_EOF=-N
-fi
-
 [ -d "$STATE_DIR/jobs" ] || exit 0
 
 # Same lock discipline as the watcher: launchd does not care that the previous
@@ -143,6 +130,22 @@ for job in "$STATE_DIR"/jobs/*.json; do
   jobs_todo+=("$job")
 done
 [ ${#jobs_todo[@]} -gt 0 ] || exit 0
+
+# Linux's netcat-openbsd keeps the connection open after stdin ends and idles
+# out the whole -w, so every delivery took 5 s there; its -N shuts the socket
+# down at EOF instead. macOS's nc closes at EOF already, and its -N is a
+# different option that TAKES AN ARGUMENT (num_probes) -- passed blindly, it
+# would swallow -U and break delivery on the platform that runs this. So the
+# flag is chosen from the nc's own help: given only when -N is described as a
+# shutdown, never merely withheld from a known exception. Probed here, after
+# the empty-queue exit, to keep it off the idle tick like the rest. A
+# here-string, not a pipe: grep -q exiting early would SIGPIPE `nc -h` under
+# pipefail.
+NC_EOF=
+if [ "$SOCK_TOOL" = nc ] &&
+  grep -qE '^[[:space:]]*-N[[:space:]]+Shutdown' <<<"$(nc -h 2>&1)"; then
+  NC_EOF=-N
+fi
 
 # The session registry is now the ONLY source this program reads, where the old
 # one crossed `claude agents --json` with the same files to get a tmux pane.
