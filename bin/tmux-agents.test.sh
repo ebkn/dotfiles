@@ -1401,9 +1401,9 @@ said_before=$(nothing_said)
 stub_pick ''
 select_first
 tmux -L "$socket" run-shell "cd $PWD && PATH=$work/stub:$PWD/bin:\$PATH tmux-agents >$work/out 2>&1"
-for _ in $(seq 1 20); do
+for _ in $(seq 1 100); do
   [ "$(nothing_said)" -gt "$said_before" ] && break
-  sleep 0.25
+  sleep 0.05
 done
 if [ "$(nothing_said)" -gt "$said_before" ]; then
   pass "enter on a window no client shows says so"
@@ -1423,8 +1423,10 @@ fi
 # to another tab is worse than one that does not fire.
 stub_pick 'ctrl-o'
 select_first
+# No wait after it: run-shell without -b returns only once tmux-agents has
+# exited, and a jump is a select-pane it would have made before that. (The one
+# thing it starts in the background is the view, which needs a client.)
 tmux -L "$socket" run-shell "cd $PWD && PATH=$work/stub:$PWD/bin:\$PATH tmux-agents >$work/out 2>&1"
-sleep 1
 if [ "$(active_pane)" = "$other_pane" ]; then
   pass "a refused ctrl-o does not jump"
 else
@@ -1554,10 +1556,10 @@ done
 client=""
 for _ in 1 2; do
   pty_attach tabA
-  for _ in $(seq 1 24); do
+  for _ in $(seq 1 120); do
     client=$(tmux -L "$socket" list-clients -F '#{client_name}' | head -1)
     [ -n "$client" ] && break
-    sleep 0.25
+    sleep 0.05
   done
   [ -n "$client" ] && break
 done
@@ -1578,10 +1580,16 @@ exit 0
 STUB
   chmod +x "$work/stub/fzf"
 
+  # No sleep after the key. display-popup run from the command line returns only
+  # once the popup's command has exited (measured on 3.7c: a 1.5s command held
+  # it 1.6s), so tmux-agents is done when this returns and the next press finds
+  # no popup open -- which matters, because a second display-popup on a client
+  # that shows one is dropped without a word. What is NOT done on return is a
+  # view tmux-agents started with `run-shell -b`; a case asserting that no view
+  # opened has to allow for that itself (no_view_after).
   press_ctrl_o() {
     tmux -L "$socket" display-popup -c "$client" -E -w 60 -h 20 \
       "sh -c 'PICK=$1 PATH=$work/stub:$PWD/bin:\$PATH tmux-agents >$work/out 2>&1'"
-    sleep 2
   }
   # What the key said, read out of the server's command log -- which records
   # every command with its arguments, `display-message "..."` included. This is
@@ -1603,9 +1611,9 @@ STUB
   # check after it sound: once the refusal is logged the branch has been taken,
   # where a slow run under load would leave a fixed sleep checking too early.
   wait_said() {
-    for _ in $(seq 1 20); do
+    for _ in $(seq 1 100); do
       [ "$(said_count "$2")" -gt "$1" ] && return 0
-      sleep 0.25
+      sleep 0.05
     done
     return 1
   }
@@ -1616,15 +1624,25 @@ STUB
   # failed the next case as well. Pinned by delaying that attach by 3s, which
   # failed four cases here before this and none after.
   wait_mirror() {
-    for _ in $(seq 1 20); do
+    for _ in $(seq 1 100); do
       tmux -L "$socket" list-clients -F '#{client_session}' | grep -q '^_agent_' && return 0
-      sleep 0.25
+      sleep 0.05
     done
     return 1
   }
+  # no_view_after -- succeed when no mirror exists after a fixed window. The
+  # refusal is logged BEFORE the point where a missing `exit 0` would fall
+  # through to `run-shell -b ... open`, so its line in the log cannot decide
+  # this, and a correct run produces no later event to wait for. Reading at
+  # once let both cases below pass with that `exit 0` deleted; the window is
+  # the honest remainder (bin/testing.md, rule 1).
+  no_view_after() {
+    sleep 1
+    [ "$(mirrors)" = 0 ]
+  }
   refused=$(said_count "that session is not waiting on you")
   press_ctrl_o busy-win
-  if wait_said "$refused" "that session is not waiting on you" && [ "$(mirrors)" = 0 ]; then
+  if wait_said "$refused" "that session is not waiting on you" && no_view_after; then
     pass "ctrl-o on a session that is not blocked attaches nothing"
   else
     fail "ctrl-o on a session that is not blocked attaches nothing" \
@@ -1662,7 +1680,7 @@ STUB
   refused=$(said_count "answering a remote agent here is not supported yet")
   press_ctrl_o unused
   if wait_said "$refused" "answering a remote agent here is not supported yet" &&
-    [ "$(mirrors)" = 0 ]; then
+    no_view_after; then
     pass "ctrl-o on a remote row that got past the picker is still refused"
   else
     fail "ctrl-o on a remote row that got past the picker is still refused" \
@@ -1717,13 +1735,13 @@ STUB
   # because a mirror whose attach is still on its way has no client to detach
   # yet; detaching once and waiting left exactly that one behind.
   drop_mirrors() {
-    for _ in $(seq 1 20); do
+    for _ in $(seq 1 100); do
       for m in $(tmux -L "$socket" list-clients -F '#{client_name} #{client_session}' |
         awk '$2 ~ /^_agent_/ { print $1 }'); do
         tmux -L "$socket" detach-client -t "$m" 2>/dev/null
       done
       [ "$(mirrors)" = 0 ] && return 0
-      sleep 0.25
+      sleep 0.05
     done
     return 1
   }
@@ -2063,10 +2081,10 @@ done
 # The mirror opened above is torn down asynchronously, and its popup lives on
 # the client attached to tabA -- so wait for it to be gone before killing that
 # client out from under it, rather than racing the teardown.
-for _ in $(seq 1 20); do
+for _ in $(seq 1 100); do
   tmux -L "$socket" list-clients -F '#{client_session}' 2>/dev/null |
     grep -q '^_agent_' || break
-  sleep 0.25
+  sleep 0.05
 done
 tmux -L "$socket" kill-session -t tabA 2>/dev/null
 tmux -L "$socket" kill-session -t tabB 2>/dev/null
@@ -2091,10 +2109,31 @@ dead() { tmux -L "$socket" display-message -p -t "$fzf_pane" '#{pane_dead}'; }
 # dead time on every run, and one that is merely usually long enough is a test
 # that fails for reasons that have nothing to do with the code.
 wait_screen() {
-  for _ in $(seq 1 40); do
+  for _ in $(seq 1 200); do
     grep -q -- "$1" <<<"$(screen)" && return 0
-    sleep 0.25
+    sleep 0.05
   done
+  return 1
+}
+
+# type_query <text> — type a query that matches exactly one row, and return once
+# fzf shows that it has filtered. fzf matches in the background, so a key sent
+# right after the query can act on the unfiltered list -- on its first row,
+# which is not the one typed. The match count (`1/N` on the info line) is the
+# observable for "done", read together with the query on the prompt line so a
+# list that held one row before the typing cannot satisfy it early. This
+# replaces a fixed 0.4s that only usually was long enough.
+type_query() {
+  local s
+  tmux -L "$socket" send-keys -t "$fzf_pane" "$1"
+  for _ in $(seq 1 200); do
+    s=$(screen)
+    case "$s" in *"> $1"*) grep -q ' 1/[0-9]' <<<"$s" && return 0 ;; esac
+    sleep 0.05
+  done
+  # Named here, so the case after it does not take the blame: a key sent now
+  # lands on whatever row the unfiltered list has first.
+  fail "harness: the query $1 narrows the picker to one row" "$s"
   return 1
 }
 
@@ -2104,9 +2143,10 @@ else
   pass "the picker renders in a real pane"
 
   # asking sorts above busy, so the second row is the one ctrl-o must refuse.
-  tmux -L "$socket" send-keys -t "$fzf_pane" Down
-  sleep 0.4
-  tmux -L "$socket" send-keys -t "$fzf_pane" C-o
+  # Both keys in one send-keys, with no pause between: fzf handles key events
+  # one at a time in arrival order, so C-o acts on the row Down moved to. (Not
+  # a query, which would hide the rows the cursor cases below move between.)
+  tmux -L "$socket" send-keys -t "$fzf_pane" Down C-o
 
   if wait_screen 'not waiting on you'; then
     pass "ctrl-o on a row that is not blocked warns in the header"
@@ -2154,9 +2194,9 @@ else
   # explains: the pane also dies when the script errors out, so "it exited"
   # alone would report a crash as an accepted key.
   tmux -L "$socket" send-keys -t "$fzf_pane" C-o
-  for _ in $(seq 1 40); do
+  for _ in $(seq 1 200); do
     [ "$(dead)" = 1 ] && break
-    sleep 0.25
+    sleep 0.05
   done
   if [ "$(dead)" = 1 ] && [ ! -s "$work/real" ]; then
     pass "ctrl-o on a blocked row is accepted"
@@ -2183,9 +2223,9 @@ else
     fail "the picker lists a needs_input row" "$(screen)" "$(cat "$work/real" 2>/dev/null)"
   else
     tmux -L "$socket" send-keys -t "$fzf_pane" C-o
-    for _ in $(seq 1 40); do
+    for _ in $(seq 1 200); do
       [ "$(dead)" = 1 ] && break
-      sleep 0.25
+      sleep 0.05
     done
     # Dead AND silent. The pane also dies when the script errors out, and the
     # fixture right above it was just rebuilt -- so "it exited" on its own would
@@ -2242,8 +2282,7 @@ else
     tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
       "sh -c 'SHELL=/bin/sh FZF_DEFAULT_OPTS=--accept-nth=-1 PATH=$work/wstub:$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
     wait_screen "$1" || return 1
-    tmux -L "$socket" send-keys -t "$fzf_pane" "$1"
-    sleep 0.4
+    type_query "$1" || return 1
     tmux -L "$socket" send-keys -t "$fzf_pane" Enter
     return 0
   }
@@ -2252,9 +2291,9 @@ else
   # the other's timeout: acceptance closes the picker, a refusal leaves it up
   # with the reason in its header.
   wait_dead() {
-    for _ in $(seq 1 40); do
+    for _ in $(seq 1 200); do
       [ "$(dead)" = 1 ] && return 0
-      sleep 0.25
+      sleep 0.05
     done
     return 1
   }
@@ -2307,11 +2346,11 @@ else
   # first nor last, so taking `.[0]` without the tty filter would raise tab 5.
   pty_attach bindB
   agent_tty=""
-  for _ in $(seq 1 24); do
+  for _ in $(seq 1 120); do
     agent_tty=$(tmux -L "$socket" list-clients -F '#{client_name} #{client_session}' |
       awk '$2 == "bindB" { print $1; exit }')
     [ -n "$agent_tty" ] && break
-    sleep 0.25
+    sleep 0.05
   done
 
   if [ -z "$agent_tty" ]; then
@@ -2428,8 +2467,7 @@ STUB
     tmux -L "$socket" respawn-pane -k -t "$fzf_pane" \
       "sh -c 'SHELL=/bin/sh PATH=$work/wstub:$PWD/bin:\$PATH tmux-agents >$work/real2 2>&1'"
     if wait_screen b-jump; then
-      tmux -L "$socket" send-keys -t "$fzf_pane" b-jump
-      sleep 0.4
+      type_query b-jump
       tmux -L "$socket" send-keys -t "$fzf_pane" C-o
       if wait_screen 'not waiting on you'; then
         pass "ctrl-o on a jumpable idle row is refused in the picker"
