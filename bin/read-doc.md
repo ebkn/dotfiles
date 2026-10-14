@@ -207,8 +207,12 @@ writes the HTML to stdout without opening a browser. It needs pandoc and fails
 without it rather than skipping. CI installs a **pinned** pandoc for it (the
 runner has none, and the distro package predates `--syntax-highlighting`); the
 same pin is in `bin/test-in-docker.Dockerfile` and `brewfiles/Brewfile-shell`,
-so bump all three together. It covers the list below except `class="title"` and
-the measurement that follows, plus the forwarding cap and the image pass's
+so bump all three together. It covers the list below except the measurement
+that follows, plus front matter (trap 5: no `<link>` or `class="title"`, the
+block shown as YAML with every line and the body after it kept, from a file
+and from stdin, closed by `---` or `...`, and an unclosed block left whole; a
+CRLF block is not fenced, which is what pins the reader spec itself, since the
+filter alone hides the block from pandoc), plus the forwarding cap and the image pass's
 edges: a symlink inside the document's tree pointing out of it — which the
 directory-only resolution once let through — and one pointing at an image
 inside it, which must still inline; a symlinked directory; an unknown type; the

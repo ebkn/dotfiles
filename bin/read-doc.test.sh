@@ -96,6 +96,11 @@ t "the leading block is shown as YAML source" "1" \
 # found in the <h1 class="title"> this exists to prevent.
 t "with every line of it kept: the css value" "1" "$(count 'example.com/x.css' "$TMP/fm.html")"
 t "and the title value" "1" "$(count 'Injected' "$TMP/fm.html")"
+# And the document after it. Every check above holds for a filter that stops
+# at the closing line, which leaves nothing but the front matter on the page.
+t "the body after the block is still rendered" "1" "$(count 'Real heading</h1>' "$TMP/fm.html")"
+# Nor does the closing --- leak through as a rule of its own.
+t "and the closing line is not left behind as a rule" "0" "$(count '<hr' "$TMP/fm.html")"
 
 # The other ways in: stdin (`ssh host cat doc.md | read-doc`), and YAML's own
 # `...` as the closing line.
@@ -104,6 +109,7 @@ printf -- '---\ntitle: Piped\n...\n\n# Real\n' |
 t "from stdin, a block closed by ... is shown as YAML too" "1" \
   "$(count '<code class="sourceCode yaml">' "$TMP/fm-stdin.html")"
 t "and sets no title heading" "0" "$(count 'class="title"' "$TMP/fm-stdin.html")"
+t "with the body after it" "1" "$(count 'Real</h1>' "$TMP/fm-stdin.html")"
 
 # A block that never closes is not front matter. Every line must still be there:
 # the filter holds them back while it waits for the closing line.
