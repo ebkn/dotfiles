@@ -555,8 +555,14 @@ and for the same reason **its presence proves nothing; its count does.** Two
 prefix + A cases refuse with the same sentence, so the second was satisfied by
 the first one's line whether or not its own run got as far as deciding. Each
 refusal case now records the count before acting and waits for it to rise
-(`wait_said`), which also replaces a fixed `sleep 2`: once the refusal is logged
-the branch has been taken, so the "no mirror" check after it is not early.
+(`wait_said`). That settles which branch ran — **not** that no view opened:
+the refusal is logged before the point where a missing `exit 0` would fall
+through to `run-shell -b … open`, so a "no mirror" read straight after it
+passed with that `exit 0` deleted. The two ctrl-o refusals therefore read it
+after a commented 1 s window (`no_view_after`), the one fixed wait left here
+(`bin/testing.md`, rule 1). The `sleep 2` that used to follow every ctrl-o press
+is gone: `display-popup` run from the command line blocks until its command
+exits.
 
 Two harness traps, both of which made these pass or fail for the wrong reason:
 

@@ -1606,10 +1606,11 @@ STUB
   # wait_said <count before> <sentence> — wait for the sentence to be logged
   # once more than it had been. Its mere presence proves nothing: two prefix + A
   # cases refuse with the same sentence, so the second was satisfied by the
-  # first one's line whether or not its own run got as far as deciding. Waiting
-  # for it, rather than sleeping a fixed 2s, is also what makes the absence
-  # check after it sound: once the refusal is logged the branch has been taken,
-  # where a slow run under load would leave a fixed sleep checking too early.
+  # first one's line whether or not its own run got as far as deciding. What it
+  # settles is WHICH branch ran, and an absence the script would have produced
+  # before logging. It does not settle "no view opened": the line is logged
+  # before the point a missing `exit 0` would fall through to opening one in
+  # the background -- that is no_view_after's fixed window, below.
   wait_said() {
     for _ in $(seq 1 100); do
       [ "$(said_count "$2")" -gt "$1" ] && return 0
