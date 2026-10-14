@@ -291,7 +291,7 @@ writes synthetic transcripts, and two things about them are worth copying:
   the rubric is right is left to real runs.
 
 **`review-design/evals/assert.test.sh` runs sharded** — one shard per CPU,
-`REVIEW_DESIGN_JOBS` to override (`1` is a sequential run) — because its ~165
+`TEST_JOBS` to override (`1` is a sequential run) — because its ~165
 scenarios each spend ~0.45 s in the real grader, and that is not the place to
 save time. On macOS it took 112 s before; scaffolding each case once and
 copying it per scenario brought a sequential run to ~95 s, and sharding to

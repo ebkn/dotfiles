@@ -43,8 +43,11 @@ bad() {
 # --- shards ---
 # Every scenario below copies its fixture and runs a real grader, ~0.6 s each
 # on macOS, nearly all of it the grader's own processes -- and none of them
-# shares state with another. So the file runs itself as REVIEW_DESIGN_JOBS
-# shards (one per CPU by default): each shard walks every scenario but runs only
+# shares state with another. So the file runs itself as TEST_JOBS
+# shards (one per CPU by default) -- named for no suite, like TEST_FILTER in
+# bin/testing.md, because this harness is meant to move to bin/test-lib.sh and a
+# runner capping total parallelism should need one name, not one per suite.
+# Each shard walks every scenario but runs only
 # those whose index falls to it. Each scenario's output follows a marker line
 # carrying its index, which is how the blocks are put back in source order:
 # the result reads as a sequential run would, bar the summary line.
@@ -65,7 +68,7 @@ bad() {
 # shard: the caller stops, and grade and expect_* do nothing for it.
 shard_begin() {
   scenario=$((scenario + 1))
-  if [ $(((scenario - 1) % REVIEW_DESIGN_JOBS)) -ne "$REVIEW_DESIGN_SHARD" ]; then
+  if [ $(((scenario - 1) % TEST_JOBS)) -ne "$TEST_SHARD" ]; then
     skipping=1
     return 1
   fi
@@ -113,13 +116,13 @@ shard_merge() {
 # and exit with the verdict.
 shard_drive() {
   local jobs shard_dir k p merged finished=1 shard_failed=0 pids=()
-  jobs="${REVIEW_DESIGN_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
+  jobs="${TEST_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
   case "$jobs" in '' | *[!0-9]* | 0) jobs=1 ;; esac
   shard_dir="$(mktemp -d)"
   trap 'rm -rf "$shard_dir"' EXIT
   k=0
   while [ "$k" -lt "$jobs" ]; do
-    REVIEW_DESIGN_SHARD="$k" REVIEW_DESIGN_JOBS="$jobs" \
+    TEST_SHARD="$k" TEST_JOBS="$jobs" \
       "$BASH" "$self" >"$shard_dir/$k" 2>&1 &
     pids+=("$!")
     k=$((k + 1))
@@ -139,7 +142,7 @@ FAIL a shard exited non-zero without reporting a failure"
   exit 1
 }
 
-[ -n "${REVIEW_DESIGN_SHARD:-}" ] || shard_drive
+[ -n "${TEST_SHARD:-}" ] || shard_drive
 
 scenario=0
 skipping=0
