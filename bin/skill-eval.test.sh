@@ -177,8 +177,10 @@ if [ -e ".claude/skills/$STUB_SKILL/evals" ]; then
 else
   echo absent >"$STUB_CLAUDE_OUT/evals"
 fi
-# What the model is given to evaluate: the skill itself, as a real copy.
-if [ -f ".claude/skills/$STUB_SKILL/SKILL.md" ] && [ ! -L ".claude/skills/$STUB_SKILL" ]; then
+# What the model is given to evaluate: the skill itself, as a real copy, with
+# the files beside SKILL.md that it refers to (init-project reads references/).
+if [ -f ".claude/skills/$STUB_SKILL/SKILL.md" ] && [ -f ".claude/skills/$STUB_SKILL/references/note.md" ] &&
+  [ ! -L ".claude/skills/$STUB_SKILL" ]; then
   echo copied >"$STUB_CLAUDE_OUT/skill"
 else
   echo missing >"$STUB_CLAUDE_OUT/skill"
@@ -207,6 +209,8 @@ chmod +x "$DIR/claude"
 skills_dir="$DIR/skills"
 skill="stub-skill"
 mkdir -p "$skills_dir/$skill/evals/case-a" "$skills_dir/$skill/evals/case-b" "$skills_dir/$skill/evals/case-c"
+mkdir -p "$skills_dir/$skill/references"
+printf 'supporting file\n' >"$skills_dir/$skill/references/note.md"
 cat >"$skills_dir/$skill/SKILL.md" <<'EOF'
 ---
 name: stub-skill
@@ -363,7 +367,7 @@ t "the fixture's first commit tracks nothing the runner carried in" "tracked.txt
 t "evals/ is not carried into the working directory" "absent" "$(cat "$STUB_CLAUDE_OUT/evals")"
 # The absence above is also what no copy at all looks like, and a copy of the
 # skill's contents lands its evals/ beside the skills, not inside one.
-t "the skill under evaluation is copied in, SKILL.md and all" "copied" "$(cat "$STUB_CLAUDE_OUT/skill")"
+t "the skill under evaluation is copied in, SKILL.md and what is beside it" "copied" "$(cat "$STUB_CLAUDE_OUT/skill")"
 t "and no evals/ is carried in anywhere" "" "$(cat "$STUB_CLAUDE_OUT/evals_anywhere")"
 t "the scaffold can reach this repo through SKILL_EVAL_REPO_ROOT" "$PWD" \
   "$(cat "$STUB_CLAUDE_OUT/repo_root")"
