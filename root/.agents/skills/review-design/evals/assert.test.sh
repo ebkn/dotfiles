@@ -28,7 +28,8 @@
 # Written for bash 3.2 (macOS) and run on Linux in CI.
 set -uo pipefail
 
-cd "$(dirname "$(readlink -f "$0")")" || exit 1
+self="$(readlink -f "$0")"
+cd "$(dirname "$self")" || exit 1
 evals_dir="$PWD"
 repo_root="$(cd "$evals_dir/../../../../.." && pwd)"
 
@@ -38,6 +39,64 @@ bad() {
   printf 'FAIL %s\n' "$1"
   fails=$((fails + 1))
 }
+
+# --- shards ---
+# Every scenario below builds its own fixture and runs a real grader, ~0.6 s
+# each on macOS, nearly all of it the grader's own processes -- and none of them
+# shares state with another. So the file runs itself as REVIEW_DESIGN_JOBS
+# shards (one per CPU by default): each shard walks every scenario but runs only
+# those whose index falls to it. Each scenario's output follows a marker line
+# carrying its index, which is how the blocks are put back in source order:
+# the result reads exactly as a sequential run would.
+#
+# A shard that died part-way would otherwise be a shorter green run. So each
+# shard ends by reporting how many scenarios it walked, and every index up to
+# that count must have produced a block.
+if [ -z "${REVIEW_DESIGN_SHARD:-}" ]; then
+  jobs="${REVIEW_DESIGN_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
+  case "$jobs" in '' | *[!0-9]* | 0) jobs=1 ;; esac
+  shard_dir="$(mktemp -d)"
+  trap 'rm -rf "$shard_dir"' EXIT
+  pids=()
+  k=0
+  while [ "$k" -lt "$jobs" ]; do
+    REVIEW_DESIGN_SHARD="$k" REVIEW_DESIGN_JOBS="$jobs" \
+      bash "$self" >"$shard_dir/$k" 2>&1 &
+    pids+=("$!")
+    k=$((k + 1))
+  done
+  shard_failed=0
+  for p in "${pids[@]}"; do wait "$p" || shard_failed=1; done
+  # \036 opens scenario <n>; \037 closes a shard, carrying its scenario count.
+  # A line before any marker is shard setup and is kept, at the top.
+  merged="$(awk '
+    /^\036/ { idx = substr($0, 2) + 0; seen[idx] = 1; next }
+    /^\037/ { n = substr($0, 2) + 0; if (total == "") total = n; else if (n != total) bad = 1; shards++; next }
+    { blk[idx + 0] = blk[idx + 0] $0 "\n" }
+    END {
+      for (i = 0; i <= total; i++) printf "%s", blk[i]
+      for (i = 1; i <= total; i++) if (!(i in seen)) missing++
+      if (shards != '"$jobs"' || bad || total == "" || total == 0 || missing)
+        printf "FAIL shards: %d of %d finished, %s scenario(s), %d missing\n", shards, '"$jobs"', total, missing
+    }' "$shard_dir"/*)"
+  if [ "$shard_failed" -ne 0 ] && ! grep -q '^FAIL' <<<"$merged"; then
+    merged="$merged
+FAIL a shard exited non-zero without reporting a failure"
+  fi
+  printf '%s\n' "$merged"
+  if [ "$shard_failed" -eq 0 ] && ! grep -q '^FAIL' <<<"$merged"; then
+    printf '\nall review-design grader tests passed (%s shard(s))\n' "$jobs"
+    exit 0
+  fi
+  printf '\n%d review-design grader test(s) failed\n' "$(grep -c '^FAIL' <<<"$merged")"
+  exit 1
+fi
+
+scenario=0
+skipping=0
+# Read at top level after proactive_run; a skipped run never assigns it, and
+# this file runs under set -u.
+proactive_closing=''
 
 root_dir="$(mktemp -d)"
 trap 'rm -rf "$root_dir"' EXIT
@@ -100,7 +159,18 @@ rec_skill() {
 # scenarios run here. Every scenario still mutates only its own copy. The
 # copies share commit hashes, which nothing here compares across scenarios.
 # -p keeps the mtimes the index recorded, so git status does not rehash.
+#
+# It is also where a scenario begins, so it decides whether this shard runs it
+# (see "shards" above). A skipped scenario returns 1 like a failed scaffold,
+# which stops the *_run caller; grade and expect_* then do nothing for it.
 new_run() {
+  scenario=$((scenario + 1))
+  if [ $(((scenario - 1) % REVIEW_DESIGN_JOBS)) -ne "$REVIEW_DESIGN_SHARD" ]; then
+    skipping=1
+    return 1
+  fi
+  skipping=0
+  printf '\036%d\n' "$scenario"
   case_name="$1"
   work="$root_dir/work"
   art="$root_dir/art"
@@ -132,10 +202,16 @@ in_work() {
   ) </dev/null >/dev/null 2>&1
 }
 
-short() { git -C "$work" rev-parse --short "$1"; }
+# Empty for a skipped scenario: there is no fixture, and a few top-level lines
+# still compute a hash for the grade that follows.
+short() {
+  [ "$skipping" -eq 1 ] && return 0
+  git -C "$work" rev-parse --short "$1"
+}
 
 # grade <final response>
 grade() {
+  [ "$skipping" -eq 1 ] && return 0
   jq -nc --arg r "$1" '{type: "result", result: $r, permission_denials: []}' >"$art/result.json"
   out="$(
     cd "$work" || exit 1
@@ -150,6 +226,7 @@ grade() {
 }
 
 expect_pass() {
+  [ "$skipping" -eq 1 ] && return 0
   if [ "$status" -eq 0 ] && ! grep -q '^FAIL' <<<"$out"; then
     ok "$1"
   else
@@ -162,6 +239,7 @@ expect_pass() {
 # Both halves: the FAIL line is for a human reading assert.log, the status is
 # what the runner grades on.
 expect_fail() {
+  [ "$skipping" -eq 1 ] && return 0
   if grep -qF "FAIL  $2" <<<"$out"; then
     ok "$1"
   else
@@ -763,9 +841,6 @@ proactive_run "$work_records" "$closing_ok" "fix_kg; printf 'x\n' >stray.txt"
 grade "$proactive_closing"
 expect_fail "proactive: something left uncommitted is caught" "left nothing uncommitted"
 
-if [ "$fails" -eq 0 ]; then
-  printf '\nall review-design grader tests passed\n'
-  exit 0
-fi
-printf '\n%d review-design grader test(s) failed\n' "$fails"
-exit 1
+# A shard's ending: the merge in "shards" above prints the summary.
+printf '\037%d\n' "$scenario"
+[ "$fails" -eq 0 ]

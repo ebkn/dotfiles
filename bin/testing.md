@@ -87,7 +87,8 @@ Inside a check that runs many times, prefer builtins to external commands:
 
 Do not contort a check to save a process outside a loop; 2 ms once is nothing.
 When the slow part is the *program under test* (a grader that spawns 100
-processes per run), the lever is how many times the test runs it, and rule 3.
+processes per run), do not optimise the program for its test: the lever is
+how many times the test runs it, and running those runs at once (rule 7).
 
 ### 5. One output contract
 
@@ -127,12 +128,23 @@ rewritten into `@test` blocks — 18,000 lines here. The fragment can be adopted
 one suite at a time, and every suite already prints something close to rule 5.
 Reconsider if the fragment grows a parallel runner of its own.
 
-### 7. Run suites in parallel; cases within a suite in order
+### 7. Run suites in parallel; cases within a suite in order, with one exception
 
 Suites share nothing (each has its own temp dir and tmux socket), so `bin/test`
 runs them concurrently and prints each one's wall time, slowest first. Cases
 inside a suite stay sequential: parallel cases interleave output and need every
-fixture to be safe to share, which buys less than rule 3 does.
+fixture to be safe to share, which usually buys less than rule 3 does.
+
+**The exception is a suite made of independent scenarios that each cost
+hundreds of milliseconds in a program it cannot make cheaper** — the eval
+graders, where ~70 % of every scenario is the grader under test. There rule 3
+saved 16 % and sharding saved the rest:
+`review-design/evals/assert.test.sh` runs itself as one shard per CPU, each
+scenario's output tagged with its index and merged back into source order, so
+the output is byte-identical to a sequential run. The merge also checks that
+every scenario ran: a shard that dies must not become a shorter green run.
+That is ~50 lines of harness, so it stays in that suite until a second one
+needs it, then moves to `bin/test-lib.sh`.
 
 The tmux suites run the same way inside the `bin/test-in-docker` container.
 Their sockets look isolated (`$$`-suffixed or a private `TMUX_TMPDIR`), but that
@@ -163,7 +175,7 @@ Estimates are from the measurements above, not yet confirmed by doing the work.
 | # | Change | Expected effect |
 | --- | --- | --- |
 | 1 | **Done.** `pr-review-dispatch`: close the socket on EOF. **macOS `nc -N` is not Linux's `-N`** (it sets write-timeout probes), so the fix cannot be one flag. Behaviour change: regression test first | CI −105 s |
-| 2 | review-design (then review-test, init-project) graders: rules 3 and 4 | macOS 112 s → est. 20–30 s |
+| 2 | **Done for review-design.** Rule 3 (112 → 94 s), then sharding per rule 7's exception (→ 34 s on 18 cores). The estimate assumed fixtures dominated; a profile showed the grader is ~70 % of a scenario. review-test (12 s) and init-project (11 s) are left: under the 10 s line by little, and not yet worth the harness | macOS 112 s → 34 s |
 | 3 | CI per rule 8 | CI wall ≈ slowest job, all suites reported |
 | 4 | `bin/test-lib.sh` + `bin/test` (rules 5–7) | local wall ≈ slowest suite |
 | 5 | Rule 2 for `tmux-track-session`'s `sleep 2`; rule 1 for the fixed sleeps in `tmux-agents`, `tmux-restore-tabs`, `tmux-popup`, `tmux-cheatsheet`, `ssh-keepalive` | a few s to ~15 s per suite |
