@@ -6,15 +6,15 @@
 #   bin/test <suite>...      just those, by path from the repo root
 #   bin/test --list          what a bare run would run and skip, and why
 #
-# TEST_JOBS=<n>     suites at once (default: CPU count, at most 8). Inherited
-#                   by the suites, so a sharded one (review-design's graders)
+# TEST_JOBS=<n>     suites at once (default: CPU count, at most 4). Exported
+#                   to the suites, so a sharded one (review-design's graders)
 #                   uses the same figure.
 # TEST_TIMEOUT=<s>  a suite running longer is killed and failed (default 600).
 # exit 0 = every suite run exited 0. See bin/test.md.
 #
 # Suites are discovered with git ls-files, so an untracked suite is not run --
 # the same rule bin/lint-shell follows. A bare run skips:
-#   - the suites in `excluded` below, each with its reason;
+#   - the suites in bin/test.skip, each with its reason;
 #   - the tmux suites, outside a container or CI: they refuse the host
 #     (bin/tmux-test-guard.sh), and bin/test-in-docker runs them.
 # A suite named on the command line is run whatever the list says.
@@ -61,9 +61,18 @@ if [ "${1:-}" = --list ]; then
   shift
 fi
 
-# Left out of a bare run, each with why. The reasons are printed by --list.
-excluded='root/.claude/hooks/git-guard.test.sh|not wired in yet (CLAUDE.md, Testing)
-root/.codex/rules/default.rules.test.sh|needs the codex CLI, which CI does not have; run it by name after editing default.rules'
+# Left out of a bare run, each with why: bin/test.skip, `<path>|<reason>` per
+# line. A file rather than a list in here, so this script's own test can hand
+# a fixture repository a list of its own. No file means no exclusions.
+excluded=''
+if [ -f bin/test.skip ]; then
+  excluded=$(grep -v -e '^#' -e '^$' bin/test.skip)
+fi
+# reason_for <suite> -- its reason, or nothing. Matched on the whole path: a
+# substring match would skip a suite whose path is the tail of an excluded one.
+reason_for() {
+  awk -F'|' -v s="$1" '$1 == s { sub(/^[^|]*\|/, ""); print; exit }' <<<"$excluded"
+}
 
 # A tmux suite refuses a developer machine (bin/tmux-test-guard.sh), so it is
 # run only where the guard lets it. TEST_CONTAINER_MARK exists for this file's
@@ -102,9 +111,28 @@ else
     printf 'test: git grep for the tmux suites failed\n' >&2
     exit 1
   fi
+  # An exclusion naming no tracked suite is a reason kept for a file that is
+  # gone, and one with no reason is a skip nobody can judge -- read as it is,
+  # it would be skipped with its own path for a reason, or (with an empty one)
+  # not skipped at all. Only this script knows its list, so it refuses both.
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    s=${line%%|*}
+    case "$line" in
+      *'|'?*) ;;
+      *)
+        printf 'test: bin/test.skip gives no reason for %s\n' "$s" >&2
+        exit 1
+        ;;
+    esac
+    if ! grep -qxF -- "$s" <<<"$listing"; then
+      printf 'test: bin/test.skip names %s, which is not a tracked suite\n' "$s" >&2
+      exit 1
+    fi
+  done <<<"$excluded"
   while IFS= read -r s; do
     [ -n "$s" ] || continue
-    reason=$(grep -F -- "$s|" <<<"$excluded" | cut -d'|' -f2)
+    reason=$(reason_for "$s")
     if [ -n "$reason" ]; then
       $list_only && printf 'skip %s  (%s)\n' "$s" "$reason"
       continue
@@ -130,13 +158,15 @@ command -v parallel >/dev/null || {
   exit 1
 }
 
-# At most 8 by default, measured on an 18-core Mac: a full host run took ~55 s
+# At most 4 by default, measured on an 18-core Mac: a full host run took ~55 s
 # at 4, 6, 8 and 12 jobs alike, and 67 s at 18, with the timing-sensitive
 # ssh-keepalive suite failing. The suites are fork-heavy, so past a handful of
-# jobs they queue on the kernel rather than run. The same shapes lint-shell
-# rejects for LINT_SHELL_JOBS are rejected here, for the same reasons.
+# jobs they queue on the kernel rather than run -- and the lightest load that
+# is as fast is the one least likely to trip a suite that waits on a real
+# clock. CI's runner has 4 CPUs anyway. The same shapes lint-shell rejects for
+# LINT_SHELL_JOBS are rejected here, for the same reasons.
 jobs=${TEST_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}
-[ -z "${TEST_JOBS:-}" ] && [ "$jobs" -gt 8 ] 2>/dev/null && jobs=8
+[ -z "${TEST_JOBS:-}" ] && [ "$jobs" -gt 4 ] 2>/dev/null && jobs=4
 timeout=${TEST_TIMEOUT:-600}
 for v in "$jobs" "$timeout"; do
   case "$v" in
@@ -146,6 +176,10 @@ for v in "$jobs" "$timeout"; do
       ;;
   esac
 done
+# Handed on to the suites, the figure chosen here and not only one the caller
+# set: a sharded suite reads it, and would otherwise split itself across every
+# CPU on top of these jobs.
+export TEST_JOBS=$jobs
 
 if ! results=$(mktemp -d); then
   printf 'test: mktemp failed\n' >&2

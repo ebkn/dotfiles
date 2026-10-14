@@ -9,7 +9,7 @@ this file is about the runner.
 bin/test                 every tracked *.test.sh / *.test.zsh, minus the skips below
 bin/test <suite>...      just those, whatever the skips say
 bin/test --list          what a bare run would run and skip, and why
-TEST_JOBS=<n>            suites at once (default: CPU count, at most 8)
+TEST_JOBS=<n>            suites at once (default: CPU count, at most 4)
 TEST_TIMEOUT=<s>         a suite running longer is killed and failed (default 600)
 ```
 
@@ -22,19 +22,24 @@ and run by nothing. Discovery has no list to be missing from.
 
 A bare run skips two kinds of suite, and `--list` says which and why:
 
-- **The exclusions named in `bin/test`**, each with its reason:
+- **The exclusions in `bin/test.skip`**, `<path>|<reason>` per line:
   `root/.claude/hooks/git-guard.test.sh` (not wired in yet) and
   `root/.codex/rules/default.rules.test.sh`, which needs the codex CLI. On the
   runner it would exit 0 with "skipping" — a permanently green check that proves
-  nothing — so run it by name after editing `default.rules`.
+  nothing — so run it by name after editing `default.rules`. A file rather than
+  a list inside the script, so `bin/test.test.sh` can give its fixture
+  repository a list of its own. Entries match the whole path (a substring match
+  would also skip a suite whose path is the tail of an excluded one), and an
+  entry naming no tracked suite fails the run: only the runner can see one,
+  since `--list` prints a skip only for a suite the listing found.
 - **The tmux suites, outside a container or CI.** They refuse a developer
   machine (`bin/tmux-test-guard.sh`), so on a laptop they are reported as
   skipped and `bin/test-in-docker` runs them. They are found by the same
   sourcing line `bin/test-in-docker` matches.
 
 `bin/ci-enrollment.test.sh` holds the rest of the old guarantee: the workflow
-runs `bin/test`, every tracked suite is run or skipped with a reason in CI's
-environment, and every exclusion names a suite that exists.
+runs `bin/test`, and in CI's environment `bin/test --list` succeeds and runs or
+skips, with a reason, every tracked suite.
 
 ## How it fails
 
@@ -89,12 +94,17 @@ Measured on an 18-core Mac, a full host run (35 suites) took ~55 s at 4, 6, 8
 and 12 jobs alike, against 142 s one at a time — and 67 s at 18, with
 `zsh/ssh-keepalive.test.zsh` failing. The suites are fork-heavy, so past a
 handful of jobs they queue on the kernel instead of running: init-project's
-grader test went from 11 s alone to 66 s at 18 jobs. Hence the default cap of
-8, and the lever beyond it is the process count of the suites themselves
-(testing.md, rule 4), not more jobs.
+grader test went from 11 s alone to 66 s at 18 jobs. Later runs of the same
+set took 55–75 s, the four heaviest suites (lint-shell's, and the three eval
+grader tests) each stretching from ~12 s to ~50 s side by side. Hence the
+default cap of 4 — as fast as any higher figure, and the lightest load for a
+suite that waits on a real clock; CI's runner has 4 CPUs anyway. The lever
+beyond it is the process count of the suites themselves (testing.md, rule 4),
+not more jobs.
 
-`TEST_JOBS` is inherited by the suites, so review-design's sharded grader test
-uses the same figure. `zsh/ssh-keepalive.test.zsh` is the suite that shows
+`TEST_JOBS` is exported to the suites — the figure `bin/test` chose, not only
+one the caller set — so review-design's sharded grader test splits itself the
+same number of ways instead of across every CPU on top of these jobs. `zsh/ssh-keepalive.test.zsh` is the suite that shows
 overload first: it waits on a real supervisor's poll.
 
 ## What each suite gates
