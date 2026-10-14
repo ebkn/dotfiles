@@ -120,33 +120,52 @@ shard_merge() {
 #
 # The markers come from $'...' rather than a printf format: there '\0361'
 # reads as one octal escape, not \036 followed by 1.
+#
+# Four scenarios over two shards, so shard 1 owns the last one. Each failing
+# row breaks exactly one condition and leaves the others true -- the shard
+# count, the scenario count, a scenario's presence, its check, the counts
+# agreeing -- or its row would pass on whichever other condition it also broke.
+# Each must fail with the merge's own verdict line, not merely a non-zero
+# status, which an awk that cannot run also returns.
 shard_check_merge() {
-  local d out o=$'\036' e=$'\037' label file
+  local d out o=$'\036' e=$'\037' label a b
   d="$(mktemp -d)"
-  printf '%s\n' "${o}1" 'ok   a' "${o}3" 'ok   c' "${e}3" >"$d/0"
-  printf '%s\n' "${o}2" 'ok   b' "${e}3" >"$d/1"
-  printf '%s\n' "${e}3" >"$d/dropped"
-  printf '%s\n' "${o}2" '     detail only' "${e}3" >"$d/unchecked"
-  printf '%s\n' "${o}2" 'ok   b' "${e}4" >"$d/disagrees"
-  if out="$(shard_merge 2 "$d/0" "$d/1")" && [ "$out" = "ok   a
+  # Setup lines, and blocks of more than one line: both must come back whole.
+  printf '%s\n' 'setup 0' "${o}1" 'ok   a' '     got: a' "${o}3" 'ok   c' "${e}4" >"$d/0"
+  printf '%s\n' 'setup 1' "${o}2" 'ok   b' '     got: b' "${o}4" 'ok   d' "${e}4" >"$d/1"
+  printf '%s\n' "${o}2" 'ok   b' "${o}4" 'ok   d' >"$d/unfinished"
+  printf '%s\n' "${e}0" >"$d/empty"
+  printf '%s\n' "${o}2" 'ok   b' "${e}4" >"$d/lost-last"
+  # A detail line that mentions FAIL is not a check: only a line that starts
+  # with one is.
+  printf '%s\n' "${o}2" 'ok   b' "${o}4" '       got: FAIL  x' "${e}4" >"$d/unchecked"
+  printf '%s\n' "${o}2" 'ok   b' "${o}4" 'ok   d' "${e}3" >"$d/disagrees"
+  if out="$(shard_merge 2 "$d/0" "$d/1")" && [ "$out" = "setup 0
+setup 1
+ok   a
+     got: a
 ok   b
-ok   c" ]; then
-    ok "shard merge: two shards come back in source order"
+     got: b
+ok   c
+ok   d" ]; then
+    ok "shard merge: two shards come back whole, in source order"
   else
-    bad "shard merge: two shards come back in source order"
+    bad "shard merge: two shards come back whole, in source order"
   fi
-  while IFS='|' read -r label file; do
-    # shellcheck disable=SC2086 # $file is empty for the missing shard: no argument
-    if shard_merge 2 "$d/0" $file >/dev/null; then
+  while IFS='|' read -r label a b; do
+    if out="$(shard_merge 2 "$d/$a" "$d/$b")"; then
       bad "shard merge: $label fails"
-    else
+    elif grep -q '^FAIL shards:' <<<"$out"; then
       ok "shard merge: $label fails"
+    else
+      bad "shard merge: $label fails, but not on its verdict: $out"
     fi
-  done <<EOF
-a shard that never finished|
-a scenario that never ran|$d/dropped
-a scenario with no check|$d/unchecked
-shards disagreeing on the count|$d/disagrees
+  done <<'EOF'
+a shard that ran every scenario but never finished|0|unfinished
+a run of no scenarios at all|empty|empty
+the last scenario never run|0|lost-last
+a scenario with no check|0|unchecked
+shards disagreeing on the count|0|disagrees
 EOF
   rm -rf "$d"
 }
