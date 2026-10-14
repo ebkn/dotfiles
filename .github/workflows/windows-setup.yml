@@ -6,7 +6,28 @@ on: [push]
 jobs:
   build:
     runs-on: windows-latest
+    # Without a limit a stuck installer holds the runner for GitHub's six-hour
+    # default and the run ends `cancelled`, never red: fifteen runs in a row
+    # did, on the GnuPG installer, so nothing after it had ever run in CI.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Run install script
         run: powershell -ExecutionPolicy Bypass -File bin\init\windows.ps1
+      # The script's exit status says winget agreed; this says the steps after
+      # it did what they are for.
+      - name: Check what the script left behind
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ahk = Join-Path $env:USERPROFILE 'Documents\AutoHotkey\keyremap.ahk'
+          if (-not (Test-Path $ahk)) { throw "keyremap.ahk was not copied to $ahk" }
+          $lnk = Join-Path ([Environment]::GetFolderPath('Startup')) 'keyremap.lnk'
+          if (-not (Test-Path $lnk)) { throw "no startup shortcut at $lnk" }
+          $map = Get-ItemPropertyValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Keyboard Layout' -Name 'Scancode Map'
+          if (($map[12..15] -join ',') -ne '29,0,58,0') { throw "Scancode Map does not remap CapsLock: $($map -join ',')" }
+          foreach ($id in 'Google.Chrome', 'wez.wezterm', 'GnuPG.GnuPG', 'AutoHotkey.AutoHotkey') {
+            winget list --exact --id $id --accept-source-agreements | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "$id is not installed" }
+          }
+          Write-Host 'ok'
