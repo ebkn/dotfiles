@@ -28,7 +28,13 @@ restart policy, backoff and exit handling untouched.
 2. **The first attempt is a bare `exec ssh`.** That one is the initial connect,
    where ssh's own output (host key prompt, "Permission denied") is the useful
    thing on screen and there is nothing stale to cover. Only from the second does
-   it clear, and only that one clears, so a retry a second does not flicker.
+   it clear, and only the first notice of each outage clears, so a retry a
+   second does not flicker. The counter lives as long as myssh, so a connection
+   that came back and dropped again starts its outage at attempt 3 or later;
+   that first notice is recognised by the previous attempt having run 30s or
+   more (the state file holds `<count> <start epoch>`). The shim execs ssh and
+   never learns whether an attempt connected, so duration is the stand-in, and
+   its error is one extra clear on a slow failure, never a missed one.
 3. **ssh's stderr goes to a log rather than /dev/null, so the notice can quote
    its last line.** A changed host key retries forever otherwise, behind a line
    that cheerfully says "reconnecting" with the explanation nowhere.

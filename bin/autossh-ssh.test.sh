@@ -130,6 +130,38 @@ case "$(cat "$tty")" in
   *) fail "attempt 3: the quoted line is centred on its visible width" "frame: $(cat -v "$tty")" ;;
 esac
 
+# --- a second outage: the first notice clears again, whatever the count -----
+# The counter lasts as long as myssh, so after a connection that came back is
+# lost again the first notice is attempt 3 or later. Keyed on attempt 2 alone,
+# that notice left the stale remote frame and the mouse flood on screen. What
+# tells the two apart is how long the previous attempt ran: the state file
+# records when it started.
+# outage_after <seconds-ago> -- attempt 6, the previous one started that long ago.
+outage_after() {
+  printf '5 %s' "$(($(date +%s) - $1))" >"$state"
+  /bin/rm -f "$state.log"
+  : >"$tty"
+  AUTOSSH_NOTICE_STATE="$state" AUTOSSH_NOTICE_HOST="thehost" \
+    AUTOSSH_NOTICE_TTY="$tty" "$shim" "${ARGS[@]}" >"$work/out" 2>/dev/null
+}
+outage_after 600
+case "$(cat "$tty")" in
+  "$reset${E}[12;"*) pass "after a session that ran 10 minutes, the next notice resets and clears" ;;
+  *) fail "after a session that ran 10 minutes, the next notice resets and clears" "frame: $(cat -v "$tty")" ;;
+esac
+same "and still counts on" "reconnecting to thehost … (6)" "$(visible "$tty")"
+# The boundary: a failed attempt can take seconds (a connect timeout), and
+# clearing on those is the flicker attempt 3 above rules out.
+outage_after 2
+case "$(cat "$tty")" in
+  *"${E}[2J"*) fail "after an attempt that lasted 2s, it only repaints" "frame: $(cat -v "$tty")" ;;
+  *) pass "after an attempt that lasted 2s, it only repaints" ;;
+esac
+case "$(cat "$state")" in
+  6' '[0-9]*) pass "the state file records the count and this attempt's start" ;;
+  *) fail "the state file records the count and this attempt's start" "state: $(cat "$state")" ;;
+esac
+
 # --- a multi-line diagnostic: the LAST non-blank line is the one quoted -----
 # ssh's fatal messages are several lines, and the useful one comes last: a
 # changed host key prints a banner of @-lines first. A one-line log cannot tell
@@ -156,7 +188,7 @@ same "with no terminal, the notice goes to stderr instead" \
 printf 'garbage' >"$state"
 : >"$tty"
 AUTOSSH_NOTICE_STATE="$state" AUTOSSH_NOTICE_TTY="$tty" "$shim" thehost >/dev/null 2>&1
-same "a garbage counter restarts at attempt 1" "1" "$(cat "$state")"
+same "a garbage counter restarts at attempt 1" "1" "$(cut -d" " -f1 "$state")"
 same "which draws nothing" "" "$(cat "$tty")"
 
 # --- no state file: a transparent exec ------------------------------------
