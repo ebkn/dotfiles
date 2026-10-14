@@ -52,7 +52,10 @@ $script:FailedPackages = @()
 Confirm-WingetResult 'one' 1 6>$null
 Confirm-WingetResult 'fine' 0 6>$null
 Confirm-WingetResult 'two' 1603 6>$null
-if (($script:FailedPackages -join ',') -eq 'one,two') { Write-Output 'ok   failures accumulate, in order, successes left out' }
+# The scheduled-task path: an unsigned failure code must be recorded too, not
+# end the run with an overflowing [int32] cast while printing it.
+Confirm-WingetResult 'task' (& $unsigned -1978334975) 6>$null
+if (($script:FailedPackages -join ',') -eq 'one,two,task') { Write-Output 'ok   failures accumulate, in order, successes left out, unsigned ones too' }
 else { Write-Output "FAIL failures accumulate: $($script:FailedPackages -join ',')"; $fails++ }
 
 # The verdict windows.ps1 exits with. Without it the collecting above is for
