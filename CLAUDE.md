@@ -155,47 +155,12 @@ file with `sed -i`, which it did on any machine that had the plugin.
 
 Each suite's rationale — what it pins, which cases earn their keep, and the
 harness traps that made earlier versions green while proving nothing — is in the
-doc beside it. The recurring lesson across all of them: **assert on the observable
-contract, not on the exit status**, because nearly every failure mode here is
-silent.
-
-| Suite | Doc |
-| --- | --- |
-| `bin/lint-shell.test.sh` | [lint-shell.md](bin/lint-shell.md) |
-| `bin/ci-enrollment.test.sh` | its header (the not-in-CI list and each reason) |
-| `bin/skill-eval.test.sh` | [skill-eval.md](bin/skill-eval.md) |
-| `root/.agents/skills/init-project/evals/*/assert.test.sh` | [skill-eval.md](bin/skill-eval.md) |
-| `root/.agents/skills/review-test/evals/assert.test.sh`, `root/.agents/skills/review-design/evals/assert.test.sh` | [skill-eval.md](bin/skill-eval.md) |
-| `bin/tmux-agents.test.sh` | [tmux-agents.md](bin/tmux-agents.md) |
-| `bin/tmux-agent-view.test.sh` | [tmux-agent-view.md](bin/tmux-agent-view.md) |
-| `bin/tmux-popup.test.sh` (also `tmux-tig`, `fzf-nvim`) | [tmux-popup.md](bin/tmux-popup.md) |
-| `bin/tmux-cheatsheet.test.sh` | [tmux-cheatsheet.md](bin/tmux-cheatsheet.md) |
-| `bin/tmux-conf.test.sh` | [tmux-conf.md](bin/tmux-conf.md) |
-| `bin/tmux-pane-titles.test.sh` | [tmux-pane-titles.md](bin/tmux-pane-titles.md) |
-| `bin/tmux-session-swap.test.sh` | [tmux-session-swap.md](bin/tmux-session-swap.md) |
-| `bin/tmux-track-session.test.sh` | [tmux-track-session.md](bin/tmux-track-session.md) |
-| `bin/tmux-restore-tabs.test.sh` | [tmux-restore-tabs.md](bin/tmux-restore-tabs.md) |
-| `bin/tmux-restore-ssh-tabs.test.sh` | [tmux-restore-ssh-tabs.md](bin/tmux-restore-ssh-tabs.md) |
-| `bin/test-in-docker` (runs the tmux suites above), `bin/tmux-test-guard.test.sh` | [test-in-docker.md](bin/test-in-docker.md) |
-| `bin/autossh-ssh.test.sh` | [autossh-ssh.md](bin/autossh-ssh.md) |
-| `bin/pr-review-common.test.sh` | [pr-review-common.md](bin/pr-review-common.md) |
-| `bin/pr-review-watch.test.sh` | [pr-review-watch.md](bin/pr-review-watch.md) |
-| `bin/pr-state-watch.test.sh` | [pr-state-watch.md](bin/pr-state-watch.md) |
-| `bin/pr-review-dispatch.test.sh` | [pr-review-dispatch.md](bin/pr-review-dispatch.md) |
-| `root/.claude/hooks/agent-state.test.sh` | [agent-state.md](root/.claude/hooks/agent-state.md) |
-| `root/.claude/hooks/approve-multiline-commands.test.sh` | [approve-multiline-commands.md](root/.claude/hooks/approve-multiline-commands.md) |
-| `root/.claude/hooks/curl-guard.test.sh` | [root/README.md](root/README.md) |
-| `root/.claude/hooks/rm-guard.test.sh` | [root/README.md](root/README.md) |
-| `root/.codex/rules/default.rules.test.sh` | [root/README.md](root/README.md) — local only, not in CI |
-| `root/.agents/skills/retrospective/*.test.sh` | [NOTES.md](root/.agents/skills/retrospective/NOTES.md) |
-| `zsh/*.test.zsh` | [zsh/README.md](zsh/README.md) |
-| `bin/launchd-load.test.sh` | [launchd-load.md](bin/launchd-load.md) |
-| `bin/relink.test.sh` (also `link_with_backup`/`backup_path`/`ensure_ssh_base_include` in `bin/init/common.sh`, and `link_dotfiles`) | its header |
-| `bin/read-doc.test.sh` | [read-doc.md](bin/read-doc.md) — needs pandoc (pinned in CI) |
-| `bin/textlint-docs.test.sh` | [textlint-docs.md](bin/textlint-docs.md) (the rules themselves are checked by using them) |
-| `bin/git-generated.test.sh`, `bin/fzf-files.test.sh` | their headers |
-| `bin/wsl/notify-send.test.sh` | its header (runs anywhere; WSL is not needed) |
-| `bin/init/winget-result.test.ps1` | its header (the Windows workflow runs it; locally, pwsh in a container) |
+doc beside it — `<script>.md`, or the suite's own header where there is none.
+The exceptions: zsh suites are in [zsh/README.md](zsh/README.md), skill eval
+graders in [skill-eval.md](bin/skill-eval.md), and the curl/rm guard and Codex
+rules suites in [root/README.md](root/README.md). The recurring lesson across
+all of them: **assert on the observable contract, not on the exit status**,
+because nearly every failure mode here is silent.
 
 - **GitHub Actions CI** (`.github/workflows/`) runs the platform setup scripts plus lint, the hook tests, the tmux script tests, the retrospective tests and the `zsh/` unit tests. `git-guard.test.sh` is **not** wired in yet. The workflow lists suites by hand, so **a new suite needs its own step** — for a `*.test.sh` / `*.test.zsh`, `bin/ci-enrollment.test.sh` fails CI until it has one, or is added to its `not_in_ci` list with the reason. A `*.test.ps1` goes in `windows-setup.yml` by hand, and nothing checks that it did.
 - **Setup workflows must test the pushed branch.** They `actions/checkout`, symlink the checkout to `~/dotfiles`, and run the bootstrap with `DOTFILES_SKIP_UPDATE=1` so it does not self-update over the branch under test. The earlier form — `curl .../main/bin/init/bootstrap-*.sh | sh`, letting the bootstrap `git clone` the default branch — meant every job validated `main` regardless of the pushed ref, so the checks could not fail on unmerged code. **Do not reintroduce a hardcoded `/main/` raw URL or drop the skip flag.**
