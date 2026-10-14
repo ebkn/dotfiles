@@ -6,17 +6,24 @@ on: [push]
 jobs:
   build:
     runs-on: windows-latest
-    # Without a limit a stuck installer holds the runner for GitHub's six-hour
-    # default and the run ends `cancelled`, never red: fifteen runs in a row
-    # did, on the GnuPG installer, so nothing after it had ever run in CI.
+    # A job over its limit is CANCELLED, not failed: fifteen runs in a row hit
+    # GitHub's six-hour default on the GnuPG installer and ended grey, so nothing
+    # after it had ever run in CI. This only bounds the runner time; the
+    # install step's own limit below is what is meant to turn a hang red.
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - name: winget exit-code classification
+        run: powershell -ExecutionPolicy Bypass -File bin\init\winget-result.test.ps1
       - name: Run install script
+        timeout-minutes: 75
         run: powershell -ExecutionPolicy Bypass -File bin\init\windows.ps1
       # The script's exit status says winget agreed; this says the steps after
-      # it did what they are for.
+      # it did what they are for. Also after the script failed: it collects
+      # package failures and carries on, and that the later steps still ran is
+      # then exactly what needs checking.
       - name: Check what the script left behind
+        if: success() || failure()
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
