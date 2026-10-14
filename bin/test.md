@@ -73,8 +73,9 @@ on a laptop, in the container and in CI and must see both answers in each.
 
 `bin/test` starts every `*.test.sh` with PATH's `bash` — Homebrew's 5.x on a
 developed Mac — whatever its shebang says. CI is unaffected (the workflow ran
-`bash <path>` before too), but the 19 suites declaring `#!/bin/bash` were the
-only place bash 3.2 was exercised, and only when run directly. Choosing the
+`bash <path>` before too), but the suites declaring `#!/bin/bash` — under
+`bin/` and `root/`, the permission hooks' among them — were the only place
+bash 3.2 was exercised, and only when run directly. Choosing the
 interpreter from the shebang would restore that; it is a behaviour change and
 may surface suites that pass only on bash 5, so it waits for its own change.
 

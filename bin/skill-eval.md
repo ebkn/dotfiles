@@ -292,7 +292,8 @@ writes synthetic transcripts, and two things about them are worth copying:
 
 **`review-design/evals/assert.test.sh` runs sharded** — `TEST_JOBS` shards:
 one per CPU when run alone, and under `bin/test` (every CI run) the job count
-`bin/test` chose and exports, 4 by default; `1` is a sequential run — because its ~165
+`bin/test` chose and exports (see "The job count" in [test.md](test.md)); `1`
+is a sequential run — because its ~165
 scenarios each spend ~0.45 s in the real grader, and that is not the place to
 save time. On macOS it took 112 s before; scaffolding each case once and
 copying it per scenario brought a sequential run to ~95 s, and sharding to
