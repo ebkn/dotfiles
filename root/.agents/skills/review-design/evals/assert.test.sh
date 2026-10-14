@@ -65,7 +65,8 @@ bad() {
 # write it.
 
 # shard_begin -- where a scenario begins. Returns 1 when it belongs to another
-# shard: the caller stops, and grade and expect_* do nothing for it.
+# shard, and sets skipping=1 until the next scenario: every helper that runs
+# between scenarios (here grade, expect_* and short) must then do nothing.
 shard_begin() {
   scenario=$((scenario + 1))
   if [ $(((scenario - 1) % TEST_JOBS)) -ne "$TEST_SHARD" ]; then
@@ -181,10 +182,10 @@ EOF
   rm -rf "$d"
 }
 
-# shard_drive -- run this file as its shards, print the merge and a summary,
-# and exit with the verdict.
+# shard_drive <script> <suite name> -- run <script> as its shards, print the
+# merge and a summary naming the suite, and exit with the verdict.
 shard_drive() {
-  local jobs shard_dir k p merged checks finished=1 shard_failed=0 pids=()
+  local script="$1" name="$2" jobs shard_dir k p merged checks finished=1 shard_failed=0 pids=()
   checks="$(shard_check_merge)"
   jobs="${TEST_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
   case "$jobs" in '' | *[!0-9]* | 0) jobs=1 ;; esac
@@ -193,7 +194,7 @@ shard_drive() {
   k=0
   while [ "$k" -lt "$jobs" ]; do
     TEST_SHARD="$k" TEST_JOBS="$jobs" \
-      "$BASH" "$self" >"$shard_dir/$k" 2>&1 &
+      "$BASH" "$script" >"$shard_dir/$k" 2>&1 &
     pids+=("$!")
     k=$((k + 1))
   done
@@ -209,17 +210,19 @@ FAIL a shard exited non-zero without reporting a failure"
 $merged"
   printf '%s\n' "$merged"
   if [ "$finished" -eq 1 ] && [ "$shard_failed" -eq 0 ] && ! grep -q '^FAIL' <<<"$merged"; then
-    printf '\nall review-design grader tests passed (%s shard(s))\n' "$jobs"
+    printf '\nall %s tests passed (%s shard(s))\n' "$name" "$jobs"
     exit 0
   fi
-  printf '\n%d review-design grader test(s) failed\n' "$(grep -c '^FAIL' <<<"$merged")"
+  printf '\n%d %s test(s) failed\n' "$(grep -c '^FAIL' <<<"$merged")" "$name"
   exit 1
 }
 
-[ -n "${TEST_SHARD:-}" ] || shard_drive
-
+# The harness's own state, set before the first scenario: under set -u a
+# shard_begin without it would kill every shard alike.
 scenario=0
 skipping=0
+[ -n "${TEST_SHARD:-}" ] || shard_drive "$self" "review-design grader"
+
 # Read at top level after proactive_run; a skipped run never assigns it, and
 # this file runs under set -u.
 proactive_closing=''
