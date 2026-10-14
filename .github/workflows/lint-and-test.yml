@@ -62,116 +62,18 @@ jobs:
       - name: Lint shell scripts
         run: bin/lint-shell
 
-      # bin/lint-shell discovers its own targets, and the way that discovery
-      # fails is by checking almost nothing and reporting ok. This is the only
-      # check that the gate above is actually looking at the repo.
-      - name: lint-shell target enumeration
-        run: bash bin/lint-shell.test.sh
-
-      # This workflow lists its suites by hand, so a suite can be written and
-      # documented as gating CI while no step runs it -- three did. Static.
-      - name: every suite is run by CI
-        run: bash bin/ci-enrollment.test.sh
-
+  # Every suite, through bin/test: it discovers them with git ls-files and runs
+  # them in parallel, so there is no list here for a new suite to be missing
+  # from, and no step whose failure hides the ones after it. Why each suite
+  # gates CI is in bin/test.md; this job only installs what the suites run
+  # against. bin/ci-enrollment.test.sh (one of the suites) checks that this
+  # job does run bin/test.
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # curl-guard.sh decides whether a curl invocation is auto-approved, so a
-      # regression here widens a permission boundary rather than breaking a
-      # feature — worth gating every push.
-      #
-      # root/.codex/rules/default.rules.test.sh is deliberately NOT run here: it
-      # needs the codex CLI, which is not on the runner, and would exit 0 with
-      # "skipping" — a permanently green check that proves nothing. Run it
-      # locally after editing default.rules, as CLAUDE.md describes.
-      - name: curl-guard hook
-        run: bash root/.claude/hooks/curl-guard.test.sh
-
-      # approve-multiline-commands.sh is the only hook here that emits "allow",
-      # so a regression widens a permission boundary silently -- the command
-      # just runs. Gated on every push for the same reason as curl-guard.
-      # rm-guard.sh is the other allow-emitting hook: it decides whether an rm
-      # stays inside a scratch dir. Same reasoning as curl-guard — a regression
-      # widens a permission boundary rather than breaking a feature.
-      - name: rm-guard hook
-        run: bash root/.claude/hooks/rm-guard.test.sh
-
-      - name: approve-multiline-commands hook
-        run: bash root/.claude/hooks/approve-multiline-commands.test.sh
-
-      # The retrospective skill's two scripts. Both tests run against synthetic
-      # transcripts, so they need only jq (on the runner image) and nothing
-      # from ~/.claude. The reporter test also does a bash -n on the script:
-      # it is one long single-quoted jq program, and an apostrophe in a jq
-      # comment has twice ended the string and failed every case at once.
-      - name: retrospective session-extract
-        run: bash root/.agents/skills/retrospective/session-extract.test.sh
-      - name: retrospective session-review
-        run: bash root/.agents/skills/retrospective/session-review.test.sh
-
-      # bin/skill-eval is the only instrument for "did that SKILL.md edit help",
-      # and every way it breaks leaves a green run that measured nothing -- a
-      # dropped allowed-tools, a fixture that can read its own grader, a
-      # swallowed FAIL. claude is stubbed, so this makes no API call and costs
-      # nothing; the eval cases themselves are never run in CI, since they do.
-      - name: skill-eval runner
-        run: bash bin/skill-eval.test.sh
-
-      # link_with_backup, link_dotfiles and relink, against a throwaway $HOME.
-      # link_with_backup moves real files out of $HOME on every update-all
-      # (via relink): a backup that replaces an earlier one, or a "backup" of a
-      # file that is really the repo's own, loses data with no error. The setup
-      # workflows only show that a bootstrap exited 0 -- a missing link source
-      # is a warning and exit 0.
-      - name: relink and link_with_backup
-        run: bash bin/relink.test.sh
-
-      # git-generated writes into $GIT_DIR/info/attributes; the assertion that
-      # matters is what `git diff` then prints, against a temp repository.
-      - name: git-generated
-        run: bash bin/git-generated.test.sh
-
-      # The list behind prefix + o and nvim's :Files. Its regressions do not
-      # error -- the picker still fills, in the wrong order or not at all.
-      - name: fzf-files
-        run: bash bin/fzf-files.test.sh
-
-      # Which launchctl calls launchd-load makes, with launchctl stubbed: load
-      # through the linked path, never restart a running agent, change nothing
-      # under --status. Plus every plist's Label matching its file name.
-      - name: launchd-load
-        run: bash bin/launchd-load.test.sh
-
-      # textlint-docs' own decisions with npm stubbed: when to install, that a
-      # failed install is not mistaken for a finished one, and which ignore
-      # list textlint gets -- a wrong one skips files without a word.
-      - name: textlint-docs
-        run: bash bin/textlint-docs.test.sh
-
-      # The grader of one eval case, plus the Makefile that case grades: the
-      # test extracts it from references/swift.md and runs it, so a TAB lost in
-      # the documentation fails here. Same reasoning as the runner above -- an
-      # inert grader reports a green eval run that measured nothing, and the
-      # eval run is a paid, non-deterministic place to find that out.
-      - name: init-project swift case grader
-        run: bash root/.agents/skills/init-project/evals/swift-makefile-entry-point/assert.test.sh
-
-      # The graders of every review-test case, against synthetic transcripts and
-      # a stub judge. Its first run found the heading check searching the whole
-      # transcript, loaded SKILL.md included, and counting a preamble as the
-      # report.
-      - name: review-test case graders
-        run: bash root/.agents/skills/review-test/evals/assert.test.sh
-
-      # The same for review-design's eight cases and the grading.sh they share:
-      # the heading forms it accepts, and which git counts as writing.
-      - name: review-design case graders
-        run: bash root/.agents/skills/review-design/evals/assert.test.sh
-
-      # zsh is needed by the zsh unit tests below and does not ship with the
-      # runner image.
+      # zsh runs the zsh/ unit tests and does not ship with the runner image.
       - name: Install zsh
         run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
 
@@ -253,195 +155,35 @@ jobs:
           tar -xzf pandoc.tar.gz
           sudo install -m 0755 "pandoc-${version}/bin/pandoc" /usr/local/bin/pandoc
 
+      # GNU parallel schedules the suites in bin/test, and decides from its job
+      # log which ran and whether they passed -- so it is pinned like the
+      # linters, not taken from the image. The image's own copy (apt's
+      # 20231122) moves with the image; this one lands in /usr/local/bin, which
+      # precedes /usr/bin. The checksum is of the release tarball as fetched,
+      # the same one Homebrew's formula records. bin/test-in-docker.Dockerfile
+      # and brewfiles/Brewfile-shell carry the same pin: bump all three.
+      - name: Install GNU parallel
+        run: |
+          version=20260922
+          expected=54837e9e8c16134a3c2e95f91c5fe2f7893d4cc89f252b26735713ceca866387
+          curl -fsSL -o parallel.tar.bz2 \
+            "https://ftp.gnu.org/gnu/parallel/parallel-${version}.tar.bz2"
+          echo "${expected}  parallel.tar.bz2" | sha256sum --check --strict
+          tar -xjf parallel.tar.bz2
+          cd "parallel-${version}"
+          ./configure --prefix=/usr/local >/dev/null
+          sudo make install >/dev/null
+
       # Printed, not assumed. The version is the one thing that explains a
-      # failure in the round-trip cases below, and the run that found that out
-      # had no record of it.
+      # failure in the round-trip cases, and the run that found that out had no
+      # record of it.
       - name: Versions under test
         run: |
           tmux -V
           zsh --version
           fzf --version
           pandoc --version | head -n 1
+          parallel --version | head -n 1
 
-      # read-doc renders UNTRUSTED documents: the page must load nothing and an
-      # image may only come from the document's own tree. Needs the pinned
-      # pandoc installed above.
-      - name: read-doc
-        run: bash bin/read-doc.test.sh
-
-      # Every tmux suite must refuse to run on a developer machine, where one
-      # missed `unset TMUX` killed the real server. Runs no tmux: it reads the
-      # suites, and runs test-in-docker's tally against a stubbed docker.
-      - name: tmux suites are guarded
-        run: bash bin/tmux-test-guard.test.sh
-
-      - name: agent-state hook
-        run: bash root/.claude/hooks/agent-state.test.sh
-
-      # tmux-popup names the popup session, and the prefix + p/t/o guards in
-      # .tmux.conf match that name with `_*`. Breaking the naming makes the
-      # guard stop recognising popups and the chord starts stacking them, with
-      # no error anywhere.
-      # The same suite covers the commands the popups run: tmux-tig, whose failed
-      # tig must leave its message on screen until a key, and fzf-nvim.
-      - name: tmux-popup
-        run: bash bin/tmux-popup.test.sh
-
-      # .tmux.conf is never re-read on a working machine, so a bad line sits
-      # there unnoticed; and a bind that lost its -N note keeps working while
-      # disappearing from the cheatsheet.
-      - name: tmux config and cheatsheet
-        run: bash bin/tmux-conf.test.sh
-
-      # The cheatsheet's rows against a fixture config: a key column one token
-      # off, or a lost sort, still prints a plausible page.
-      - name: tmux-cheatsheet rows
-        run: bash bin/tmux-cheatsheet.test.sh
-
-      # One WezTerm tab means one tmux session; tmux enforces nothing of the
-      # sort. Both of these keep that invariant, and both fail silently -- the
-      # tab you switched away from starts mirroring another one, minutes later,
-      # after an autossh reconnect.
-      - name: tmux-session-swap
-        run: bash bin/tmux-session-swap.test.sh
-
-      - name: tmux-track-session
-        run: bash bin/tmux-track-session.test.sh
-
-      # Restored tabs must land in the window they were asked from, attached to
-      # the exact session. Both broke silently: every tab in a new window, and a
-      # numeric name cut out of its own timestamp.
-      - name: tmux-restore-tabs
-        run: bash bin/tmux-restore-tabs.test.sh
-
-      # One restored tab per remote session, each named explicitly. A failed
-      # `adopt` read as an empty list would restore nothing and say so politely.
-      - name: tmux-restore-ssh-tabs
-        run: bash bin/tmux-restore-ssh-tabs.test.sh
-
-      # Both of these turn pane options into something a person reads -- a tab
-      # label and the prefix + a list. Every mistake renders a plausible wrong
-      # answer rather than an error.
-      - name: tmux-pane-titles
-        run: bash bin/tmux-pane-titles.test.sh
-
-      - name: tmux-agents
-        run: bash bin/tmux-agents.test.sh
-
-      # The answer view mirrors a blocked agent's window in a popup. Its name
-      # must keep matching the _* guard and C-] must stay bound, or the leave
-      # key types into the agent's own pane -- the one place a stray key counts.
-      - name: tmux-agent-view
-        run: bash bin/tmux-agent-view.test.sh
-
-      # The autossh reconnect shim owns the screen between attempts. Getting its
-      # passthrough wrong breaks every first connection; getting the notice wrong
-      # leaves a dead remote frame and a flood of mouse reports. ssh is stubbed.
-      - name: autossh-ssh shim
-        run: bash bin/autossh-ssh.test.sh
-
-      # The WSL notify-send shim turns a notification into OSC 9. Every write
-      # ends in `|| true`, so a misparsed flag or an undoubled ESC is simply no
-      # notification. Run here, its #!/bin/sh is dash -- WSL's /bin/sh too.
-      - name: wsl notify-send shim
-        run: bash bin/wsl/notify-send.test.sh
-
-      # The lock both review-pipeline programs take. Refusing to steal a dead
-      # holder's lock stops the pipeline forever with no output, since both
-      # programs exit 0 when they cannot take it; stealing a live one lets two
-      # runs interleave writes to the same job file.
-      - name: pr-review lock
-        run: bash bin/pr-review-common.test.sh
-
-      # pr-review-watch queues review feedback for the session working on the
-      # branch. Both of its failure modes are silence: a filter that matches
-      # nothing looks exactly like "no reviews arrived", and one that stops
-      # dropping the token's own comments builds a reply loop. gh, ghq, claude
-      # and terminal-notifier are stubbed, so nothing here touches the network.
-      - name: pr-review-watch
-        run: bash bin/pr-review-watch.test.sh
-
-      # pr-review-dispatch posts to a live Claude session's inbox socket. The
-      # message schema is undocumented and a rejected line is dropped in
-      # silence, so the suite asserts the exact bytes on a real socket (nc -lU):
-      # that is the only thing that goes red if the protocol moves.
-      - name: pr-review-dispatch
-        run: bash bin/pr-review-dispatch.test.sh
-
-      # pr-state-watch is the second detector on the same queue, for the
-      # thing GitHub sends no notification about at all. Its two failure modes
-      # are opposite and both silent: reading GitHub's lazily-computed UNKNOWN
-      # as "mergeable" makes it go quiet, and re-announcing a conflict that has
-      # not changed trains its reader to ignore it.
-      - name: pr-state-watch
-        run: bash bin/pr-state-watch.test.sh
-
-      # _ssh_parse_argv decides which argv element is the host. Its option list
-      # is a hand-copied subset of ssh(1), so it rots silently whenever openssh
-      # adds an option that takes an argument -- the parse then reads that
-      # argument as the host and myssh reconnects somewhere else entirely.
-      - name: ssh argv parser
-        run: zsh zsh/ssh-parse-argv.test.zsh
-
-      # The pane decoration must be symmetrical. A pane left carrying
-      # @ssh_my_machine swallows prefix + p forever, sending it to a remote tmux
-      # that is not there -- with no error.
-      - name: ssh pane decoration
-        run: zsh zsh/ssh-decorate.test.zsh
-
-      # MYSSH_SESSION must reach the remote as one argument, or a restored tab
-      # opens a fresh empty session beside the one it was meant to restore.
-      - name: ssh remote session
-        run: zsh zsh/ssh-session.test.zsh
-
-      # rm() routes deletions through trash. Both of its failure modes look
-      # like a successful delete from the shell, so they can only be caught
-      # here: losing the fallback leaves Linux with no working rm, and handing
-      # the wrong argv to trash deletes the wrong thing.
-      - name: rm wrapper
-        run: zsh zsh/rm.test.zsh
-
-      # fd()'s only observable behaviour is which directory the shell ends up
-      # in, so a misplaced cd is invisible until it lands somewhere wrong.
-      - name: fd directory picker
-        run: zsh zsh/fd.test.zsh
-
-      # gw() and gdmerged() are the destructive pair: gdmerged deletes branches
-      # and removes worktrees, gw checks out other people's PRs. The cases run
-      # against real repositories in a temp dir, because the contract is what
-      # git ends up holding.
-      - name: git worktree workflow
-        run: zsh zsh/git-worktree.test.zsh
-
-      # The keepalive ping is disowned, so nothing else would ever stop it: the
-      # supervisor that kills it when its shell dies is the only bound. A
-      # regression here is a process pinging at 3 packets a second until reboot.
-      - name: ssh keepalive lifetime
-        run: zsh zsh/ssh-keepalive.test.zsh
-
-      # .zshrc resolves its own directory to find zsh/. Getting that expansion
-      # wrong does not error -- the shell simply starts with no configuration.
-      - name: zshrc module resolution
-        run: zsh zsh/zshrc-resolve.test.zsh
-
-      # .zshenv's Linuxbrew probe must be guarded on $OSTYPE: on macOS a stat
-      # under /home wakes autofs and costs ~16ms on every zsh start, silently.
-      # The suite asserts both branches, so the Linux runner checks the guard
-      # as well as the Linux side.
-      - name: zshenv autofs guard
-        run: zsh zsh/zshenv-autofs.test.zsh
-
-      # his() and gs() were one definition per platform until `sed -E` replaced
-      # the gsed/sed split. This job runs them against GNU sed; the same file
-      # run on macOS covers BSD sed, and the pair is the only check that the
-      # two really agree.
-      - name: his and gs
-        run: zsh zsh/his.test.zsh
-
-      # update-all's uptime warning predicts a failure that gives no notice of
-      # its own, so a warning that quietly stopped firing would look exactly
-      # like a machine that is fine. The runner is Linux, so the kernel release
-      # and uptime are stubbed, and the two cases that hold the stub against a
-      # real Mac's sysctl are skipped here.
-      - name: update-all uptime warning
-        run: zsh zsh/update.test.zsh
+      - name: Test suites
+        run: bin/test

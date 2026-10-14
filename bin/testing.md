@@ -132,9 +132,12 @@ Reconsider if the fragment grows a parallel runner of its own.
 ### 7. Run suites in parallel; cases within a suite in order, with one exception
 
 Suites share nothing (each has its own temp dir and tmux socket), so `bin/test`
-runs them concurrently and prints each one's wall time, slowest first. Cases
-inside a suite stay sequential: parallel cases interleave output and need every
-fixture to be safe to share, which usually buys less than rule 3 does.
+runs them concurrently and prints each one's wall time, slowest first
+([test.md](test.md)). On a Mac that pays off up to about 4 jobs and then stops:
+the suites are fork-heavy, so past that they queue on the kernel (~55 s for
+the host suites at 4–12 jobs, from 142 s one at a time). Cases inside a suite
+stay sequential: parallel cases interleave output and need every fixture to be
+safe to share, which usually buys less than rule 3 does.
 
 **The exception is a suite made of independent scenarios that each cost
 hundreds of milliseconds in a program it cannot make cheaper** — the eval
@@ -169,18 +172,17 @@ The tmux suites run the same way inside the `bin/test-in-docker` container.
 Their sockets look isolated (`$$`-suffixed or a private `TMUX_TMPDIR`), but that
 is unverified until they have been run concurrently a few times.
 
-### 8. CI: no step hides another
+### 8. CI runs `bin/test`: no suite hides another
 
-The `test` job used to run ~45 suites as one serial job, and the first red step
+The `test` job used to run ~45 suites as one step each, and the first red step
 skipped every later one: from 2026-10-09 a broken pipe in
 `tmux-test-guard.test.sh` kept 28 suites from running at all until it was fixed
-on 10-14. So:
-
-- test steps carry `if: ${{ !cancelled() }}`, so every suite reports;
-- suites are split into parallel jobs by the toolchain they need (none / zsh /
-  tmux + fzf / pandoc), so a job installs only what it uses;
-- each suite remains its own `run: bash <path>` step, the form
-  `ci-enrollment.test.sh` reads.
+on 10-14. Splitting the job by toolchain was the first plan; the runner made it
+unnecessary. The job now installs the pinned tools and runs `bin/test`, which
+runs every suite to the end and reports every failure — and CI and a laptop run
+the same command, as they already did for `bin/lint-shell`. What is lost is
+GitHub's per-step folding and timing; `bin/test` prints a `::group::` per suite
+and its own time table instead.
 
 ### Budget
 
@@ -195,13 +197,14 @@ Estimates are from the measurements above, not yet confirmed by doing the work.
 | --- | --- | --- |
 | 1 | **Done.** `pr-review-dispatch`: close the socket on EOF. **macOS `nc -N` is not Linux's `-N`** (it sets write-timeout probes), so the fix cannot be one flag. Behaviour change: regression test first | CI −105 s |
 | 2 | **Done for review-design.** Rule 3 (112 → 94 s), then sharding per rule 7's exception (→ 34 s on 18 cores). The estimate assumed fixtures dominated; a profile showed the grader is ~70 % of a scenario. review-test (12 s) and init-project (11 s) are left: under the 10 s line by little, and not yet worth the harness | macOS 112 s → 34 s |
-| 3 | CI per rule 8 | CI wall ≈ slowest job, all suites reported |
-| 4 | `bin/test-lib.sh` + `bin/test` (rules 5–7) | local wall ≈ slowest suite |
+| 3 | **Done.** `bin/test` (rule 7) and CI running it (rule 8). Not the slowest suite, as estimated: the Mac stops scaling at ~4 jobs | host suites: macOS 142 s → ~55 s |
+| 4 | `bin/test-in-docker` through `bin/test`, so the tmux suites run in parallel too; then `bin/test-lib.sh` (rules 5, 6) | — |
 | 5 | Rule 2 for `tmux-track-session`'s `sleep 2`; rule 1 for the fixed sleeps in `tmux-agents`, `tmux-restore-tabs`, `tmux-popup`, `tmux-cheatsheet`, `ssh-keepalive` | a few s to ~15 s per suite |
 
 Existing suites move to the helper fragment when they are next touched, not in
 one sweep: the rewrite would be large and the gain is consistency, not speed.
 
-Open: `zsh/ssh-keepalive.test.zsh` failed once locally ("the last session
-ending stops it": wanted `gone`, got `alive`), plausibly its ~4 s wait against a
-5 s poll interval. Unconfirmed.
+Open: `zsh/ssh-keepalive.test.zsh` fails under load — once alone ("the last
+session ending stops it"), once in an 18-job `bin/test` run ("a session starts
+a ping"). Plausibly its ~4 s waits against the supervisor's 5 s poll interval;
+rule 2 (a shorter poll in the test) is the likely fix. Unconfirmed.
