@@ -2,17 +2,24 @@
 #
 # ci-enrollment.test.sh
 #
-# Pins that every *.test.sh and *.test.zsh suite in the repo is run by CI, or is
-# named below with the reason it is not. A *.test.ps1 is NOT checked here: it is
-# enrolled by hand in windows-setup.yml, and nothing fails if it is not. The workflow lists its suites by hand, one step each, so
-# a suite can be written, documented as gating CI and still run nowhere --
-# which is how tmux-agent-view.test.sh, autossh-ssh.test.sh and
-# zshenv-autofs.test.zsh spent their lives until this check existed.
+# Pins that every *.test.sh and *.test.zsh suite in the repo is run by CI, or
+# is left out by bin/test with its reason. A *.test.ps1 is NOT checked here: it
+# is enrolled by hand in windows-setup.yml, and nothing fails if it is not.
 #
-# A suite counts as enrolled when a step in lint-and-test.yml is exactly
-# `run: bash <path>` or `run: zsh <path>`, the only form the workflow uses.
+# CI no longer lists its suites: the test job runs bin/test, which discovers
+# them with git ls-files. The hand-written list this file used to police --
+# under which tmux-agent-view.test.sh, autossh-ssh.test.sh and
+# zshenv-autofs.test.zsh spent their lives running nowhere -- is gone. What can
+# still go wrong is the step that runs the runner, and the runner's own list of
+# exclusions (bin/test.skip). So:
+#   - the workflow runs bin/test;
+#   - in CI's environment, bin/test --list runs or skips every tracked suite,
+#     and skips one only for a reason it prints;
+#   - bin/test --list succeeds -- it refuses an exclusion naming no tracked
+#     suite itself, since only it can see one (a skip line is printed only for
+#     a suite the listing found, so a stale entry never shows up here).
 #
-# Static: reads git and the workflow file, runs nothing.
+# Static: reads git, the workflow file and bin/test --list; runs no suite.
 
 set -eo pipefail
 
@@ -24,50 +31,47 @@ fail() {
   fails=$((fails + 1))
 }
 
-# Suites deliberately left out of CI. Each needs its reason, here and in the
-# doc that owns it; an entry whose file is gone or that CI now runs fails below,
-# so the list cannot quietly outlive its reasons.
-#   git-guard.test.sh  -- not wired in yet (CLAUDE.md, Testing)
-#   default.rules.test.sh -- needs the codex binary; local only (root/README.md)
-not_in_ci='root/.claude/hooks/git-guard.test.sh
-root/.codex/rules/default.rules.test.sh'
-
 # Listings that fail must not read as "there is nothing to check".
 if ! suites=$(git ls-files -- '*.test.sh' '*.test.zsh'); then
   fail "could not list the test suites"
 fi
-if ! enrolled=$(awk '$1 == "run:" && ($2 == "bash" || $2 == "zsh") && NF == 3 { print $3 }' "$workflow"); then
+if ! steps=$(awk '$1 == "run:" { $1 = ""; sub(/^ /, ""); print }' "$workflow"); then
   fail "could not read $workflow"
+fi
+# CI is GITHUB_ACTIONS=true, where the tmux suites run too.
+if ! listed=$(GITHUB_ACTIONS=true bin/test --list); then
+  fail "bin/test --list failed"
 fi
 
 # A here-string, not `printf | grep -q`: under pipefail, grep -q exiting on its
-# match can SIGPIPE the writer and turn a match into status 141 -- which the
-# not_in_ci check below would read as "CI does not run it" and pass.
-listed() { # <needle> <newline-separated list>
-  grep -qxF -- "$1" <<<"$2"
+# match can SIGPIPE the writer and turn a match into status 141.
+listed_as() { # <run|skip> <suite>
+  grep -qE "^$1 +$(printf '%s' "$2" | sed 's/[.[\*^$/]/\\&/g')( |\$)" <<<"$listed"
 }
+
+grep -qxF 'bin/test' <<<"$steps" ||
+  fail "$workflow has no \`run: bin/test\` step, so CI runs no suite"
 
 count=0
 while IFS= read -r f; do
   [ -n "$f" ] || continue
   count=$((count + 1))
-  listed "$f" "$not_in_ci" && continue
-  listed "$f" "$enrolled" ||
-    fail "$f is not run by $workflow (add a step, or list it in not_in_ci with the reason)"
+  if listed_as run "$f"; then
+    continue
+  elif listed_as skip "$f"; then
+    grep -qE "^skip +$(printf '%s' "$f" | sed 's/[.[\*^$/]/\\&/g')  \(.+\)$" <<<"$listed" ||
+      fail "bin/test skips $f in CI without saying why"
+  else
+    fail "$f is neither run nor skipped by bin/test in CI"
+  fi
 done <<<"$suites"
-
-while IFS= read -r f; do
-  [ -n "$f" ] || continue
-  listed "$f" "$suites" || fail "not_in_ci names $f, which is not a tracked suite"
-  listed "$f" "$enrolled" && fail "not_in_ci names $f, but CI runs it"
-done <<<"$not_in_ci"
 
 # A listing that found almost nothing would make the loops above vacuous. A
 # floor, not the exact count, so adding a suite does not mean editing this.
 [ "$count" -ge 20 ] || fail "found only $count suite(s); the listing is broken"
 
 if [ "$fails" -eq 0 ]; then
-  printf 'ok   all %d suites are run by CI or listed as not_in_ci\n' "$count"
+  printf 'ok   all %d suites are run by CI through bin/test, or skipped with a reason\n' "$count"
   echo "PASS"
 else
   echo "$fails failure(s)"

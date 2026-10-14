@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+# test -- run the repo's test suites in parallel. CI runs exactly this.
+#
+# Usage:
+#   bin/test                 every tracked *.test.sh / *.test.zsh (see below)
+#   bin/test <suite>...      just those, by path from the repo root
+#   bin/test --list          what a bare run would run and skip, and why
+#
+# TEST_JOBS=<n>     suites at once (default: CPU count, at most 4). Exported
+#                   to the suites, so a sharded one (review-design's graders)
+#                   uses the same figure.
+# TEST_TIMEOUT=<s>  a suite running longer is killed and failed (default 600).
+# exit 0 = every suite run exited 0. See bin/test.md.
+#
+# Suites are discovered with git ls-files, so an untracked suite is not run --
+# the same rule bin/lint-shell follows. A bare run skips:
+#   - the suites in bin/test.skip, each with its reason;
+#   - the tmux suites, outside a container or CI: they refuse the host
+#     (bin/tmux-test-guard.sh), and bin/test-in-docker runs them.
+# A suite named on the command line is run whatever the list says.
+#
+# GNU parallel does the scheduling, pinned like every tool a gate depends on:
+# the workflow, bin/test-in-docker.Dockerfile and brewfiles/Brewfile-shell
+# carry the same version.
+set -uo pipefail
+
+self="$(readlink -f "$0")"
+cd "$(dirname "$self")/.." || exit 1
+
+# --run-one <suite> <results dir>: one job, as parallel runs it. The suite's
+# output goes to a file first, so a suite killed by the timeout still leaves
+# what it printed for the report, and so a block is printed whole.
+if [ "${1:-}" = --run-one ]; then
+  suite=$2 out="$3/$(printf '%s' "$2" | tr / _).out"
+  case "$suite" in
+    *.zsh) runner=zsh ;;
+    *) runner=bash ;;
+  esac
+  # stdin is /dev/null: a suite that reads it must see EOF, not wait on a
+  # terminal or on parallel's own input.
+  "$runner" "$suite" >"$out" 2>&1 </dev/null
+  status=$?
+  if [ "$status" -eq 0 ]; then
+    if [ "${GITHUB_ACTIONS:-}" = true ]; then
+      printf '::group::ok   %s\n' "$suite"
+      cat "$out"
+      printf '::endgroup::\n'
+    else
+      printf 'ok   %s\n' "$suite"
+    fi
+  else
+    printf 'FAIL %s (exit %s)\n' "$suite" "$status"
+    cat "$out"
+  fi
+  exit "$status"
+fi
+
+list_only=false
+if [ "${1:-}" = --list ]; then
+  list_only=true
+  shift
+fi
+
+# Left out of a bare run, each with why: bin/test.skip, `<path>|<reason>` per
+# line. A file rather than a list in here, so this script's own test can hand
+# a fixture repository a list of its own. No file means no exclusions.
+excluded=''
+if [ -f bin/test.skip ]; then
+  excluded=$(grep -v -e '^#' -e '^$' bin/test.skip)
+fi
+# reason_for <suite> -- its reason, or nothing. Matched on the whole path: a
+# substring match would skip a suite whose path is the tail of an excluded one.
+reason_for() {
+  awk -F'|' -v s="$1" '$1 == s { sub(/^[^|]*\|/, ""); print; exit }' <<<"$excluded"
+}
+
+# A tmux suite refuses a developer machine (bin/tmux-test-guard.sh), so it is
+# run only where the guard lets it. TEST_CONTAINER_MARK stands in for
+# /.dockerenv in tests -- bin/test.test.sh and bin/tmux-test-guard.test.sh --
+# which must see the laptop's answer wherever they run.
+tmux_allowed=false
+if [ -f "${TEST_CONTAINER_MARK:-/.dockerenv}" ] || [ "${GITHUB_ACTIONS:-}" = true ]; then
+  tmux_allowed=true
+fi
+
+suites=()
+skipped_tmux=0
+if [ $# -gt 0 ]; then
+  for s in "$@"; do
+    if [ ! -f "$s" ]; then
+      printf 'test: no such suite: %s\n' "$s" >&2
+      exit 1
+    fi
+    suites+=("$s")
+  done
+else
+  # Command substitutions with their status checked: a listing that failed
+  # must not become "ran nothing, all green" (see bin/lint-shell's header).
+  if ! listing=$(git ls-files -- '*.test.sh' '*.test.zsh'); then
+    printf 'test: git ls-files failed\n' >&2
+    exit 1
+  fi
+  if [ -z "$listing" ]; then
+    printf 'test: no suites found; not a checkout?\n' >&2
+    exit 1
+  fi
+  # The sourcing line itself, as bin/test-in-docker matches it: a suite that
+  # only mentions the guard is not a tmux suite. A copy of that regex;
+  # bin/tmux-test-guard.test.sh checks that this one skips exactly the
+  # guarded suites. git grep exits 1 for "no
+  # match", which is an answer; anything above that is a failure.
+  tmux_suites=$(git grep -l -E '^\. .*tmux-test-guard\.sh" \|\| exit 2$' -- '*.test.sh' '*.test.zsh')
+  if [ $? -gt 1 ]; then
+    printf 'test: git grep for the tmux suites failed\n' >&2
+    exit 1
+  fi
+  # An exclusion naming no tracked suite is a reason kept for a file that is
+  # gone, and one with no reason is a skip nobody can judge -- read as it is,
+  # it would be skipped with its own path for a reason, or (with an empty one)
+  # not skipped at all. Only this script knows its list, so it refuses both.
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    s=${line%%|*}
+    case "$line" in
+      *'|'?*) ;;
+      *)
+        printf 'test: bin/test.skip gives no reason for %s\n' "$s" >&2
+        exit 1
+        ;;
+    esac
+    if ! grep -qxF -- "$s" <<<"$listing"; then
+      printf 'test: bin/test.skip names %s, which is not a tracked suite\n' "$s" >&2
+      exit 1
+    fi
+  done <<<"$excluded"
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    reason=$(reason_for "$s")
+    if [ -n "$reason" ]; then
+      $list_only && printf 'skip %s  (%s)\n' "$s" "$reason"
+      continue
+    fi
+    if [ "$tmux_allowed" = false ] && grep -qxF -- "$s" <<<"$tmux_suites"; then
+      $list_only && printf 'skip %s  (a tmux suite: bin/test-in-docker)\n' "$s"
+      skipped_tmux=$((skipped_tmux + 1))
+      continue
+    fi
+    $list_only && printf 'run  %s\n' "$s"
+    suites+=("$s")
+  done <<<"$listing"
+fi
+$list_only && exit 0
+
+if [ ${#suites[@]} -eq 0 ]; then
+  printf 'test: nothing to run\n' >&2
+  exit 1
+fi
+
+command -v parallel >/dev/null || {
+  printf 'test: GNU parallel is required (brew bundle --file brewfiles/Brewfile-shell)\n' >&2
+  exit 1
+}
+
+# At most 4 by default, measured on an 18-core Mac: a full host run took ~55 s
+# at 4, 6, 8 and 12 jobs alike, and 67 s at 18, with the timing-sensitive
+# ssh-keepalive suite failing. The suites are fork-heavy, so past a handful of
+# jobs they queue on the kernel rather than run -- and the lightest load that
+# is as fast is the one least likely to trip a suite that waits on a real
+# clock. CI's runner has 4 CPUs anyway. The same shapes lint-shell rejects for
+# LINT_SHELL_JOBS are rejected here, for the same reasons.
+jobs=${TEST_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}
+[ -z "${TEST_JOBS:-}" ] && [ "$jobs" -gt 4 ] 2>/dev/null && jobs=4
+timeout=${TEST_TIMEOUT:-600}
+for v in "$jobs" "$timeout"; do
+  case "$v" in
+    '' | *[!0-9]* | 0*)
+      printf 'test: TEST_JOBS and TEST_TIMEOUT must be positive integers: %s\n' "$v" >&2
+      exit 1
+      ;;
+  esac
+done
+# Handed on to the suites, the figure chosen here and not only one the caller
+# set: a sharded suite reads it, and would otherwise split itself across every
+# CPU on top of these jobs.
+export TEST_JOBS=$jobs
+
+if ! results=$(mktemp -d); then
+  printf 'test: mktemp failed\n' >&2
+  exit 1
+fi
+trap 'rm -rf "$results"' EXIT
+
+# parallel's own exit status counts failed jobs, but a job that never started
+# is counted nowhere -- so the verdict comes from the job log, checked against
+# the list it was given.
+parallel --jobs "$jobs" --timeout "$timeout" --halt never \
+  --joblog "$results/joblog" \
+  "$self" --run-one {} "$results" ::: "${suites[@]}"
+
+# joblog: Seq Host Starttime JobRuntime Send Receive Exitval Signal Command,
+# tab-separated, after a header line. The suite is the command's second-last
+# word (`<self> --run-one <suite> <results>`).
+rows=$(tail -n +2 "$results/joblog" 2>/dev/null)
+ran=$(grep -c . <<<"$rows")
+failed=()
+while IFS=$'\t' read -r _ _ _ runtime _ _ exitval signal command; do
+  [ -n "${command:-}" ] || continue
+  suite=${command#* --run-one }
+  suite=${suite%% *}
+  if [ "$signal" != 0 ] || [ "$exitval" = -1 ]; then
+    # Killed by the timeout: parallel printed nothing for it, so print here.
+    printf 'FAIL %s (timed out after %ss)\n' "$suite" "${runtime%.*}"
+    cat "$results/$(printf '%s' "$suite" | tr / _).out" 2>/dev/null
+    failed+=("$suite")
+  elif [ "$exitval" != 0 ]; then
+    failed+=("$suite")
+  fi
+done <<<"$rows"
+
+printf '\n--- time per suite (1 s or more) ---\n'
+awk -F'\t' 'NR > 1 && $4 >= 1 { n = split($9, w, " "); printf "%7.1fs  %s\n", $4, w[n - 1] }' \
+  "$results/joblog" | sort -rn
+
+printf '\n%d passed, %d failed' "$((ran - ${#failed[@]}))" "${#failed[@]}"
+[ "$skipped_tmux" -gt 0 ] &&
+  printf '; %d tmux suite(s) skipped here: run bin/test-in-docker' "$skipped_tmux"
+printf '\n'
+status=0
+if [ "$ran" -ne ${#suites[@]} ]; then
+  printf 'FAIL %d of %d suite(s) never ran\n' "$((${#suites[@]} - ran))" "${#suites[@]}"
+  status=1
+fi
+if [ ${#failed[@]} -gt 0 ]; then
+  printf 'failed:\n'
+  printf '  %s\n' "${failed[@]}"
+  status=1
+fi
+exit "$status"

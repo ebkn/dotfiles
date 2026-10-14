@@ -290,8 +290,10 @@ writes synthetic transcripts, and two things about them are worth copying:
   text a judged check is meant to read shows that it reads that text. Whether
   the rubric is right is left to real runs.
 
-**`review-design/evals/assert.test.sh` runs sharded** — one shard per CPU,
-`TEST_JOBS` to override (`1` is a sequential run) — because its ~165
+**`review-design/evals/assert.test.sh` runs sharded** — `TEST_JOBS` shards:
+one per CPU when run alone, and under `bin/test` (every CI run) the job count
+`bin/test` chose and exports (see "The job count" in [test.md](test.md)); `1`
+is a sequential run — because its ~165
 scenarios each spend ~0.45 s in the real grader, and that is not the place to
 save time. On macOS it took 112 s before; scaffolding each case once and
 copying it per scenario brought a sequential run to ~95 s, and sharding to

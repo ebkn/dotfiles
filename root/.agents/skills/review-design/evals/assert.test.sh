@@ -43,12 +43,12 @@ bad() {
 # --- shards ---
 # Every scenario below copies its fixture and runs a real grader, ~0.6 s each
 # on macOS, nearly all of it the grader's own processes -- and none of them
-# shares state with another. So the file runs itself as TEST_JOBS
-# shards (one per CPU by default) -- named for no suite, like TEST_FILTER in
-# bin/testing.md, because this harness is meant to move to bin/test-lib.sh and a
-# runner capping total parallelism should need one name, not one per suite.
-# Each shard walks every scenario but runs only
-# those whose index falls to it. Each scenario's output follows a marker line
+# shares state with another. So the file runs itself as TEST_JOBS shards:
+# one per CPU when run alone, and under bin/test the job count bin/test chose
+# and exports. The name is for no suite, like TEST_FILTER in bin/testing.md,
+# so that bin/test hands one figure to every sharded suite; it does not cap
+# the total -- up to that many suites run beside that many shards. Each shard
+# walks every scenario but runs only those whose index falls to it. Each scenario's output follows a marker line
 # carrying its index, which is how the blocks are put back in source order:
 # the result reads as a sequential run would, bar the merge's self-check lines
 # at the top and the summary. TEST_SHARD is the driver's handshake with each

@@ -15,7 +15,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -qq \
   && apt-get install -y -qq --no-install-recommends \
     ca-certificates curl git jq less zsh bsdutils netcat-openbsd procps openssh-client \
-    build-essential libevent-dev libncurses-dev pkg-config bison \
+    build-essential libevent-dev libncurses-dev pkg-config bison bzip2 \
   && rm -rf /var/lib/apt/lists/*
 
 # Same version, source and checksum as the "Install tmux" step in
@@ -58,6 +58,24 @@ RUN version=3.12 \
   && tar -xzf pandoc.tar.gz \
   && install -m 0755 "pandoc-${version}/bin/pandoc" /usr/local/bin/pandoc \
   && rm -rf pandoc.tar.gz "pandoc-${version}"
+
+# Same as the "Install GNU parallel" step in the workflow and the parallel note
+# in brewfiles/Brewfile-shell. Bump all three places together. bin/test
+# schedules the suites with it; installed ahead of test-in-docker running its
+# suites through bin/test (testing.md, migration step 4) -- today the
+# container's loop still runs them one by one. bzip2 (above) unpacks the
+# tarball; perl, which parallel is written in, comes with build-essential.
+RUN version=20260922 \
+  && expected=54837e9e8c16134a3c2e95f91c5fe2f7893d4cc89f252b26735713ceca866387 \
+  && cd /tmp \
+  && curl -fsSL -o parallel.tar.bz2 \
+    "https://ftp.gnu.org/gnu/parallel/parallel-${version}.tar.bz2" \
+  && echo "${expected}  parallel.tar.bz2" | sha256sum --check --strict \
+  && tar -xjf parallel.tar.bz2 \
+  && cd "parallel-${version}" \
+  && ./configure --prefix=/usr/local >/dev/null \
+  && make install >/dev/null \
+  && cd / && rm -rf /tmp/parallel*
 
 # UTF-8, or tmux renders every wide glyph as `_`. The runner has it.
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
