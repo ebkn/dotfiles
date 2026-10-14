@@ -38,6 +38,11 @@ set -u
 DIR=$(mktemp -d)
 export TMUX_TMPDIR="$DIR/tmux"
 export XDG_STATE_HOME="$DIR/state"
+# The monitor's poll interval, down from 2s. Every switch and every death below
+# is noticed only at the monitor's next poll, so this is most of the suite's
+# waiting. Exported before any server starts: `attach` launches its monitor
+# through run-shell, which runs with the server's environment, not ours.
+export TMUX_TRACK_SESSION_POLL=0.05
 unset TMUX TMUX_PANE
 mkdir -p "$TMUX_TMPDIR"
 SESSION_DIR="$XDG_STATE_HOME/tmux-track-session/session"
@@ -102,8 +107,9 @@ read_record() { cat "$SESSION_DIR/$1" 2>/dev/null || echo '<none>'; }
 # reading once. Returns as soon as it matches, so a pass is immediate and only a
 # genuine failure pays the timeout -- and the value it echoes on timeout is the
 # real one, so the failure report names what was actually there. The 6s ceiling
-# (and wait_gone's 5s) is sized against the monitor's `sleep 2`, which a signal
-# or a switch has to wait out; the two move together.
+# (and wait_gone's 5s) still covers the monitor's default 2s poll, which a
+# signal or a switch has to wait out, so a run with TMUX_TRACK_SESSION_POLL
+# unset is slow rather than red.
 wait_record() { # wait_record <conn_id> <expected>
   for _ in $(seq 1 60); do
     [ "$(read_record "$1")" = "$2" ] && break
@@ -209,9 +215,9 @@ tmux switch-client -c "$ttyB" -t '=s1'
 # Poll rather than sleeping out two poll intervals. The second suite in this
 # file already established why: a fixed read made its regression case pass green
 # against the unfixed script, and the same hazard applies here -- the monitor is
-# inside `sleep 2` when the switch lands, so how long this takes is not bounded
-# by anything the test controls. wait_record returns the moment it matches and
-# reports the real value if it never does.
+# inside its poll `sleep` when the switch lands, so how long this takes is not
+# bounded by anything the test controls. wait_record returns the moment it
+# matches and reports the real value if it never does.
 t "monitor: the claimant records the session" "s1" "$(wait_record connB s1)"
 t "monitor: the previous owner is released" "<none>" "$(wait_record connA '<none>')"
 
@@ -405,14 +411,50 @@ t "attach: leaves an unrelated process holding a recycled pid alone" "alive" \
 
 # The other half of the same decision: a pid that really is this conn_id's
 # monitor must still be killed, or every reconnect leaks one.
+#
+# ...and the pid file then names the NEW monitor attach started. The old one's
+# trap runs only once its poll `sleep` returns -- in production usually after
+# attach has started the new monitor -- and it used to remove the pid file
+# unconditionally, taking the new monitor's with it. The next reconnect then had
+# nothing to kill, and leaked it.
+#
+# That order is the case's precondition, so the test imposes it instead of
+# leaving it to the poll interval: the old monitor is stopped (SIGSTOP) while
+# attach runs, so attach's TERM stays pending, and it is continued only once the
+# replacement has written its pid. Left to timing, the case passed against the
+# unconditional removal whenever attach outlasted the old monitor's poll -- under
+# parallel load in the container, even at a 2s poll.
 "$SCRIPT" monitor connI "$ttyA" >/dev/null 2>&1 &
 monitor_i=$!
 CLIENT_PIDS="$CLIENT_PIDS $monitor_i"
 for _ in $(seq 1 50); do
-  [ -s "$XDG_STATE_HOME/tmux-track-session/pid/connI" ] && break
+  [ -s "$PID_DIR/connI" ] && break
   sleep 0.1
 done
+# yes when the pid file names a connI monitor other than the old one.
+names_replacement() {
+  new_pid=$(cat "$PID_DIR/connI" 2>/dev/null)
+  if [ "${new_pid:-0}" = "$monitor_i" ]; then
+    echo "no (pid file: still the old monitor)"
+    return
+  fi
+  case "$(ps -ww -p "${new_pid:-0}" -o command= 2>/dev/null)" in
+    *"monitor connI "*) echo yes ;;
+    *) echo "no (pid file: ${new_pid:-missing})" ;;
+  esac
+}
+kill -STOP "$monitor_i"
+# It watches $ttyA's client; with that gone it would have exited on its own, and
+# every case below would pass without attach having signalled anything.
+t "attach harness: the old monitor is alive and held when attach runs" "alive" \
+  "$(kill -0 "$monitor_i" 2>/dev/null && echo alive || echo dead)"
 attach_as connI
+for _ in $(seq 1 50); do
+  [ "$(names_replacement)" = yes ] && break
+  sleep 0.1
+done
+replaced=$(names_replacement)
+kill -CONT "$monitor_i"
 gone=dead
 for _ in $(seq 1 50); do
   kill -0 "$monitor_i" 2>/dev/null || break
@@ -420,16 +462,24 @@ for _ in $(seq 1 50); do
 done
 kill -0 "$monitor_i" 2>/dev/null && gone=alive
 t "attach: still kills this conn_id's own stale monitor" "dead" "$gone"
-# ...and the pid file then names the NEW monitor, attach started. The old one's
-# trap runs only once its `sleep 2` returns -- after attach has started the new
-# monitor -- and it used to remove the pid file unconditionally, taking the new
-# monitor's with it. The next reconnect then had nothing to kill, and leaked it.
-new_pid=$(cat "$PID_DIR/connI" 2>/dev/null)
-t "attach: the pid file names the replacement monitor afterwards" "yes" \
-  "$(case "$(ps -ww -p "${new_pid:-0}" -o command= 2>/dev/null)" in
-    *"monitor connI "*) echo yes ;;
-    *) echo "no (pid file: ${new_pid:-missing})" ;;
-  esac)"
+# HOW it ended is the half the screen suite cannot see, since that one signals
+# its monitor itself: attach must send a signal the trap can catch, and the
+# monitor must then exit 0, which is what keeps tmux from reporting it over the
+# remote screen. A `kill -9` in attach (137) passed the whole suite without
+# this; a lost trap (143) and a trap ending in a bare `exit` (1, release_pid's
+# status) show here as well. Waited on only once dead: on a live monitor `wait`
+# would block for good.
+if [ "$gone" = dead ]; then
+  wait "$monitor_i"
+  t "attach: the monitor it replaces exits 0, so tmux reports nothing" "0" "$?"
+fi
+if [ "$replaced" = yes ]; then
+  t "attach: the pid file names the replacement monitor afterwards" "yes" \
+    "$(names_replacement)"
+else
+  t "attach harness: the replacement monitor starts while the old one is held" \
+    "yes" "$replaced"
+fi
 
 # The identity check matches this conn_id as a whole argument. A process that is
 # the monitor of a LONGER conn_id (local-50's, holding a pid local-5's file
@@ -442,6 +492,10 @@ printf '%s' "$other_monitor" >"$PID_DIR/local-5"
 attach_as local-5
 t "attach: a longer conn_id's monitor is not taken for this one's" "alive" \
   "$(kill -0 "$other_monitor" 2>/dev/null && echo alive || echo dead)"
+
+# Every monitor attach started above would otherwise poll at the suite's short
+# interval until cleanup -- ten of them, load on every suite running beside this.
+kill_our_monitors
 
 # ---------------------------------------------------------------------------
 # adopt: the remote half of bin/tmux-restore-ssh-tabs. Each session it prints
@@ -465,8 +519,11 @@ aread() { cat "$ADOPT_SESSIONS/$1" 2>/dev/null || echo '<none>'; }
 # Created a second apart and in reverse alphabetical order, so the output order
 # can only come from session_created: tmux itself lists by name. Tab order is
 # the point -- restored tabs should come back in the order they were opened.
+# session_created is in whole seconds, so the wait is for the clock to pass
+# zeta's second rather than a full second of sleep: half of one, on average.
 at -f /dev/null new-session -d -s zeta "$IDLE"
-sleep 1
+zeta_created=$(at display-message -p -t '=zeta:' '#{session_created}')
+while [ "$(date +%s)" -le "$zeta_created" ]; do sleep 0.05; done
 at new-session -d -s alpha "$IDLE"
 at new-session -d -s _popup_1 "$IDLE"
 at new-session -d -s 'with/slash' "$IDLE"
@@ -537,18 +594,19 @@ done
   exit 1
 }
 
-# -J joins wrapped lines: the job's command is a long absolute path, so the
-# report can be split mid-phrase across two rows of an 80-column screen.
+# The inner screen as the outer pane drew it. A report naming the job's long
+# absolute path is drawn wrapped onto two rows, which -J does not rejoin here,
+# and the view's position indicator overwrites the end of the first row -- so
+# match on short fragments, never on the job's command line.
 screen() { tmux -L "$OUTER" capture-pane -pJ; }
 clear_screen() { tmux -L "$INNER" send-keys -X cancel 2>/dev/null; }
 in_mode() { tmux -L "$INNER" display-message -p -t main '#{pane_in_mode}'; }
-# wait_mode 1 -- poll until the pane enters a mode, rather than sleeping a fixed
-# amount and reading once. The delay between the job dying and the report
-# reaching the screen is neither instant nor bounded by anything this test
-# controls (the monitor is inside `sleep 2` when the signal lands, then the
-# inner server renders, then the outer one does): a half-second read made the
-# regression case pass green against the *unfixed* script, which is the one
-# outcome this suite exists to prevent.
+# wait_mode 0|1 -- poll until the pane leaves or enters a mode, rather than
+# sleeping a fixed amount and reading once. The delay between a job dying and
+# its report reaching the screen is not bounded by anything this test controls
+# (the job exits, then the inner server renders, then the outer one does): a
+# half-second read once made the regression case pass against the unfixed
+# script.
 wait_mode() {
   for _ in $(seq 1 40); do
     [ "$(in_mode)" = "$1" ] && return 0
@@ -608,57 +666,124 @@ else
     fail_ "harness: a signalled run-shell job is visible on the client" \
       "expected 'terminated by signal' on the inner screen; the harness cannot see the bug it tests for"
   fi
+  # The screen case below judges by which report comes FIRST in the view, so
+  # it relies on tmux appending a later report under an earlier one rather than
+  # starting a new view or putting it on top. Pinned here, where an earlier
+  # report is known to be on the screen: a tmux that changed this would leave
+  # the sentinel always first, and that case green against a broken monitor.
+  tmux -L "$INNER" run-shell -b 'exit 4'
+  for _ in $(seq 1 40); do
+    screen | grep -q "exit 4' returned 4" && break
+    sleep 0.1
+  done
+  out=$(screen)
+  case "$out" in
+    *"exit 4' returned 4"*)
+      case "${out%%$'\n'*}" in
+        *"exit 4' returned 4"*) fail_ "harness: a later job's report is appended below an earlier one" \
+          "the later report came first:" "$out" ;;
+        *) pass_ "harness: a later job's report is appended below an earlier one" ;;
+      esac
+      ;;
+    *) fail_ "harness: a later job's report is appended below an earlier one" \
+      "the later report never appeared:" "$out" ;;
+  esac
   clear_screen
 fi
 
+# start_inner_monitor <conn_id> -- start a monitor the way `attach` does, as a
+# run-shell job on the inner server, and echo its pid once it has written it.
+start_inner_monitor() {
+  local file="$XDG_STATE_HOME/tmux-track-session/pid/$1" pid=""
+  tmux -L "$INNER" run-shell -b "'$SCRIPT' monitor '$1' '$client_tty'"
+  for _ in $(seq 1 50); do
+    [ -s "$file" ] && pid=$(cat "$file")
+    [ -n "$pid" ] && break
+    sleep 0.1
+  done
+  printf '%s' "$pid"
+}
+
 conn_id="local-1"
-tmux -L "$INNER" run-shell -b "'$SCRIPT' monitor '$conn_id' '$client_tty'"
-
 pid_file="$XDG_STATE_HOME/tmux-track-session/pid/$conn_id"
-monitor_pid=""
-for _ in $(seq 1 50); do
-  [ -s "$pid_file" ] && monitor_pid=$(cat "$pid_file")
-  [ -n "$monitor_pid" ] && break
-  sleep 0.1
-done
+monitor_pid=$(start_inner_monitor "$conn_id")
 
-if [ -z "$monitor_pid" ]; then
+# A clean screen first: the sanity case's view must be gone, or the first-line
+# check below reads its report and fails for a reason that is not the monitor's.
+clear_screen
+if ! wait_mode 0; then
+  fail_ "harness: the inner pane is out of view mode before the monitor is killed" \
+    "$(screen)"
+elif [ -z "$monitor_pid" ]; then
   fail_ "monitor: starts and records its pid" "no pid in $pid_file"
 else
   pass_ "monitor: starts and records its pid"
 
-  # This is exactly what `attach` does to the previous connection's monitor.
+  # What `attach` does to the previous connection's monitor, in its order: the
+  # pid file is removed, then the monitor is signalled. So the trap's
+  # release_pid finds no file of its own and returns non-zero, and only the
+  # trap's `exit 0` stands between that status and a report. Signalled with its
+  # pid file still in place, the case exercised the other branch, and a trap
+  # ending in a bare `exit` passed.
+  rm -f "$pid_file"
   kill -TERM "$monitor_pid" 2>/dev/null
   if wait_gone "$monitor_pid"; then
-    # The view mode is the visible half of the bug: it covers the pane and
-    # waits for a keypress. This waits out the full timeout on a pass, which is
-    # what buys the assertion its meaning.
-    if wait_mode 1; then
-      fail_ "monitor: dying on SIGTERM leaves the pane out of view mode" \
-        "the pane entered a mode, so tmux reported the job's death over the remote screen"
-    else
-      pass_ "monitor: dying on SIGTERM leaves the pane out of view mode"
-    fi
-
+    # "Nothing was reported" cannot be polled for: waiting for the view mode
+    # NOT to appear only ends at the deadline, so this case used to spend its
+    # full 4s on every green run. Instead a sentinel job fails on purpose, and
+    # tmux appends its report to the same view after anything the monitor's
+    # job put there -- its exit report, or output it printed -- so the view
+    # must START with the sentinel's line. Judged by position, not by looking
+    # for the monitor's words: those are a long path that wraps, and the view's
+    # position indicator overwrites the end of the first row, so a match on
+    # "monitor 'local-1'" only worked for a checkout path short enough to fit.
+    #
+    # The sentinel waits 0.5s before failing, as margin only: the monitor's pid
+    # being gone need not mean tmux has finished its job, since an orphaned
+    # child could still hold the job's output. Not observed -- on tmux 3.7c a
+    # sentinel failing at once still came second, with the trap removed and a
+    # 2s poll -- so the delay does not need to grow with the poll.
+    #
+    # Waited for by its own line, not by the view mode: a monitor that IS
+    # reported puts the pane in the mode first.
+    tmux -L "$INNER" run-shell -b 'sleep 0.5; exit 3'
+    for _ in $(seq 1 40); do
+      screen | grep -q "exit 3' returned 3" && break
+      sleep 0.1
+    done
     out=$(screen)
-    if printf '%s' "$out" | grep -q 'terminated by signal'; then
+    first=${out%%$'\n'*}
+    if ! printf '%s' "$out" | grep -q "exit 3' returned 3"; then
       fail_ "monitor: dying on SIGTERM leaves the screen alone" \
-        "tmux reported the job's death onto the remote screen:" \
-        "$(printf '%s' "$out" | grep 'terminated by signal')"
+        "the sentinel's report never appeared, so nothing can be said:" "$out"
     else
-      pass_ "monitor: dying on SIGTERM leaves the screen alone"
-    fi
-
-    if [ -e "$pid_file" ]; then
-      fail_ "monitor: removes its pid file on SIGTERM" "$pid_file still exists"
-    else
-      pass_ "monitor: removes its pid file on SIGTERM"
+      case "$first" in
+        *"exit 3' returned 3"*) pass_ "monitor: dying on SIGTERM leaves the screen alone" ;;
+        *) fail_ "monitor: dying on SIGTERM leaves the screen alone" \
+          "the view starts with something before the sentinel's report:" "$out" ;;
+      esac
     fi
   else
     fail_ "monitor: dying on SIGTERM leaves the screen alone" \
       "monitor pid $monitor_pid still alive after SIGTERM"
   fi
 fi
+
+# The pid file half, on a monitor whose file is still its own: the case above
+# removes it first, as attach does, so it cannot see the trap's cleanup.
+own_pid=$(start_inner_monitor local-2)
+if [ -z "$own_pid" ]; then
+  fail_ "monitor: removes its own pid file on SIGTERM" "it never wrote one"
+else
+  kill -TERM "$own_pid" 2>/dev/null
+  wait_gone "$own_pid"
+  if [ -e "$XDG_STATE_HOME/tmux-track-session/pid/local-2" ]; then
+    fail_ "monitor: removes its own pid file on SIGTERM" "the file is still there"
+  else
+    pass_ "monitor: removes its own pid file on SIGTERM"
+  fi
+fi
+
 
 # ---------------------------------------------------------------------------
 # The subcommands nobody calls by hand. tmux-restore-ssh-tabs tells an old

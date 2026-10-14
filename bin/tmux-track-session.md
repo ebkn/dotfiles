@@ -61,7 +61,7 @@ the wrong question. The conn_id is matched **as a whole argument** (`monitor
 and killed another connection.
 
 **A monitor removes its pid file only while the file still names it.** Its trap
-runs once its `sleep 2` returns, which is usually after `attach` has started the
+runs once its poll `sleep` returns, which is usually after `attach` has started the
 replacement — so removing the file outright took the replacement's pid with it,
 and the next reconnect had nothing to kill and leaked a monitor.
 
@@ -154,10 +154,47 @@ branch kills what it matched before reporting, because a `run-shell` job
 outlives its server (measured: still running after `kill-server`), so cleanup
 cannot reach it.
 
-Assertions poll `#{pane_in_mode}` rather than sleeping a fixed amount: at half a
-second the regression case went green against the unfixed script, because the
-monitor is inside `sleep 2` when the signal lands and two servers then have to
+Assertions poll rather than sleeping a fixed amount: at half a second the
+regression case went green against the unfixed script, because the monitor is
+inside its poll `sleep` when the signal lands and two servers then have to
 render.
+
+**"The monitor's death was not reported" is read after a sentinel, not waited
+out.** Polling for a view mode that must *not* appear only ends at its deadline,
+which cost 4 s on every green run. A second job fails on purpose 0.5 s later,
+and tmux appends its report to the same view after anything the monitor's job
+produced, so the check is that **the view starts with the sentinel's line**.
+Judged by position because the monitor's own words cannot be matched: its
+report names a long absolute path that wraps onto a second row, the view's
+position indicator overwrites the end of the first, and a non-zero exit reads
+`returned <status>`, not `terminated by signal`. A match on the job's name was
+green at the runner's checkout path (58 characters) with the trap removed. Red
+at that path length with the trap removed, exiting 1, ending in a bare `exit`,
+or printing a word first.
+
+The monitor is signalled the way `attach` does it: **its pid file removed
+first**. Its trap's `release_pid` then returns non-zero, and only the trap's
+`exit 0` keeps that from being reported — signalled with the file in place, a
+trap ending in a bare `exit` passed. Removing its own pid file is checked on a
+second monitor, whose file is still its own.
+
+**`TMUX_TRACK_SESSION_POLL`** sets the monitor's poll interval (default 2 s).
+The suite exports 0.05 before starting any server — `attach` starts its monitor
+through `run-shell`, which runs with the server's environment — and that took
+the suite from 23 s to 11 s in the test container.
+
+The case pinning that a dying monitor leaves its replacement's pid file alone
+needs the old trap to run *after* `attach` started the replacement. That order
+is imposed, not left to the poll interval: the old monitor is `SIGSTOP`ped
+while `attach` runs, so its TERM stays pending, and continued once the
+replacement's pid is in the file. Left to timing, the case passed against the
+unconditional removal whenever `attach` outlasted the old monitor's poll —
+under parallel load in the container, even at the default 2 s.
+
+The container mounts the checkout at `/work`, not at the runner's
+`/home/runner/work/dotfiles/dotfiles`, so an assertion on rendered text holding
+an absolute path can pass in one and not the other: check such a case at the
+runner's path length too.
 
 ## `adopt`
 

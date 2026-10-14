@@ -202,7 +202,7 @@ Estimates are from the measurements above, not yet confirmed by doing the work.
 | 2 | **Done for review-design.** Rule 3 (112 → 94 s), then sharding per rule 7's exception (→ 34 s on 18 cores). The estimate assumed fixtures dominated; a profile showed the grader is ~70 % of a scenario. review-test (12 s) and init-project (11 s) are left: under the 10 s line by little, and not yet worth the harness | macOS 112 s → 34 s |
 | 3 | **Done.** `bin/test` (rule 7) and CI running it (rule 8). Not the slowest suite, as estimated: the Mac stops scaling at ~4 jobs | host suites: macOS 142 s → ~55 s |
 | 4 | `bin/test-in-docker` through `bin/test`, so the tmux suites run in parallel too; then `bin/test-lib.sh` (rules 5, 6) | — |
-| 5 | Rule 2 for `tmux-track-session`'s `sleep 2`; rule 1 for the fixed sleeps in `tmux-agents`, `tmux-restore-tabs`, `tmux-popup`, `tmux-cheatsheet`, `ssh-keepalive` | a few s to ~15 s per suite |
+| 5 | **Done for `tmux-track-session`:** rule 2 (`TMUX_TRACK_SESSION_POLL`), and its one negative wait read after a sentinel job instead. Left: rule 1 for the fixed sleeps in `tmux-agents`, `tmux-restore-tabs`, `tmux-popup`, `tmux-cheatsheet`, `ssh-keepalive` | track-session 23 s → 11 s in the container; a few s to ~15 s per suite |
 
 Existing suites move to the helper fragment when they are next touched, not in
 one sweep: the rewrite would be large and the gain is consistency, not speed.

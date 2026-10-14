@@ -30,6 +30,10 @@
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tmux-track-session"
 SESSION_DIR="$STATE_DIR/session"
 PID_DIR="$STATE_DIR/pid"
+# Seconds between the monitor's polls. Read from the environment only so the
+# test does not pay a full interval for every switch and death it waits on
+# (bin/testing.md, rule 2); nothing else sets it.
+POLL="${TMUX_TRACK_SESSION_POLL:-2}"
 # How `attach` re-invokes this script to start the monitor. It has to be an
 # absolute path: run-shell executes with tmux's environment rather than this
 # shell's, so a relative $0 would not resolve there.
@@ -185,8 +189,8 @@ $saved
     # so exiting 0 is what keeps the reconnect silent.
     #
     # The pid file is removed only while it still names this process. The trap
-    # runs once the `sleep 2` below returns, which is usually AFTER `attach` has
-    # started this monitor's replacement -- and removing the file outright took
+    # runs once the poll's `sleep` below returns, which is usually AFTER
+    # `attach` has started this monitor's replacement -- and removing the file outright took
     # the replacement's pid with it, so the next reconnect had nothing to kill.
     release_pid() {
       [ "$(cat "$PID_DIR/$conn_id" 2>/dev/null)" = "$$" ] && rm -f "$PID_DIR/$conn_id"
@@ -221,10 +225,9 @@ $saved
         prev="$session"
       fi
       # The trap waits out this sleep, so a death or a switch can take up to one
-      # interval to show. tmux-track-session.test.sh polls for both with fixed
-      # ceilings sized against it (wait_record 6s, wait_gone 5s): raise this and
-      # those have to grow with it, or the suite fails on timing alone.
-      sleep 2
+      # interval to show. tmux-track-session.test.sh shortens the interval and
+      # polls for both with ceilings far above it.
+      sleep "$POLL"
     done
     release_pid
     ;;
