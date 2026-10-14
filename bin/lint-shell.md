@@ -43,7 +43,8 @@ red by mutation:
 exactly as much as the versions behind it. **Both `shellcheck` and `shfmt` are
 therefore pinned in the workflow**, by version and SHA256, and both pins are
 cross-referenced from `brewfiles/Brewfile-shell`: bump them together or the two
-sides drift.
+sides drift. zsh is the one gate tool that is **not** pinned, and the only one
+that has actually disagreed (see the top of this file).
 
 shellcheck was not pinned at first — it ships with the GitHub runner image, which
 looked like a reason to use it. Then the image moved, that copy began reporting

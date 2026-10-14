@@ -173,9 +173,12 @@ Adopted from `tetsunavi-monorepo`'s `015_shell_scripts.md`, with the divergences
 ## Testing
 
 `bin/lint-shell` is the static gate for every shell script and CI runs the same
-command, so local and CI cannot disagree — **which holds only because both
-`shellcheck` and `shfmt` are version-pinned in the workflow**; an unpinned linter
-turned main red on a runner-image bump with no shell script changed. See
+command. Its shellcheck and shfmt passes cannot disagree between local and CI
+**only because both tools are version-pinned in the workflow**; an unpinned
+linter turned main red on a runner-image bump with no shell script changed. Its
+`zsh -n` pass **can** disagree, and did: zsh is not pinned, and Homebrew's
+5.9.2 accepts what CI's 5.9 rejects, so main was red for a week behind green
+local runs. Check zsh changes with `/bin/zsh -n` too. See
 [bin/lint-shell.md](bin/lint-shell.md).
 
 Run it before pushing, and **after `git add`**: discovery is `git ls-files`, so an
@@ -265,5 +268,5 @@ silent.
 | `bin/wsl/notify-send.test.sh` | its header (runs anywhere; WSL is not needed) |
 | `bin/init/winget-result.test.ps1` | its header (the Windows workflow runs it; locally, pwsh in a container) |
 
-- **GitHub Actions CI** (`.github/workflows/`) runs the platform setup scripts plus lint, the hook tests, the tmux script tests, the retrospective tests and the `zsh/` unit tests. `git-guard.test.sh` is **not** wired in yet. The workflow lists suites by hand, so **a new suite needs its own step** — `bin/ci-enrollment.test.sh` fails CI until it has one, or is added to its `not_in_ci` list with the reason.
+- **GitHub Actions CI** (`.github/workflows/`) runs the platform setup scripts plus lint, the hook tests, the tmux script tests, the retrospective tests and the `zsh/` unit tests. `git-guard.test.sh` is **not** wired in yet. The workflow lists suites by hand, so **a new suite needs its own step** — for a `*.test.sh` / `*.test.zsh`, `bin/ci-enrollment.test.sh` fails CI until it has one, or is added to its `not_in_ci` list with the reason. A `*.test.ps1` goes in `windows-setup.yml` by hand, and nothing checks that it did.
 - **Setup workflows must test the pushed branch.** They `actions/checkout`, symlink the checkout to `~/dotfiles`, and run the bootstrap with `DOTFILES_SKIP_UPDATE=1` so it does not self-update over the branch under test. The earlier form — `curl .../main/bin/init/bootstrap-*.sh | sh`, letting the bootstrap `git clone` the default branch — meant every job validated `main` regardless of the pushed ref, so the checks could not fail on unmerged code. **Do not reintroduce a hardcoded `/main/` raw URL or drop the skip flag.**
