@@ -229,8 +229,6 @@ else {
 }
 
 # ------------------------------------------------------------------
-if ($script:FailedPackages.Count -gt 0) {
-    Write-Host ("`nwinget failed for: {0}" -f ($script:FailedPackages -join ', ')) -ForegroundColor Red
-    exit 1
-}
+$status = Get-WingetExitStatus
+if ($status -ne 0) { exit $status }
 Write-Step 'Setup complete'

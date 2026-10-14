@@ -26,3 +26,10 @@ function Confirm-WingetResult {
     Write-Host ("  FAILED: {0} (winget exit 0x{1:X8})" -f $Id, [int32]$Code) -ForegroundColor Red
     $script:FailedPackages += $Id
 }
+
+# The status windows.ps1 ends with: 1, after naming every failed id, or 0.
+function Get-WingetExitStatus {
+    if ($script:FailedPackages.Count -eq 0) { return 0 }
+    Write-Host ("`nwinget failed for: {0}" -f ($script:FailedPackages -join ', ')) -ForegroundColor Red
+    return 1
+}
