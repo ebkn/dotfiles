@@ -103,19 +103,62 @@ count_live() {
   echo $n
 }
 
-# settled_pings <expected> -- how many pings run once things have settled.
-# Two halves, because they are different questions. Reaching <expected> is
-# polled for, so a slow start is waited out rather than miscounted. "No extra
-# ping appeared" cannot be polled for, so that half is a fixed wait: five poll
-# intervals, enough for a candidate supervisor to lose the lock race and exit.
+# settled_pings <expected> [loser] -- how many pings run once things have
+# settled. Two halves, because they are different questions. Reaching
+# <expected> is polled for, so a slow start is waited out rather than
+# miscounted. "No extra ping appeared" cannot be polled for, so it is read
+# after the event that decides it: the supervisor that should have lost the
+# lock race -- <loser>, the $! of the start that should not ping -- exiting.
+# (This was a fixed second per call, paid on every green run.)
+#
+# Expecting 0 is the exception, and keeps a fixed window: nothing that should
+# happen marks the moment a wrongly started ping would have recorded itself,
+# and counting at once caught a start that pings anyway 2 times in 20.
 settled_pings() {
-  local want=$1 i
+  local want=$1 loser=${2-} i
   for i in {1..40}; do
     (( $(count_live) >= want )) && break
     sleep 0.1
   done
-  sleep 1
+  if [[ -n $loser ]]; then
+    wait_gone "$loser" >/dev/null
+  elif (( want == 0 )); then
+    sleep 1
+  fi
   count_live
+}
+
+# wait_poll <owners dir> -- return once the supervisor behind that directory
+# (the :h of an owner file _ssh_keepalive_start registered) has run a poll that
+# began after this call, so a check after it sees what the supervisor made of
+# the state as it was at the call. That is the event "it is still running"
+# needs, and polling for an absence of change cannot supply it.
+#
+# The probe is an owner file for a pid that cannot exist: every poll prunes dead
+# owners, so its disappearance marks a poll -- one that listed the owners after
+# the call, since the probe was not there before. Planted twice, because that
+# poll may not yet have acted on what it read. The second is pruned by the next
+# poll, or, when no live owner is left, by the supervisor's second look on its
+# way out, after which it kills the ping without sleeping again. One that has
+# stopped prunes nothing, and each probe then waits out its 2s.
+#
+# A probe that cannot be planted is a harness FAIL, not a skipped wait: the
+# check after it would otherwise run at once and pass on a state nobody looked
+# at.
+wait_poll() {
+  local probe=$1/99999999 n i
+  for n in 1 2; do
+    if ! { : >"$probe" } 2>/dev/null; then
+      printf 'FAIL harness: cannot plant a probe in %s\n' "$1"
+      (( failures++ ))
+      return 1
+    fi
+    for i in {1..40}; do
+      [[ -e $probe ]] || break
+      sleep 0.05
+    done
+  done
+  command rm -f "$probe"
 }
 
 # owner -- a process standing in for one shell running myssh.
@@ -148,12 +191,14 @@ _ssh_keepalive_start 10.0.0.3 "$o1"
 own1=$_SSH_KEEPALIVE_OWNER
 png=$(first_ping)
 _ssh_keepalive_start 10.0.0.3 "$o2"
+loser=$!
 own2=$_SSH_KEEPALIVE_OWNER
-check 'two sessions on one host run one ping' '1' "$(settled_pings 1)"
+check 'two sessions on one host run one ping' '1' "$(settled_pings 1 "$loser")"
 
 # The gap: the ping must outlive any one session while another remains.
 _SSH_KEEPALIVE_OWNER=$own1 _ssh_keepalive_stop
-check 'the first session ending keeps the shared ping' 'alive' "$(sleep 1; alive "$png")"
+wait_poll "${own2:h}"
+check 'the first session ending keeps the shared ping' 'alive' "$(alive "$png")"
 _SSH_KEEPALIVE_OWNER=$own2 _ssh_keepalive_stop
 check 'the last session ending stops it' 'gone' "$(wait_gone "$png")"
 
@@ -210,20 +255,22 @@ kill "$o1"
 # connections here outlive that. An owner file swept from under a live
 # connection would read as "no owner left" and stop its ping; a swept lock
 # would let the next connection start a second one. The sweep is emulated
-# with find on mtime: files are aged, the supervisor gets a few polls, and
-# whatever is still old is deleted.
+# with find on mtime: files are aged, the supervisor gets a poll, and whatever
+# is still old is deleted.
 case_file sweep
 o1=$(owner)
 _ssh_keepalive_start 10.0.0.9 "$o1"
 png=$(first_ping)
 touch -t 202001010000 "$_SSH_KEEPALIVE_OWNER"
 touch -h -t 202001010000 "$(_ssh_keepalive_lock_path 10.0.0.9)"
-sleep 1
+wait_poll "${_SSH_KEEPALIVE_OWNER:h}"
 find "$_SSH_KEEPALIVE_DIR" -mtime +3 -delete
-check 'a sweep of old files keeps a live connection'"'"'s ping' 'alive' "$(sleep 1; alive "$png")"
+wait_poll "${_SSH_KEEPALIVE_OWNER:h}"
+check 'a sweep of old files keeps a live connection'"'"'s ping' 'alive' "$(alive "$png")"
 o2=$(owner)
 _ssh_keepalive_start 10.0.0.9 "$o2"
-check 'and still blocks a second one' '1' "$(settled_pings 1)"
+loser=$!
+check 'and still blocks a second one' '1' "$(settled_pings 1 "$loser")"
 _ssh_keepalive_stop
 kill "$o1" "$o2"
 
