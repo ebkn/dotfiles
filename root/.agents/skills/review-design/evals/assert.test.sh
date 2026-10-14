@@ -50,7 +50,9 @@ bad() {
 # Each shard walks every scenario but runs only
 # those whose index falls to it. Each scenario's output follows a marker line
 # carrying its index, which is how the blocks are put back in source order:
-# the result reads as a sequential run would, bar the summary line.
+# the result reads as a sequential run would, bar the merge's self-check lines
+# at the top and the summary. TEST_SHARD is the driver's handshake with each
+# shard, never set by hand: a shard run alone checks only its own subset.
 #
 # A shard that died part-way would otherwise be a shorter green run, so the
 # merge fails CLOSED: green needs the token awk prints only when every shard
@@ -61,8 +63,8 @@ bad() {
 # would get Homebrew's bash 5, and nothing would exercise "written for bash 3.2".
 #
 # The protocol on a shard's stdout: \036<n> opens scenario <n>, \037<n> ends
-# the shard carrying how many it walked. Only the four functions below read or
-# write it.
+# the shard carrying how many it walked. Only the shard_* functions below read
+# or write it.
 
 # shard_begin -- where a scenario begins. Returns 1 when it belongs to another
 # shard, and sets skipping=1 until the next scenario: every helper that runs
@@ -121,8 +123,9 @@ shard_merge() {
 # is provoked here: a few awk calls, where a mutant of the whole suite costs
 # half a minute and runs only when someone remembers to.
 #
-# The markers come from $'...' rather than a printf format: there '\0361'
-# reads as one octal escape, not \036 followed by 1.
+# The markers are held in variables and passed as %s arguments, so a fixture
+# line reads as marker then text; under %b or echo -e, '\0361' would be a
+# single octal escape rather than \036 followed by 1.
 #
 # Four scenarios over two shards, so shard 1 owns the last one. Each failing
 # row breaks exactly one condition and leaves the others true -- the shard

@@ -142,13 +142,20 @@ graders, where ~70 % of every scenario is the grader under test. There rule 3
 saved 16 % and sharding saved the rest:
 `review-design/evals/assert.test.sh` runs itself as one shard per CPU, each
 scenario's output tagged with its index and merged back into source order, so
-the output matches a sequential run line for line (the summary adds the shard
-count). The merge fails closed: green needs a token printed only once every
-scenario left a block holding a check, so a shard that dies — or a merge that
-breaks — cannot become a shorter green run. Shards run on `"$BASH"`, not on
-PATH's bash, or the bash 3.2 constraint stops being exercised on a Mac.
-That is ~50 lines of harness (the `shard_*` functions, knobs `TEST_JOBS` /
-`TEST_SHARD`), so it stays in that suite until a second one needs it, then
+the scenarios' output matches a sequential run line for line; the merge's
+self-check lines come first and the summary adds the shard count. The merge
+fails closed: green needs a token printed only once every scenario left a block
+holding a check, so a shard that dies — or a merge that breaks — cannot become
+a shorter green run. Because a real run only ever exercises the green verdict,
+every run first checks the merge's failing verdicts against made-up shard
+output. Shards run on `"$BASH"`, not on PATH's bash, or the bash 3.2 constraint
+stops being exercised on a Mac. `TEST_JOBS` overrides the shard count;
+`TEST_SHARD` is the driver's handshake with each shard and is never set by
+hand — a shard run alone checks only its own subset.
+
+That is ~175 lines of harness, a third of it the merge's self-check (the
+`shard_*` functions; `shard_drive <script> <suite name>` is the one call a
+suite makes), so it stays in that suite until a second one needs it, then
 moves to `bin/test-lib.sh`. **That move is the trigger rule 6 names for
 reconsidering bats-core** — decide it then and record the answer in rule 6.
 Weigh too what adoption costs a suite whatever the harness looks like: every
