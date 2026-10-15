@@ -421,6 +421,11 @@ check PASS "echo '\$(git -c a=b status)'"
   check DENY 'git -C . "$(echo --config-env=core.fsmonitor=X)" status'
   check DENY 'git "`echo --git-dir=/x`" status'
   check PASS 'git commit -m "$(echo subject)"'
+  # In the subcommand position too: the word git reads first after its options
+  # is a substitution of unknown output, which may well be an option. As -C's
+  # path it is only a path, whatever it prints.
+  check DENY 'git "$(echo status)"'
+  check PASS 'git -C "$(echo -c)" status'
   # A case pattern's `)` would close the substitution early, leaving the git
   # after it as data; a `case` inside a quoted substitution is unsplittable.
   check DENY 'echo "$(case x in x) git -c a=b status;; esac)"'
@@ -498,6 +503,12 @@ check_reason 'FOO="a\"b" git -c a=b status' "could not read the words before the
 check_reason 'git >&2 -c a=b status' "refused '-c'" "unreadable"
 check_reason 'echo "x; git >&2 -c a=b status' "could not split" "refused '-c'"
 check_reason 'echo "x; git status' "could not split" "refused '"
+# The other two causes of an unsplittable command reach the same refusal, not a
+# later branch's.
+# shellcheck disable=SC2016 # literal command text under test
+check_reason 'echo "$(case x in x) git -c a=b status;; esac)"' "could not split" "refused '"
+# shellcheck disable=SC2016 # the openers are command text under test
+check_reason "$(printf 'echo "$(%.0s' $(seq 17))true$(printf ')"%.0s' $(seq 17)); git status" "could not split" "refused '"
 
 echo "-- must finish well inside the 5s hook timeout --"
 # A timed-out hook does not block the call, so slowness is a bypass, not a
