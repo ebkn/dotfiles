@@ -132,6 +132,7 @@ check PASS 'timeout 5 git'
 # is, and assignments and keywords around the wrapper change nothing.
 check DENY 'timeout 5 /usr/bin/git -c a=b status'
 check DENY 'timeout 5 "git" -c a=b status'
+check DENY 'timeout 5 \git -c a=b status'
 check DENY 'FOO=1 timeout 5 git -c a=b status'
 check DENY 'timeout 5 FOO=1 git -c a=b status'
 check DENY 'if timeout 5 git -c a=b status; then :; fi'
@@ -180,6 +181,10 @@ check DENY "git -C \$'x\\' \"' -c a=b status '\" y'"
 check DENY 'git -C "a\"b" status'
 check PASS 'git -C "a b" status'
 check PASS "git -C 'a\\b' status"
+# The same refusal before the command word, where skipping the unreadable word
+# instead would leave the git after it unread.
+check DENY 'FOO="a\"b" git status'
+check DENY "FOO=\$'a' git status"
 check PASS 'git -C /tmp commit -m "fix: something"'
 check PASS 'git -C /tmp'
 check PASS 'git -C /tmp status --short'
@@ -394,6 +399,7 @@ check DENY 'echo x; "git" -c a=b status'
 check DENY "echo x; 'git' -c a=b status"
 check DENY 'echo x; "/usr/bin/git" -c a=b status'
 check DENY $'echo x;\tgit\t-c a=b status'
+check DENY 'echo x; \git -c a=b status'
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]
