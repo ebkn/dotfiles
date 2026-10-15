@@ -60,8 +60,8 @@ fi
 # One pass sorts every tracked file into the sh and zsh lists. The two tests are
 # independent rather than if/elif, so a file is judged for each list on its own.
 #
-# `\bsh\b` deliberately does not match `zsh` — there is no word boundary between
-# `z` and `s` — so zsh scripts go to the zsh list only.
+# Whole words, not substrings: `zsh` stays one word when the line is split, so
+# it never matches `sh`, and zsh scripts go to the zsh list only.
 #
 # The zsh entrypoints have no shebang and live outside zsh/, so name them; the
 # `zsh/*.zsh` case picks up the modules (including .p10k.zsh — a `case`
