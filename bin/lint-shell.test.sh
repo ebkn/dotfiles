@@ -110,6 +110,7 @@ d=${0%/*}
 printf '%s\n' "$@" >>"$d/shellcheck.argv"
 echo call >>"$d/shellcheck.calls"
 trap 'echo end >>"$d/shellcheck.ended"' EXIT
+# Not test-lib's wait_until: this runs in the stub, a process of its own.
 hold() { # hold <ended count> -- until that many invocations exited, <= 5 s
   local i=0 n line
   while [ "$i" -lt 250 ]; do
@@ -374,7 +375,9 @@ assert_eq "every job is handed -P SCRIPTDIR" "$ncalls" "$(grep -cxF SCRIPTDIR "$
 # The report reads as one job's would: the first chunk is held back until
 # every other job has exited, so it finishes last, and must still be printed
 # first. A run printing jobs as they finish, or letting them write straight to
-# the terminal, puts it last. The split case above counted the jobs.
+# the terminal, puts it last. The split case above counted the jobs. Assumes
+# the jobs run at once, which is what LINT_SHELL_JOBS promises: run one after
+# another, the held first job would wait out its bound and the case go red.
 make_stubs "$work/order"
 make_git_stub "$work/order" 0 "$split_listing"
 assert_eq "a split run whose first job finishes last exits 0" "0" \
