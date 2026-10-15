@@ -23,7 +23,7 @@ set -uo pipefail
 cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
 # Read by bin/lint-shell or by the stubs: a value exported in the caller's
 # shell would otherwise change cases that mean the defaults.
-unset LINT_SHELL_JOBS FAIL_ON SLOW_ON
+unset LINT_SHELL_JOBS FAIL_ON SLOW_ON SLOW_UNTIL
 
 LINT="$PWD/bin/lint-shell"
 
@@ -97,18 +97,37 @@ done
 #   stdout and an error on stderr -- the real one reports an unreadable file on
 #   stderr alone. Only this stub honours it: shfmt is handed the same file, and
 #   its failure would mask a lost job;
-# - SLOW_ON=<file> holds back the invocation handed that file, so a job that
-#   finishes first is not also the one printed first by luck.
+# - SLOW_ON=<file> holds back the invocation handed that file until
+#   SLOW_UNTIL other invocations have exited -- every other job, so it is the
+#   last to finish and the first job's output being printed first cannot be
+#   luck. Waited for, not slept: each invocation records its exit in the
+#   file shellcheck.ended. The wait is bounded; a hold that times out says so
+#   on stderr, which lands in the compared output, so the case goes red
+#   rather than passing with the order left to chance.
 cat >"$tmpl/shellcheck" <<'STUB'
 #!/usr/bin/env bash
 d=${0%/*}
 printf '%s\n' "$@" >>"$d/shellcheck.argv"
 echo call >>"$d/shellcheck.calls"
+trap 'echo end >>"$d/shellcheck.ended"' EXIT
+hold() { # hold <ended count> -- until that many invocations exited, <= 5 s
+  local i=0 n line
+  while [ "$i" -lt 250 ]; do
+    n=0
+    if [ -f "$d/shellcheck.ended" ]; then
+      while IFS= read -r line; do n=$((n + 1)); done <"$d/shellcheck.ended"
+    fi
+    [ "$n" -ge "$1" ] && return 0
+    i=$((i + 1))
+    sleep 0.02
+  done
+  echo "stub: held job never released ($n of $1 ended)" >&2
+}
 files=0
 for a in "$@"; do
   case "$a" in -x | -P | SCRIPTDIR) continue ;; esac
   files=$((files + 1))
-  [ "$a" = "${SLOW_ON:-}" ] && sleep 0.5
+  [ "$a" = "${SLOW_ON:-}" ] && hold "${SLOW_UNTIL:?SLOW_ON needs SLOW_UNTIL}"
   echo "checked: $a"
   if [ "$a" = "${FAIL_ON:-}" ]; then
     echo "finding: $a"
@@ -352,13 +371,14 @@ assert_eq "a split run checks exactly the targets one job does, each once" \
 assert_eq "every job is handed -x" "$ncalls" "$(grep -cxF -- -x "$work/split/shellcheck.argv")"
 assert_eq "every job is handed -P SCRIPTDIR" "$ncalls" "$(grep -cxF SCRIPTDIR "$work/split/shellcheck.argv")"
 
-# The report reads as one job's would: the first chunk is held back so it
-# finishes last, and must still be printed first. A run printing jobs as they
-# finish, or letting them write straight to the terminal, puts it last.
+# The report reads as one job's would: the first chunk is held back until
+# every other job has exited, so it finishes last, and must still be printed
+# first. A run printing jobs as they finish, or letting them write straight to
+# the terminal, puts it last. The split case above counted the jobs.
 make_stubs "$work/order"
 make_git_stub "$work/order" 0 "$split_listing"
-assert_eq "a split run with a slow first job exits 0" "0" \
-  "$(SLOW_ON=$first LINT_SHELL_JOBS=4 run_lint "$work/order")"
+assert_eq "a split run whose first job finishes last exits 0" "0" \
+  "$(SLOW_ON=$first SLOW_UNTIL=$((ncalls - 1)) LINT_SHELL_JOBS=4 run_lint "$work/order")"
 assert_eq "a split run prints exactly what one job does, in the same order" \
   "$(cat "$work/one-job/out")" "$(cat "$work/order/out")"
 
