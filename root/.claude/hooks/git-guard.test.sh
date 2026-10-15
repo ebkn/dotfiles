@@ -112,6 +112,19 @@ check DENY 'xargs -I {} git -c a=b status'
 check DENY 'xargs -L 1 git -c a=b status'
 check DENY 'xargs -P 2 git -c a=b status'
 check DENY 'timeout --kill-after 1 5 git -c a=b status'
+# Long forms and flags no list anticipated: after a wrapper, the first `git`
+# word is the command, whatever flags come before it.
+check DENY 'stdbuf --output 0 git -c a=b status'
+check DENY 'stdbuf --input=0 git -c a=b status'
+check DENY 'xargs --max-args 1 git -c a=b status'
+check DENY 'time -f %e git -c a=b status'
+check DENY 'nice --some-future-flag x 5 git -c a=b status'
+check DENY 'timeout 5 nice -n 1 git -c a=b status'
+# Over-refusal accepted in exchange: a wrapped non-git command that mentions git.
+check DENY 'timeout 5 echo git -c a=b'
+# A wrapper with nothing after it runs no git.
+check PASS 'timeout -s'
+check PASS 'nice -n'
 
 echo "-- must DENY: an assignment with a quoted value is one word --"
 # Read as `FOO="a` and `b"`, the second half became the command word.
@@ -121,6 +134,12 @@ check DENY 'FOO=a"b c"d git -c a=b status'
 check PASS 'FOO="a b" git status'
 # Too many quoted runs in one word to read within the timeout: refused unread.
 check DENY "FOO=$(printf 'a"b"%.0s' $(seq 2000)) git status" "2000 quoted runs in one word"
+# Each `a"b"` pair is two runs (`FOO=a` being the first), so 32 pairs are 64
+# runs and a trailing `a` makes 65.
+check PASS "FOO=$(printf 'a"b"%.0s' $(seq 32)) git status" "64 runs in one word: read"
+check DENY "FOO=$(printf 'a"b"%.0s' $(seq 32))a git status" "65 runs in one word: refused"
+# An unterminated quote before the command word: unreadable, so refused.
+check DENY 'FOO="x git -c a=b status'
 
 # Paths here are placeholders on purpose: this repository is public, so a real
 # private-repo path in a test fixture would publish it.

@@ -161,9 +161,6 @@ scan_globals() {
 # $CMD_WORD holds the segment's command word and $REST its arguments.
 # See: permissions.md (Wrappers).
 CMD_WORD=""
-# "<wrapper> <flag>" pairs whose value is the next token. Held in a variable so
-# the pattern is read as written, with no backslash-escaped spaces.
-VALUED_WRAPPER_FLAG='^(nice (-n|--adjustment)|timeout (-s|-k|--signal|--kill-after)|stdbuf (-i|-o|-e)|xargs (-n|-I|-L|-P|-d|-s|-E|-a))$'
 #
 # Returns 1 when the segment has no command word, 2 when a word before it cannot
 # be read -- which the caller refuses, because skipping it would pass whatever
@@ -181,34 +178,25 @@ strip_wrappers() {
     case "$TOKEN" in
       # Leading environment assignment.
       [A-Za-z_]*=*) continue ;;
-      nohup | builtin | noglob) continue ;;
       # Shell syntax that precedes a command without being one. Unlike the
-      # wrappers above, Claude Code does not strip these, but the git after them
+      # wrappers below, Claude Code does not strip these, but the git after them
       # runs all the same.
       if | then | else | elif | while | until | do | '!' | '{') continue ;;
-      timeout | nice | stdbuf | time | command | xargs)
-        local w=$TOKEN
-        # Skip the wrapper's own flags, including the separate value some take
-        # (`nice -n 5`, `timeout -s KILL`, `timeout -k 1`). Missing one is a
-        # bypass, not a false deny: the value is read as the duration and the
-        # duration as the command word, so the git after it goes unseen.
+      # After a wrapper, the first `git` word is taken as the command, with no
+      # attempt to parse the wrapper's flags. Parsing them was a bypass each
+      # time a form was missed -- `timeout -s KILL 5`, `stdbuf --output 0`,
+      # `time -f %e` -- because the flag's value was read as the command word
+      # and the git after it went unseen. The cost is refusing the rare wrapped
+      # non-git command that mentions git (`timeout 5 echo git -c x`).
+      timeout | nice | stdbuf | time | command | xargs | nohup | builtin | noglob)
         while true; do
-          saved_rest=$REST
           next_token && rc=0 || rc=$?
-          [[ $rc -eq 0 ]] || {
-            REST=$saved_rest
-            return $rc
-          }
-          [[ "$TOKEN" == -* ]] || break
-          if [[ "$w $TOKEN" =~ $VALUED_WRAPPER_FLAG ]]; then
-            next_token && rc=0 || rc=$?
-            [[ $rc -eq 0 ]] || return $rc
+          [[ $rc -eq 0 ]] || return $rc
+          if [[ "$TOKEN" == "git" || "$TOKEN" == */git ]]; then
+            CMD_WORD=$TOKEN
+            return 0
           fi
         done
-        # $TOKEN is now the first non-flag word: a duration for `timeout`,
-        # otherwise already the command, so put it back for the caller.
-        [[ "$w" == "timeout" ]] || REST="$TOKEN $REST"
-        continue
         ;;
       *)
         CMD_WORD=$TOKEN
