@@ -135,6 +135,9 @@ by itself. Add a line when you add a suite.
   and run by nothing.
 - **`test.test.sh`** — the runner fails the way a lint gate does, by running
   less than it should and reporting green; this pins every way it could.
+- **`test-lib.test.sh`** — the helpers suites source decide their verdict, so
+  a helper that loses a FAIL makes every suite using it green; this pins the
+  output contract and the verdict under `set -u` and `set -e`, on bash 3.2.
 
 - **Permission hooks** — `curl-guard`, `rm-guard`, `approve-multiline-commands`.
   These are the hooks that emit "allow", so a regression widens a permission
