@@ -63,8 +63,13 @@ tmux -L "$socket" -f /dev/null new-session -d -s t -c "$work/alpha" "$IDLE"
 # then be called the same thing, tmux permits that, and `-t <name>` silently
 # resolves to the first match -- so every case would act on the first window's
 # panes and the failures would look like the script ignoring pane options.
+#
+# The session is named exactly ('=t:'), never a bare `t`: tmux also matches a
+# bare name against window names by prefix, and a new window is called "tmux"
+# (its pane's process before the command execs) until automatic-rename catches
+# up -- so `-t t` sometimes meant that window, an intermittent harness FAIL.
 new_window() {
-  tmux -L "$socket" new-window -t t -c "$1" -P -F '#{window_id}' "$IDLE"
+  tmux -L "$socket" new-window -t '=t:' -c "$1" -P -F '#{window_id}' "$IDLE"
 }
 add_pane() { # add_pane <target> <dir> [opt=value ...]
   local target=$1 dir=$2 pane
@@ -174,11 +179,13 @@ check 'several ssh panes collapse to one marker' '≫' "$(title_of "$t9")"
 # are not looking at). So here the caller's window is a background one.
 caller=$(new_window "$work/bravo")
 caller_pane=$(tmux -L "$socket" list-panes -t "$caller" -F '#{pane_id}')
-# Created last, so it is the active window. -a: inserted after the caller's,
-# since `-t t` here resolves to an index that is already taken.
+# Created last, so it is the active window. -a: `-t "$caller"` names the
+# caller's own index, which is taken; -a inserts after it instead of failing.
 active=$(tmux -L "$socket" new-window -a -t "$caller" -c "$work/alpha" -P -F '#{window_id}' "$IDLE")
-check 'harness: the caller is not the active window' 'no' \
-  "$([ "$(tmux -L "$socket" display-message -p -t t '#{window_id}')" = "$caller" ] && echo yes || echo no)"
+# Compared with $active, not "is not the caller": a target that failed to
+# resolve prints nothing, which is not the caller either.
+check 'harness: the new window, not the caller, is the active one' "$active" \
+  "$(tmux -L "$socket" display-message -p -t '=t:' '#{window_id}')"
 tmux -L "$socket" rename-window -t "$caller" before-caller
 tmux -L "$socket" rename-window -t "$active" before-active
 # Run from INSIDE the caller's pane, as the zsh hooks do: tmux resolves "the
