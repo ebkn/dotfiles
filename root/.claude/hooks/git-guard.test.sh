@@ -15,8 +15,10 @@ fail=0
 # PASS means exactly "exit 0, nothing on stdout" -- the hook staying out of the
 # way. Anything else that is not a deny is ERROR, so a hook that crashes on an
 # input cannot be mistaken for one that let it through on purpose.
+# The command goes to jq on stdin, not as --arg: Linux caps a single argument at
+# 128KB, and the timing cases below are larger than that.
 run_hook() {
-  jq -Rn --arg c "$1" '{tool_name:"Bash", tool_input:{command:$c}}' | "$HOOK" 2>/dev/null
+  printf '%s' "$1" | jq -Rs '{tool_name:"Bash", tool_input:{command:.}}' | "$HOOK" 2>/dev/null
 }
 verdict() {
   local cmd=$1 out rc
@@ -54,6 +56,9 @@ check DENY 'git --git-dir=/tmp/e/.git commit -m x'
 check DENY 'git --work-tree=/tmp/e add .'
 check DENY 'git --namespace=x push'
 check DENY 'git -C /tmp --bare status'
+# Bare, it only prints a path, but the safelist matches whole tokens and the
+# `--exec-path=<dir>` form is a vector; keeping both out keeps the list simple.
+check DENY 'git --exec-path'
 
 echo "-- must DENY: unknown option before the subcommand (safelist, not blocklist) --"
 check DENY 'git --some-future-option add .'
@@ -96,6 +101,13 @@ check DENY 'time git -c a=b status'
 check DENY 'command git -c a=b status'
 check DENY 'builtin git -c a=b status'
 check DENY 'noglob git -c a=b status'
+# Whether Claude Code strips these with flags is not documented (it strips
+# xargs only without), but seeing through them costs nothing and errs to deny.
+check DENY 'time -p git -c a=b status'
+check DENY 'command -p git -c a=b status'
+check DENY 'xargs -0 git -c a=b status'
+check DENY 'xargs -n 1 git -c a=b status'
+check DENY 'xargs -I {} git -c a=b status'
 
 # Paths here are placeholders on purpose: this repository is public, so a real
 # private-repo path in a test fixture would publish it.
@@ -133,6 +145,7 @@ check PASS 'git --version'
 check PASS 'git -h'
 check PASS 'git --man-path'
 check PASS 'git --html-path'
+check PASS 'git --info-path'
 check PASS 'timeout 5 git status'
 check PASS 'nice -n 5 git status'
 check PASS 'git add -p'
@@ -165,6 +178,9 @@ check DENY $'echo \\<<EOF\ngit -c a=b status\nEOF'
 check DENY $'cat <<EOF\ngit -c a=b status'
 check DENY $'cat <<A <<B\na\nA\nb\nB\ngit -c a=b status'
 check PASS $'cat <<A <<B\ngit -c a=b status\nA\ngit -c a=b status\nB'
+check PASS $'cat << "EOF"\ngit -c a=b status\nEOF'
+check DENY $'cat << "EOF"\nbody\nEOF\ngit -c a=b status'
+check PASS $'cat <<"EOF"\ngit -c a=b status\nEOF'
 
 echo "-- must DENY: a backslash-newline continues the same command --"
 check DENY $'git \\\n-c a=b status'
@@ -286,6 +302,28 @@ check_fast() {
 filler=$(printf 'é%.0s' $(seq 50000))
 check_fast "100k-byte quoted message" "git commit -m \"$filler\"; git -c a=b status"
 check_fast "100k-byte unbalanced quote (fallback)" "git commit -m \"$filler; git -c a=b status"
+# Each unterminated opener searches the lines after it for its terminator; done
+# per opener that is quadratic, and 20000 of them took 58s.
+# ($(...) drops the final newline, so it is put back before the git line.)
+openers=$(printf 'cat <<EOF%.0s\n' $(seq 20000))
+check_fast "20000 unterminated heredoc openers" "${openers}"$'\n'"git -c a=b status"
+openers=$(for i in $(seq 20000); do printf 'cat <<T%d\n' "$i"; done)
+check_fast "20000 distinct unterminated openers" "${openers}"$'\n'"git -c a=b status"
+# Each segment costs the bash loop ~0.2ms and more as they grow (100000 took
+# 56s), so non-git segments must never reach it, and too many git-looking ones
+# are refused rather than inspected one by one.
+check_fast "100000 non-git segments" "$(printf 'echo x;%.0s' $(seq 100000)) git -c a=b status"
+check_fast "100000 openers on one line" "cat $(printf '<<a %.0s' $(seq 100000))"$'\n'"git -c a=b status"
+check_fast "a 500k-byte heredoc tag" "cat <<$(printf 'a%.0s' $(seq 500000))"$'\n'"git -c a=b status"
+many_git=$(printf 'echo git;%.0s' $(seq 5000))
+check_fast "5000 git-looking segments, refused unread" "$many_git"
+check PASS "$(printf 'git status;%.0s' $(seq 1000))" >/dev/null
+# Any spelling of the command word strip_wrappers would read as git survives
+# the prefilter, or the inspection never sees it.
+check DENY 'echo x; "git" -c a=b status'
+check DENY "echo x; 'git' -c a=b status"
+check DENY 'echo x; "/usr/bin/git" -c a=b status'
+check DENY $'echo x;\tgit\t-c a=b status'
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]

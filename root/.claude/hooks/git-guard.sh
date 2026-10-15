@@ -150,7 +150,7 @@ scan_globals() {
 CMD_WORD=""
 # "<wrapper> <flag>" pairs whose value is the next token. Held in a variable so
 # the pattern is read as written, with no backslash-escaped spaces.
-VALUED_WRAPPER_FLAG='^(nice (-n|--adjustment)|timeout (-s|-k|--signal|--kill-after)|stdbuf (-i|-o|-e))$'
+VALUED_WRAPPER_FLAG='^(nice (-n|--adjustment)|timeout (-s|-k|--signal|--kill-after)|stdbuf (-i|-o|-e)|xargs (-n|-I|-L|-P|-d|-s|-E|-a))$'
 strip_wrappers() {
   local rc
   while true; do
@@ -164,12 +164,12 @@ strip_wrappers() {
     case "$TOKEN" in
       # Leading environment assignment.
       [A-Za-z_]*=*) continue ;;
-      time | nohup | command | builtin | noglob | xargs) continue ;;
+      nohup | builtin | noglob) continue ;;
       # Shell syntax that precedes a command without being one. Unlike the
       # wrappers above, Claude Code does not strip these, but the git after them
       # runs all the same.
       if | then | else | elif | while | until | do | '!' | '{') continue ;;
-      timeout | nice | stdbuf)
+      timeout | nice | stdbuf | time | command | xargs)
         local w=$TOKEN
         # Skip the wrapper's own flags, including the separate value some take
         # (`nice -n 5`, `timeout -s KILL`, `timeout -k 1`). Missing one is a
@@ -230,37 +230,53 @@ strip_wrappers() {
 # back to splitting at every operator, heredoc bodies included: for a deny-only
 # hook, refusing too much is the safe direction.
 #
-# The walk is awk, byte-wise under LC_ALL=C, and prints as it goes. Both halves
-# are about the 5s timeout, past which a hook lets the call through: a bash loop
-# over `${s:i:1}` re-counts from the start for every index (a 200k-byte command
-# took 25s), and so does building the result by `out = out c` in awk (1.6s).
-# Every byte compared here is ASCII, and no byte of a multi-byte UTF-8 sequence
-# is, so walking bytes splits exactly where walking characters would. On exit 1
-# the partial output is discarded by the caller.
+# The walk is awk, byte-wise under LC_ALL=C, over each line split once into an
+# array of bytes, printing as it goes. All of that is about the 5s timeout, past
+# which a hook lets the call through: anything that re-counts from the start of
+# the string per byte is quadratic, and three did -- a bash loop over `${s:i:1}`
+# (200k bytes: 25s), `out = out c` in awk (1.6s), and even awk's own
+# `substr(s, i, 1)` on macOS (700k bytes: 7.8s, against 0.4s for the array). A
+# heredoc tag is likewise read byte by byte and capped in length, so no opener
+# costs more than a constant. Every byte compared is ASCII, and no byte of a
+# multi-byte UTF-8 sequence is, so walking bytes splits exactly where walking
+# characters would. On exit 1 the partial output is discarded by the caller.
 split_segments() {
   printf '%s' "$1" | LC_ALL=C awk '
-    { L[NR] = $0 }
+    {
+      L[NR] = $0
+      # Index every line that could terminate a heredoc, so finding one is a
+      # pointer step rather than a scan: scanning per opener is quadratic, and
+      # 20000 unterminated openers took 60s -- past the timeout that lets the
+      # call through.
+      b = $0; sub(/^[ \t]+/, "", b)
+      if (b ~ /^[A-Za-z_][A-Za-z0-9_]*$/) pos[b, ++cnt[b]] = NR
+    }
     END {
       q = ""
       for (ln = 1; ln <= NR; ln++) {
-        s = L[ln]; n = length(s); np = 0; joined = 0
+        n = split(L[ln], ch, ""); np = 0; joined = 0
         for (i = 1; i <= n; i++) {
-          c = substr(s, i, 1)
+          c = ch[i]
           if (c == "\\" && i == n && q != "\047") { joined = 1; break }
           if (q != "") {
             if (c == q) q = ""
-            else if (q == "\"" && (c == "`" || (c == "$" && substr(s, i + 1, 1) == "("))) exit 1
-            else if (q == "\"" && c == "\\") { i++; c = c substr(s, i, 1) }
+            else if (q == "\"" && (c == "`" || (c == "$" && ch[i + 1] == "("))) exit 1
+            else if (q == "\"" && c == "\\") { i++; c = c ch[i] }
           } else if (c == "\047" || c == "\"") q = c
-          else if (c == "\\") { i++; c = c substr(s, i, 1) }
-          else if (substr(s, i, 3) == "<<<") { c = "<<<"; i += 2 }
-          else if (substr(s, i, 2) == "<<") {
-            # <<TAG, <<-TAG, <<'\''TAG'\'', <<"TAG"; the quote, if any, is walked
-            # as an ordinary quote afterwards.
-            if (match(substr(s, i + 2), /^-?[ \t]*[\047"]?[A-Za-z_][A-Za-z0-9_]*/)) {
-              t = substr(s, i + 2, RLENGTH); sub(/^-?[ \t]*[\047"]?/, "", t)
-              tags[++np] = t
-            }
+          else if (c == "\\") { i++; c = c ch[i] }
+          else if (c == "<" && ch[i + 1] == "<" && ch[i + 2] == "<") { c = "<<<"; i += 2 }
+          else if (c == "<" && ch[i + 1] == "<") {
+            # <<TAG, <<-TAG, << TAG, <<'\''TAG'\'', <<"TAG"; the quote, if any,
+            # is walked as an ordinary quote afterwards. A tag past 64 bytes is
+            # not taken as one, which keeps its body inspected.
+            j = i + 2
+            if (ch[j] == "-") j++
+            while (ch[j] == " " || ch[j] == "\t") j++
+            if (ch[j] == "\047" || ch[j] == "\"") j++
+            t = ""
+            if (ch[j] ~ /[A-Za-z_]/)
+              while (ch[j] ~ /[A-Za-z0-9_]/ && length(t) <= 64) t = t ch[j++]
+            if (t != "" && length(t) <= 64) tags[++np] = t
             c = "<<"; i++
           }
           else if (index(";&|()`", c)) c = "\n"
@@ -271,12 +287,11 @@ split_segments() {
         # Bodies follow the line in opener order, each through its terminator.
         # Leading whitespace is ignored on the terminator, which can only end a
         # body early -- more inspected, never less.
+        # ln only grows, so each tag pointer only moves forward.
         for (k = 1; k <= np; k++) {
-          for (t = ln + 1; t <= NR; t++) {
-            b = L[t]; sub(/^[ \t]+/, "", b)
-            if (b == tags[k]) break
-          }
-          if (t <= NR) ln = t
+          tg = tags[k]
+          while (ptr[tg] < cnt[tg] && pos[tg, ptr[tg] + 1] <= ln) ptr[tg]++
+          if (ptr[tg] < cnt[tg]) ln = pos[tg, ptr[tg] + 1]
         }
         printf "\n"
       }
@@ -286,6 +301,24 @@ split_segments() {
 
 if ! segments=$(split_segments "$COMMAND"); then
   segments=$(printf '%s' "$COMMAND" | sed -E 's/(\|\||&&|\|&|[;|&()`])/\n/g')
+fi
+
+# The loop below costs ~0.2ms a segment and more as they multiply (100000 took
+# 56s), and a hook past its timeout lets the call through. So only segments
+# where some token could read as the git command word reach it -- `git`,
+# `/usr/bin/git`, `"git"`, each bounded by whitespace, a quote or an end -- and
+# past MAX_CANDIDATES the command is refused unread: a real one never has that
+# many git invocations, and refusing is the safe direction here.
+MAX_CANDIDATES=1000
+candidates=$(printf '%s\n' "$segments" | grep -E "(^|[[:space:]/\"'])git([\"'[:space:]]|\$)") && rc=0 || rc=$?
+case $rc in
+  0) ;;
+  1) exit 0 ;; # no segment mentions git
+  *) deny "git-guard: could not filter the command for git invocations (grep exited $rc), so it was refused rather than passed unread." ;;
+esac
+n_candidates=$(grep -c '' <<<"$candidates")
+if ((n_candidates > MAX_CANDIDATES)); then
+  deny "git-guard: ${n_candidates} segments look like git invocations, more than the ${MAX_CANDIDATES} it inspects within its timeout. Split the command."
 fi
 
 while IFS= read -r segment; do
@@ -300,6 +333,6 @@ while IFS= read -r segment; do
   if ! scan_globals; then
     deny "git-guard: refused '${BAD}' before the git subcommand. Options in that position can make git execute an arbitrary program (e.g. -c core.fsmonitor=..., -c core.hooksPath=..., --git-dir into a repo with hooks), and the Bash allow rules cannot express argument position. Put the option after the subcommand, or run it yourself."
   fi
-done <<<"$segments"
+done <<<"$candidates"
 
 exit 0
