@@ -85,29 +85,35 @@ refute_arg() {
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-# Stub the three checkers. Each records the argv it was handed so a case can
-# assert on the target list, and one line per invocation in <tool>.calls, and
-# succeeds -- except the one named as failing, which exits 1 as a checker does
-# on a finding, so a case can see whether a finding reaches the exit status.
-make_stubs() { # make_stubs <dir> [failing-tool]
-  local dir=$1 failing=${2:-} tool code
-  mkdir -p "$dir"
-  for tool in shellcheck shfmt zsh; do
-    code=0
-    [ "$tool" = "$failing" ] && code=1
-    cat >"$dir/$tool" <<STUB
-#!/usr/bin/env bash
-printf '%s\n' "\$@" >>"$dir/$tool.argv"
-echo call >>"$dir/$tool.calls"
-exit $code
-STUB
-    chmod +x "$dir/$tool"
-  done
-  make_shellcheck_stub "$dir" "$([ "$failing" = shellcheck ] && echo 1 || echo 0)"
-}
+# The stubs are written once, here, and every case links them into a
+# directory of its own; a case's settings are files beside the links, which a
+# stub finds through $0 (the link's path, not its target's). Not one fresh
+# copy per case: macOS checks a newly created executable the first time it
+# runs, 70-130 ms each, and writing 4 stubs for every case made this
+# suite ~12 s on a Mac against ~2 s on CI. A link to a file that has already
+# run is free; a copy is a new file and pays again.
+tmpl="$work/stub-templates"
+mkdir -p "$tmpl"
 
-# The shellcheck stub is a separate one, because the parallel split is only
-# observable through what each invocation was handed and what it printed:
+# shfmt and zsh: record the argv each was handed, one argument per line, so a
+# case can assert on the target list, and one line per invocation in
+# <tool>.calls; succeed -- unless the case marked this tool failing
+# (<tool>.fail), which exits 1 as a checker does on a finding, so a case can see
+# whether a finding reaches the exit status.
+for tool in shfmt zsh; do
+  cat >"$tmpl/$tool" <<'STUB'
+#!/usr/bin/env bash
+d=${0%/*} tool=${0##*/}
+printf '%s\n' "$@" >>"$d/$tool.argv"
+echo call >>"$d/$tool.calls"
+[ -e "$d/$tool.fail" ] && exit 1
+exit 0
+STUB
+done
+
+# shellcheck records and fails the same way, and does more, because the
+# parallel split is only observable through what each invocation was handed
+# and what it printed:
 # - one `checked: <file>` line per file on stdout, so a split run's output can
 #   be compared line for line with a single job's;
 # - like the real one (`No files specified.`, exit 3), it fails when handed no
@@ -118,48 +124,61 @@ STUB
 #   its failure would mask a lost job;
 # - SLOW_ON=<file> holds back the invocation handed that file, so a job that
 #   finishes first is not also the one printed first by luck.
-make_shellcheck_stub() { # make_shellcheck_stub <dir> <exit code>
-  local dir=$1 code=$2
-  cat >"$dir/shellcheck" <<STUB
+cat >"$tmpl/shellcheck" <<'STUB'
 #!/usr/bin/env bash
-printf '%s\n' "\$@" >>"$dir/shellcheck.argv"
-echo call >>"$dir/shellcheck.calls"
+d=${0%/*}
+printf '%s\n' "$@" >>"$d/shellcheck.argv"
+echo call >>"$d/shellcheck.calls"
 files=0
-for a in "\$@"; do
-  case "\$a" in -x | -P | SCRIPTDIR) continue ;; esac
-  files=\$((files + 1))
-  [ "\$a" = "\${SLOW_ON:-}" ] && sleep 0.5
-  echo "checked: \$a"
-  if [ "\$a" = "\${FAIL_ON:-}" ]; then
-    echo "finding: \$a"
-    echo "error: \$a" >&2
+for a in "$@"; do
+  case "$a" in -x | -P | SCRIPTDIR) continue ;; esac
+  files=$((files + 1))
+  [ "$a" = "${SLOW_ON:-}" ] && sleep 0.5
+  echo "checked: $a"
+  if [ "$a" = "${FAIL_ON:-}" ]; then
+    echo "finding: $a"
+    echo "error: $a" >&2
     exit 1
   fi
 done
-if [ "\$files" -eq 0 ]; then
+if [ "$files" -eq 0 ]; then
   echo "No files specified." >&2
   exit 3
 fi
-exit $code
+[ -e "$d/shellcheck.fail" ] && exit 1
+exit 0
 STUB
-  chmod +x "$dir/shellcheck"
-}
 
-# A stub git standing in for the listing. Every other subcommand is refused
-# loudly rather than passed through, so a case cannot pass by reaching the
-# real repository behind the stub's back.
-make_git_stub() {
-  local dir=$1 status=$2 output=$3
-  cat >"$dir/git" <<STUB
+# A stub git standing in for the listing: prints the case's git.out and exits
+# with its git.status. Every other subcommand is refused loudly rather than
+# passed through, so a case cannot pass by reaching the real repository behind
+# the stub's back.
+cat >"$tmpl/git" <<'STUB'
 #!/usr/bin/env bash
-if [ "\${1:-}" = "ls-files" ]; then
-  printf '%s' "$output"
-  exit $status
+d=${0%/*}
+if [ "${1:-}" = "ls-files" ]; then
+  cat "$d/git.out"
+  exit "$(cat "$d/git.status")"
 fi
-echo "unexpected git subcommand: \$*" >&2
+echo "unexpected git subcommand: $*" >&2
 exit 127
 STUB
-  chmod +x "$dir/git"
+chmod +x "$tmpl"/*
+
+make_stubs() { # make_stubs <dir> [failing-tool]
+  local dir=$1 failing=${2:-} tool
+  mkdir -p "$dir"
+  for tool in shellcheck shfmt zsh; do
+    ln -s "$tmpl/$tool" "$dir/$tool"
+  done
+  if [ -n "$failing" ]; then : >"$dir/$failing.fail"; fi
+}
+
+make_git_stub() { # make_git_stub <dir> <exit status> <listing>
+  local dir=$1 status=$2 output=$3
+  printf '%s' "$output" >"$dir/git.out"
+  printf '%s\n' "$status" >"$dir/git.status"
+  ln -s "$tmpl/git" "$dir/git"
 }
 
 run_lint() {
