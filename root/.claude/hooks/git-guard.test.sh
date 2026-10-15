@@ -82,7 +82,7 @@ check DENY "git -C '/unterminated status"
 check DENY 'git -C'
 check DENY 'timeout 5 git -C'
 
-echo "-- must DENY: wrapper flags that take a value are not the command --"
+echo "-- must DENY: after a wrapper, the first git word is the command (each form here once bypassed a flag parser) --"
 # Claude Code strips `timeout` before matching, so `Bash(git status*)` would
 # approve these; reading `KILL` as the duration made `5` the command word.
 check DENY 'timeout -s KILL 5 git -c a=b status'
@@ -125,6 +125,19 @@ check DENY 'timeout 5 echo git -c a=b'
 # A wrapper with nothing after it runs no git.
 check PASS 'timeout -s'
 check PASS 'nice -n'
+# The git word after a wrapper is recognised in every spelling the segment head
+# is, and assignments and keywords around the wrapper change nothing.
+check DENY 'timeout 5 /usr/bin/git -c a=b status'
+check DENY 'timeout 5 "git" -c a=b status'
+check DENY 'FOO=1 timeout 5 git -c a=b status'
+check DENY 'timeout 5 FOO=1 git -c a=b status'
+check DENY 'if timeout 5 git -c a=b status; then :; fi'
+# Everyday wrapped forms stay out of the way.
+check PASS 'command -v git'
+check PASS 'xargs git status'
+# Reading stops at the git word: what follows the subcommand is never parsed.
+check PASS "timeout 5 git commit -m $(printf 'a"b"%.0s' $(seq 100))" "timeout 5 git commit -m <200-run word>"
+check DENY "timeout 5 FOO=$(printf 'a"b"%.0s' $(seq 32))a git status" "65-run word before the git word: refused"
 
 echo "-- must DENY: an assignment with a quoted value is one word --"
 # Read as `FOO="a` and `b"`, the second half became the command word.
