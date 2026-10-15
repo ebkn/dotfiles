@@ -35,8 +35,9 @@ A bare run skips two kinds of suite, and `--list` says which and why:
 - **The tmux suites, outside a container or CI.** They refuse a developer
   machine (`bin/tmux-test-guard.sh`), so on a laptop they are reported as
   skipped and `bin/test-in-docker` runs them -- the list it takes from this
-  `--list`, so the two cannot disagree. They are found by the sourcing line
-  `bin/tmux-test-guard.test.sh` checks for.
+  `--list`, by reading its `skip <path>  (a tmux suite: …)` lines, so the two
+  cannot disagree and that line's shape is an interface. They are found by
+  the sourcing line `bin/tmux-test-guard.test.sh` checks for.
 
 `bin/ci-enrollment.test.sh` holds the rest of the old guarantee: the workflow
 runs `bin/test`, and in CI's environment `bin/test --list` succeeds and runs or

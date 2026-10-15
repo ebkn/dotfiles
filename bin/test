@@ -142,6 +142,8 @@ else
       $list_only && printf 'skip %s  (%s)\n' "$s" "$reason"
       continue
     fi
+    # The shape of the skip line below is read by bin/test-in-docker, which runs
+    # these suites; bin/tmux-test-guard.test.sh pins the two together.
     if [ "$tmux_allowed" = false ] && grep -qxF -- "$s" <<<"$tmux_suites"; then
       $list_only && printf 'skip %s  (a tmux suite: bin/test-in-docker)\n' "$s"
       skipped_tmux=$((skipped_tmux + 1))

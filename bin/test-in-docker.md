@@ -36,10 +36,10 @@ a guard file that failed to load would otherwise be skipped silently.
 
 **Every tmux suite sources the guard**: each `bin/tmux-*.test.sh`, and any
 suite that invokes `tmux … new-session|kill-server` outside a comment.
-Sourcing it is also what enrolls a suite in the no-argument run, since the list
-is the files holding that sourcing line. Two of the `tmux-*` suites stub tmux and
-could run on the host safely; they are guarded anyway, so the rule is one a
-reader can check by file name.
+Sourcing it is also what enrolls a suite in the no-argument run, since
+`bin/test` tells a tmux suite by that sourcing line. Two of the `tmux-*` suites
+stub tmux and could run on the host safely; they are guarded anyway, so the
+rule is one a reader can check by file name.
 
 `bin/tmux-test-guard.test.sh` enforces the enrollment in CI, so the rule does
 not depend on anyone remembering it. It also requires the guard to come before
