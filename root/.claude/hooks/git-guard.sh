@@ -187,7 +187,8 @@ strip_wrappers() {
       # time a form was missed -- `timeout -s KILL 5`, `stdbuf --output 0`,
       # `time -f %e` -- because the flag's value was read as the command word
       # and the git after it went unseen. The cost is refusing the rare wrapped
-      # non-git command that mentions git (`timeout 5 echo git -c x`).
+      # non-git command with a git word among its arguments, bare or as a path
+      # (`timeout 5 echo git -c x`, `timeout 5 ls build/git -c x`).
       timeout | nice | stdbuf | time | command | xargs | nohup | builtin | noglob)
         while true; do
           next_token && rc=0 || rc=$?

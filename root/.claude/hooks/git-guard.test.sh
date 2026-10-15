@@ -120,11 +120,14 @@ check DENY 'xargs --max-args 1 git -c a=b status'
 check DENY 'time -f %e git -c a=b status'
 check DENY 'nice --some-future-flag x 5 git -c a=b status'
 check DENY 'timeout 5 nice -n 1 git -c a=b status'
-# Over-refusal accepted in exchange: a wrapped non-git command that mentions git.
+# Over-refusal accepted in exchange: a wrapped non-git command with a git word
+# among its arguments, bare or as a path ending in /git.
 check DENY 'timeout 5 echo git -c a=b'
-# A wrapper with nothing after it runs no git.
-check PASS 'timeout -s'
-check PASS 'nice -n'
+check DENY 'timeout 5 ls build/git -c a=b'
+# A wrapper with no git word after it runs no git. The text must still contain
+# "git" -- otherwise the substring bail-out ends the hook before this path.
+check PASS 'timeout 5 echo "a git"'
+check PASS 'timeout 5 git'
 # The git word after a wrapper is recognised in every spelling the segment head
 # is, and assignments and keywords around the wrapper change nothing.
 check DENY 'timeout 5 /usr/bin/git -c a=b status'
