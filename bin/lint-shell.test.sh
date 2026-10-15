@@ -24,66 +24,36 @@ cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
 
 LINT="$PWD/bin/lint-shell"
 
-failures=0
+# shellcheck source=bin/test-lib.sh
+. bin/test-lib.sh || exit 2
 
-ok() { printf 'ok: %s\n' "$1"; }
-
-fail() {
-  printf 'NG: %s\n' "$1" >&2
-  shift
-  for line in "$@"; do printf '  %s\n' "$line" >&2; done
-  failures=$((failures + 1))
-}
-
-assert_eq() {
-  local label=$1 expected=$2 actual=$3
-  if [ "$expected" = "$actual" ]; then
-    ok "$label"
-  else
-    fail "$label" "expected: $expected" "actual:   $actual"
-  fi
-}
-
-assert_nonzero() {
-  local label=$1 code=$2
-  if [ "$code" != "0" ]; then
-    ok "$label"
-  else
-    fail "$label" "exited 0, so the failure was swallowed"
-  fi
-}
-
-assert_contains() {
-  local label=$1 haystack=$2 needle=$3
-  case "$haystack" in
-    *"$needle"*) ok "$label" ;;
-    *) fail "$label" "expected to contain: $needle" "actual: $haystack" ;;
-  esac
+# A status captured with $(run_lint ...), which prints it. Not assert_status:
+# the run's output goes to its own file, and the cases read that too.
+assert_nonzero() { # assert_nonzero <what> <status>
+  assert_status "$1" 0 test "$2" != 0
 }
 
 # Whole-argument matches against a stub's recorded argv, one argument per line.
 # A substring match is not enough: `-d` occurs inside the path
-# root/.agents/skills/review-design/..., which every run passes.
-assert_arg() {
-  local label=$1 file=$2 arg=$3
-  if grep -qxF -- "$arg" "$file" 2>/dev/null; then
-    ok "$label"
-  else
-    fail "$label" "no argument [$arg] in $(tr '\n' ' ' <"$file" 2>/dev/null)"
-  fi
+# root/.agents/skills/review-design/..., which every run passes. So both sides
+# are wrapped in newlines, and only a whole line matches. The closing newline
+# is added outside $( ), which strips it -- and then `bin/lint` would match the
+# line `bin/lint-shell`.
+nl=$'\n'
+argv_lines() { # argv_lines <file> -- a newline, then its text; empty if absent
+  local text=''
+  if [ -f "$1" ]; then text=$(cat "$1"); fi
+  printf '%s' "$nl$text"
+}
+assert_arg() { # assert_arg <what> <argv file> <argument>
+  assert_contains "$1" "$(argv_lines "$2")$nl" "$nl$3$nl"
+}
+refute_arg() { # refute_arg <what> <argv file> <argument>
+  assert_not_contains "$1" "$(argv_lines "$2")$nl" "$nl$3$nl"
 }
 
-refute_arg() {
-  local label=$1 file=$2 arg=$3
-  if grep -qxF -- "$arg" "$file" 2>/dev/null; then
-    fail "$label" "argument [$arg] was passed"
-  else
-    ok "$label"
-  fi
-}
-
-work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+test_tmpdir
+work=$TEST_TMPDIR
 
 # The stubs are written once, here, and every case links them into a
 # directory of its own; a case's settings are files beside the links, which a
@@ -242,23 +212,21 @@ done
 # inline. A new fragment that is not added to that list is checked by nobody,
 # silently. The invariant is read from the real repository: every tracked file
 # declaring `# shellcheck shell=` without a shebang must reach shellcheck.
-if ! fragments=$(git grep -l -E '^# shellcheck shell=(bash|sh)' -- . ':!*.md'); then
-  fail "the fragment listing worked" "git grep failed"
-fi
+listed=0
+fragments=$(git grep -l -E '^# shellcheck shell=(bash|sh)' -- . ':!*.md') || listed=$?
+assert_eq "the fragment listing worked" 0 "$listed"
 nfrag=0
+missing=''
 while IFS= read -r f; do
   [ -n "$f" ] || continue
   case "$(head -n 1 "$f")" in '#!'*) continue ;; esac
   nfrag=$((nfrag + 1))
-  grep -qxF "$f" "$work/normal/shellcheck.argv" ||
-    fail "sourced fragment $f reaches shellcheck" "it is not named in bin/lint-shell"
+  grep -qxF "$f" "$work/normal/shellcheck.argv" || missing="$missing $f"
 done <<<"$fragments"
+# Named in the got line, so a miss says which fragment bin/lint-shell lacks.
+assert_eq "every sourced fragment reaches shellcheck (none missing)" "" "$missing"
 # A listing that found nothing would make the loop vacuous.
-if [ "$nfrag" -ge 5 ]; then
-  ok "all $nfrag sourced fragments reach shellcheck"
-else
-  fail "the fragment listing found the fragments" "found only $nfrag"
-fi
+assert_status "the fragment listing found at least 5 fragments ($nfrag)" 0 test "$nfrag" -ge 5
 
 # --- zsh never reaches shfmt -------------------------------------------------
 # shfmt parses as bash. Handing it a zsh module would reformat constructs it
@@ -292,11 +260,8 @@ zsh/alias.zsh
   assert_nonzero "a $tool finding exits non-zero" "$(run_lint "$work/finding-$tool")"
   for other in shellcheck shfmt zsh; do
     [ "$other" = "$tool" ] && continue
-    if [ -s "$work/finding-$tool/$other.argv" ]; then
-      ok "with $tool failing, $other still runs"
-    else
-      fail "with $tool failing, $other still runs" "$other was never called"
-    fi
+    assert_status "with $tool failing, $other still runs" 0 \
+      test -s "$work/finding-$tool/$other.argv"
   done
 done
 assert_contains "a zsh -n failure names the file" "$(cat "$work/finding-zsh/out")" "FAIL zsh/alias.zsh"
@@ -330,11 +295,8 @@ make_git_stub "$work/split" 0 "$split_listing"
 assert_eq "a split run exits 0" "0" "$(LINT_SHELL_JOBS=4 run_lint "$work/split")"
 ncalls=$(calls_of "$work/split/shellcheck.calls")
 # Without this the cases below would compare one invocation against itself.
-if [ "$ncalls" -gt 1 ] && [ "$ncalls" -le 4 ]; then
-  ok "four jobs split shellcheck into 2..4 invocations ($ncalls)"
-else
-  fail "four jobs split shellcheck into 2..4 invocations" "got $ncalls"
-fi
+assert_status "four jobs split shellcheck into 2..4 invocations ($ncalls)" 0 \
+  test "$ncalls" -gt 1 -a "$ncalls" -le 4
 assert_eq "a split run checks exactly the targets one job does, each once" \
   "$baseline" "$(targets_of "$work/split/shellcheck.argv")"
 assert_eq "every job is handed -x" "$ncalls" "$(grep -cxF -- -x "$work/split/shellcheck.argv")"
@@ -383,11 +345,8 @@ for jobs in 0 abc; do
   assert_nonzero "LINT_SHELL_JOBS=$jobs is rejected" "$(LINT_SHELL_JOBS=$jobs run_lint "$work/bad-jobs")"
   assert_contains "LINT_SHELL_JOBS=$jobs is named as the reason" \
     "$(cat "$work/bad-jobs/out")" "LINT_SHELL_JOBS must be a positive integer"
-  if [ -e "$work/bad-jobs/shellcheck.calls" ]; then
-    fail "LINT_SHELL_JOBS=$jobs starts no job" "shellcheck was called"
-  else
-    ok "LINT_SHELL_JOBS=$jobs starts no job"
-  fi
+  assert_status "LINT_SHELL_JOBS=$jobs starts no job" 1 \
+    test -e "$work/bad-jobs/shellcheck.calls"
   rm -rf "$work/bad-jobs"
 done
 
@@ -397,9 +356,4 @@ make_git_stub "$work/badarg" 0 "bin/lint-shell
 "
 assert_nonzero "an unknown argument exits non-zero" "$(run_lint "$work/badarg" --nope)"
 
-if [ "$failures" -ne 0 ]; then
-  printf '\nlint-shell: %d test(s) failed\n' "$failures" >&2
-  exit 1
-fi
-
-printf '\nlint-shell: all tests passed\n'
+test_summary
