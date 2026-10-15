@@ -81,9 +81,9 @@ exit 0
 STUB
 done
 
-# shellcheck records and fails the same way, and does more, because the
-# parallel split is only observable through what each invocation was handed
-# and what it printed:
+# The shellcheck stub records and fails the same way, and does more, because
+# the parallel split is only observable through what each invocation was
+# handed and what it printed:
 # - one `checked: <file>` line per file on stdout, so a split run's output can
 #   be compared line for line with a single job's;
 # - like the real one (`No files specified.`, exit 3), it fails when handed no
