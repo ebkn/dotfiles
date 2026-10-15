@@ -212,10 +212,45 @@ strip_heredoc_bodies() {
 }
 COMMAND=$(strip_heredoc_bodies "$COMMAND")
 
-# Split on every shell operator Claude Code recognises as a command separator.
-# A `&&` or `;` inside a quoted commit message splits into a fragment that does
-# not start with `git`, which is simply skipped -- no false deny.
-segments=$(printf '%s' "$COMMAND" | sed -E 's/(\|\||&&|\|&|[;|&])/\n/g')
+# Split on every shell operator Claude Code recognises as a command separator,
+# but only outside quotes. Splitting inside them is not harmless: a quoted
+# argument that happens to contain `git -C` or `git -c` -- an rg alternation such
+# as "warn|git -C|hook" -- became a fragment of its own and was refused. A quoted
+# newline is likewise data and is flattened to a space.
+#
+# Returns 1 on unbalanced quoting, where the caller falls back to splitting at
+# every operator: for a deny-only hook, refusing too much is the safe direction.
+#
+# The walk is awk, byte-wise under LC_ALL=C, and prints as it goes. Both halves
+# are about the 5s timeout, past which a hook lets the call through: a bash loop
+# over `${s:i:1}` re-counts from the start for every index (a 200k-byte command
+# took 25s), and so does building the result by `out = out c` in awk (1.6s).
+# Every byte compared here is ASCII, and no byte of a multi-byte UTF-8 sequence
+# is, so walking bytes splits exactly where walking characters would. On exit 1
+# the partial output is discarded by the caller.
+split_segments() {
+  printf '%s' "$1" | LC_ALL=C awk '
+    { s = s (NR > 1 ? "\n" : "") $0 }
+    END {
+      n = length(s); q = ""
+      for (i = 1; i <= n; i++) {
+        c = substr(s, i, 1)
+        if (q != "") {
+          if (c == q) q = ""
+          else if (q == "\"" && c == "\\") { i++; c = c substr(s, i, 1) }
+          else if (c == "\n") c = " "
+        } else if (c == "\047" || c == "\"") q = c
+        else if (c == "\\") { i++; c = c substr(s, i, 1) }
+        else if (c == ";" || c == "&" || c == "|") c = "\n"
+        printf "%s", c
+      }
+      exit (q != "")
+    }'
+}
+
+if ! segments=$(split_segments "$COMMAND"); then
+  segments=$(printf '%s' "$COMMAND" | sed -E 's/(\|\||&&|\|&|[;|&])/\n/g')
+fi
 
 while IFS= read -r segment; do
   segment="${segment#"${segment%%[![:space:]]*}"}"

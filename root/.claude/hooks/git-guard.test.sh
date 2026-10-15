@@ -111,5 +111,39 @@ check PASS 'echo git -c a=b'
 check PASS 'grep git -c file.txt'
 check PASS 'rg "git -c" .'
 
+echo "-- must PASS: a separator inside quotes does not start a command --"
+# Regression: an rg alternation `"warn|git -C|hook"` was split at the quoted
+# `|`, leaving a bare `git -C` fragment that was refused as "-C with no path".
+check PASS 'rg -n "warn|git -C|hook" file.txt'
+check PASS 'rg "x; git -c a=b status" .'
+check PASS "echo 'a && git -c a=b status'"
+check PASS 'echo "a \" ; git -c a=b status"'
+check PASS 'echo a\; git -c a=b status'
+check PASS $'git commit -m "subject\ngit -c a=b status"'
+
+echo "-- must DENY: a separator outside quotes still does --"
+check DENY 'echo "hi"; git -c a=b status'
+check DENY "echo 'x' && git -c a=b status"
+check DENY $'echo "multi\nline"\ngit -c a=b status'
+# Unbalanced quoting cannot be segmented reliably, so it falls back to splitting
+# at every operator: refusing too much is the safe direction for a deny-only hook.
+check DENY 'echo "x; git -c a=b status'
+
+echo "-- must finish well inside the 5s hook timeout --"
+# A timed-out hook does not block the call, so slowness is a bypass, not a
+# nuisance. Measured on 100k bytes: the linear awk walk takes ~0.35s, a bash
+# loop over `${s:i:1}` ~9s even under LC_ALL=C (it is quadratic), so a 3s bound
+# tells them apart with room for a slow CI runner.
+long_cmd="git commit -m \"$(printf 'é%.0s' $(seq 50000))\""
+SECONDS=0
+check PASS "$long_cmd" >/dev/null
+if ((SECONDS < 3)); then
+  pass=$((pass + 1))
+  printf '  ok   100k-byte command in %ds\n' "$SECONDS"
+else
+  fail=$((fail + 1))
+  printf '  FAIL 100k-byte command took %ds\n' "$SECONDS"
+fi
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]
