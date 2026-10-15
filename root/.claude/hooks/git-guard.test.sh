@@ -32,15 +32,16 @@ verdict() {
   fi
 }
 
+# An optional third argument labels a command too long to print.
 check() {
-  local expect=$1 cmd=$2 got
+  local expect=$1 cmd=$2 label=${3:-$2} got
   got=$(verdict "$cmd")
   if [[ "$got" == "$expect" ]]; then
     pass=$((pass + 1))
-    printf '  ok   %-4s %s\n' "$got" "$cmd"
+    printf '  ok   %-4s %s\n' "$got" "$label"
   else
     fail=$((fail + 1))
-    printf '  FAIL want=%s got=%s  %s\n' "$expect" "$got" "$cmd"
+    printf '  FAIL want=%s got=%s  %s\n' "$expect" "$got" "$label"
   fi
 }
 
@@ -108,6 +109,18 @@ check DENY 'command -p git -c a=b status'
 check DENY 'xargs -0 git -c a=b status'
 check DENY 'xargs -n 1 git -c a=b status'
 check DENY 'xargs -I {} git -c a=b status'
+check DENY 'xargs -L 1 git -c a=b status'
+check DENY 'xargs -P 2 git -c a=b status'
+check DENY 'timeout --kill-after 1 5 git -c a=b status'
+
+echo "-- must DENY: an assignment with a quoted value is one word --"
+# Read as `FOO="a` and `b"`, the second half became the command word.
+check DENY 'FOO="a b" git -c a=b status'
+check DENY "FOO='a b' git -c a=b status"
+check DENY 'FOO=a"b c"d git -c a=b status'
+check PASS 'FOO="a b" git status'
+# Too many quoted runs in one word to read within the timeout: refused unread.
+check DENY "FOO=$(printf 'a"b"%.0s' $(seq 2000)) git status" "2000 quoted runs in one word"
 
 # Paths here are placeholders on purpose: this repository is public, so a real
 # private-repo path in a test fixture would publish it.
@@ -115,6 +128,7 @@ echo "-- must PASS: a monorepo's everyday git -C usage --"
 check PASS 'git -C /tmp add .'
 check PASS 'git -C /Users/x/ghq/github.com/acme/example-monorepo/git-worktrees/some-branch add apps/frontend'
 check PASS 'git -C "/path with space" add .'
+check DENY 'git -C "/path with space" -c a=b status'
 check PASS 'git -C /tmp commit -m "fix: something"'
 check PASS 'git -C /tmp'
 check PASS 'git -C /tmp status --short'
@@ -317,7 +331,12 @@ check_fast "100000 openers on one line" "cat $(printf '<<a %.0s' $(seq 100000))"
 check_fast "a 500k-byte heredoc tag" "cat <<$(printf 'a%.0s' $(seq 500000))"$'\n'"git -c a=b status"
 many_git=$(printf 'echo git;%.0s' $(seq 5000))
 check_fast "5000 git-looking segments, refused unread" "$many_git"
-check PASS "$(printf 'git status;%.0s' $(seq 1000))" >/dev/null
+check PASS "$(printf 'git status;%.0s' $(seq 1000))" "1000 git segments: at the cap, inspected"
+check DENY "$(printf 'git status;%.0s' $(seq 1001))" "1001 git segments: past the cap, refused"
+check DENY "git status; git -c a=b status" "a safe git first does not end the inspection"
+tag64=$(printf 'a%.0s' $(seq 64))
+check PASS "cat <<${tag64}"$'\n'"git -c a=b status"$'\n'"${tag64}" "64-byte heredoc tag: a heredoc"
+check DENY "cat <<${tag64}a"$'\n'"git -c a=b status"$'\n'"${tag64}a" "65-byte heredoc tag: body inspected"
 # Any spelling of the command word strip_wrappers would read as git survives
 # the prefilter, or the inspection never sees it.
 check DENY 'echo x; "git" -c a=b status'

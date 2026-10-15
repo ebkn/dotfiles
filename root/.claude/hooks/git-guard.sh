@@ -82,30 +82,43 @@ is_safe_global() {
   return 1
 }
 
-# Pull one whitespace-separated token off the front of $REST, honouring simple
-# quoting so that `-C "/path/with space"` is read as a single token. Only ever
-# applied to the region before the subcommand, which is options and paths --
-# never a commit message -- so this does not need to be a full shell parser.
+# Pull one shell word off the front of $REST into $TOKEN, with its quotes
+# removed. A word is unquoted runs and quoted runs up to unquoted whitespace, so
+# `-C "/path/with space"` and `FOO="a b"` are each one word -- reading only a
+# leading quote split the latter in two and took `b"` for the command word,
+# hiding the git after it. Only ever applied to the region before the
+# subcommand, which is options, paths and assignments -- never a commit message
+# -- so this does not need to be a full shell parser.
+#
+# Returns 1 when $REST is empty, 2 when the word cannot be read: an unterminated
+# quote, or more than MAX_WORD_RUNS runs, since each run copies the rest of the
+# string and a word built to have thousands would outlast the timeout.
 REST=""
 TOKEN=""
+MAX_WORD_RUNS=64
 next_token() {
   REST="${REST#"${REST%%[![:space:]]*}"}"
   [[ -n "$REST" ]] || return 1
-  local q body
-  case "$REST" in
-    \'* | \"*)
-      q="${REST:0:1}"
-      body="${REST:1}"
-      # An unterminated quote in the option region is unparseable, not benign.
-      [[ "$body" == *"$q"* ]] || return 2
-      TOKEN="${body%%"$q"*}"
-      REST="${body#*"$q"}"
-      ;;
-    *)
-      TOKEN="${REST%%[[:space:]]*}"
-      if [[ "$TOKEN" == "$REST" ]]; then REST=""; else REST="${REST#"$TOKEN"}"; fi
-      ;;
-  esac
+  local q body chunk runs=0
+  TOKEN=""
+  while [[ -n "$REST" && "$REST" != [[:space:]]* ]]; do
+    runs=$((runs + 1))
+    ((runs <= MAX_WORD_RUNS)) || return 2
+    case "$REST" in
+      \'* | \"*)
+        q="${REST:0:1}"
+        body="${REST:1}"
+        [[ "$body" == *"$q"* ]] || return 2
+        TOKEN+="${body%%"$q"*}"
+        REST="${body#*"$q"}"
+        ;;
+      *)
+        chunk="${REST%%[[:space:]\'\"]*}"
+        TOKEN+="$chunk"
+        REST="${REST#"$chunk"}"
+        ;;
+    esac
+  done
   return 0
 }
 
@@ -151,6 +164,10 @@ CMD_WORD=""
 # "<wrapper> <flag>" pairs whose value is the next token. Held in a variable so
 # the pattern is read as written, with no backslash-escaped spaces.
 VALUED_WRAPPER_FLAG='^(nice (-n|--adjustment)|timeout (-s|-k|--signal|--kill-after)|stdbuf (-i|-o|-e)|xargs (-n|-I|-L|-P|-d|-s|-E|-a))$'
+#
+# Returns 1 when the segment has no command word, 2 when a word before it cannot
+# be read -- which the caller refuses, because skipping it would pass whatever
+# git follows unread.
 strip_wrappers() {
   local rc
   while true; do
@@ -158,7 +175,7 @@ strip_wrappers() {
     next_token && rc=0 || rc=$?
     [[ $rc -eq 0 ]] || {
       REST=$saved_rest
-      return 1
+      return $rc
     }
 
     case "$TOKEN" in
@@ -180,12 +197,12 @@ strip_wrappers() {
           next_token && rc=0 || rc=$?
           [[ $rc -eq 0 ]] || {
             REST=$saved_rest
-            return 1
+            return $rc
           }
           [[ "$TOKEN" == -* ]] || break
           if [[ "$w $TOKEN" =~ $VALUED_WRAPPER_FLAG ]]; then
             next_token && rc=0 || rc=$?
-            [[ $rc -eq 0 ]] || return 1
+            [[ $rc -eq 0 ]] || return $rc
           fi
         done
         # $TOKEN is now the first non-flag word: a duration for `timeout`,
@@ -326,7 +343,11 @@ while IFS= read -r segment; do
   [[ -n "$segment" ]] || continue
 
   REST=$segment
-  strip_wrappers || continue
+  strip_wrappers && rc=0 || rc=$?
+  case $rc in
+    1) continue ;;
+    2) deny "git-guard: could not read the words before the command in a segment that may run git, so it was refused rather than passed unread." ;;
+  esac
 
   [[ "$CMD_WORD" == "git" || "$CMD_WORD" == */git ]] || continue
 
