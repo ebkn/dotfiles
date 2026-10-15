@@ -14,8 +14,14 @@
 # (2) Refusal: outside a container and outside CI, sourcing the guard stops the
 #     caller with exit 2 before anything after it runs.
 #
-# tmux-free itself, so it is safe to run anywhere. It is not purely static: it
-# runs bin/test-in-docker against a stubbed docker, tally included.
+# And the two places that run the tmux suites agree with (1): bin/test skips
+# exactly those on a laptop, and bin/test-in-docker -- run against a stubbed
+# docker -- runs exactly those, asked as a laptop wherever it runs, mounted
+# read-only with no tty, refusing to run anything on a failed listing, and
+# passing bin/test's verdict on.
+#
+# tmux-free itself: it needs GNU parallel (for the verdict cases), and the one
+# case that fakes the runner puts a refusing tmux first on PATH.
 
 set -eo pipefail
 
@@ -71,17 +77,19 @@ done <<<"$suites"
 [ "$count" -ge 5 ] || fail "found only $count tmux suite(s); the listing is broken"
 [ "$fails" -eq 0 ] && printf 'ok   all %d tmux suites source the guard before any trap or tmux call\n' "$count"
 
-# bin/test-in-docker enrolls by a COPY of the regex above. If the two drift, a
-# local run quietly stops running some suites and still prints "all N suite(s)
-# passed". So it is run here, with docker stubbed to record what it was asked
-# to run, and its list must be exactly the guarded suites found above.
+# bin/test-in-docker runs the suites bin/test skips on a laptop, read from
+# bin/test --list, which finds them by a COPY of the regex above. If the two
+# drift, or the parsing of that listing breaks, a local run quietly stops
+# running some suites and still reports them all passed. So it is run here,
+# with docker stubbed to record what it was asked to run, and its list must be
+# exactly the guarded suites found above.
 stub=$(mktemp -d)
 trap '/bin/rm -rf "$stub"' EXIT
 cat >"$stub/docker" <<'EOF'
 #!/bin/bash
 # `docker build` succeeds; `docker run` records one argument per line. With
-# DOCKER_EXEC set it then runs what follows the image name here, so the script
-# that would run in the container -- the pass/fail tally -- is exercised too.
+# DOCKER_EXEC set it then runs what follows the image name here, so the command
+# that would run in the container -- bin/test and its verdict -- runs too.
 [ "$1" = run ] || exit 0
 printf '%s\n' "$@" >"$DOCKER_ARGV"
 [ -n "${DOCKER_EXEC:-}" ] || exit 0
@@ -90,30 +98,70 @@ shift
 exec "$@"
 EOF
 chmod +x "$stub/docker"
-if PATH="$stub:$PATH" DOCKER_ARGV="$stub/argv" bash bin/test-in-docker >/dev/null 2>&1; then
-  # Everything after the `bash -c` script's $0 is the suite list.
-  ran=$(sed -n '/^test-in-docker$/,$p' "$stub/argv" | sed 1d | sort)
+# A tmux that refuses, first on PATH for everything run through the stub. The
+# case below fakes the runner (GITHUB_ACTIONS=true), which is what lets the
+# guard through; if a suite were ever run on this host from here -- DOCKER_EXEC
+# left in the caller's environment, or a test-in-docker that stopped going
+# through docker -- it would reach this, not the developer's server.
+printf '#!/bin/sh\necho "tmux-test-guard.test.sh: tmux refused on the host" >&2\nexit 99\n' >"$stub/tmux"
+chmod +x "$stub/tmux"
+# Run in the environment furthest from a laptop -- GITHUB_ACTIONS=true and a
+# container mark that exists -- because test-in-docker promises to ask bin/test
+# as a laptop wherever it runs. Run from a laptop, a test-in-docker that let
+# either variable through would still list the right suites here.
+if out=$(DOCKER_EXEC='' GITHUB_ACTIONS=true TEST_CONTAINER_MARK="$stub/docker" \
+  PATH="$stub:$PATH" DOCKER_ARGV="$stub/argv" bash bin/test-in-docker 2>&1) &&
+  [ -f "$stub/argv" ]; then
+  # Everything after the command bin/test is the suite list.
+  ran=$(sed -n '/^bin\/test$/,$p' "$stub/argv" | sed 1d | sort)
   want=$(printf '%s\n' "$suites" | grep -vxF bin/tmux-test-guard.test.sh | sed '/^$/d' | sort)
   if [ "$ran" = "$want" ]; then
-    printf 'ok   test-in-docker runs exactly the %d guarded suites\n' "$count"
+    printf 'ok   test-in-docker runs exactly the %d guarded suites, asked as a laptop\n' "$count"
   else
     fail "test-in-docker's suite list differs from the guarded suites: $(diff <(printf '%s\n' "$want") <(printf '%s\n' "$ran") | tr '\n' ' ')"
   fi
   # Read-only, and no -t: the runner has no TERM, and a writable mount lets a
-  # suite edit the checkout it is testing.
-  grep -qx -- "$PWD:/work:ro" "$stub/argv" ||
+  # suite edit the checkout it is testing. TEST_JOBS and TEST_TIMEOUT reach
+  # bin/test in the container only if docker is told to pass them.
+  shape_ok=true
+  grep -qx -- "$PWD:/work:ro" "$stub/argv" || {
     fail "test-in-docker does not mount the checkout read-only"
-  if grep -qxE -- '-[a-z]*t[a-z]*' "$stub/argv"; then
+    shape_ok=false
+  }
+  if grep -qxE -- '-[a-z]*t[a-z]*|--tty' "$stub/argv"; then
     fail "test-in-docker allocates a tty, so TERM is set unlike on the runner"
+    shape_ok=false
   fi
+  for v in TEST_JOBS TEST_TIMEOUT; do
+    grep -qx -- "$v" "$stub/argv" || {
+      fail "test-in-docker does not pass $v into the container"
+      shape_ok=false
+    }
+  done
+  $shape_ok && printf 'ok   mounted read-only, no tty, TEST_JOBS and TEST_TIMEOUT passed in\n'
 else
-  fail "test-in-docker failed with docker stubbed"
+  fail "test-in-docker failed, or never ran docker, with docker stubbed: $out"
 fi
 
-# bin/test holds a third copy of the regex, deciding which suites a laptop run
-# skips. Drift there is quiet one way: a non-tmux suite read as a tmux one is
-# skipped on every laptop and only CI still runs it. Its host-mode listing must
-# skip exactly the guarded suites, and no others, as tmux suites.
+# A listing that fails must run nothing and say so -- "ran nothing, all green"
+# is the most expensive trap this repo has had (bin/lint-shell). bin/test
+# --list fails here because git cannot find the repository.
+rm -f "$stub/argv"
+if out=$(GIT_DIR=/nonexistent PATH="$stub:$PATH" DOCKER_ARGV="$stub/argv" bash bin/test-in-docker 2>&1); then
+  fail "test-in-docker exited 0 though bin/test --list failed: $out"
+elif [ -e "$stub/argv" ]; then
+  fail "test-in-docker ran docker though bin/test --list failed: $out"
+else
+  case "$out" in
+    *"bin/test --list failed"*) printf 'ok   a failed listing runs nothing and exits non-zero\n' ;;
+    *) fail "test-in-docker failed, but not at the listing: $out" ;;
+  esac
+fi
+
+# bin/test holds the second copy of the regex, deciding which suites a laptop
+# run skips -- and so which suites test-in-docker runs. Checked on its own as
+# well as through the run above, so a red here alone points at the regex and a
+# red above alone at test-in-docker's reading of the listing.
 if host_list=$(GITHUB_ACTIONS=false TEST_CONTAINER_MARK=/nonexistent bin/test --list); then
   skipped=$(sed -n 's/^skip \([^ ]*\)  (a tmux suite: .*)$/\1/p' <<<"$host_list" | sort)
   want=$(printf '%s\n' "$suites" | grep -vxF bin/tmux-test-guard.test.sh | sed '/^$/d' | sort)
@@ -126,42 +174,36 @@ else
   fail "bin/test --list failed"
 fi
 
-# The tally, run for real through the stub. test-in-docker is the only way to
+# The verdict, run for real through the stub. test-in-docker is the only way to
 # run the tmux suites locally, and its exit status is what a caller -- an agent
-# included -- believes. A broken `|| failed=...` would print a suite's FAIL and
-# then "all N suite(s) passed", exit 0. The fixtures are given by absolute path,
-# which the script inside resolves as the container would.
+# included -- believes. The tally itself is bin/test's (bin/test.test.sh pins
+# it); what is pinned here is that test-in-docker hands its suites to bin/test
+# and passes its verdict on. The fixtures are given by absolute path, which
+# bin/test resolves as the container would.
 tally=$(mktemp -d)
 trap '/bin/rm -rf "$stub" "$tally"' EXIT
 printf 'exit 0\n' >"$tally/pass.test.sh"
 printf 'exit 3\n' >"$tally/fail.test.sh"
-# Passes only under zsh, so a .zsh suite run by bash fails the tally.
-cat >"$tally/only-zsh.test.zsh" <<'EOF'
-[ -n "${ZSH_VERSION:-}" ]
-EOF
 run_tally() {
   PATH="$stub:$PATH" DOCKER_ARGV="$stub/argv" DOCKER_EXEC=1 bash bin/test-in-docker "$@" 2>&1
 }
-if out=$(run_tally "$tally/pass.test.sh" "$tally/fail.test.sh" "$tally/only-zsh.test.zsh"); then
+if out=$(run_tally "$tally/pass.test.sh" "$tally/fail.test.sh"); then
   fail "test-in-docker exited 0 with a failing suite: $out"
 else
-  printf 'ok   a failing suite makes test-in-docker exit non-zero\n'
-fi
-case "$out" in
-  *"FAILED: $tally/fail.test.sh"$'\n'* | *"FAILED: $tally/fail.test.sh") printf 'ok   and it names exactly that suite\n' ;;
-  *) fail "test-in-docker did not name the failing suite alone: $out" ;;
-esac
-case "$out" in
-  *"suite(s) passed"*) fail "test-in-docker claimed a pass alongside a failure: $out" ;;
-  *) printf 'ok   and claims no pass\n' ;;
-esac
-if out=$(run_tally "$tally/pass.test.sh" "$tally/only-zsh.test.zsh"); then
   case "$out" in
-    *"all 2 suite(s) passed"*) printf 'ok   all passing (a .zsh suite run by zsh) exits 0 and counts them\n' ;;
-    *) fail "test-in-docker passed without saying so: $out" ;;
+    *"FAIL $tally/fail.test.sh (exit 3)"*"1 passed, 1 failed"*)
+      printf 'ok   a failing suite makes test-in-docker exit non-zero, naming it, both suites run\n'
+      ;;
+    *) fail "test-in-docker failed without bin/test naming the failing suite: $out" ;;
+  esac
+fi
+if out=$(run_tally "$tally/pass.test.sh"); then
+  case "$out" in
+    *"1 passed, 0 failed"*) printf 'ok   a passing suite makes it exit 0, run by bin/test\n' ;;
+    *) fail "test-in-docker passed without bin/test's verdict: $out" ;;
   esac
 else
-  fail "test-in-docker failed passing suites (is a .zsh suite run by zsh?): $out"
+  fail "test-in-docker failed a passing suite: $out"
 fi
 
 # Refusal. Only checkable where the guard is meant to refuse: in a container

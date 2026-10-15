@@ -61,9 +61,8 @@ RUN version=3.12 \
 
 # Same as the "Install GNU parallel" step in the workflow and the parallel note
 # in brewfiles/Brewfile-shell. Bump all three places together. bin/test
-# schedules the suites with it; installed ahead of test-in-docker running its
-# suites through bin/test (testing.md, migration step 4) -- today the
-# container's loop still runs them one by one. bzip2 (above) unpacks the
+# schedules the suites with it, here as on the runner: test-in-docker runs its
+# suites through bin/test inside this image. bzip2 (above) unpacks the
 # tarball; perl, which parallel is written in, comes with build-essential.
 RUN version=20260922 \
   && expected=54837e9e8c16134a3c2e95f91c5fe2f7893d4cc89f252b26735713ceca866387 \

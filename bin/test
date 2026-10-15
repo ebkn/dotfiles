@@ -76,8 +76,9 @@ reason_for() {
 
 # A tmux suite refuses a developer machine (bin/tmux-test-guard.sh), so it is
 # run only where the guard lets it. TEST_CONTAINER_MARK stands in for
-# /.dockerenv in tests -- bin/test.test.sh and bin/tmux-test-guard.test.sh --
-# which must see the laptop's answer wherever they run.
+# /.dockerenv wherever a caller needs the laptop's answer whatever it runs on:
+# bin/test-in-docker, which runs the tmux suites a laptop skips, and the tests
+# (bin/test.test.sh, bin/tmux-test-guard.test.sh). Not a test-only hook.
 tmux_allowed=false
 if [ -f "${TEST_CONTAINER_MARK:-/.dockerenv}" ] || [ "${GITHUB_ACTIONS:-}" = true ]; then
   tmux_allowed=true
@@ -104,11 +105,12 @@ else
     printf 'test: no suites found; not a checkout?\n' >&2
     exit 1
   fi
-  # The sourcing line itself, as bin/test-in-docker matches it: a suite that
-  # only mentions the guard is not a tmux suite. A copy of that regex;
-  # bin/tmux-test-guard.test.sh checks that this one skips exactly the
-  # guarded suites. git grep exits 1 for "no
-  # match", which is an answer; anything above that is a failure.
+  # The sourcing line itself: a suite that only mentions the guard is not a
+  # tmux suite. A copy of bin/tmux-test-guard.test.sh's regex, which checks
+  # that this one skips exactly the guarded suites -- and bin/test-in-docker
+  # runs what this skips, so a drift here shrinks the container run too.
+  # git grep exits 1 for "no match", which is an answer; anything above that
+  # is a failure.
   tmux_suites=$(git grep -l -E '^\. .*tmux-test-guard\.sh" \|\| exit 2$' -- '*.test.sh' '*.test.zsh')
   if [ $? -gt 1 ]; then
     printf 'test: git grep for the tmux suites failed\n' >&2

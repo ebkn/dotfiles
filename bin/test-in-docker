@@ -2,9 +2,11 @@
 #
 # test-in-docker [suite...]
 #
-# Run test suites inside a container built to match the CI runner. With no
-# arguments, runs every suite that sources bin/tmux-test-guard.sh -- the tmux
-# suites, which must never run on the host.
+# Run test suites inside a container built to match the CI runner, through
+# bin/test -- so they run in parallel, with its timeout, time table and
+# verdict. With no arguments, runs the tmux suites: those bin/test skips on a
+# laptop, which must never run on the host.
+# TEST_JOBS and TEST_TIMEOUT are passed through to bin/test.
 # See bin/test-in-docker.md.
 
 set -eo pipefail
@@ -12,44 +14,43 @@ set -eo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd)
 image=dotfiles-test
 
-# Built from stdin, so no build context is sent. Cached after the first run;
+if [ "$#" -gt 0 ]; then
+  suites=("$@")
+else
+  # bin/test's own answer for a laptop -- the suites it skips as tmux suites --
+  # rather than a second copy of the regex that finds them: two copies could
+  # drift, and the suites one dropped would then run nowhere outside CI.
+  # Asked as a laptop whatever this runs on (CI, another container), so the
+  # answer is the same everywhere. A command substitution with its status
+  # checked, not a process substitution: a failed listing must not become
+  # "ran nothing, all green".
+  if ! listing=$(cd "$repo" && env -u GITHUB_ACTIONS TEST_CONTAINER_MARK=/nonexistent bin/test --list); then
+    echo "test-in-docker: bin/test --list failed" >&2
+    exit 1
+  fi
+  suites=()
+  while IFS= read -r line; do
+    case "$line" in
+      'skip '*'  (a tmux suite: '*)
+        f=${line#skip }
+        suites+=("${f%%  (*}")
+        ;;
+    esac
+  done <<<"$listing"
+  if [ "${#suites[@]}" -eq 0 ]; then
+    echo "test-in-docker: bin/test --list named no tmux suites" >&2
+    exit 1
+  fi
+fi
+
+# After the listing, so a refused listing fails before the image build. Built
+# from stdin, so no build context is sent. Cached after the first run;
 # the tmux compile only repeats when the Dockerfile changes.
 docker build --quiet --platform linux/amd64 -t "$image" - \
   <"$repo/bin/test-in-docker.Dockerfile" >/dev/null
 
-if [ "$#" -gt 0 ]; then
-  suites=("$@")
-else
-  # A command substitution with its status checked, not a process
-  # substitution: a failed listing must not become "ran nothing, all green".
-  # The sourcing line itself, not the bare name: tmux-test-guard.test.sh
-  # mentions the guard without being a tmux suite.
-  if ! listing=$(git -C "$repo" grep -l -E '^\. .*tmux-test-guard\.sh" \|\| exit 2$' -- '*.test.sh' '*.test.zsh'); then
-    echo "test-in-docker: no guarded suites found" >&2
-    exit 1
-  fi
-  suites=()
-  while IFS= read -r f; do
-    [ -n "$f" ] && suites+=("$f")
-  done <<<"$listing"
-fi
-
 # Read-only: a suite writes to its own mktemp dir, never to the checkout. No
-# -t, so TERM stays unset as it is on the runner.
-# shellcheck disable=SC2016 # expanded by the container's shell, not this one
-docker run --rm --platform linux/amd64 -v "$repo:/work:ro" "$image" bash -c '
-  failed=""
-  for f in "$@"; do
-    printf "=== %s\n" "$f"
-    case "$f" in
-      *.zsh) runner=zsh ;;
-      *) runner=bash ;;
-    esac
-    "$runner" "$f" || failed="$failed $f"
-  done
-  if [ -n "$failed" ]; then
-    printf "\nFAILED:%s\n" "$failed"
-    exit 1
-  fi
-  printf "\nall %d suite(s) passed\n" "$#"
-' test-in-docker "${suites[@]}"
+# -t, so TERM stays unset as it is on the runner. -e without a value passes a
+# variable only when it is set here.
+docker run --rm --platform linux/amd64 -v "$repo:/work:ro" \
+  -e TEST_JOBS -e TEST_TIMEOUT "$image" bin/test "${suites[@]}"
