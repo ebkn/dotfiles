@@ -203,7 +203,26 @@ check DENY 'git -C "2">x -c a=b status'
 # More than one redirection in a word, or more than a handful in a row, is
 # beyond what this models: refused.
 check DENY 'git -C . >a>b status'
-check DENY "git -C . $(printf '>a %.0s' $(seq 20))status" "20 redirections before the subcommand"
+check PASS "git -C . $(printf '>a %.0s' $(seq 15))status" "15 redirections before the subcommand: read"
+check DENY "git -C . $(printf '>a %.0s' $(seq 16))status" "16 redirections before the subcommand: refused"
+check DENY 'git <in -c a=b status'
+check PASS 'git status <in'
+# The `&` or `|` of a redirection operator is no separator. Split there, `git >`
+# looked like a whole command and `2 -c a=b status` like another.
+check DENY 'git >&2 -c a=b status'
+check DENY 'git 2>&1 -c a=b status'
+check DENY 'git &>/dev/null -c a=b status'
+check DENY 'git &>>log -c a=b status'
+check DENY 'git <&0 -c a=b status'
+check DENY 'git >|x -c a=b status'
+check PASS 'git status 2>&1'
+check PASS 'git status &>/dev/null'
+# A quoted operator character is no redirection, so the `&` after it still is.
+check DENY 'echo ">"& git -c a=b status'
+check DENY "echo '>'| git -c a=b status"
+# On the fallback path, which splits at every operator, an operator left with no
+# target is refused rather than taken for the end of the command.
+check DENY 'echo "x; git >&2 -c a=b status'
 
 echo "-- must DENY: an expansion where git reads its options --"
 # The shell expands braces, globs and unquoted parameters, so the word read here
@@ -218,6 +237,12 @@ check DENY 'git -C $D status'
 check PASS 'git -C "{dir}" status'
 # shellcheck disable=SC2016 # literal command text under test
 check PASS 'git -C "$D" status'
+# Quoted, a parameter is one word but of unknown content: harmless as -C's path,
+# an option of its choosing where git reads options (`X=--exec-path=...`).
+# shellcheck disable=SC2016 # literal command text under test
+check DENY 'git "$X" status'
+# shellcheck disable=SC2016 # literal command text under test
+check DENY 'git -C . "${X}" status'
 check PASS "git log --format='%h {x}' -- '*.sh'"
 # `{}` is not a brace expansion, so xargs' placeholder is read as written.
 check PASS 'xargs -I{} git -C {} status'

@@ -116,10 +116,12 @@ is_safe_global() {
 # refused rather than modelled.
 #
 # An unquoted brace, glob or `$` is an expansion: the shell turns the word into
-# other argv, so it is not what git receives. TOKEN_EXPANDS reports it, and the
-# caller decides -- scan_globals refuses it, since `git -C . {-c,x} status`
-# expands to an option; before the git word it only means "not a git word".
-# `{}` alone is no brace expansion, so xargs' placeholder is read as written.
+# other argv, so it is not what git receives. TOKEN_EXPANDS reports it, and
+# TOKEN_VARIES a `$` inside double quotes -- one word, of unknown content. The
+# caller decides: scan_globals refuses either where git reads an option, since
+# `git -C . {-c,x} status` expands to one, and only an expansion as -C's path;
+# before the git word they only mean "not a git word". `{}` alone is no brace
+# expansion, so xargs' placeholder is read as written.
 #
 # Returns 1 when $REST holds no further word, 2 when the word cannot be read: an
 # unterminated quote, quoting this does not model (a backslash inside double
@@ -129,21 +131,22 @@ is_safe_global() {
 REST=""
 TOKEN=""
 TOKEN_EXPANDS=0
+TOKEN_VARIES=0
 MAX_WORD_RUNS=64
 MAX_REDIRECTS=16
 EXPANDING='*[{*?[$]*'
 next_token() {
-  local rc redirects=0 word expands
+  local rc redirects=0 word expands varies
   while true; do
     read_word && rc=0 || rc=$?
     [[ $rc -eq 0 ]] || return $rc
     if ((WORD_NEEDS_TARGET)); then
-      word=$TOKEN expands=$TOKEN_EXPANDS
+      word=$TOKEN expands=$TOKEN_EXPANDS varies=$TOKEN_VARIES
       read_word && rc=0 || rc=$?
-      # No target: the operator ended the segment (`2>&1` is split at `&`).
-      [[ $rc -ne 1 ]] || return 1
+      # An operator with no target is unreadable, not the end of the command:
+      # the fallback split leaves `git >` of `git >&2 -c x status` that way.
       [[ $rc -eq 0 && $WORD_REDIRECTS -eq 0 ]] || return 2
-      TOKEN=$word TOKEN_EXPANDS=$expands WORD_REDIRECTS=1
+      TOKEN=$word TOKEN_EXPANDS=$expands TOKEN_VARIES=$varies WORD_REDIRECTS=1
     fi
     if ((WORD_REDIRECTS)) && [[ -z "$TOKEN" ]]; then
       redirects=$((redirects + 1))
@@ -163,7 +166,7 @@ read_word() {
   REST="${REST#"${REST%%[![:space:]]*}"}"
   [[ -n "$REST" ]] || return 1
   local q body chunk op runs=0 quoted=0 in_target=0
-  TOKEN="" TOKEN_EXPANDS=0 WORD_REDIRECTS=0 WORD_NEEDS_TARGET=0
+  TOKEN="" TOKEN_EXPANDS=0 TOKEN_VARIES=0 WORD_REDIRECTS=0 WORD_NEEDS_TARGET=0
   while [[ -n "$REST" && "$REST" != [[:space:]]* ]]; do
     runs=$((runs + 1))
     ((runs <= MAX_WORD_RUNS)) || return 2
@@ -174,6 +177,7 @@ read_word() {
         [[ "$body" == *"$q"* ]] || return 2
         chunk="${body%%"$q"*}"
         [[ "$q" == "'" || "$chunk" != *\\* ]] || return 2
+        if [[ "$q" == '"' && "$chunk" == *\$* ]]; then TOKEN_VARIES=1; fi
         ((in_target)) || TOKEN+="$chunk"
         quoted=1
         REST="${body#*"$q"}"
@@ -185,10 +189,11 @@ read_word() {
         ;;
       [\<\>]*)
         ((in_target == 0)) || return 2
-        op="${REST%%[!<>&]*}"
+        op="${REST%%[!<>&|]*}"
         REST="${REST#"$op"}"
         in_target=1 WORD_REDIRECTS=1
-        if ((quoted == 0)) && [[ "$TOKEN" != *[!0-9]* ]]; then TOKEN=""; fi
+        # An unquoted fd number, or the `&` of `&>`, belongs to the operator.
+        if ((quoted == 0)) && [[ "$TOKEN" != *[!0-9]* || "$TOKEN" == "&" ]]; then TOKEN=""; fi
         [[ -n "$REST" && "$REST" != [[:space:]]* ]] || WORD_NEEDS_TARGET=1
         ;;
       *)
@@ -221,7 +226,9 @@ scan_globals() {
         return 1
         ;;
     esac
-    if ((TOKEN_EXPANDS)); then
+    # Here a quoted parameter is refused too: one word, but an option of its
+    # content's choosing (`git "$X" status` with X=--exec-path=...).
+    if ((TOKEN_EXPANDS || TOKEN_VARIES)); then
       BAD="an unreadable word before the subcommand"
       return 1
     fi
@@ -364,7 +371,7 @@ split_segments() {
     END {
       q = ""
       for (ln = 1; ln <= NR; ln++) {
-        n = split(L[ln], ch, ""); np = 0; joined = 0
+        n = split(L[ln], ch, ""); np = 0; joined = 0; lu = ""
         for (i = 1; i <= n; i++) {
           c = ch[i]
           if (c == "\\" && i == n && q != "\047") { joined = 1; break }
@@ -372,9 +379,9 @@ split_segments() {
             if (c == q) q = ""
             else if (q == "\"" && (c == "`" || (c == "$" && ch[i + 1] == "("))) exit 1
             else if (q == "\"" && c == "\\") { i++; c = c ch[i] }
-          } else if (c == "\047" || c == "\"") q = c
-          else if (c == "\\") { i++; c = c ch[i] }
-          else if (c == "<" && ch[i + 1] == "<" && ch[i + 2] == "<") { c = "<<<"; i += 2 }
+          } else if (c == "\047" || c == "\"") { q = c; lu = "" }
+          else if (c == "\\") { i++; c = c ch[i]; lu = "" }
+          else if (c == "<" && ch[i + 1] == "<" && ch[i + 2] == "<") { c = "<<<"; i += 2; lu = "" }
           else if (c == "<" && ch[i + 1] == "<") {
             # <<TAG, <<-TAG, << TAG, <<'\''TAG'\'', <<"TAG"; the quote, if any,
             # is walked as an ordinary quote afterwards. A tag past 64 bytes is
@@ -387,9 +394,16 @@ split_segments() {
             if (ch[j] ~ /[A-Za-z_]/)
               while (ch[j] ~ /[A-Za-z0-9_]/ && length(t) <= 64) t = t ch[j++]
             if (t != "" && length(t) <= 64) tags[++np] = t
-            c = "<<"; i++
+            c = "<<"; i++; lu = ""
           }
-          else if (index(seps, c)) c = "\n"
+          # The & of >&, <&, &> and the | of >| belong to a redirection, which
+          # the word reader removes; split there, `git >&2 -c x status` became
+          # a bare `git` and a command `2 -c x status`. lu is the previous
+          # unquoted byte, so a quoted ">" before & leaves it a separator.
+          else if (c == "&" && (lu == "<" || lu == ">" || ch[i + 1] == ">")) lu = c
+          else if (c == "|" && lu == ">") lu = c
+          else if (index(seps, c)) { c = "\n"; lu = "" }
+          else lu = c
           printf "%s", c
         }
         if (joined) continue
