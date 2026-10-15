@@ -164,6 +164,13 @@ check PASS 'git -C /tmp add .'
 check PASS 'git -C /Users/x/ghq/github.com/acme/example-monorepo/git-worktrees/some-branch add apps/frontend'
 check PASS 'git -C "/path with space" add .'
 check DENY 'git -C "/path with space" -c a=b status'
+# A backslash-escaped space is part of the word, as the shell reads it. Read as
+# a word break, `a\` became the -C path and `b` the subcommand, and the -c after
+# it went uninspected.
+check DENY 'git -C a\ b -c a=b status'
+check DENY 'FOO=a\ b git -c a=b status'
+check PASS 'git -C a\ b status'
+check DENY '\git -c a=b status'
 check PASS 'git -C /tmp commit -m "fix: something"'
 check PASS 'git -C /tmp'
 check PASS 'git -C /tmp status --short'

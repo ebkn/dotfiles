@@ -43,7 +43,8 @@
 # approve, since the threat is a `git ...` rule waving the call through. So the
 # wrappers stripped are the ones Claude Code itself strips before matching, and
 # forms no `git ...` rule matches are left to the prompt: `env git`, `sudo git`,
-# `sh -c "git ..."`, `g''it`, `\git`, `$(echo git) ...`.
+# `sh -c "git ..."`, `g''it`, `$(echo git) ...`. (`\git` is read as git, since
+# the word reader honours backslash escapes, and so is inspected all the same.)
 #
 # Registered without an `if:` filter, unlike curl-guard. A filter is itself a
 # Bash permission pattern and so inherits the same blind spot this hook exists
@@ -97,8 +98,11 @@ is_safe_global() {
 # hiding the git after it. Applied to the words before a segment's command
 # word, to the arguments after a wrapper up to the first git word, and to git's
 # global options -- never past the git subcommand, so never a git commit
-# message. Backslash escapes are not interpreted; a word this reads differently
-# from the shell must only ever make the hook refuse more.
+# message. Outside quotes a backslash escapes the next byte, so `a\ b` is one
+# word as the shell reads it -- read as two, `git -C a\ b -c x status` took `b`
+# for the subcommand. Inside double quotes `\"` is not interpreted, which ends
+# the run early and leaves its quote unterminated: refused, never passed. A word
+# this reads differently from the shell must only ever make the hook refuse more.
 #
 # Returns 1 when $REST is empty, 2 when the word cannot be read: an unterminated
 # quote, or more than MAX_WORD_RUNS runs, since each run copies the rest of the
@@ -122,8 +126,12 @@ next_token() {
         TOKEN+="${body%%"$q"*}"
         REST="${body#*"$q"}"
         ;;
+      \\*)
+        TOKEN+="${REST:1:1}"
+        REST="${REST:2}"
+        ;;
       *)
-        chunk="${REST%%[[:space:]\'\"]*}"
+        chunk="${REST%%[[:space:]\'\"\\]*}"
         TOKEN+="$chunk"
         REST="${REST#"$chunk"}"
         ;;
@@ -327,11 +335,12 @@ fi
 # The loop below costs ~0.2ms a segment and more as they multiply (100000 took
 # 56s), and a hook past its timeout lets the call through. So only segments
 # where some token could read as the git command word reach it -- `git`,
-# `/usr/bin/git`, `"git"`, each bounded by whitespace, a quote or an end -- and
+# `/usr/bin/git`, `"git"`, `\git`, bounded by whitespace, a quote or an end. Any
+# spelling next_token reads as git must match here, or it is never inspected. And
 # past MAX_CANDIDATES the command is refused unread: a real one never has that
 # many git invocations, and refusing is the safe direction here.
 MAX_CANDIDATES=1000
-candidates=$(printf '%s\n' "$segments" | grep -E "(^|[[:space:]/\"'])git([\"'[:space:]]|\$)") && rc=0 || rc=$?
+candidates=$(printf '%s\n' "$segments" | grep -E "(^|[[:space:]/\"'\\\\])git([\"'[:space:]]|\$)") && rc=0 || rc=$?
 case $rc in
   0) ;;
   1) exit 0 ;; # no segment mentions git
