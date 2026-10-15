@@ -1,7 +1,6 @@
 ---
 name: review-test
 description: Review test code. Start from the module's public contract (inputs and outputs, error conditions, guaranteed side effects) and judge whether the tests hold as a specification of behavior, then report what to improve, ranked P1/P2/P3. Use when asked to review the tests themselves — "テストをレビューして", "テストのレビューをお願い", "test review", "review the tests" — or via the /review-test command. Use it proactively as well — once test files (`*.test.*`, `*.spec.*`, `*_test.*`, `*_spec.*`) have been written or changed, start without being asked. It runs in a fresh context that sees none of the conversation, so pass it a brief as the arguments: the test files and the module they test, what the change set out to do, the user's language, and on a later round what the last one fixed.
-effort: max
 allowed-tools: Read, Glob, Grep
 context: fork
 agent: general-purpose
