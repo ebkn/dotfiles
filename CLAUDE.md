@@ -112,6 +112,12 @@ local runs. Check zsh changes with `/bin/zsh -n` too. See
 Run it before pushing, and **after `git add`**: discovery is `git ls-files`, so an
 untracked script passes vacuously.
 
+**`bin/test` runs every suite, in parallel, and CI runs exactly that.** It
+discovers suites with `git ls-files` (so `git add` a new one first), leaves the
+tmux suites to `bin/test-in-docker` on a laptop, and skips what `bin/test.skip`
+names, each with its reason (`bin/test --list`). It needs GNU parallel, pinned
+in three places like tmux. See [bin/test.md](bin/test.md).
+
 **tmux suites run in Docker, never on the host: use `bin/test-in-docker`.**
 `TMUX_TMPDIR` does not isolate a suite inside a tmux pane, because tmux prefers
 the socket in `$TMUX`. A probe that forgot `unset TMUX` killed every local
@@ -161,5 +167,5 @@ rules suites in [root/README.md](root/README.md). The recurring lesson across
 all of them: **assert on the observable contract, not on the exit status**,
 because nearly every failure mode here is silent.
 
-- **GitHub Actions CI** (`.github/workflows/`) runs the platform setup scripts plus lint, the hook tests, the tmux script tests, the retrospective tests and the `zsh/` unit tests. `git-guard.test.sh` is **not** wired in yet. The workflow lists suites by hand, so **a new suite needs its own step** — for a `*.test.sh` / `*.test.zsh`, `bin/ci-enrollment.test.sh` fails CI until it has one, or is added to its `not_in_ci` list with the reason. A `*.test.ps1` goes in `windows-setup.yml` by hand, and nothing checks that it did.
+- **GitHub Actions CI** (`.github/workflows/`) runs the platform setup scripts, `bin/lint-shell`, and every `*.test.sh` / `*.test.zsh` through `bin/test`. **A new suite needs no workflow step**: tracked is enough. To leave one out, add it to `bin/test.skip` with the reason; `git-guard.test.sh` is there, **not** wired in yet. `bin/ci-enrollment.test.sh` checks that the workflow runs `bin/test` and that every suite is run or skipped with a reason. A `*.test.ps1` goes in `windows-setup.yml` by hand, and nothing checks that it did.
 - **Setup workflows must test the pushed branch.** They `actions/checkout`, symlink the checkout to `~/dotfiles`, and run the bootstrap with `DOTFILES_SKIP_UPDATE=1` so it does not self-update over the branch under test. The earlier form — `curl .../main/bin/init/bootstrap-*.sh | sh`, letting the bootstrap `git clone` the default branch — meant every job validated `main` regardless of the pushed ref, so the checks could not fail on unmerged code. **Do not reintroduce a hardcoded `/main/` raw URL or drop the skip flag.**
