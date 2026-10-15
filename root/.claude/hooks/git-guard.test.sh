@@ -415,6 +415,10 @@ check PASS "echo '\$(git -c a=b status)'"
   # after it as data; a `case` inside a quoted substitution is unsplittable.
   check DENY 'echo "$(case x in x) git -c a=b status;; esac)"'
   check DENY 'echo $(case x in x) git -c a=b status;; esac)'
+  # `case` is recognised after a separator too, not only first in the
+  # substitution.
+  check DENY 'echo "$(true;case x in x) git -c a=b status;; esac)"'
+  check DENY 'echo "$(true&&case x in x) git -c a=b status;; esac)"'
 }
 # Unsplittable with no word that could be git: nothing to inspect, so it passes.
 check PASS "echo \"it's"
