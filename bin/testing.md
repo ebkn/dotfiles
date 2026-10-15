@@ -22,6 +22,8 @@ Measured on macOS (Apple silicon, 2026-10), 200 calls each:
 | `jq -n 1` | 2.5 ms |
 | `git --version` | 3.1 ms |
 | `git init` + one commit | 25 ms |
+| **first run of a newly created executable** (a stub a case just wrote) | **70–130 ms** |
+| the same file run again, or through a hard or symbolic link to it | ~2 ms |
 
 So **the run time of a suite is roughly (processes spawned × 2 ms) + time spent
 waiting.** The number of cases is not the variable: `pr-state-watch.test.sh`
@@ -30,6 +32,13 @@ checks 156 things in 7 s and spawns about 8 processes per check, while
 2 and spawns about 133 per check (22,563 `jq`/`git`/`grep`/`sed`/`awk`/`cat`
 calls, counted with shims).
 Linux forks are roughly twice as cheap, so CI hides what macOS shows.
+
+The first-run row is macOS checking an executable it has not seen, and it is
+the largest per-process cost here (measured 2026-10 with a two-line script:
+first run 0.07–0.13 s, every later one ~0). A copy is a new file and pays
+again. Linux has no such check, so a suite that writes stubs per case is
+slow on a Mac only: `lint-shell.test.sh` wrote 4 per case and took 12.7 s
+on a Mac against 1.7 s on CI (rule 3).
 
 The other cost is waiting, and the expensive waits were not in the tests: of
 `pr-review-dispatch.test.sh`'s 111 s on CI, 105 s was 21 deliveries each idling
@@ -107,6 +116,13 @@ A case needs its own directory, not its own build. Build the fixture (a git
 repo, a fake `$HOME`, a scaffolded eval) once per file, then `cp -R` it into
 each case's directory: 20 ms against 116 ms for one review-design scaffold.
 Isolation is unchanged, because every case still mutates only its copy.
+
+**A stub is a fixture too, and an expensive one on a Mac** (the first-run row
+above): write each stub once, then `ln -s` it into each case's directory,
+and give it the case's settings as files beside the link, found through
+`$0` -- `${0%/*}` is the case's directory, not the template's.
+`lint-shell.test.sh` is the model (12.7 → 2.8 s). Not `cp`: a copy is a new
+file and is checked again.
 
 ### 4. Spend processes in the loop on purpose
 
@@ -261,6 +277,7 @@ Estimates are from the measurements above, not yet confirmed by doing the work.
 | 4 | **Done:** `bin/test-in-docker` through `bin/test`, so the tmux suites run in parallel too (container ~105 s → ~58 s); `bin/test-lib.sh` (rules 5, 6) exists, and its `next_second` replaced the three copies (track-session, restore-tabs, agent-state). Left: suites move to its assertions and `wait_until` when next touched | — |
 | 5 | **Done.** Rule 2 for `tmux-track-session` (`TMUX_TRACK_SESSION_POLL`); rule 1 for the fixed sleeps in `tmux-track-session`, `tmux-agents`, `ssh-keepalive`, `tmux-restore-tabs`, `tmux-pane-titles`, `agent-state`, and the 0.25/0.2 s steps of polls that run to a real wait cut to 0.05 s (those right after a blocking `run-shell`, which never sleep on a green run, left as they were). Left on purpose: `tmux-agents`' 2 s list refresh (`REFRESH`, readonly; a shorter one would reload under the cursor cases), the fixed windows rule 1 lists | in the container: track-session 23 → 11 s, tmux-agents 43 → 33 s, ssh-keepalive 12 → 4.5 s (host 11.4 → 4.3 s), pane-titles 5.3 → 2.7 s, agent-state 47 → 42 s, restore-tabs 3.1 → 2.6 s |
 | 6 | **Done.** `bin/test-in-docker` on the host's architecture by default (`TEST_DOCKER_PLATFORM` for the runner's) | tmux suites on a Mac ~60 s → ~8 s |
+| 7 | **Done for lint-shell.** Its shebang check with builtins instead of `head \| grep` per tracked file (the real lint 3.0 → 1.8 s), and its test's stubs written once and linked (rule 3). **Left:** other suites whose Mac time is far above CI's are the candidates for the same stub cost -- `init-project` evals (10 s against 2.3 s), `default.rules` (3.8 s against under 1 s), `skill-eval` (5.5 s against 3.9 s); unmeasured | lint-shell.test 12.7 → 2.8 s on a Mac |
 
 Existing suites move to the helper fragment when they are next touched, not in
 one sweep: the rewrite would be large and the gain is consistency, not speed.
