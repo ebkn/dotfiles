@@ -204,9 +204,13 @@ helper that runs between scenarios needs the `skipping` guard, and any variable
 top-level code reads after a scenario must be initialised, because a shard walks
 the scenarios it skips.
 
-The tmux suites run the same way inside the `bin/test-in-docker` container.
-Their sockets look isolated (`$$`-suffixed or a private `TMUX_TMPDIR`), but that
-is unverified until they have been run concurrently a few times.
+The tmux suites run the same way inside the `bin/test-in-docker` container,
+through `bin/test`: ~58 s wall for the 11 of them, against ~105 s one at a
+time, bounded by agent-state (~48 s under amd64 emulation on a Mac). Their
+sockets are `$$`-suffixed or a private `TMUX_TMPDIR`, and 7 of 8 concurrent
+runs were green. The eighth failed `tmux-pane-titles`' "harness: the caller is
+not the active window" once; 24 runs of that suite 8 at a time did not repeat
+it. Open.
 
 ### 8. CI runs `bin/test`: no suite hides another
 
@@ -234,7 +238,7 @@ Estimates are from the measurements above, not yet confirmed by doing the work.
 | 1 | **Done.** `pr-review-dispatch`: close the socket on EOF. **macOS `nc -N` is not Linux's `-N`** (it sets write-timeout probes), so the fix cannot be one flag. Behaviour change: regression test first | CI −105 s |
 | 2 | **Done for review-design.** Rule 3 (112 → 94 s), then sharding per rule 7's exception (→ 34 s on 18 cores). The estimate assumed fixtures dominated; a profile showed the grader is ~70 % of a scenario. review-test (12 s) and init-project (11 s) are left: under the 10 s line by little, and not yet worth the harness | macOS 112 s → 34 s |
 | 3 | **Done.** `bin/test` (rule 7) and CI running it (rule 8). Not the slowest suite, as estimated: the Mac stops scaling at ~4 jobs | host suites: macOS 142 s → ~55 s |
-| 4 | `bin/test-in-docker` through `bin/test`, so the tmux suites run in parallel too; then `bin/test-lib.sh` (rules 5, 6), taking the copies that exist today: `next_second` (track-session, restore-tabs, agent-state) and a `wait_until` whose deadline is in seconds, not loop count × step | — |
+| 4 | **Done:** `bin/test-in-docker` through `bin/test`, so the tmux suites run in parallel too (container ~105 s → ~58 s). Next: `bin/test-lib.sh` (rules 5, 6), taking the copies that exist today: `next_second` (track-session, restore-tabs, agent-state) and a `wait_until` whose deadline is in seconds, not loop count × step | — |
 | 5 | **Done.** Rule 2 for `tmux-track-session` (`TMUX_TRACK_SESSION_POLL`); rule 1 for the fixed sleeps in `tmux-track-session`, `tmux-agents`, `ssh-keepalive`, `tmux-restore-tabs`, `tmux-pane-titles`, `agent-state`, and the 0.25/0.2 s steps of polls that run to a real wait cut to 0.05 s (those right after a blocking `run-shell`, which never sleep on a green run, left as they were). Left on purpose: `tmux-agents`' 2 s list refresh (`REFRESH`, readonly; a shorter one would reload under the cursor cases), the fixed windows rule 1 lists | in the container: track-session 23 → 11 s, tmux-agents 43 → 33 s, ssh-keepalive 12 → 4.5 s (host 11.4 → 4.3 s), pane-titles 5.3 → 2.7 s, agent-state 47 → 42 s, restore-tabs 3.1 → 2.6 s |
 
 Existing suites move to the helper fragment when they are next touched, not in
