@@ -31,6 +31,14 @@
 # widen anything; the existing allow/deny/ask rules keep deciding every command
 # it stays silent on.
 #
+# That is also why its parser is correct in one direction only, and must not be
+# reused by a hook that allows. Every ambiguity is resolved toward "inspect it"
+# or "refuse it": after a wrapper the first git word is taken as the command,
+# an unsplittable command is split at every operator, a quoted newline becomes a
+# space, and an input too large or unreadable is refused. A hook that approved
+# whatever this parser calls a clean `git -C . status` would approve
+# `timeout 5 rm -rf ~ git -C . status`.
+#
 # What "a git invocation" means here is bounded by what an allow rule could
 # approve, since the threat is a `git ...` rule waving the call through. So the
 # wrappers stripped are the ones Claude Code itself strips before matching, and
@@ -86,9 +94,11 @@ is_safe_global() {
 # removed. A word is unquoted runs and quoted runs up to unquoted whitespace, so
 # `-C "/path/with space"` and `FOO="a b"` are each one word -- reading only a
 # leading quote split the latter in two and took `b"` for the command word,
-# hiding the git after it. Only ever applied to the region before the
-# subcommand, which is options, paths and assignments -- never a commit message
-# -- so this does not need to be a full shell parser.
+# hiding the git after it. Applied to the words before a segment's command
+# word, to the arguments after a wrapper up to the first git word, and to git's
+# global options -- never past the git subcommand, so never a git commit
+# message. Backslash escapes are not interpreted; a word this reads differently
+# from the shell must only ever make the hook refuse more.
 #
 # Returns 1 when $REST is empty, 2 when the word cannot be read: an unterminated
 # quote, or more than MAX_WORD_RUNS runs, since each run copies the rest of the
@@ -156,24 +166,23 @@ scan_globals() {
   done
 }
 
-# Strip the wrappers Claude Code itself strips before matching Bash rules, so
-# `timeout 5 git -c ... status` is inspected rather than skipped. On success
-# $CMD_WORD holds the segment's command word and $REST its arguments.
-# See: permissions.md (Wrappers).
-CMD_WORD=""
+# Find the word of a segment that git-guard treats as its command, skipping
+# assignments and keywords, and seeing through the wrappers Claude Code itself
+# strips before matching Bash rules, so `timeout 5 git -c ... status` is
+# inspected rather than skipped. See: permissions.md (Wrappers).
 #
-# Returns 1 when the segment has no command word, 2 when a word before it cannot
-# be read -- which the caller refuses, because skipping it would pass whatever
-# git follows unread.
+# On success $CMD_WORD holds that word and $REST the words after it. Without a
+# wrapper the word is the segment's command word; after one it is the first git
+# word, even where the shell would read it as an argument -- deliberately, see
+# below. Returns 1 when there is no such word (no command word, or no git word
+# after a wrapper), 2 when a word before it cannot be read -- which the caller
+# refuses, because skipping it would pass whatever git follows unread.
+CMD_WORD=""
 strip_wrappers() {
   local rc
   while true; do
-    local saved_rest=$REST
     next_token && rc=0 || rc=$?
-    [[ $rc -eq 0 ]] || {
-      REST=$saved_rest
-      return $rc
-    }
+    [[ $rc -eq 0 ]] || return $rc
 
     case "$TOKEN" in
       # Leading environment assignment.
@@ -246,8 +255,14 @@ strip_wrappers() {
 # costs more than a constant. Every byte compared is ASCII, and no byte of a
 # multi-byte UTF-8 sequence is, so walking bytes splits exactly where walking
 # characters would. On exit 1 the partial output is discarded by the caller.
+#
+# SEPARATORS is shared with the fallback below: an operator only one of them
+# splits at would hide the git after it on that path. The multi-byte operators
+# (`&&`, `||`, `|&`) need no entry of their own, since splitting at each byte
+# only adds empty segments, which are skipped.
+SEPARATORS=';&|()`'
 split_segments() {
-  printf '%s' "$1" | LC_ALL=C awk '
+  printf '%s' "$1" | LC_ALL=C awk -v seps="$SEPARATORS" '
     {
       L[NR] = $0
       # Index every line that could terminate a heredoc, so finding one is a
@@ -285,7 +300,7 @@ split_segments() {
             if (t != "" && length(t) <= 64) tags[++np] = t
             c = "<<"; i++
           }
-          else if (index(";&|()`", c)) c = "\n"
+          else if (index(seps, c)) c = "\n"
           printf "%s", c
         }
         if (joined) continue
@@ -306,7 +321,7 @@ split_segments() {
 }
 
 if ! segments=$(split_segments "$COMMAND"); then
-  segments=$(printf '%s' "$COMMAND" | sed -E 's/(\|\||&&|\|&|[;|&()`])/\n/g')
+  segments=$(printf '%s' "$COMMAND" | sed "s/[${SEPARATORS}]/\n/g")
 fi
 
 # The loop below costs ~0.2ms a segment and more as they multiply (100000 took
