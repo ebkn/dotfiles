@@ -231,6 +231,10 @@ check DENY "echo '>'| git -c a=b status"
 # word could be git; there is no second, cruder splitter to get wrong.
 check DENY 'echo "x; git >&2 -c a=b status'
 check DENY 'echo "x; git status'
+# On the raw text of an unsplittable command a separator glued to the word
+# still bounds it.
+check DENY 'echo "x;git -c a=b status'
+check DENY 'echo "x(git -c a=b status'
 # A redirection glued to the git word still leaves it the git word.
 check DENY 'git>/dev/null -C . -c a=b status'
 check DENY 'git&>/dev/null -C . -c a=b status'

@@ -147,8 +147,9 @@ next_token() {
     if ((WORD_NEEDS_TARGET)); then
       word=$TOKEN expands=$TOKEN_EXPANDS varies=$TOKEN_VARIES
       read_word && rc=0 || rc=$?
-      # An operator with no target is unreadable, not the end of the command:
-      # the fallback split leaves `git >` of `git >&2 -c x status` that way.
+      # An operator with no target is unreadable, not the end of the command.
+      # The shell rejects it as a syntax error, but read as an end it would
+      # leave the region clean, and a misreading must only ever refuse more.
       [[ $rc -eq 0 && $WORD_REDIRECTS -eq 0 ]] || return 2
       TOKEN=$word TOKEN_EXPANDS=$expands TOKEN_VARIES=$varies WORD_REDIRECTS=1
     fi
@@ -353,13 +354,16 @@ strip_wrappers() {
 # substitution is walked as commands, and its closing `)` or backtick pops them
 # back. That is what lets `git commit -m "$(cat <<'EOF' ...)"` be split at all.
 #
-# Returns 1 when the quoting or substitutions do not balance. There is no
-# cruder second splitter for that case -- the split-everywhere sed that used to
-# be one was a bypass twice (`&>`, `a\;b`) -- so the caller refuses the command
-# whole if any word in it could be git.
+# Returns 1 when the command is unsplittable: its quoting or substitutions do
+# not balance, a quoted substitution holds a `case` (whose pattern `)` this does
+# not model), or substitutions nest past MAX_SUBST_DEPTH. There is no cruder
+# second splitter for that case -- the split-everywhere sed that used to be one
+# was a bypass twice (`&>`, `a\;b`) -- so the caller refuses the command whole
+# if any word in it could be git.
 #
 # The walk is awk, byte-wise under LC_ALL=C, over each line split once into an
-# array of bytes, printing as it goes. All of that is about the 5s timeout, past
+# array of bytes. Outside a substitution it prints as it goes; inside one it
+# holds the pieces until it closes (see emit). All of that is about the 5s timeout, past
 # which a hook lets the call through: anything that re-counts from the start of
 # the string per byte is quadratic, and three did -- a bash loop over `${s:i:1}`
 # (200k bytes: 25s), `out = out c` in awk (1.6s), and even awk's own
@@ -369,10 +373,14 @@ strip_wrappers() {
 # multi-byte UTF-8 sequence is, so walking bytes splits exactly where walking
 # characters would. On exit 1 the partial output is discarded by the caller.
 #
-# The multi-byte operators (`&&`, `||`, `|&`) need no entry in SEPARATORS, since
-# splitting at each byte only adds empty segments, which are skipped. `(`, `)`
-# and the backtick are handled before it, for the substitution stack.
-SEPARATORS=';&|'
+# SEPARATORS is every byte the walk splits at, and also the operator bytes that
+# bound a git word in GIT_WORD_RE below, which is built from it: a separator the
+# regex did not know would let `<it>git -c ...` in an unsplittable command go
+# unmatched, and pass. `(`, `)` and the backtick are tested before the generic
+# separator check, for the substitution stack. The multi-byte operators (`&&`,
+# `||`, `|&`) need no entry, since splitting at each byte only adds empty
+# segments, which are skipped.
+SEPARATORS=';&|()`'
 # How deep substitutions inside double quotes may nest before the command is
 # unsplittable. Each piece is copied once on the way out, so depth costs no
 # more than length; the cap bounds the stack, and no real command nests near it.
@@ -510,7 +518,7 @@ split_segments() {
 # Past MAX_CANDIDATES the command is refused unread: a real one never has that
 # many git invocations, and refusing is the safe direction here.
 is_git_word() { [[ "$1" == git || "$1" == */git ]]; }
-GIT_WORD_RE="(^|[[:space:]/\"'\\\\;&|()\`])git([\"'[:space:];&|()\`<>]|\$)"
+GIT_WORD_RE="(^|[[:space:]/\"'\\\\${SEPARATORS}])git([\"'[:space:]${SEPARATORS}<>]|\$)"
 MAX_CANDIDATES=1000
 
 # A here-string, not `printf | grep -q`: under pipefail grep -q exiting on its
@@ -519,7 +527,7 @@ MAX_CANDIDATES=1000
 if ! segments=$(split_segments "$COMMAND"); then
   grep -qE "$GIT_WORD_RE" <<<"$COMMAND" && rc=0 || rc=$?
   [[ $rc -ne 1 ]] || exit 0
-  deny "git-guard: could not split the command into the commands it runs (its quoting or substitutions do not balance), and a word in it could be git, so it was refused rather than guessed at."
+  deny "git-guard: could not split the command into the commands it runs (quoting or substitutions that do not balance, a case inside a quoted substitution, or substitutions nested past ${MAX_SUBST_DEPTH}), and a word in it could be git, so it was refused rather than guessed at. Run the git part as a command of its own."
 fi
 
 candidates=$(printf '%s\n' "$segments" | grep -E "$GIT_WORD_RE") && rc=0 || rc=$?
