@@ -373,8 +373,12 @@ strip_wrappers() {
 # splitting at each byte only adds empty segments, which are skipped. `(`, `)`
 # and the backtick are handled before it, for the substitution stack.
 SEPARATORS=';&|'
+# How deep substitutions inside double quotes may nest before the command is
+# unsplittable. Each piece is copied once on the way out, so depth costs no
+# more than length; the cap bounds the stack, and no real command nests near it.
+MAX_SUBST_DEPTH=16
 split_segments() {
-  printf '%s' "$1" | LC_ALL=C awk -v seps="$SEPARATORS" '
+  printf '%s' "$1" | LC_ALL=C awk -v seps="$SEPARATORS" -v max_depth="$MAX_SUBST_DEPTH" '
     {
       L[NR] = $0
       # Index every line that could terminate a heredoc, so finding one is a
@@ -387,17 +391,20 @@ split_segments() {
     # Output goes through emit. Outside any substitution it is printed at once;
     # inside one it is held, one array cell per piece, and each substitution
     # is appended to F as lines of its own when it closes, printed after the
-    # rest. The outer word keeps a placeholder `_` in its place, so
-    # `git -C "$(pwd)" -c x status` still reads as `git -C "_" -c x status`.
-    # Arrays, not string concatenation, keep it linear.
+    # rest. The outer word keeps a placeholder `$_` in its place, so
+    # `git -C "$(pwd)" -c x status` still reads as `git -C "$_" -c x status`.
+    # The `$` matters: the reader marks the word as varying, as the output of
+    # a substitution does, so `git "$(echo --git-dir=x)" status` is refused
+    # where git reads an option; a bare `_` was read as a subcommand and
+    # passed it. Arrays, not string concatenation, keep it linear.
     function emit(s) {
       if (s == "") return
       if (sp == 0) printf "%s", s
       else B[sp, ++bl[sp]] = s
     }
     function push(kind) {
-      if (sp >= 16) exit 1
-      emit("_")
+      if (sp >= max_depth) exit 1
+      emit("$_")
       sq[++sp] = q; sk[sp] = kind; sd[sp] = pd; bl[sp] = 0; q = ""
     }
     function pop(   k) {

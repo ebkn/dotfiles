@@ -411,6 +411,12 @@ check PASS "echo '\$(git -c a=b status)'"
   check PASS 'git -C "$(pwd)" status'
   check DENY 'git -C "$(pwd)" -c a=b status'
   check DENY 'git -C "`pwd`" -c a=b status'
+  # The placeholder still varies, like the substitution it stands for: where
+  # git reads an option it is refused, since the shell passes whatever the
+  # substitution printed -- `--config-env=...` as one word.
+  check DENY 'git -C . "$(echo --config-env=core.fsmonitor=X)" status'
+  check DENY 'git "`echo --git-dir=/x`" status'
+  check PASS 'git commit -m "$(echo subject)"'
   # A case pattern's `)` would close the substitution early, leaving the git
   # after it as data; a `case` inside a quoted substitution is unsplittable.
   check DENY 'echo "$(case x in x) git -c a=b status;; esac)"'
