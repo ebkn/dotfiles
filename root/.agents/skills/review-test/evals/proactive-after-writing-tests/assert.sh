@@ -35,11 +35,18 @@ check_llm "reaches a conclusion about P1 and P2" \
 check "committed the result" \
   test "$(git rev-list --count eval-base..HEAD)" -ge 1
 
-# --- the boundary: the skill reads, the caller writes ---
-# Writing is the point of this case, so Write and Edit say nothing here. git
-# still does: the skill body forbids it outright, and pre-approving it in the
-# frontmatter is precisely the host that body is written for.
-check "ran no git before the review was reported" \
-  review_test_ran_no_git_before "$report_at"
+# --- when it starts: at the breakpoint ("## When to start") ---
+# Once per unit of work, after its commits, as review-design does. A review
+# started before the commit is the per-batch trigger this replaced, which
+# re-ran a forked review after every round of test edits.
+# `check` calls it by name, which shellcheck cannot see.
+# shellcheck disable=SC2329
+started_after_the_commit() {
+  local first_skill first_commit
+  first_skill="$(transcript_first_tool_index Skill)"
+  first_commit="$(transcript_first_command_index '(^|[;&|(]|[[:space:]])git([[:space:]]+(-C|-c)[[:space:]]+[^[:space:]]+)*[[:space:]]+commit([[:space:]]|$)')"
+  [ -n "$first_skill" ] && [ -n "$first_commit" ] && [ "$first_skill" -gt "$first_commit" ]
+}
+check "started it at the breakpoint: after the work was committed" started_after_the_commit
 
 skill_eval_finish

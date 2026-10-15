@@ -1,6 +1,6 @@
 ---
 name: review-test
-description: Review test code. Start from the module's public contract (inputs and outputs, error conditions, guaranteed side effects) and judge whether the tests hold as a specification of behavior, then report what to improve, ranked P1/P2/P3. Use when asked to review the tests themselves — "テストをレビューして", "テストのレビューをお願い", "test review", "review the tests" — or via the /review-test command. Use it proactively as well — once test files (`*.test.*`, `*.spec.*`, `*_test.*`, `*_spec.*`) have been written or changed, start without being asked. It runs in a fresh context that sees none of the conversation, so pass it a brief as the arguments: the test files and the module they test, what the change set out to do, the user's language, and on a later round what the last one fixed.
+description: Review test code. Start from the module's public contract (inputs and outputs, error conditions, guaranteed side effects) and judge whether the tests hold as a specification of behavior, then report what to improve, ranked P1/P2/P3. Use when asked to review the tests themselves — "テストをレビューして", "テストのレビューをお願い", "test review", "review the tests" — or via the /review-test command. Use it proactively as well, without being asked, at an implementation breakpoint: once a unit of work — committed, tests passing — added or changed test files (`*.test.*`, `*.spec.*`, `*_test.*`, `*_spec.*`). Once per unit, not after every batch of test edits. It runs in a fresh context that sees none of the conversation, so pass it a brief as the arguments: the test files and the module they test, the commits of the unit, what the change set out to do, the user's language, and on a later round what the last one fixed.
 allowed-tools: Read, Glob, Grep
 context: fork
 agent: general-purpose
@@ -29,13 +29,16 @@ Take the targets from the brief. If it names none, ask for them in your report r
 
 ## When to start
 
-Beyond an explicit request, **start once a batch of test-code changes is finished, even if no one asked**. Tests are the specification of behavior, and the moment right after writing them is when they are cheapest to fix.
+Beyond an explicit request, **start at an implementation breakpoint, even if no one asked.** A breakpoint is the end of a unit of work — a plan step, a task, a request — with its tests passing and its commits made: the moment before reporting it back to the user, or before starting the next unit. Tests are the specification of behavior, and the end of the unit that wrote them is when they are still cheap to fix.
 
-- **Start** when additions or changes to test files reach a natural stopping point — `*.test.ts`, `*.spec.ts`, `*_test.go`, `*_spec.rb`, `*.test.sh`, `*.test.zsh`, whatever the language. Run before the `commit` skill commits them.
-- **Don't start** when:
-  - the user has said a review is unnecessary, or to commit as is
-  - the change never reached test code (implementation only, configuration only)
-  - nothing the tests assert could have changed — a typo, formatting, reordered imports
+- **Start** at a breakpoint when the unit added or changed test files — `*.test.ts`, `*.spec.ts`, `*_test.go`, `*_spec.rb`, `*.test.sh`, `*.test.zsh`, whatever the language. Review the test files the unit's commits touched.
+- **Don't start**:
+  - after every batch of test edits or every commit — one unit of work often spans several, and each forked run re-reads the code from scratch
+  - in the middle of a unit: tests failing, the work half done
+  - when the user has said a review is unnecessary
+  - when the unit never reached test code (implementation only, configuration only)
+  - when nothing the tests assert could have changed — a typo, formatting, reordered imports
+  - for the commits this skill's own follow-up made
 
 Do not leave this condition to the caller's configuration alone (a `CLAUDE.md` or equivalent). Hosts that read nothing but `name` and `description` still have to trigger, and so does any repository whose configuration this skill never sees. That is why the condition lives here.
 
@@ -47,7 +50,7 @@ This skill changes no files while it runs, per the boundary above. Once it repor
 2. **Review again** with this skill, in a fresh run, with a brief that says what this round fixed. A fix can break another part of the test or introduce a new P1, and this is where that surfaces.
 3. **Repeat 1–2 until a round reports no P1 and no P2.** There is no round cap.
 4. **Never auto-fix P3.** Report it; acting on it is the user's call.
-6. **Commit the fixes once the loop ends**, at the granularity the caller's commit workflow would use anyway — a fix that changes what a test asserts and one that only reorganizes it are separate commits. Not inside this skill: it runs no git at all, per the boundary above. This is the caller's step, and it is here because a review whose fixes sit uncommitted is indistinguishable from one that was never acted on.
+5. **Commit the fixes once the loop ends, on their own, after the commits of the unit** — never amended or folded into them: the review is what justifies the fix, and folding it in hides that. Use the granularity the caller's commit workflow would use anyway — a fix that changes what a test asserts and one that only reorganizes it are separate commits. Not inside this skill: it runs no git at all, per the boundary above. This is the caller's step, and it is here because a review whose fixes sit uncommitted is indistinguishable from one that was never acted on.
 
 ## Procedure
 

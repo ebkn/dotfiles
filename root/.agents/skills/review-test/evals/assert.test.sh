@@ -346,11 +346,11 @@ proactive_run() {
   {
     rec_edit Write lib/quantity.test.sh
     rec_bash ./run-tests.sh
-    for ((i = 0; i < starts; i++)); do rec_skill; done
     eval "$1"
-    [ -z "$2" ] || rec_text "$2"
     rec_bash "git add lib/quantity.test.sh"
     rec_bash "git commit -m test"
+    for ((i = 0; i < starts; i++)); do rec_skill; done
+    [ -z "$2" ] || rec_text "$2"
   } >>"$art/transcript.jsonl"
   in_work "$3"
 }
@@ -398,10 +398,11 @@ grade "$proactive_final"
 expect_fail "proactive: a changed implementation is caught" \
   "left the implementation untouched"
 
-proactive_run 'rec_bash "git status"' "$well_report" "$proactive_write"
+# A review in the middle of the unit, before its commit: the per-batch trigger.
+proactive_run 'rec_skill' "$well_report" "$proactive_write" 0
 grade "$proactive_final"
-expect_fail "proactive: git before the report is caught" \
-  "ran no git before the review was reported"
+expect_fail "proactive: a review before the commit is caught" \
+  "started it at the breakpoint: after the work was committed"
 
 proactive_run '' "$well_report" "$proactive_write"
 grade "JUDGE_FAIL"
