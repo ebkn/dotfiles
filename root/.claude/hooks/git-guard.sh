@@ -43,8 +43,8 @@
 # approve, since the threat is a `git ...` rule waving the call through. So the
 # wrappers stripped are the ones Claude Code itself strips before matching, and
 # forms no `git ...` rule matches are left to the prompt: `env git`, `sudo git`,
-# `sh -c "git ..."`, `g''it`, `$(echo git) ...`. (`\git` is read as git, since
-# the word reader honours backslash escapes, and so is inspected all the same.)
+# `sh -c "git ..."`, `g''it`, `$(echo git) ...`. Which spellings of the git word
+# are inspected is decided in one place, beside the prefilter below.
 #
 # Registered without an `if:` filter, unlike curl-guard. A filter is itself a
 # Bash permission pattern and so inherits the same blind spot this hook exists
@@ -334,9 +334,12 @@ fi
 
 # The loop below costs ~0.2ms a segment and more as they multiply (100000 took
 # 56s), and a hook past its timeout lets the call through. So only segments
-# where some token could read as the git command word reach it -- `git`,
-# `/usr/bin/git`, `"git"`, `\git`, bounded by whitespace, a quote or an end. Any
-# spelling next_token reads as git must match here, or it is never inspected. And
+# where some token could read as the git command word reach it, and this regex
+# is where the inspected spellings are decided: `git`, `/usr/bin/git`, `"git"`,
+# `'git'`, `\git`, bounded by whitespace, a quote or an end. A spelling missing
+# here is never inspected, however next_token would read it -- which is
+# deliberate for those no `git ...` rule matches (`g''it`, `"g"it`, `g\it`), and
+# a bypass for any that a rule does. And
 # past MAX_CANDIDATES the command is refused unread: a real one never has that
 # many git invocations, and refusing is the safe direction here.
 MAX_CANDIDATES=1000
