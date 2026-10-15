@@ -186,26 +186,51 @@ check PASS "git -C 'a\\b' status"
 check DENY 'FOO="a\"b" git status'
 check DENY "FOO=\$'a' git status"
 
-echo "-- must DENY: a word the shell turns into other argv before the subcommand --"
-# The shell removes a redirection from argv and expands braces and globs, so a
-# word that looked like the subcommand can leave `-c` as git's next argument.
+echo "-- a redirection is removed from argv, as the shell does --"
+# Read as words, `2>/dev/null` took the subcommand's place and left `-c` unread,
+# and a leading `>/dev/null` took the command word's.
 check DENY 'git -C . 2>/dev/null -c a=b status'
+check DENY 'git -C . > /dev/null -c a=b status'
 check DENY '>/dev/null git -C . -c a=b status'
+check DENY 'timeout 5 2>/dev/null git -c a=b status'
+check PASS 'git -C . 2>/dev/null status'
+check PASS 'git status>/dev/null'
+check PASS 'git status >/dev/null 2>&1'
+check PASS 'command -v git >/dev/null 2>&1'
+# Only an unquoted digit run is a file descriptor: `"2">x` passes "2" to git, so
+# here it is the -C path and `-c` is git's next option.
+check DENY 'git -C "2">x -c a=b status'
+# More than one redirection in a word, or more than a handful in a row, is
+# beyond what this models: refused.
+check DENY 'git -C . >a>b status'
+check DENY "git -C . $(printf '>a %.0s' $(seq 20))status" "20 redirections before the subcommand"
+
+echo "-- must DENY: an expansion where git reads its options --"
+# The shell expands braces, globs and unquoted parameters, so the word read here
+# is not what git receives -- each of these left `-c` as git's next argument.
 check DENY 'git -C {.,-c} a=b status'
 check DENY 'git -C . {-c,a=b} status'
 check DENY 'git -C . -* status'
 check DENY 'git -C . ?c a=b status'
 check DENY 'git -C . [-]c a=b status'
+# shellcheck disable=SC2016 # literal command text under test
+check DENY 'git -C $D status'
 check PASS 'git -C "{dir}" status'
-check PASS 'git status >/dev/null 2>&1'
+# shellcheck disable=SC2016 # literal command text under test
+check PASS 'git -C "$D" status'
 check PASS "git log --format='%h {x}' -- '*.sh'"
-# The same words before the git word, read by the assignment and wrapper loops.
-check DENY 'timeout 5 2>/dev/null git -c a=b status'
+# `{}` is not a brace expansion, so xargs' placeholder is read as written.
+check PASS 'xargs -I{} git -C {} status'
+# Before the git word an expansion is no git word, and nothing is refused for
+# it: an assignment is not expanded at all, and a command word like `[` is not
+# git.
 check DENY 'FOO=* git -c a=b status'
-check DENY 'FOO={a,b} git status'
-# Over-refusal accepted in exchange: a harmless redirection before the
-# subcommand. Written after the subcommand, as usual, it is never read.
-check DENY 'git -C . 2>/dev/null status'
+check PASS 'FOO={a,b} git status'
+check PASS '[ -x /usr/bin/git ]'
+check PASS '{ git status; }'
+# Over-refusal accepted in exchange: after a wrapper, an argument named git
+# followed by a glob (the same cost as `timeout 5 echo git -c x` above).
+check DENY 'timeout 5 rg git *.md'
 check PASS 'git -C /tmp commit -m "fix: something"'
 check PASS 'git -C /tmp'
 check PASS 'git -C /tmp status --short'
@@ -378,8 +403,8 @@ check_reason 'git -c a=b status' "refused '-c'"
 check_reason 'git -C' "-C with no path" "unreadable"
 check_reason 'git -C "a\"b" status' "an unreadable word after -C" "no path"
 check_reason 'git -C {.,-c} a=b status' "an unreadable word after -C" "no path"
-check_reason 'git -C . 2>/dev/null -c a=b status' "an unreadable word before the subcommand" "quoting"
-check_reason 'FOO=* git -c a=b status' "could not read the words before the command"
+check_reason 'git -C . {-c,a=b} status' "an unreadable word before the subcommand" "refused '-c'"
+check_reason 'FOO="x git -c a=b status' "could not read the words before the command" "refused '"
 
 echo "-- must finish well inside the 5s hook timeout --"
 # A timed-out hook does not block the call, so slowness is a bypass, not a

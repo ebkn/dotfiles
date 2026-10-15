@@ -107,26 +107,63 @@ is_safe_global() {
 # option. A word this reads differently from the shell must only ever make the
 # hook refuse more.
 #
-# An unquoted redirection, brace or glob character is refused for the same
-# reason: the shell removes a redirection from argv and expands the others, so
-# the word read here is not the argument git receives. Read as words,
-# `git -C . 2>/dev/null -c x status` and `git -C . {-c,x} status` each took a
-# word for the subcommand and left `-c` uninspected.
+# A redirection is removed from argv, as the shell removes it: read as a word,
+# `git -C . 2>/dev/null -c x status` took `2>/dev/null` for the subcommand and
+# left `-c` unread, and `>/dev/null git ...` hid the command word. Only an
+# unquoted digit run before the operator is a file descriptor; `"2">x` passes
+# "2". The target is the rest of the word, or the next word when the operator
+# ends one. More than one redirection in a word, or MAX_REDIRECTS in a row, is
+# refused rather than modelled.
 #
-# Returns 1 when $REST is empty, 2 when the word cannot be read: an unterminated
-# quote, quoting this does not model (a backslash inside double quotes, `$'`),
-# an unquoted character of UNMODELLED, or more than MAX_WORD_RUNS runs, since
-# each run copies the rest of the string and a word built to have thousands
-# would outlast the timeout.
+# An unquoted brace, glob or `$` is an expansion: the shell turns the word into
+# other argv, so it is not what git receives. TOKEN_EXPANDS reports it, and the
+# caller decides -- scan_globals refuses it, since `git -C . {-c,x} status`
+# expands to an option; before the git word it only means "not a git word".
+# `{}` alone is no brace expansion, so xargs' placeholder is read as written.
+#
+# Returns 1 when $REST holds no further word, 2 when the word cannot be read: an
+# unterminated quote, quoting this does not model (a backslash inside double
+# quotes, `$'`), a redirection beyond the above, or more than MAX_WORD_RUNS runs,
+# since each run copies the rest of the string and a word built to have
+# thousands would outlast the timeout.
 REST=""
 TOKEN=""
+TOKEN_EXPANDS=0
 MAX_WORD_RUNS=64
-UNMODELLED='*[<>{*?[]*'
+MAX_REDIRECTS=16
+EXPANDING='*[{*?[$]*'
 next_token() {
+  local rc redirects=0 word expands
+  while true; do
+    read_word && rc=0 || rc=$?
+    [[ $rc -eq 0 ]] || return $rc
+    if ((WORD_NEEDS_TARGET)); then
+      word=$TOKEN expands=$TOKEN_EXPANDS
+      read_word && rc=0 || rc=$?
+      # No target: the operator ended the segment (`2>&1` is split at `&`).
+      [[ $rc -ne 1 ]] || return 1
+      [[ $rc -eq 0 && $WORD_REDIRECTS -eq 0 ]] || return 2
+      TOKEN=$word TOKEN_EXPANDS=$expands WORD_REDIRECTS=1
+    fi
+    if ((WORD_REDIRECTS)) && [[ -z "$TOKEN" ]]; then
+      redirects=$((redirects + 1))
+      ((redirects < MAX_REDIRECTS)) || return 2
+      continue
+    fi
+    return 0
+  done
+}
+
+# One word for next_token, which handles a redirection's separate target and
+# words that are only a redirection. Sets TOKEN, TOKEN_EXPANDS, WORD_REDIRECTS
+# (0 or 1) and WORD_NEEDS_TARGET.
+WORD_REDIRECTS=0
+WORD_NEEDS_TARGET=0
+read_word() {
   REST="${REST#"${REST%%[![:space:]]*}"}"
   [[ -n "$REST" ]] || return 1
-  local q body chunk runs=0
-  TOKEN=""
+  local q body chunk op runs=0 quoted=0 in_target=0
+  TOKEN="" TOKEN_EXPANDS=0 WORD_REDIRECTS=0 WORD_NEEDS_TARGET=0
   while [[ -n "$REST" && "$REST" != [[:space:]]* ]]; do
     runs=$((runs + 1))
     ((runs <= MAX_WORD_RUNS)) || return 2
@@ -137,20 +174,32 @@ next_token() {
         [[ "$body" == *"$q"* ]] || return 2
         chunk="${body%%"$q"*}"
         [[ "$q" == "'" || "$chunk" != *\\* ]] || return 2
-        TOKEN+="$chunk"
+        ((in_target)) || TOKEN+="$chunk"
+        quoted=1
         REST="${body#*"$q"}"
         ;;
       \\*)
-        TOKEN+="${REST:1:1}"
+        ((in_target)) || TOKEN+="${REST:1:1}"
+        quoted=1
         REST="${REST:2}"
         ;;
+      [\<\>]*)
+        ((in_target == 0)) || return 2
+        op="${REST%%[!<>&]*}"
+        REST="${REST#"$op"}"
+        in_target=1 WORD_REDIRECTS=1
+        if ((quoted == 0)) && [[ "$TOKEN" != *[!0-9]* ]]; then TOKEN=""; fi
+        [[ -n "$REST" && "$REST" != [[:space:]]* ]] || WORD_NEEDS_TARGET=1
+        ;;
       *)
-        chunk="${REST%%[[:space:]\'\"\\]*}"
+        chunk="${REST%%[[:space:]\'\"\\<>]*}"
         # `$'` opens ANSI-C quoting, whose own escapes this does not model.
         [[ "$chunk" != *\$ || "${REST:${#chunk}:1}" != "'" ]] || return 2
-        # shellcheck disable=SC2053 # $UNMODELLED is a pattern, deliberately unquoted
-        [[ "$chunk" != $UNMODELLED ]] || return 2
-        TOKEN+="$chunk"
+        if ((in_target == 0)); then
+          # shellcheck disable=SC2053 # $EXPANDING is a pattern, deliberately unquoted
+          if [[ "$chunk" == $EXPANDING && "$chunk" != "{}" ]]; then TOKEN_EXPANDS=1; fi
+          TOKEN+="$chunk"
+        fi
         REST="${REST#"$chunk"}"
         ;;
     esac
@@ -172,6 +221,10 @@ scan_globals() {
         return 1
         ;;
     esac
+    if ((TOKEN_EXPANDS)); then
+      BAD="an unreadable word before the subcommand"
+      return 1
+    fi
 
     # First non-option token is the subcommand: everything before it was clean.
     [[ "$TOKEN" == -* ]] || return 0
@@ -188,6 +241,10 @@ scan_globals() {
           return 1
           ;;
       esac
+      if ((TOKEN_EXPANDS)); then
+        BAD="an unreadable word after -C"
+        return 1
+      fi
       continue
     fi
 
