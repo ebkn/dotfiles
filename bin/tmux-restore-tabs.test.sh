@@ -26,6 +26,8 @@ set -u
 # A tmux suite: container or CI only (see bin/tmux-test-guard.sh).
 # shellcheck source=bin/tmux-test-guard.sh
 . "$(dirname "$0")/tmux-test-guard.sh" || exit 2
+# shellcheck source=bin/test-lib.sh
+. "$(dirname "$0")/test-lib.sh" || exit 2
 
 DIR=$(mktemp -d)
 export TMUX_TMPDIR="$DIR/tmux"
@@ -87,21 +89,10 @@ t() { # t <name> <expected> <actual>
 # uses. session_created has one-second resolution, hence the waits -- for the
 # clock to pass the given session's second, half a second on average, where a
 # fixed `sleep 1` always paid the whole one.
-# A failed read falls back to the full second rather than to no wait at all,
-# and the wait is bounded so a stamp from the future cannot hang the suite.
-next_second() { # next_second <session>
-  local created i=0
-  created=$(tmux display-message -p -t "=$1:" '#{session_created}')
-  case "$created" in
-    '' | *[!0-9]*)
-      sleep 1
-      return
-      ;;
-  esac
-  while [ "$(date +%s)" -le "$created" ] && [ $((i += 1)) -le 40 ]; do sleep 0.05; done
-}
+# next_second (bin/test-lib.sh) does the waiting; this reads the stamp.
+created_of() { tmux display-message -p -t "=$1:" '#{session_created}'; }
 tmux -f /dev/null new-session -d -s zz-oldest "$IDLE"
-next_second zz-oldest
+next_second "$(created_of zz-oldest)"
 tmux new-session -d -s placeholder "$IDLE"
 # A name that also occurs inside its own session_created timestamp: three
 # digits from the middle of it, which is what regression (2) needs.
@@ -120,7 +111,7 @@ tmux new-session -d -s _agent_3_99 "$IDLE"
 # Only a LEADING underscore marks a popup. A glob loosened to `*_*` would drop
 # an ordinary session like this one, silently.
 tmux new-session -d -s tidy_up "$IDLE"
-next_second tidy_up
+next_second "$(created_of tidy_up)"
 tmux new-session -d -s aa-newest "$IDLE"
 
 # A real client on `held`, so it counts as attached. script(1) differs between

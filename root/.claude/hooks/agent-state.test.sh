@@ -22,6 +22,10 @@ set -uo pipefail
 # A tmux suite: container or CI only (see bin/tmux-test-guard.sh).
 # shellcheck source=bin/tmux-test-guard.sh
 . "$(dirname "$0")/../../../bin/tmux-test-guard.sh" || exit 2
+# next_second, for the cases that need two one-second @claude_since stamps to
+# differ.
+# shellcheck source=bin/test-lib.sh
+. "$(dirname "$0")/../../../bin/test-lib.sh" || exit 2
 
 HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/agent-state.sh"
 
@@ -132,22 +136,6 @@ assert_exit_zero() {
 # on a record at all.
 RS=$'\036'
 US=$'\037'
-
-# next_second <epoch> -- return once the clock has passed <epoch>'s second. For
-# cases that need two stamps to differ: @claude_since is in whole seconds. A
-# stamp that is not a number falls back to a full second, so a broken read
-# cannot make the wait vanish along with what the case is about.
-next_second() {
-  case "$1" in
-    '' | *[!0-9]*)
-      sleep 1
-      return
-      ;;
-  esac
-  local i=0
-  # Bounded: a stamp from the future would otherwise hang the suite.
-  while (($(date +%s) <= $1 && i++ < 40)); do sleep 0.05; done
-}
 
 notify_json() { jq -cn --arg t "$1" --arg m "${2-}" '{notification_type:$t, message:$m}'; }
 
