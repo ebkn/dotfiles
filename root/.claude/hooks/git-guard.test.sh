@@ -227,9 +227,21 @@ check PASS 'git >|x status'
 # A quoted operator character is no redirection, so the `&` after it still is.
 check DENY 'echo ">"& git -c a=b status'
 check DENY "echo '>'| git -c a=b status"
-# On the fallback path, which splits at every operator, an operator left with no
-# target is refused rather than taken for the end of the command.
+# A command the walk cannot split (unbalanced quoting) is refused whole if any
+# word could be git; there is no second, cruder splitter to get wrong.
 check DENY 'echo "x; git >&2 -c a=b status'
+check DENY 'echo "x; git status'
+# A redirection glued to the git word still leaves it the git word.
+check DENY 'git>/dev/null -C . -c a=b status'
+check DENY 'git&>/dev/null -C . -c a=b status'
+check PASS 'git>/dev/null status'
+check PASS 'git&>/dev/null status'
+# A redirection target is no argument of git's: its `$` marks nothing, attached
+# to the operator or not.
+# shellcheck disable=SC2016 # literal command text under test
+check PASS 'git -C . >"$f" status'
+# shellcheck disable=SC2016 # literal command text under test
+check PASS 'git -C . > "$f" status'
 
 echo "-- must DENY: an expansion where git reads its options --"
 # The shell expands braces, globs and unquoted parameters, so the word read here
@@ -258,13 +270,15 @@ check PASS 'git commit -m "$MSG"'
 check PASS "git log --format='%h {x}' -- '*.sh'"
 # `{}` is not a brace expansion, so xargs' placeholder is read as written.
 check PASS 'xargs -I{} git -C {} status'
-# Before the git word an expansion is no git word, and nothing is refused for
-# it: an assignment is not expanded at all, and a command word like `[` is not
-# git.
+# Before the git word an expansion is not refused, and a word is judged as
+# written: an assignment is not expanded at all, a command word like `[` is not
+# git, and one whose text ends in /git is, expansion or not.
 check DENY 'FOO=* git -c a=b status'
 check PASS 'FOO={a,b} git status'
 check PASS '[ -x /usr/bin/git ]'
 check PASS '{ git status; }'
+# shellcheck disable=SC2016 # literal command text under test
+check DENY '$D/git -c a=b status'
 # Over-refusal accepted in exchange: after a wrapper, an argument named git
 # followed by a glob (the same cost as `timeout 5 echo git -c x` above).
 check DENY 'timeout 5 rg git *.md'
@@ -359,8 +373,7 @@ echo "-- must DENY: a separator outside quotes still does --"
 check DENY 'echo "hi"; git -c a=b status'
 check DENY "echo 'x' && git -c a=b status"
 check DENY $'echo "multi\nline"\ngit -c a=b status'
-# Unbalanced quoting cannot be segmented reliably, so it falls back to splitting
-# at every operator: refusing too much is the safe direction for a deny-only hook.
+# Unbalanced quoting cannot be segmented, so the command is refused whole.
 check DENY 'echo "x; git -c a=b status'
 # A backslash is literal inside single quotes, so `'a\'` is closed there; treating
 # it as an escape would swallow the closing quote and hide the git that follows.
@@ -380,6 +393,20 @@ echo "-- must DENY: a command substitution runs, even inside double quotes --"
   check DENY 'x=$(git -c a=b status)'
 }
 check PASS "echo '\$(git -c a=b status)'"
+# A substitution inside double quotes is walked as commands, and the double
+# quotes resume after it. Before, such a command was unsplittable and went to a
+# split-everywhere fallback, where `&>` and `a\;b` each hid a git.
+# shellcheck disable=SC2016 # literal command text under test
+{
+  check DENY 'echo "$(date)"; git -C . &>/dev/null -c a=b status'
+  check DENY 'echo "$(date)"; git -C a\;b -c a=b status'
+  check DENY 'echo "$(echo "a;b")"; git -c a=b status'
+  check PASS 'echo "$(echo "a;b") git -c a=b"'
+  check DENY 'echo "$(echo "$(git -c a=b status)")"'
+  check DENY 'echo "`echo a; git -c a=b status`"; true'
+  check PASS $'git commit -m "$(cat <<\'EOF\'\nsubject\n\ngit -c a=b status\nEOF\n)"'
+  check DENY 'echo "$(true; git status"'
+}
 
 echo "-- must DENY: grouping and compound-command keywords are not the command --"
 check DENY '(git -c a=b status)'
@@ -441,18 +468,17 @@ check_reason 'git -C' "-C with no path" "unreadable"
 check_reason 'git -C "a\"b" status' "an unreadable word after -C" "no path"
 check_reason 'git -C {.,-c} a=b status' "an unreadable word after -C" "no path"
 check_reason 'git -C . {-c,a=b} status' "an unreadable word before the subcommand" "refused '-c'"
-check_reason 'FOO="x git -c a=b status' "could not read the words before the command" "refused '"
-# The same command on both paths: read past the redirection on the main one, and
-# refused at the operator left without a target on the split-everywhere fallback.
+check_reason 'FOO="a\"b" git -c a=b status' "could not read the words before the command" "refused '"
+# Read past the redirection, and refused whole when the command cannot be split.
 check_reason 'git >&2 -c a=b status' "refused '-c'" "unreadable"
-check_reason 'echo "x; git >&2 -c a=b status' "an unreadable word before the subcommand" "refused '-c'"
+check_reason 'echo "x; git >&2 -c a=b status' "could not split" "refused '-c'"
 
 echo "-- must finish well inside the 5s hook timeout --"
 # A timed-out hook does not block the call, so slowness is a bypass, not a
 # nuisance. Measured on 100k bytes: the linear awk walk takes ~0.35s, a bash
 # loop over `${s:i:1}` ~9s even under LC_ALL=C (it is quadratic), so a 3s bound
-# tells them apart with room for a slow CI runner. Both paths are timed: the awk
-# walk, and the sed fallback that unbalanced quoting falls through to.
+# tells them apart with room for a slow CI runner. Both outcomes of the walk are
+# timed: a split, and the refusal of a command it cannot split.
 # Each case ends in a git that must be refused, so a hook that bails out early
 # on a huge input fails here rather than looking fast.
 check_fast() {
@@ -469,7 +495,7 @@ check_fast() {
 }
 filler=$(printf 'é%.0s' $(seq 50000))
 check_fast "100k-byte quoted message" "git commit -m \"$filler\"; git -c a=b status"
-check_fast "100k-byte unbalanced quote (fallback)" "git commit -m \"$filler; git -c a=b status"
+check_fast "100k-byte unbalanced quote (unsplittable)" "git commit -m \"$filler; git -c a=b status"
 # Each unterminated opener searches the lines after it for its terminator; done
 # per opener that is quadratic, and 20000 of them took 58s.
 # ($(...) drops the final newline, so it is put back before the git line.)
@@ -483,6 +509,17 @@ check_fast "20000 distinct unterminated openers" "${openers}"$'\n'"git -c a=b st
 check_fast "100000 non-git segments" "$(printf 'echo x;%.0s' $(seq 100000)) git -c a=b status"
 check_fast "100000 openers on one line" "cat $(printf '<<a %.0s' $(seq 100000))"$'\n'"git -c a=b status"
 check_fast "a 500k-byte heredoc tag" "cat <<$(printf 'a%.0s' $(seq 500000))"$'\n'"git -c a=b status"
+# shellcheck disable=SC2016 # literal command text under test
+check_fast "100k-byte substitution inside double quotes" "echo \"\$(echo $filler)\"; git -c a=b status"
+# Substitutions nest 16 deep inside double quotes; deeper is unsplittable.
+# shellcheck disable=SC2016 # the openers are command text under test
+{
+  nest16="$(printf 'echo "$(%.0s' $(seq 16))true$(printf ')"%.0s' $(seq 16))"
+  nest17="$(printf 'echo "$(%.0s' $(seq 17))true$(printf ')"%.0s' $(seq 17))"
+}
+check DENY "${nest16}; git -c a=b status" "16 nested substitutions, then a git: read"
+check PASS "${nest16}; git status" "16 nested substitutions, then a safe git: read"
+check DENY "${nest17}; git status" "17 nested substitutions: unsplittable, refused"
 many_git=$(printf 'echo git;%.0s' $(seq 5000))
 check_fast "5000 git-looking segments, refused unread" "$many_git"
 check PASS "$(printf 'git status;%.0s' $(seq 1000))" "1000 git segments: at the cap, inspected"

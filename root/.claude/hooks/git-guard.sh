@@ -119,9 +119,12 @@ is_safe_global() {
 # other argv, so it is not what git receives. TOKEN_EXPANDS reports it, and
 # TOKEN_VARIES a `$` inside double quotes -- one word, of unknown content. The
 # caller decides: scan_globals refuses either where git reads an option, since
-# `git -C . {-c,x} status` expands to one, and only an expansion as -C's path;
-# before the git word they only mean "not a git word". `{}` alone is no brace
-# expansion, so xargs' placeholder is read as written.
+# `git -C . {-c,x} status` expands to one, and only an expansion as -C's path.
+# Before the git word neither flag is consulted and a word is judged as
+# written: an assignment is not expanded, and an expanding command word counts
+# as git only when its text already ends in /git (`$D/git -c x`), which can only
+# add inspection. `{}` alone is no brace expansion, so xargs' placeholder is
+# read as written.
 #
 # Returns 1 when $REST holds no further word, 2 when the word cannot be read: an
 # unterminated quote, quoting this does not model (a backslash inside double
@@ -158,14 +161,16 @@ next_token() {
 }
 
 # One word for next_token, which handles a redirection's separate target and
-# words that are only a redirection. Sets TOKEN, TOKEN_EXPANDS, WORD_REDIRECTS
-# (0 or 1) and WORD_NEEDS_TARGET.
+# words that are only a redirection. Sets TOKEN, TOKEN_EXPANDS, TOKEN_VARIES,
+# WORD_REDIRECTS (whether the word held a redirection) and WORD_NEEDS_TARGET
+# (whether its target is the next word); next_token saves and restores the
+# first three across that target. Returns as next_token does.
 WORD_REDIRECTS=0
 WORD_NEEDS_TARGET=0
 read_word() {
   REST="${REST#"${REST%%[![:space:]]*}"}"
   [[ -n "$REST" ]] || return 1
-  local q body chunk op runs=0 quoted=0 in_target=0
+  local q body chunk op runs=0 quoted=0 in_target=0 tail_amp=0
   TOKEN="" TOKEN_EXPANDS=0 TOKEN_VARIES=0 WORD_REDIRECTS=0 WORD_NEEDS_TARGET=0
   while [[ -n "$REST" && "$REST" != [[:space:]]* ]]; do
     runs=$((runs + 1))
@@ -177,14 +182,17 @@ read_word() {
         [[ "$body" == *"$q"* ]] || return 2
         chunk="${body%%"$q"*}"
         [[ "$q" == "'" || "$chunk" != *\\* ]] || return 2
-        if [[ "$q" == '"' && "$chunk" == *\$* ]]; then TOKEN_VARIES=1; fi
-        ((in_target)) || TOKEN+="$chunk"
-        quoted=1
+        # A redirection target is no argument of git's, so it marks nothing.
+        if ((in_target == 0)); then
+          if [[ "$q" == '"' && "$chunk" == *\$* ]]; then TOKEN_VARIES=1; fi
+          TOKEN+="$chunk"
+        fi
+        quoted=1 tail_amp=0
         REST="${body#*"$q"}"
         ;;
       \\*)
         ((in_target)) || TOKEN+="${REST:1:1}"
-        quoted=1
+        quoted=1 tail_amp=0
         REST="${REST:2}"
         ;;
       [\<\>]*)
@@ -192,8 +200,11 @@ read_word() {
         op="${REST%%[!<>&|]*}"
         REST="${REST#"$op"}"
         in_target=1 WORD_REDIRECTS=1
-        # An unquoted fd number, or the `&` of `&>`, belongs to the operator.
-        if ((quoted == 0)) && [[ "$TOKEN" != *[!0-9]* || "$TOKEN" == "&" ]]; then TOKEN=""; fi
+        # The unquoted `&` of `&>` belongs to the operator, even glued to a word
+        # (`git&>/dev/null` is `git` and a redirection), and so does an unquoted
+        # fd number before it.
+        if ((tail_amp)) && [[ "$op" == \>* ]]; then TOKEN="${TOKEN%&}"; fi
+        if ((quoted == 0)) && [[ "$TOKEN" != *[!0-9]* ]]; then TOKEN=""; fi
         [[ -n "$REST" && "$REST" != [[:space:]]* ]] || WORD_NEEDS_TARGET=1
         ;;
       *)
@@ -204,6 +215,9 @@ read_word() {
           # shellcheck disable=SC2053 # $EXPANDING is a pattern, deliberately unquoted
           if [[ "$chunk" == $EXPANDING && "$chunk" != "{}" ]]; then TOKEN_EXPANDS=1; fi
           TOKEN+="$chunk"
+        fi
+        if [[ -n "$chunk" ]]; then
+          if [[ "$chunk" == *\& ]]; then tail_amp=1; else tail_amp=0; fi
         fi
         REST="${REST#"$chunk"}"
         ;;
@@ -334,12 +348,14 @@ strip_wrappers() {
 # A command substitution or subshell runs a command of its own, so `(`, `)` and
 # a backtick split too -- `echo $(git -c ...)` and `(git -c ...)` otherwise
 # start with a word that is not git. Inside double quotes a substitution still
-# runs, and tracking its nested quoting is more parser than this hook should
-# be, so `$(` or a backtick there makes the command unsplittable instead.
+# runs, so `$(` and a backtick there push the double quotes on a stack, the
+# substitution is walked as commands, and its closing `)` or backtick pops them
+# back. That is what lets `git commit -m "$(cat <<'EOF' ...)"` be split at all.
 #
-# Returns 1 on unbalanced quoting or such a substitution, where the caller falls
-# back to splitting at every operator, heredoc bodies included: for a deny-only
-# hook, refusing too much is the safe direction.
+# Returns 1 when the quoting or substitutions do not balance. There is no
+# cruder second splitter for that case -- the split-everywhere sed that used to
+# be one was a bypass twice (`&>`, `a\;b`) -- so the caller refuses the command
+# whole if any word in it could be git.
 #
 # The walk is awk, byte-wise under LC_ALL=C, over each line split once into an
 # array of bytes, printing as it goes. All of that is about the 5s timeout, past
@@ -352,11 +368,10 @@ strip_wrappers() {
 # multi-byte UTF-8 sequence is, so walking bytes splits exactly where walking
 # characters would. On exit 1 the partial output is discarded by the caller.
 #
-# SEPARATORS is shared with the fallback below: an operator only one of them
-# splits at would hide the git after it on that path. The multi-byte operators
-# (`&&`, `||`, `|&`) need no entry of their own, since splitting at each byte
-# only adds empty segments, which are skipped.
-SEPARATORS=';&|()`'
+# The multi-byte operators (`&&`, `||`, `|&`) need no entry in SEPARATORS, since
+# splitting at each byte only adds empty segments, which are skipped. `(`, `)`
+# and the backtick are handled before it, for the substitution stack.
+SEPARATORS=';&|'
 split_segments() {
   printf '%s' "$1" | LC_ALL=C awk -v seps="$SEPARATORS" '
     {
@@ -368,8 +383,33 @@ split_segments() {
       b = $0; sub(/^[ \t]+/, "", b)
       if (b ~ /^[A-Za-z_][A-Za-z0-9_]*$/) pos[b, ++cnt[b]] = NR
     }
+    # Output goes through emit. Outside any substitution it is printed at once;
+    # inside one it is held, one array cell per piece, and each substitution
+    # is appended to F as lines of its own when it closes, printed after the
+    # rest. The outer word keeps a placeholder `_` in its place, so
+    # `git -C "$(pwd)" -c x status` still reads as `git -C "_" -c x status`.
+    # Arrays, not string concatenation, keep it linear.
+    function emit(s) {
+      if (s == "") return
+      if (sp == 0) printf "%s", s
+      else B[sp, ++bl[sp]] = s
+    }
+    function push(kind) {
+      if (sp >= 16) exit 1
+      emit("_")
+      sq[++sp] = q; sk[sp] = kind; sd[sp] = pd; bl[sp] = 0; q = ""
+    }
+    function pop(   k) {
+      F[++nf] = "\n"
+      for (k = 1; k <= bl[sp]; k++) F[++nf] = B[sp, k]
+      F[++nf] = "\n"
+      q = sq[sp--]
+    }
     END {
-      q = ""
+      # q: the open quote, if any. sp/sq/sk/sd: the substitution stack -- the
+      # quote to resume, the kind ("(" or a backtick), and for "(" the paren
+      # depth pd at which its ")" closes it.
+      q = ""; sp = 0; pd = 0; nf = 0
       for (ln = 1; ln <= NR; ln++) {
         n = split(L[ln], ch, ""); np = 0; joined = 0; lu = ""
         for (i = 1; i <= n; i++) {
@@ -377,9 +417,21 @@ split_segments() {
           if (c == "\\" && i == n && q != "\047") { joined = 1; break }
           if (q != "") {
             if (c == q) q = ""
-            else if (q == "\"" && (c == "`" || (c == "$" && ch[i + 1] == "("))) exit 1
+            else if (q == "\"" && c == "$" && ch[i + 1] == "(") { push("("); i++; c = ""; lu = "" }
+            else if (q == "\"" && c == "`") { push("`"); c = ""; lu = "" }
             else if (q == "\"" && c == "\\") { i++; c = c ch[i] }
           } else if (c == "\047" || c == "\"") { q = c; lu = "" }
+          else if (c == "(") { pd++; c = "\n"; lu = "" }
+          else if (c == ")") {
+            if (sp > 0 && sk[sp] == "(" && pd == sd[sp]) { pop(); c = "" }
+            else { pd--; c = "\n" }
+            lu = ""
+          }
+          else if (c == "`") {
+            if (sp > 0 && sk[sp] == "`") { pop(); c = "" }
+            else c = "\n"
+            lu = ""
+          }
           else if (c == "\\") { i++; c = c ch[i]; lu = "" }
           else if (c == "<" && ch[i + 1] == "<" && ch[i + 2] == "<") { c = "<<<"; i += 2; lu = "" }
           else if (c == "<" && ch[i + 1] == "<") {
@@ -404,10 +456,10 @@ split_segments() {
           else if (c == "|" && lu == ">") lu = c
           else if (index(seps, c)) { c = "\n"; lu = "" }
           else lu = c
-          printf "%s", c
+          emit(c)
         }
         if (joined) continue
-        if (q != "") { printf " "; continue }
+        if (q != "") { emit(" "); continue }
         # Bodies follow the line in opener order, each through its terminator.
         # Leading whitespace is ignored on the terminator, which can only end a
         # body early -- more inspected, never less.
@@ -417,21 +469,20 @@ split_segments() {
           while (ptr[tg] < cnt[tg] && pos[tg, ptr[tg] + 1] <= ln) ptr[tg]++
           if (ptr[tg] < cnt[tg]) ln = pos[tg, ptr[tg] + 1]
         }
-        printf "\n"
+        emit("\n")
       }
-      exit (q != "")
+      if (q != "" || sp > 0) exit 1
+      for (k = 1; k <= nf; k++) printf "%s", F[k]
     }'
 }
-
-if ! segments=$(split_segments "$COMMAND"); then
-  segments=$(printf '%s' "$COMMAND" | sed "s/[${SEPARATORS}]/\n/g")
-fi
 
 # The loop below costs ~0.2ms a segment and more as they multiply (100000 took
 # 56s), and a hook past its timeout lets the call through. So only segments
 # where some token could read as the git command word reach it, and this regex
 # is where the inspected spellings are decided: `git`, `/usr/bin/git`, `"git"`,
-# `'git'`, `\git`, bounded by whitespace, a quote or an end. A spelling missing
+# `'git'`, `\git`, bounded by whitespace, a quote, an operator byte or an end --
+# the operators so that a glued redirection (`git>/dev/null -c ...`) and, on
+# the raw text of an unsplittable command, `;git` still count. A spelling missing
 # here is never inspected, however next_token would read it -- which is
 # deliberate for those no `git ...` rule matches (`g''it`, `"g"it`, `g\it`), and
 # a bypass for any that a rule does.
@@ -444,8 +495,19 @@ fi
 # Past MAX_CANDIDATES the command is refused unread: a real one never has that
 # many git invocations, and refusing is the safe direction here.
 is_git_word() { [[ "$1" == git || "$1" == */git ]]; }
+GIT_WORD_RE="(^|[[:space:]/\"'\\\\;&|()\`])git([\"'[:space:];&|()\`<>]|\$)"
 MAX_CANDIDATES=1000
-candidates=$(printf '%s\n' "$segments" | grep -E "(^|[[:space:]/\"'\\\\])git([\"'[:space:]]|\$)") && rc=0 || rc=$?
+
+# A here-string, not `printf | grep -q`: under pipefail grep -q exiting on its
+# match can SIGPIPE the writer, and a failed test here would pass the command.
+# Only grep's "no match" lets the command go; an error refuses it.
+if ! segments=$(split_segments "$COMMAND"); then
+  grep -qE "$GIT_WORD_RE" <<<"$COMMAND" && rc=0 || rc=$?
+  [[ $rc -ne 1 ]] || exit 0
+  deny "git-guard: could not split the command into the commands it runs (its quoting or substitutions do not balance), and a word in it could be git, so it was refused rather than guessed at."
+fi
+
+candidates=$(printf '%s\n' "$segments" | grep -E "$GIT_WORD_RE") && rc=0 || rc=$?
 case $rc in
   0) ;;
   1) exit 0 ;; # no segment mentions git
