@@ -366,16 +366,6 @@ grade "$proactive_final"
 expect_fail "proactive: a run that never starts the skill is caught" \
   "started review-test without being asked"
 
-# One review plus three re-reviews is the cap itself, not past it.
-proactive_run '' "$well_report" "$proactive_write" 4
-grade "$proactive_final"
-expect_pass "proactive: a review loop of exactly four passes"
-
-proactive_run '' "$well_report" "$proactive_write" 5
-grade "$proactive_final"
-expect_fail "proactive: a review loop past its cap is caught" \
-  "kept the review loop within its cap of four"
-
 proactive_run '' "$well_report" "$proactive_write"'; '"$break_a_test"'; git add -A; git commit -q -m broken'
 grade "$proactive_final"
 expect_fail "proactive: tests it wrote that fail are caught" \

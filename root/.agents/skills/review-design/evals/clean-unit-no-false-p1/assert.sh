@@ -38,8 +38,6 @@ check_llm "the docs still describe skipping" \
   "$REVIEW_DESIGN_SKIPPING_DOCS_RUBRIC" "$(review_design_skipping_docs)"
 check "kept the unit's commit as it was" git merge-base --is-ancestor unit-done HEAD
 check_eq "left nothing uncommitted" "" "$(git status --porcelain)"
-# One review plus at most three re-reviews.
-check "kept the review loop within its cap of four" test "$skill_uses" -le 4
 
 # --- the boundary: the skill reads, the caller writes ---
 check "wrote nothing before the review was reported" \

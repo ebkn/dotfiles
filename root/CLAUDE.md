@@ -37,8 +37,7 @@
 - Use the `review-test` skill whenever a batch of test-file changes is complete, without waiting to be asked, and before the `commit` skill runs. Tests are the specification of behavior; the moment just after writing them is the cheapest time to fix them.
 - It runs in a forked, fresh context, so it knows only what you pass as its arguments: the test files, the module they test, what the change set out to do, and the language to answer in. Write the brief as intent, not as a defence of the code — the fresh context exists so the reviewer does not inherit your reasons.
 - Skip it when the user says review is unnecessary, when nothing under test changed, or when the change cannot alter what the tests assert (typos, formatting, import order).
-- Fix the P1 and P2 findings without asking first — a review that only reports leaves the work undone. Then re-run the review, at most three rounds, and report what is left instead of looping.
-- **The loop gate is P1 only.** Fix the P2 findings of the first report, but do not chase P2 raised by a later round: those wobble between runs, and grinding on them never converges. P3 is reported, never auto-fixed.
+- Fix the P1 and P2 findings without asking first — a review that only reports leaves the work undone. Then re-run the review, and keep going until a round reports no P1 and no P2. There is no round cap. P3 is reported, never auto-fixed.
 - Once the loop ends, call the `commit` skill and let it split the result at its own granularity — a fix that changes what a test asserts and one that only reorganizes it are separate commits, per Tidy First. Do not fold the fixes into the commit that introduced the tests: the review is what justifies them, and burying it loses that.
 
 # Design Review
@@ -46,7 +45,7 @@
 - Use the `review-design` skill at an implementation breakpoint, without waiting to be asked: once a unit of work (a plan step, a task, a request) is committed with its tests passing and it added or changed an interface, before reporting it back. Also before `create-pr` while part of the branch is unreviewed. Not after every commit, and not for a small fix that changes no interface — the next breakpoint's range still covers it.
 - It runs in a forked, fresh context, so it knows only what you pass as its arguments: what the unit set out to do and why, the next planned change if one is known, the range or the last `Reviewed:` line, and the language to answer in. The next change matters most — without it the reviewer cannot weigh change cost. State intent, not a defence of the code.
 - The order at a breakpoint is `review-test` (before the commit, per Test Review) → commit → `review-design` → its fixes as commits of their own. A doc it brings back in line is a separate commit too, although the unit should have updated it itself: the review caught it, and that stays visible.
-- Fix the P1 and P2 findings whose reach is local without asking. A fix that reaches outside the range — another caller, a published contract, a structure the commit set out to build — is proposed and waits for an answer. The loop gate is P1 only, at most three rounds; P3 is reported, never auto-fixed.
+- Fix the P1 and P2 findings whose reach is local without asking. A fix that reaches outside the range — another caller, a published contract, a structure the commit set out to build — is proposed and waits for an answer. Re-run until a round reports no P1 and no P2, with no round cap; P3 is reported, never auto-fixed.
 
 # Commits
 

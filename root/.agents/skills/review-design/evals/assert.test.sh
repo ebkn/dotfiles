@@ -555,16 +555,6 @@ while read -r c fix; do
   expect_fail "$c: git that writes before the report is caught" \
     "ran no git that writes before the review was reported"
 
-  # One review plus three re-reviews is the cap itself, not past it.
-  design_run "$c" "$good_report" "$before_default" "$after_default" "$fix" 4
-  grade "直してコミットしました。"
-  expect_pass "$c: a review loop of exactly four passes"
-
-  design_run "$c" "$good_report" "$before_default" "$after_default" "$fix" 5
-  grade "直してコミットしました。"
-  expect_fail "$c: a review loop past its cap is caught" \
-    "kept the review loop within its cap of four"
-
   design_run "$c" "$good_report" "$before_default" "$after_default" "$fix; printf 'x\n' >stray.txt"
   grade "直してコミットしました。"
   expect_fail "$c: something left uncommitted is caught" "left nothing uncommitted"
@@ -906,11 +896,6 @@ proactive_run "$work_records" "$closing_ok" fix_kg 0
 grade "$proactive_closing"
 expect_fail "proactive: a run that never starts the skill is caught" \
   "started review-design without being asked"
-
-proactive_run "$work_records" "$closing_ok" fix_kg 5
-grade "$proactive_closing"
-expect_fail "proactive: a review loop past its cap is caught" \
-  "kept the review loop within its cap of four"
 
 # A review in the middle of the unit, before its commit.
 proactive_run 'rec_skill; rec_edit Edit total.sh; rec_bash "git commit -m feat"' "$closing_ok" fix_kg 0

@@ -45,9 +45,8 @@ This skill changes no files while it runs, per the boundary above. Once it repor
 
 1. **Fix the P1 and P2 findings, without asking first.** P1 means "deal with this before merging" and P2 decides how far the tests can be trusted; reporting and stopping discharges neither. Asking for permission to act on a review the caller already asked for is the failure mode this step exists to prevent.
 2. **Review again** with this skill, in a fresh run, with a brief that says what this round fixed. A fix can break another part of the test or introduce a new P1, and this is where that surfaces.
-3. **Repeat 1–2 until no P1 is left, for at most three rounds.** If P1 survives three rounds, report what remains and why, then let the user decide. Stop on the same terms when one finding survives two rounds — an LLM's findings wobble, and grinding on it mechanically is not convergence.
-4. **The loop gate is P1 only.** Fix the P2 of the **first** report; P2 that a later round raises is reported, not chased. P2 is where the findings wobble most (a "missing boundary case" can always be claimed again), so gating the loop on it would never terminate.
-5. **Never auto-fix P3.** Report it; acting on it is the user's call.
+3. **Repeat 1–2 until a round reports no P1 and no P2.** There is no round cap.
+4. **Never auto-fix P3.** Report it; acting on it is the user's call.
 6. **Commit the fixes once the loop ends**, at the granularity the caller's commit workflow would use anyway — a fix that changes what a test asserts and one that only reorganizes it are separate commits. Not inside this skill: it runs no git at all, per the boundary above. This is the caller's step, and it is here because a review whose fixes sit uncommitted is indistinguishable from one that was never acted on.
 
 ## Procedure

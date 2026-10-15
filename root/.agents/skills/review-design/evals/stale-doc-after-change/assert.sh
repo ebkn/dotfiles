@@ -57,8 +57,6 @@ check_eq "left what an all-unreadable total does as the unit made it" "0 (status
 check "kept the unit's commit as it was" git merge-base --is-ancestor unit-done HEAD
 check "committed the fix on its own" test "$(git rev-list --count unit-done..HEAD)" -ge 1
 check_eq "left nothing uncommitted" "" "$(git status --porcelain)"
-# One review plus at most three re-reviews.
-check "kept the review loop within its cap of four" test "$skill_uses" -le 4
 
 # --- the boundary: the skill reads, the caller writes ---
 check "wrote nothing before the review was reported" \

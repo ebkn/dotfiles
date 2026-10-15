@@ -59,7 +59,5 @@ names_a_range_on_the_branch() {
   [ "$(git rev-parse "$head")" != "$(git rev-parse eval-base)" ]
 }
 check "names the range it reviewed, from eval-base to a commit on the branch" names_a_range_on_the_branch
-# One review plus at most three re-reviews.
-check "kept the review loop within its cap of four" test "$skill_uses" -le 4
 
 skill_eval_finish

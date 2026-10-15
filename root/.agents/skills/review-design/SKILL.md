@@ -77,8 +77,8 @@ This skill changes no files while it runs, per the boundary above. When it ran f
 3. **For structure, change the code's shape and nothing it does.** Work in small named refactorings — Inline Function, Move Function, Change Function Declaration, Split Phase — and prefer deleting a layer to adding a better one. A missing seam is added the same way: Introduce Parameter, with the old source as its default, so every existing caller behaves as before.
 4. **Keep behavior where it is.** Run the tests before and after. The tests of what callers see must pass unchanged — a new test beside them, say for a function the fix extracted, changes nothing they expect; a fix that would change what such a test expects is not a tidying — stop and report it. The one exception is a test the fix's seam was for: it may move onto the seam, asserting the same behavior with a fixed input in place of the clock or the environment.
 5. **Commit the fixes on their own, after the commits of the unit of work.** Never amend them into those commits or fold them in: the review is what justifies the fix, and folding it in hides that. This is the caller's step — the skill runs no git that writes.
-6. **Review again, in a fresh run, for at most three rounds, until no P1 is left.** Its brief carries the last `Reviewed:` line and what this round fixed. Stop on the same terms when one finding survives two rounds, and report what is left: an LLM's findings wobble, and grinding on them is not convergence.
-7. **The loop gate is P1 only.** P2 raised by a later round is reported, not chased. **Never auto-fix P3**; report it.
+6. **Review again, in a fresh run, until a round reports no P1 and no P2.** Its brief carries the last `Reviewed:` line and what this round fixed. There is no round cap.
+7. **Never auto-fix P3**; report it.
 
 What is left for the user to decide is what "Outside this review" asks, and any fix whose reach crosses the range — nothing else.
 

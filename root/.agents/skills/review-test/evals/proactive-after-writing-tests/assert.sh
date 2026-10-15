@@ -26,9 +26,6 @@ check "started review-test without being asked" test "$skill_uses" -ge 1
 check "reports under a test-review heading" test -n "$report_at"
 
 # --- the loop afterwards ("## After the review") ---
-# One review plus at most three re-reviews. More than that is a loop running
-# past the cap the skill sets for itself.
-check "kept the review loop within its cap of four" test "$skill_uses" -le 4
 check_llm "reaches a conclusion about P1 and P2" \
   'The text is the final answer to a request to write tests. It passes if it says one of these about the P1 *and* P2 findings of the test review: that there were none, that they were fixed, or which ones are left and why. It fails if it addresses only P1 and never P2, if it only reports that tests were written, or if it asks the reader whether to fix the findings instead of having fixed them.' \
   "$result"
