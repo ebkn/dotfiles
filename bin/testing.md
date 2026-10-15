@@ -145,12 +145,24 @@ One sourced fragment instead of a hand-rolled `t`/`check`/`ok`/`eq` per file:
 
 - assertions: `assert_eq`, `assert_contains`, `assert_not_contains`,
   `assert_status` — each prints the rule-5 lines;
-- `wait_until <seconds> <cmd…>` for rule 1;
+- `wait_until <seconds> <cmd…>` for rule 1: polls every 0.05 s, the deadline
+  in seconds (one decimal allowed) rather than a loop count times a step;
+- `next_second <epoch>`: waits for the clock to pass a one-second stamp,
+  bounded at 40 polls (2-3 s), and a full second when the stamp is not a
+  number;
 - `test_tmpdir` with an EXIT trap that kills the pids registered through
-  `track_pid` and removes the directory;
-- `run_tests`: runs every `test_*` function, each in a subshell (0.6 ms; a
-  case cannot leak `cd` or variables into the next), skipping those that do not
-  match `$TEST_FILTER`, then prints the summary and sets the exit status.
+  `track_pid` and removes the directory -- inside a `run_tests` case, at the
+  end of that case;
+- `test_summary`: the blank line and `N passed, M failed`, exit 0 only when
+  nothing failed **and something was checked**;
+- `run_tests`: runs every `test_*` function in the order the file defines them,
+  each in a subshell (0.6 ms; a case cannot leak `cd` or variables into the
+  next), skipping those that do not contain `$TEST_FILTER`, then `test_summary`.
+  A case that calls `exit` non-zero is a FAIL; the status it merely returns is
+  not.
+
+Pinned by `bin/test-lib.test.sh`, which runs fixture suites under `/bin/bash`
+(3.2 on a Mac) rather than judging the library with itself.
 
 It is a sourced fragment, so per the shell conventions: bash 3.2, no shebang,
 no `set`, `# shellcheck shell=bash`, and named inline in `bin/lint-shell`.
@@ -238,7 +250,7 @@ Estimates are from the measurements above, not yet confirmed by doing the work.
 | 1 | **Done.** `pr-review-dispatch`: close the socket on EOF. **macOS `nc -N` is not Linux's `-N`** (it sets write-timeout probes), so the fix cannot be one flag. Behaviour change: regression test first | CI −105 s |
 | 2 | **Done for review-design.** Rule 3 (112 → 94 s), then sharding per rule 7's exception (→ 34 s on 18 cores). The estimate assumed fixtures dominated; a profile showed the grader is ~70 % of a scenario. review-test (12 s) and init-project (11 s) are left: under the 10 s line by little, and not yet worth the harness | macOS 112 s → 34 s |
 | 3 | **Done.** `bin/test` (rule 7) and CI running it (rule 8). Not the slowest suite, as estimated: the Mac stops scaling at ~4 jobs | host suites: macOS 142 s → ~55 s |
-| 4 | **Done:** `bin/test-in-docker` through `bin/test`, so the tmux suites run in parallel too (container ~105 s → ~58 s). Next: `bin/test-lib.sh` (rules 5, 6), taking the copies that exist today: `next_second` (track-session, restore-tabs, agent-state) and a `wait_until` whose deadline is in seconds, not loop count × step | — |
+| 4 | **Done:** `bin/test-in-docker` through `bin/test`, so the tmux suites run in parallel too (container ~105 s → ~58 s); `bin/test-lib.sh` (rules 5, 6) exists, and its `next_second` replaced the three copies (track-session, restore-tabs, agent-state). Left: suites move to its assertions and `wait_until` when next touched | — |
 | 5 | **Done.** Rule 2 for `tmux-track-session` (`TMUX_TRACK_SESSION_POLL`); rule 1 for the fixed sleeps in `tmux-track-session`, `tmux-agents`, `ssh-keepalive`, `tmux-restore-tabs`, `tmux-pane-titles`, `agent-state`, and the 0.25/0.2 s steps of polls that run to a real wait cut to 0.05 s (those right after a blocking `run-shell`, which never sleep on a green run, left as they were). Left on purpose: `tmux-agents`' 2 s list refresh (`REFRESH`, readonly; a shorter one would reload under the cursor cases), the fixed windows rule 1 lists | in the container: track-session 23 → 11 s, tmux-agents 43 → 33 s, ssh-keepalive 12 → 4.5 s (host 11.4 → 4.3 s), pane-titles 5.3 → 2.7 s, agent-state 47 → 42 s, restore-tabs 3.1 → 2.6 s |
 
 Existing suites move to the helper fragment when they are next touched, not in
