@@ -234,7 +234,7 @@ strip_wrappers() {
         while true; do
           next_token && rc=0 || rc=$?
           [[ $rc -eq 0 ]] || return $rc
-          if [[ "$TOKEN" == "git" || "$TOKEN" == */git ]]; then
+          if is_git_word "$TOKEN"; then
             CMD_WORD=$TOKEN
             return 0
           fi
@@ -363,9 +363,16 @@ fi
 # `'git'`, `\git`, bounded by whitespace, a quote or an end. A spelling missing
 # here is never inspected, however next_token would read it -- which is
 # deliberate for those no `git ...` rule matches (`g''it`, `"g"it`, `g\it`), and
-# a bypass for any that a rule does. And
-# past MAX_CANDIDATES the command is refused unread: a real one never has that
+# a bypass for any that a rule does.
+#
+# The regex sees the raw text; is_git_word sees a word with its quotes removed,
+# and is the one test both the segment head and the wrapper loop apply. A
+# spelling the regex lets through and is_git_word rejects is never inspected,
+# so the two change together.
+#
+# Past MAX_CANDIDATES the command is refused unread: a real one never has that
 # many git invocations, and refusing is the safe direction here.
+is_git_word() { [[ "$1" == git || "$1" == */git ]]; }
 MAX_CANDIDATES=1000
 candidates=$(printf '%s\n' "$segments" | grep -E "(^|[[:space:]/\"'\\\\])git([\"'[:space:]]|\$)") && rc=0 || rc=$?
 case $rc in
@@ -389,7 +396,7 @@ while IFS= read -r segment; do
     2) deny "git-guard: could not read the words before the command in a segment that may run git, so it was refused rather than passed unread." ;;
   esac
 
-  [[ "$CMD_WORD" == "git" || "$CMD_WORD" == */git ]] || continue
+  is_git_word "$CMD_WORD" || continue
 
   if ! scan_globals; then
     deny "git-guard: refused '${BAD}' before the git subcommand. Options in that position can make git execute an arbitrary program (e.g. -c core.fsmonitor=..., -c core.hooksPath=..., --git-dir into a repo with hooks), and the Bash allow rules cannot express argument position. Put the option after the subcommand, or run it yourself."
