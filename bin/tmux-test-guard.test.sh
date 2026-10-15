@@ -17,8 +17,9 @@
 # And the two places that run the tmux suites agree with (1): bin/test skips
 # exactly those on a laptop, and bin/test-in-docker -- run against a stubbed
 # docker -- runs exactly those, asked as a laptop wherever it runs, mounted
-# read-only with no tty, refusing to run anything on a failed listing, and
-# passing bin/test's verdict on.
+# read-only with no tty, for the host's platform unless TEST_DOCKER_PLATFORM
+# names one, refusing to run anything on a failed listing, and passing
+# bin/test's verdict on.
 #
 # tmux-free itself: it needs GNU parallel (for the verdict cases), and the one
 # case that fakes the runner puts a refusing tmux first on PATH.
@@ -87,9 +88,14 @@ stub=$(mktemp -d)
 trap '/bin/rm -rf "$stub"' EXIT
 cat >"$stub/docker" <<'EOF'
 #!/bin/bash
-# `docker build` succeeds; `docker run` records one argument per line. With
-# DOCKER_EXEC set it then runs what follows the image name here, so the command
-# that would run in the container -- bin/test and its verdict -- runs too.
+# `docker build` and `docker run` each record their arguments, one per line,
+# to a file of their own; build then succeeds. With DOCKER_EXEC set it then runs what follows the image
+# name here, so the command that would run in the container -- bin/test and its
+# verdict -- runs too.
+if [ "$1" = build ]; then
+  printf '%s\n' "$@" >"$DOCKER_ARGV.build"
+  exit 0
+fi
 [ "$1" = run ] || exit 0
 printf '%s\n' "$@" >"$DOCKER_ARGV"
 [ -n "${DOCKER_EXEC:-}" ] || exit 0
@@ -146,17 +152,59 @@ fi
 # A listing that fails must run nothing and say so -- "ran nothing, all green"
 # is the most expensive trap this repo has had (bin/lint-shell). bin/test
 # --list fails here because git cannot find the repository.
-rm -f "$stub/argv"
+rm -f "$stub/argv" "$stub/argv.build"
 if out=$(GIT_DIR=/nonexistent PATH="$stub:$PATH" DOCKER_ARGV="$stub/argv" bash bin/test-in-docker 2>&1); then
   fail "test-in-docker exited 0 though bin/test --list failed: $out"
-elif [ -e "$stub/argv" ]; then
-  fail "test-in-docker ran docker though bin/test --list failed: $out"
+elif [ -e "$stub/argv" ] || [ -e "$stub/argv.build" ]; then
+  fail "test-in-docker built or ran docker though bin/test --list failed: $out"
 else
   case "$out" in
-    *"bin/test --list failed"*) printf 'ok   a failed listing runs nothing and exits non-zero\n' ;;
+    *"bin/test --list failed"*) printf 'ok   a failed listing builds and runs nothing and exits non-zero\n' ;;
     *) fail "test-in-docker failed, but not at the listing: $out" ;;
   esac
 fi
+
+# The platform. Native by default: under amd64 emulation on Apple silicon the
+# tmux suites took ~60 s against ~8 s, which was most of a laptop run -- and a
+# --platform put back by habit would only show as a slow run, never a red one.
+# TEST_DOCKER_PLATFORM asks for another, and must reach the build as well as
+# the run: the image is one tag, so a run alone would start whatever the last
+# build left there. One suite named, so a broken listing cannot redden these.
+platform_of() { # platform_of <argv file> -- the --platform value, or "none"
+  awk 'p { print; f = 1; exit }
+    $0 == "--platform" { p = 1; next }
+    /^--platform=/ { sub(/^--platform=/, ""); print; f = 1; exit }
+    END { if (!f) print "none" }' "$1"
+}
+platform_case() { # platform_case <what> <want "build run"> <env argument...>
+  local what=$1 want=$2 out got
+  shift 2
+  rm -f "$stub/argv" "$stub/argv.build"
+  if ! out=$(env "$@" PATH="$stub:$PATH" DOCKER_ARGV="$stub/argv" \
+    /bin/bash bin/test-in-docker bin/tmux-pane-titles.test.sh 2>&1); then
+    fail "$what: test-in-docker failed with docker stubbed: $out"
+  elif [ ! -f "$stub/argv.build" ] || [ ! -f "$stub/argv" ]; then
+    fail "$what: docker build or docker run was never called: $out"
+  else
+    got="$(platform_of "$stub/argv.build") $(platform_of "$stub/argv")"
+    if [ "$got" = "$want" ]; then
+      printf 'ok   %s\n' "$what"
+    else
+      fail "$what: --platform for (build, run): want [$want] got [$got]"
+    fi
+  fi
+}
+# Unset, not empty: that is what "by default" means. /bin/bash, the shebang's
+# shell, so an empty array's expansion is checked under bash 3.2 on a Mac.
+platform_case 'by default the image is built and run for the host platform' \
+  'none none' -u TEST_DOCKER_PLATFORM
+# Empty is unset too, not `--platform ''`.
+platform_case 'an empty TEST_DOCKER_PLATFORM is the default too' \
+  'none none' TEST_DOCKER_PLATFORM=
+# Not linux/amd64, the value the old code hard-coded: an implementation that
+# added that whenever the variable was set would pass with it.
+platform_case 'TEST_DOCKER_PLATFORM reaches both the build and the run' \
+  'linux/s390x linux/s390x' TEST_DOCKER_PLATFORM=linux/s390x
 
 # bin/test holds the second copy of the regex, deciding which suites a laptop
 # run skips -- and so which suites test-in-docker runs. Checked on its own as

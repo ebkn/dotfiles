@@ -223,12 +223,14 @@ top-level code reads after a scenario must be initialised, because a shard walks
 the scenarios it skips.
 
 The tmux suites run the same way inside the `bin/test-in-docker` container,
-through `bin/test`: ~58 s wall for the 11 of them, against ~105 s one at a
-time, bounded by agent-state (~48 s under amd64 emulation on a Mac). Their
-sockets are `$$`-suffixed or a private `TMUX_TMPDIR`, and 7 of 8 concurrent
-runs were green. The eighth failed `tmux-pane-titles`' "harness: the caller is
-not the active window" once; 24 runs of that suite 8 at a time did not repeat
-it. Open.
+through `bin/test`: ~8 s wall for the 11 of them on the host's own
+architecture, bounded by tmux-agents (~7 s). Under amd64 emulation on a Mac
+the same run took ~58 s, bounded by agent-state (~48 s): emulation, not the
+suites, was most of a laptop's tmux run ([test-in-docker.md](test-in-docker.md)).
+Their sockets are `$$`-suffixed or a private `TMUX_TMPDIR`. Running faster
+exposed a harness race in `tmux-pane-titles` (1 in 8 runs emulated, 4 in 48
+native): a bare `-t t` matched a window still named `tmux` by prefix instead
+of the session `t`. Fixed with `-t '=t:'`; 60 runs 12 at a time were green.
 
 ### 8. CI runs `bin/test`: no suite hides another
 
@@ -258,6 +260,7 @@ Estimates are from the measurements above, not yet confirmed by doing the work.
 | 3 | **Done.** `bin/test` (rule 7) and CI running it (rule 8). Not the slowest suite, as estimated: the Mac stops scaling at ~4 jobs | host suites: macOS 142 s → ~55 s |
 | 4 | **Done:** `bin/test-in-docker` through `bin/test`, so the tmux suites run in parallel too (container ~105 s → ~58 s); `bin/test-lib.sh` (rules 5, 6) exists, and its `next_second` replaced the three copies (track-session, restore-tabs, agent-state). Left: suites move to its assertions and `wait_until` when next touched | — |
 | 5 | **Done.** Rule 2 for `tmux-track-session` (`TMUX_TRACK_SESSION_POLL`); rule 1 for the fixed sleeps in `tmux-track-session`, `tmux-agents`, `ssh-keepalive`, `tmux-restore-tabs`, `tmux-pane-titles`, `agent-state`, and the 0.25/0.2 s steps of polls that run to a real wait cut to 0.05 s (those right after a blocking `run-shell`, which never sleep on a green run, left as they were). Left on purpose: `tmux-agents`' 2 s list refresh (`REFRESH`, readonly; a shorter one would reload under the cursor cases), the fixed windows rule 1 lists | in the container: track-session 23 → 11 s, tmux-agents 43 → 33 s, ssh-keepalive 12 → 4.5 s (host 11.4 → 4.3 s), pane-titles 5.3 → 2.7 s, agent-state 47 → 42 s, restore-tabs 3.1 → 2.6 s |
+| 6 | **Done.** `bin/test-in-docker` on the host's architecture by default (`TEST_DOCKER_PLATFORM` for the runner's) | tmux suites on a Mac ~60 s → ~8 s |
 
 Existing suites move to the helper fragment when they are next touched, not in
 one sweep: the rewrite would be large and the gain is consistency, not speed.

@@ -7,6 +7,9 @@
 # verdict. With no arguments, runs the tmux suites: those bin/test skips on a
 # laptop, which must never run on the host.
 # TEST_JOBS and TEST_TIMEOUT are passed through to bin/test.
+# TEST_DOCKER_PLATFORM=linux/amd64 runs on the runner's architecture instead of
+# the host's -- under emulation on Apple silicon, ~60 s for the tmux suites
+# against ~8 s.
 # See bin/test-in-docker.md.
 
 set -eo pipefail
@@ -43,14 +46,21 @@ else
   fi
 fi
 
+# The host's platform unless asked otherwise, and the same one for the build
+# and the run: the image is one tag, which the build re-points either way.
+platform=()
+if [ -n "${TEST_DOCKER_PLATFORM:-}" ]; then
+  platform=(--platform "$TEST_DOCKER_PLATFORM")
+fi
+
 # After the listing, so a refused listing fails before the image build. Built
 # from stdin, so no build context is sent. Cached after the first run;
 # the tmux compile only repeats when the Dockerfile changes.
-docker build --quiet --platform linux/amd64 -t "$image" - \
+docker build --quiet ${platform[@]+"${platform[@]}"} -t "$image" - \
   <"$repo/bin/test-in-docker.Dockerfile" >/dev/null
 
 # Read-only: a suite writes to its own mktemp dir, never to the checkout. No
 # -t, so TERM stays unset as it is on the runner. -e without a value passes a
 # variable only when it is set here.
-docker run --rm --platform linux/amd64 -v "$repo:/work:ro" \
+docker run --rm ${platform[@]+"${platform[@]}"} -v "$repo:/work:ro" \
   -e TEST_JOBS -e TEST_TIMEOUT "$image" bin/test "${suites[@]}"

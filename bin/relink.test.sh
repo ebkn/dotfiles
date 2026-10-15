@@ -57,7 +57,8 @@ lacks() { # <name> <haystack> <needle>
   esac
 }
 # The whole tree, with each link's target, so "nothing changed" means it.
-# .cache is pruned: under amd64 emulation on Apple Silicon (bin/test-in-docker)
+# .cache is pruned: under amd64 emulation on Apple Silicon (bin/test-in-docker
+# with TEST_DOCKER_PLATFORM=linux/amd64)
 # Rosetta writes $HOME/.cache/rosetta for every process, and link_dotfiles
 # never touches .cache, so it can only be noise.
 snapshot() {

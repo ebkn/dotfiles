@@ -2,9 +2,15 @@
 # can tell. See bin/test-in-docker.md for why each line is here -- every
 # difference from the runner is a failure this container would invent.
 #
-# linux/amd64 (passed by bin/test-in-docker) even on Apple Silicon: the runner
-# is amd64, and the fzf pin below is the amd64 tarball's checksum.
+# Built for the host's architecture unless bin/test-in-docker is told
+# otherwise (TEST_DOCKER_PLATFORM): the runner is amd64, but emulating it on
+# Apple silicon made the tmux suites take ~60 s against ~8 s. So the
+# downloaded binaries below carry a checksum for each of amd64 and arm64; the
+# amd64 one is the workflow's.
 FROM ubuntu:24.04
+
+# Set by BuildKit to the platform being built: amd64 or arm64.
+ARG TARGETARCH
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -34,12 +40,17 @@ RUN version=3.7c \
   && cd / && rm -rf /tmp/tmux*
 
 # Same as the "Install fzf" step in the workflow and the fzf note in
-# brewfiles/Brewfile-shell. Bump all three places together.
+# brewfiles/Brewfile-shell. Bump all three places together, and the arm64
+# checksum with them (fzf_<version>_checksums.txt on the release).
 RUN version=0.74.3 \
-  && expected=3501a595e4b5c40a6b047340a0e8f805c46fd4e61ef95ef8a136ba8c61cf6f22 \
+  && case "$TARGETARCH" in \
+    amd64) expected=3501a595e4b5c40a6b047340a0e8f805c46fd4e61ef95ef8a136ba8c61cf6f22 ;; \
+    arm64) expected=4a17a17b46bd0c4873e995533de508995c11572c0be0664a5dbcf13f60463046 ;; \
+    *) echo "no fzf checksum for $TARGETARCH" >&2; exit 1 ;; \
+  esac \
   && cd /tmp \
   && curl -fsSL -o fzf.tar.gz \
-    "https://github.com/junegunn/fzf/releases/download/v${version}/fzf-${version}-linux_amd64.tar.gz" \
+    "https://github.com/junegunn/fzf/releases/download/v${version}/fzf-${version}-linux_${TARGETARCH}.tar.gz" \
   && echo "${expected}  fzf.tar.gz" | sha256sum --check --strict \
   && tar -xzf fzf.tar.gz \
   && install -m 0755 fzf /usr/local/bin/fzf \
@@ -48,12 +59,17 @@ RUN version=0.74.3 \
 # Same as the "Install pandoc" step in the workflow and the pandoc note in
 # brewfiles/Brewfile-shell. Bump all three places together. read-doc.test.sh
 # asserts on pandoc's rendered HTML, and read-doc needs --syntax-highlighting,
-# which older distro packages do not have.
+# which older distro packages do not have. pandoc publishes no checksum file;
+# the arm64 one is the sha256 of the release asset.
 RUN version=3.12 \
-  && expected=67d7d011fed8c8543306022b985b9b2499ab9b74818df91d8727c7e9ebc5ba06 \
+  && case "$TARGETARCH" in \
+    amd64) expected=67d7d011fed8c8543306022b985b9b2499ab9b74818df91d8727c7e9ebc5ba06 ;; \
+    arm64) expected=6cefcf7100e23a99447c26f89d1ff5b253f3407fcef99a9e27ae06f3ed16cb82 ;; \
+    *) echo "no pandoc checksum for $TARGETARCH" >&2; exit 1 ;; \
+  esac \
   && cd /tmp \
   && curl -fsSL -o pandoc.tar.gz \
-    "https://github.com/jgm/pandoc/releases/download/${version}/pandoc-${version}-linux-amd64.tar.gz" \
+    "https://github.com/jgm/pandoc/releases/download/${version}/pandoc-${version}-linux-${TARGETARCH}.tar.gz" \
   && echo "${expected}  pandoc.tar.gz" | sha256sum --check --strict \
   && tar -xzf pandoc.tar.gz \
   && install -m 0755 "pandoc-${version}/bin/pandoc" /usr/local/bin/pandoc \

@@ -2,7 +2,9 @@
 
 `bin/test-in-docker [suite...]` runs test suites in a container built to match
 the CI runner, through `bin/test` -- in parallel, with its timeout, time table
-and verdict; `TEST_JOBS` and `TEST_TIMEOUT` are passed in. With no arguments it
+and verdict; `TEST_JOBS` and `TEST_TIMEOUT` are passed in. It builds and runs for
+the host's architecture; `TEST_DOCKER_PLATFORM=linux/amd64` asks for the
+runner's instead (below). With no arguments it
 runs the suites `bin/test --list` skips on a laptop as tmux suites: every suite
 that sources `bin/tmux-test-guard.sh`, which never runs on the host.
 
@@ -47,7 +49,9 @@ the suite's first `trap` or `tmux` line — a cleanup trap registered above it
 would run `tmux kill-server` on the host on the very exit the guard causes — and
 it runs this script with `docker` stubbed, asserting that the suites it would
 run are exactly the guarded ones, mounted `:ro` and without `-t`, with
-`TEST_JOBS`/`TEST_TIMEOUT` passed in. That run fakes the runner
+`TEST_JOBS`/`TEST_TIMEOUT` passed in, and no `--platform` on the build or
+the run unless `TEST_DOCKER_PLATFORM` names one, which then reaches both.
+That run fakes the runner
 (`GITHUB_ACTIONS=true`, an existing container mark), so the list is shown to be
 asked as a laptop wherever this runs; because faking the runner is what lets
 the guard through, the stub directory also puts a `tmux` that refuses first on
@@ -74,9 +78,19 @@ Every difference from the runner is a failure the container invents
 - **tmux 3.7c and fzf 0.74.3, the same pins and checksums as the workflow.** The
   suites read rendered output, which moves between versions. Bump the
   Dockerfile, the workflow and `brewfiles/Brewfile-shell` together.
-- **`linux/amd64`**, even on Apple Silicon: the runner is amd64, and the fzf
-  checksum is for the amd64 tarball. The first build compiles tmux under
-  emulation and takes a while; later runs use the cache.
+- **The host's architecture, not the runner's** -- the one deliberate
+  difference. Under `linux/amd64` emulation on Apple silicon the tmux suites
+  took ~60 s (agent-state 49 s, tmux-agents 41 s); native arm64 takes ~8 s
+  (3 s and 7 s), and CI's native amd64 is close to that. So fzf and pandoc
+  carry a checksum per architecture (`TARGETARCH`); the amd64 one is the
+  workflow's. tmux is built from source, so its pin is one checksum either way.
+  **A failure seen only natively, or only on CI, is the case to re-run with
+  `TEST_DOCKER_PLATFORM=linux/amd64`**, which is the runner's architecture at
+  emulation's cost. `DOCKER_DEFAULT_PLATFORM`, if exported, is docker's own
+  default and applies when the variable here is unset. The image keeps one tag, and the build re-points it to the
+  platform asked for, so the run never starts a stale one; BuildKit keeps both
+  platforms' layers, so switching back is a cache hit. The first build
+  compiles tmux and takes a while.
 - **A non-root user.** As root the kernel ignores a `chmod 500`, and a permission
   case reports a bug that does not exist.
 - **`LANG=C.UTF-8`**, or tmux renders every wide glyph as `_`.
