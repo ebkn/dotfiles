@@ -199,15 +199,13 @@ check DENY 'git -C . [-]c a=b status'
 check PASS 'git -C "{dir}" status'
 check PASS 'git status >/dev/null 2>&1'
 check PASS "git log --format='%h {x}' -- '*.sh'"
-# The deny reason names what went wrong after -C, not a missing path.
-reason=$(run_hook 'git -C "a\"b" status' | jq -r '.hookSpecificOutput.permissionDecisionReason')
-if [[ "$reason" == *"unreadable word after -C"* ]]; then
-  pass=$((pass + 1))
-  echo "  ok   reason for an unreadable -C path"
-else
-  fail=$((fail + 1))
-  printf '  FAIL reason for an unreadable -C path: %s\n' "$reason"
-fi
+# The same words before the git word, read by the assignment and wrapper loops.
+check DENY 'timeout 5 2>/dev/null git -c a=b status'
+check DENY 'FOO=* git -c a=b status'
+check DENY 'FOO={a,b} git status'
+# Over-refusal accepted in exchange: a harmless redirection before the
+# subcommand. Written after the subcommand, as usual, it is never read.
+check DENY 'git -C . 2>/dev/null status'
 check PASS 'git -C /tmp commit -m "fix: something"'
 check PASS 'git -C /tmp'
 check PASS 'git -C /tmp status --short'
@@ -362,15 +360,26 @@ check_input "no tool_input" '{}'
 check_input "no command" '{"tool_name":"Bash","tool_input":{}}'
 check_input "empty command" '{"tool_name":"Bash","tool_input":{"command":""}}'
 
-echo "-- the reason names the refused option --"
-reason=$(run_hook 'git -c a=b status' | jq -r '.hookSpecificOutput.permissionDecisionReason')
-if [[ "$reason" == *"refused '-c'"* ]]; then
-  pass=$((pass + 1))
-  echo "  ok   reason names '-c'"
-else
-  fail=$((fail + 1))
-  printf '  FAIL reason does not name -c: %s\n' "$reason"
-fi
+echo "-- the reason names what went wrong --"
+# check_reason <cmd> <must contain> [<must not contain>]: the second pins which
+# branch produced the reason, so swapping two branches cannot pass.
+check_reason() {
+  local cmd=$1 want=$2 not=${3:-} reason
+  reason=$(run_hook "$cmd" | jq -r '.hookSpecificOutput.permissionDecisionReason')
+  if [[ "$reason" == *"$want"* && (-z "$not" || "$reason" != *"$not"*) ]]; then
+    pass=$((pass + 1))
+    printf '  ok   %s -> %s\n' "$cmd" "$want"
+  else
+    fail=$((fail + 1))
+    printf '  FAIL %s: want "%s"%s, got: %s\n' "$cmd" "$want" "${not:+ and not \"$not\"}" "$reason"
+  fi
+}
+check_reason 'git -c a=b status' "refused '-c'"
+check_reason 'git -C' "-C with no path" "unreadable"
+check_reason 'git -C "a\"b" status' "an unreadable word after -C" "no path"
+check_reason 'git -C {.,-c} a=b status' "an unreadable word after -C" "no path"
+check_reason 'git -C . 2>/dev/null -c a=b status' "an unreadable word before the subcommand" "quoting"
+check_reason 'FOO=* git -c a=b status' "could not read the words before the command"
 
 echo "-- must finish well inside the 5s hook timeout --"
 # A timed-out hook does not block the call, so slowness is a bypass, not a

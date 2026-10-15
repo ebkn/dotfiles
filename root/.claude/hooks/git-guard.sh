@@ -168,7 +168,7 @@ scan_globals() {
     case $rc in
       1) return 0 ;; # bare `git`
       2)
-        BAD="unparseable quoting before the subcommand"
+        BAD="an unreadable word before the subcommand"
         return 1
         ;;
     esac
