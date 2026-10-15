@@ -145,9 +145,12 @@ One sourced fragment instead of a hand-rolled `t`/`check`/`ok`/`eq` per file:
 
 - assertions: `assert_eq`, `assert_contains`, `assert_not_contains`,
   `assert_status` — each prints the rule-5 lines; any other condition is
-  checked as `assert_status "<what>" 0 <cmd…>`. A suite's own ok/fail counter
-  is invisible to `test_summary`, so replace its summary in the same edit that
-  adds the first `assert_*`, or its FAILs print and the run still exits 0;
+  checked as `assert_status "<what>" 0 <cmd…>`. A suite's own ok/fail
+  counter is invisible to `test_summary`, so a suite moves in one edit:
+  **everything that reaches its counter** -- its helpers (re-bodied as
+  `assert_*`, one place each) and every direct `fails=$((…))` (one by one,
+  as `assert_status`) -- **and** its summary. Leave one behind and its FAILs
+  print while the run exits 0;
 - `wait_until <seconds> <cmd…>` for rule 1: polls every 0.05 s, the deadline
   in seconds (one decimal allowed) rather than a loop count times a step;
 - `next_second <epoch>`: waits for the clock to pass a one-second stamp,
