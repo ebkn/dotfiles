@@ -98,7 +98,8 @@ Adopted from `tetsunavi-monorepo`'s `015_shell_scripts.md`, with the divergences
 **How a suite should be shaped — waiting, fixtures, process count, output
 format — is in [bin/testing.md](bin/testing.md).** Read it before writing or
 speeding up a suite: a suite's time is processes spawned × ~2 ms plus waiting,
-not its number of cases.
+not its number of cases. A new or touched suite takes its assertions and waits
+from `bin/test-lib.sh` (rule 6) rather than hand-rolling them.
 
 `bin/lint-shell` is the static gate for every shell script and CI runs the same
 command. Its shellcheck and shfmt passes cannot disagree between local and CI
