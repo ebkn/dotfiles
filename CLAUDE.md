@@ -151,7 +151,10 @@ UTF-8 locale (tmux renders every wide glyph as `_`), an absent `nc` and an absen
 `fzf` are four failures a careless container invented — so **a difference the
 container finds is a hypothesis until the container is shown to match the
 runner**, and the one environment difference worth keeping is the runner's
-missing `TERM`.
+missing `TERM`. The container does differ in one way on purpose: it runs on the
+host's architecture (arm64 on a Mac, ~7x faster than emulating amd64), so a
+failure only it shows is re-run with `TEST_DOCKER_PLATFORM=linux/amd64` before
+it is believed ([test-in-docker.md](bin/test-in-docker.md)).
 
 **A test that needs something installed must supply it, not require it.** CI has
 no tmux plugin manager, and `.tmux.conf` runs one — so `tmux-conf.test.sh` builds
