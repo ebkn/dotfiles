@@ -4,104 +4,28 @@ Personal dotfiles repository managing shell, editor, terminal, and development t
 
 ## Structure
 
+Only what `ls` cannot tell you; the file names say the rest.
+
 ```
 .
-├── zsh/                # Zsh config modules sourced from .zshrc
-│   ├── alias.zsh       #   Shell aliases + rm/fd/his wrappers, imgcat
-│   ├── completion.zsh  #   Completion settings
-│   ├── directory.zsh   #   Directory navigation options
-│   ├── git.zsh         #   Git aliases, gs, gw/gdmerged worktree flow, ghq picker
-│   ├── gpg.zsh         #   GPG_TTY export for commit signing
-│   ├── history.zsh     #   History settings
-│   ├── lang.zsh        #   Language manager lazy-loading
-│   ├── path.zsh        #   PATH configuration
-│   ├── plugin.zsh      #   Zinit plugin definitions
-│   ├── ssh-agent.zsh   #   SSH agent selection (WSL only)
-│   ├── ssh.zsh         #   ssh/myssh wrappers publishing @ssh_host to tmux
-│   ├── update.zsh      #   update-all, and its uptime warning (macOS 26.0-26.3: TCP clock stops at 49.7 days)
-│   ├── *.test.zsh      #   Unit tests for the modules above
-│   └── .p10k.zsh       #   Powerlevel10k theme config
-├── vim/                # Neovim/Vim configuration
-│   ├── nvim/lua/plugins/
-│   │   ├── instantly/  #   Plugins loaded at startup
-│   │   └── lazy/       #   Plugins loaded on demand (filetype, etc.)
-│   ├── coc/            #   CoC (Conquer of Completion) extensions config
-│   ├── *.vim           #   Vim core config (base, color, keymap, view)
-│   └── lazy.lua        #   lazy.nvim bootstrap
-├── autohotkey/         # AutoHotkey v2 scripts for Windows
-│   └── keyremap.ahk   #   Key remapping (CapsLock→Ctrl, Alt→IME switch)
-├── bin/
-│   ├── init/           #   Platform setup scripts (macos.sh, ubuntu.sh, wsl.sh, windows.ps1)
-│   │   ├── common.sh   #     Shared setup helpers (link_with_backup, etc.)
-│   │   └── links.sh    #     link_dotfiles(): re-syncable $HOME symlinks (shared by macos.sh + relink)
-│   ├── wsl/               #   WSL-only helper scripts (e.g. notify-send OSC 9 shim)
-│   ├── relink             #   Re-sync symlinks from link_dotfiles() (drift check + prompt; called by update-all)
-│   ├── launchd-load       #   Load linked LaunchAgents that are not running (--status to look; NOT called by relink)
-│   ├── tmux-agents        #   Pick a Claude Code agent by state (prefix + a) and jump to its WezTerm tab
-│   ├── tmux-agent-view    #   Answer a blocked agent from the picker (ctrl-o): mirror its window in a popup
-│   ├── tmux-cheatsheet    #   Annotated key bindings, grouped into columns (prefix + ?)
-│   ├── tmux-tig           #   Run tig, holding the popup open on failure (prefix + t)
-│   ├── tmux-popup         #   Open the per-tab popup session (prefix + p/t/o all go through it)
-│   ├── fzf-nvim           #   Pick a file with fzf and open it in nvim (prefix + o)
-│   ├── tmux-pane-titles   #   Name the window after its panes' dirs/branches (called from zsh hooks)
-│   ├── tmux-restore-tabs  #   Re-open a WezTerm tab per orphaned tmux session, in the window it was run from
-│   ├── tmux-restore-ssh-tabs # Re-open a myssh tab per detached session on a remote host
-│   ├── tmux-track-session #   Remember the remote session an ssh pane was in, for autossh reconnect
-│   ├── tmux-session-swap  #   Swap two clients on prefix + w, so one tab keeps meaning one session
-│   ├── autossh-ssh        #   AUTOSSH_PATH shim: the reconnect notice myssh shows between attempts
-│   ├── fzf-files          #   List git-changed files first for fzf (symlinked to ~/.local/bin)
-│   ├── git-generated      #   Locally hide linguist-generated files from diffs via .git/info/attributes
-│   ├── lint-shell         #   shellcheck + shfmt + zsh -n over every shell script (same command CI runs)
-│   ├── lint-shell.test.sh #   Pins the target enumeration (a failed listing must not report ok)
-│   ├── ci-enrollment.test.sh # Every *.test.sh / *.test.zsh is a CI step, or listed as not_in_ci with its reason
-│   ├── test-in-docker     #   Run suites in a runner-matching container (+ .Dockerfile); the tmux suites run ONLY here
-│   ├── tmux-test-guard.sh #   Sourced by every tmux suite: refuses to run on the host (.test.sh enforces enrollment)
-│   ├── skill-eval         #   Run a skill's eval cases against a throwaway fixture (spends model usage)
-│   ├── skill-eval-*.sh    #   Assertions and fixture helpers the cases source
-│   ├── textlint-docs      #   Run textlint/ rules on any repo (symlinked to ~/.local/bin; backs the lint-docs skill)
-│   ├── read-doc           #   Typeset a document as HTML and open it in the browser (symlinked to ~/.local/bin)
-│   │                      #   (session-extract / session-review, which back the retrospective skill, live beside its SKILL.md and are linked the same way)
-│   ├── pr-review-common.sh  #   Pid-based lock + repo/worktree/session lookup shared by the three below
-│   ├── pr-review-watch    #   Poll GitHub for new PR review feedback and queue it per PR
-│   ├── pr-state-watch     #   Poll GitHub for PRs of yours that stopped merging or went red, same queue
-│   ├── pr-review-dispatch #   Post a queued job to that branch's session inbox socket
-│   └── install_minimum_vim.sh
-├── brewfiles/          #   Homebrew dependency lists by category
-│   ├── Brewfile-shell  #     Shell tools (tmux, fzf, ripgrep, etc.)
-│   ├── Brewfile-lang   #     Language runtimes and managers
-│   ├── Brewfile-xcode  #     Swift tools requiring Xcode.app
-│   ├── Brewfile-cask   #     GUI applications
-│   └── Brewfile-mas    #     Mac App Store apps
-├── root/               #   Home directory configs (symlinked to ~/)
-│   ├── CLAUDE.md       #     Global Claude Code instructions
-│   ├── .agents/skills/ #     Cross-tool agent skills (single source of truth)
-│   ├── .claude/        #     Claude Code settings and hooks
-│   ├── .codex/         #     Codex prefix rules
-│   └── opencode/       #     OpenCode config → ~/.config/opencode
-├── read-doc/           #   Presentation assets for bin/read-doc
-│   ├── style.css       #     Body face, measure, leading + Everforest syntax colours
-│   └── after-body.html #     Inline script: code-block copy buttons, link targets
-├── launchd/            #   macOS LaunchAgents (symlinked to ~/Library/LaunchAgents)
-│   ├── com.ebkn.pr-review-watch.plist     # 60s poll driving bin/pr-review-watch
-│   ├── com.ebkn.pr-state-watch.plist      # 300s poll driving bin/pr-state-watch
-│   ├── com.ebkn.pr-review-dispatch.plist  # 30s pass driving bin/pr-review-dispatch
-│   └── com.ebkn.tmux-agent-sync.plist     # 5s pass driving `tmux-agents --sync`
-├── textlint/           #   Japanese prose rules for bin/textlint-docs (not a project config)
-│   ├── textlintrc.yml  #     Rule set, each relaxation justified inline
-│   ├── prh.yml         #     Notation dictionary, split into universal / project-dependent
-│   ├── textlintignore  #     Category-level exclusions
-│   └── package.json    #     Pinned toolchain (+ package-lock.json)
-├── .textlintignore     #   This repo's own exclusions, overriding textlint/textlintignore (not linked to ~/)
-├── cursor/             #   Cursor editor settings and keybindings
-├── .github/workflows/  #   CI for setup script validation
-├── .shellcheckrc       #   external-sources/source-path, so an editor and bin/lint-shell agree
-├── .zshrc              #   Zsh entrypoint (sources zsh/ modules)
-├── .zshenv             #   Zsh early env (locale settings)
-├── .tmux.conf          #   Tmux configuration
-├── .gitconfig          #   Git configuration (includes .gitconfig-ebkn)
-├── wezterm.lua         #   WezTerm terminal configuration
-└── .*                  #   Other dotfiles (.tigrc, .ideavimrc, etc.)
+├── zsh/         # Modules sourced from .zshrc, one per concern; *.test.zsh beside them
+├── vim/         # Neovim (lazy.nvim) + core *.vim; coc/ extension config
+├── bin/         # Everything that ends up on $PATH; a non-trivial script has a sibling .md
+│   ├── init/    #   Platform setup; links.sh holds link_dotfiles(), shared with bin/relink
+│   └── wsl/     #   WSL-only helpers
+├── root/        # Agent and tool config linked into ~/ (CLAUDE.md, .claude/, .codex/, .agents/skills/)
+├── brewfiles/   # Brewfile-{shell,lang,xcode,cask,mas}
+├── launchd/     # LaunchAgents linked into ~/Library/LaunchAgents; linking is not loading (bin/launchd-load)
+├── systemd/     # systemd user units (ssh-agent relay)
+├── textlint/    # Rules bin/textlint-docs carries to OTHER repos; this repo's own is ./.textlintignore
+├── read-doc/    # Stylesheet and script bin/read-doc injects
+├── autohotkey/  # Windows key remapping (AutoHotkey v2)
+├── cursor/      # Cursor settings and keybindings
+└── .zshrc, .tmux.conf, .gitconfig, wezterm.lua, …  # Linked into ~/ as-is
 ```
+
+Scripts that back one skill (e.g. retrospective's `session-extract`) live beside
+its `SKILL.md`, not in `bin/`, and are linked to `~/.local/bin` the same way.
 
 `AGENTS.md` is a symlink to this file for Codex compatibility.
 
@@ -139,24 +63,23 @@ the measurement and the reason live.
 
 ### Features
 
-Each entry names the doc to read first.
+One line each: what it is, and the one thing that breaks silently. The doc
+holds the rest.
 
-- **Agent state indicator** — which Claude session is blocked, published as tmux pane user options (`@claude_state` and friends), kept per actor because hooks fire inside subagents too. Producer: `root/.claude/hooks/agent-state.sh`; consumers: `set-titles-string` in `.tmux.conf` and `bin/tmux-agents`. **Three transitions are reported by no hook at all** — a prompt answered, a dialog dismissed, a turn interrupted — so a 5s launchd pass (`tmux-agents --sync`) corrects the options against `claude agents --json`, joined to the pane by `@claude_session_id`. The rule deciding what to correct lives in `bin/tmux-agents` **once**, and the picker and the poller must keep sharing it. **Linking that launchd agent is not loading it** — `bin/launchd-load` does that, and until it runs the only symptom is the stale glyph the mechanism exists to fix. The per-actor listing is separated by ASCII RS/US, which **an older tmux stores escaped** (`\036` as four literal characters, measured on 3.4) — so `collect_rows` normalises it back, or a blocked agent on such a remote renders as a green idle row. → [root/.claude/hooks/agent-state.md](root/.claude/hooks/agent-state.md)
-- **Agent picker** (`prefix + a`) — list every session by state and jump to its WezTerm tab. **Latency-critical: the cost is process count, not work**, so the first list comes from the pane options alone; it then refreshes itself, correcting against `claude agents --json` — the three transitions no hook reports. → [bin/tmux-agents.md](bin/tmux-agents.md)
-- **Answering a blocked agent** (`ctrl-o` in the picker, `C-]` to leave) — mirrors the agent's window in a popup so a dialog can be answered in place. Offered for **all three** 🛑 states: the view attaches to the real window, so there is nothing `needs_input` could fail at. → [bin/tmux-agent-view.md](bin/tmux-agent-view.md)
-- **Answering the first red one** (`prefix + A`) — the same thing with the picking taken out, named by a `🛑 N  C-q A` count in WezTerm's tab bar. The count is read off the **tab titles**, never polled from tmux, which is why it costs nothing; `A` picks by the same rule `ctrl-o` is offered by, and the two must not drift. → [bin/tmux-agents.md](bin/tmux-agents.md)
-- **tmux popups** (`prefix + p` shell, `t` tig, `o` fzf→nvim) — each opens a real session named `_<name>_<id>`; the leading `_` is the guard that stops a popup opening inside a popup. → [bin/tmux-popup.md](bin/tmux-popup.md)
-- **Key-binding cheatsheet** (`prefix + ?`) — derived from `tmux list-keys -N`, so adding `-N "<category>: <description>"` to a `bind` line is what documents it. A binding without a note is invisible here, deliberately. → [bin/tmux-cheatsheet.md](bin/tmux-cheatsheet.md)
-- **One WezTerm tab means one tmux session** (`prefix + w`) — nothing in tmux enforces it, so `w` swaps clients rather than switching. → [bin/tmux-session-swap.md](bin/tmux-session-swap.md)
-- **Remote session tracking** — the autossh reconnect binding must stay single-valued in both directions. → [bin/tmux-track-session.md](bin/tmux-track-session.md)
-- **Restoring remote tabs** (`tmux-restore-ssh-tabs <host>`) — one `myssh` tab per detached remote session. The remote must `adopt` first, or crossed reconnect records put two tabs on one session; it needs an up-to-date `tmux-track-session` on the host. → [bin/tmux-restore-ssh-tabs.md](bin/tmux-restore-ssh-tabs.md)
-- **`.tmux.conf` itself** — `prefix + d` asks before detaching; in an ssh pane `d`/`q`/`F12` instead open a menu naming the host, offering to send the chord to the remote; every non-`-n` binding must carry `-N`. → [bin/tmux-conf.md](bin/tmux-conf.md)
-- **The reconnect screen** — `AUTOSSH_PATH` shim owning the screen between attempts; the mouse-report flood is the half that looks like a separate bug. → [bin/autossh-ssh.md](bin/autossh-ssh.md)
-- **Document reading** (`bin/read-doc` + `read-doc/style.css`) — the point is the stylesheet, not the converter; **do not turn it into a terminal pager.** Untrusted input, so pandoc runs `--sandbox` behind a CSP. Includes the ssh forward mode. → [bin/read-doc.md](bin/read-doc.md)
-- **PR automation** — two stages on purpose: the detectors queue, [dispatch](bin/pr-review-dispatch.md) delivers to a session's inbox socket. The queue is what makes interruption avoidable, so **it must never be bypassed.** Two detectors feed it: [pr-review-watch](bin/pr-review-watch.md) for review feedback, and [pr-state-watch](bin/pr-state-watch.md) for a PR that stopped merging, whose checks went red, or that was merged (the session reports what it left undone and whether ending it is safe; it never cleans up) — **separate because a conflict and a red check raise no notification**, so it cannot use the conditional request that makes the review poll free. Both are polled state with a *third* answer that is neither yes nor no (`mergeable: UNKNOWN`, checks still running), and collapsing either one is silent in both directions. **Flakes are answered by the head-oid key** — woken at most once per push — not by filtering. **Neither detector nor dispatch ever writes to a worktree**; the session does the merge. Shared lock and worktree lookup: [pr-review-common.md](bin/pr-review-common.md). Loading the launchd agents is a separate decision: [launchd-load.md](bin/launchd-load.md).
-- **Japanese prose linting** (`textlint/` + `bin/textlint-docs`, backing the `lint-docs` skill) — the rules are materialized into a cache dir, so the target project gets no config. Narrowing to Japanese files is the caller's job. → [bin/textlint-docs.md](bin/textlint-docs.md)
-- **Skill evals** (`bin/skill-eval`) — a skill's behaviour is invisible in its diff, so editing a `SKILL.md` is otherwise unmeasurable. Cases live beside the skill in `evals/`; running them spends model usage (billed per token on an API key, drawn from the plan's limits on a subscription), so CI runs only the runner's own test and the cases' graders. → [bin/skill-eval.md](bin/skill-eval.md)
-- **Session retrospective** (`/retrospective`) — aggregates transcripts into distributions, never a mean. → [root/.agents/skills/retrospective/NOTES.md](root/.agents/skills/retrospective/NOTES.md)
+- **Agent state indicator** — tmux pane options per actor; three transitions no hook reports are corrected by a 5s launchd `tmux-agents --sync`, whose rule the picker must keep sharing. → [agent-state.md](root/.claude/hooks/agent-state.md)
+- **Agent picker** (`prefix + a`) — latency is process count, not work, so the first list comes from pane options alone. → [tmux-agents.md](bin/tmux-agents.md)
+- **Answering a blocked agent** (`ctrl-o` in the picker, `prefix + A` for the first red one) — `A` and `ctrl-o` pick by one rule, which must not drift. → [tmux-agent-view.md](bin/tmux-agent-view.md), [tmux-agents.md](bin/tmux-agents.md)
+- **tmux popups** (`prefix + p`/`t`/`o`) — the leading `_` in `_<name>_<id>` is what stops a popup opening inside a popup. → [tmux-popup.md](bin/tmux-popup.md)
+- **`.tmux.conf`** — every non-`-n` binding carries `-N "<category>: <description>"`; that note is the `prefix + ?` cheatsheet. → [tmux-conf.md](bin/tmux-conf.md), [tmux-cheatsheet.md](bin/tmux-cheatsheet.md)
+- **One WezTerm tab means one tmux session** (`prefix + w`) — nothing in tmux enforces it, so `w` swaps clients. → [tmux-session-swap.md](bin/tmux-session-swap.md)
+- **Remote sessions** — the autossh reconnect binding stays single-valued both ways; restoring tabs needs `adopt` on the remote first. → [tmux-track-session.md](bin/tmux-track-session.md), [tmux-restore-ssh-tabs.md](bin/tmux-restore-ssh-tabs.md), [autossh-ssh.md](bin/autossh-ssh.md)
+- **Document reading** (`bin/read-doc`) — the point is the stylesheet; **do not turn it into a terminal pager.** → [read-doc.md](bin/read-doc.md)
+- **PR automation** — detectors queue, dispatch delivers; **the queue must never be bypassed**, and nothing in it writes to a worktree. → [pr-review-watch.md](bin/pr-review-watch.md), [pr-state-watch.md](bin/pr-state-watch.md), [pr-review-dispatch.md](bin/pr-review-dispatch.md)
+- **Japanese prose linting** (`bin/textlint-docs`) — the target project gets no config; narrowing to Japanese files is the caller's job. → [textlint-docs.md](bin/textlint-docs.md)
+- **Skill evals** (`bin/skill-eval`) — running cases spends model usage, so CI runs only the graders. → [skill-eval.md](bin/skill-eval.md)
+- **Session retrospective** (`/retrospective`) — distributions, never a mean. → [NOTES.md](root/.agents/skills/retrospective/NOTES.md)
+
+Linking a launchd agent is not loading it: see [launchd-load.md](bin/launchd-load.md).
 
 ## Shell Script Conventions
 
@@ -188,6 +111,12 @@ local runs. Check zsh changes with `/bin/zsh -n` too. See
 
 Run it before pushing, and **after `git add`**: discovery is `git ls-files`, so an
 untracked script passes vacuously.
+
+**`bin/test` runs every suite, in parallel, and CI runs exactly that.** It
+discovers suites with `git ls-files` (so `git add` a new one first), leaves the
+tmux suites to `bin/test-in-docker` on a laptop, and skips what `bin/test.skip`
+names, each with its reason (`bin/test --list`). It needs GNU parallel, pinned
+in three places like tmux. See [bin/test.md](bin/test.md).
 
 **tmux suites run in Docker, never on the host: use `bin/test-in-docker`.**
 `TMUX_TMPDIR` does not isolate a suite inside a tmux pane, because tmux prefers
@@ -231,47 +160,12 @@ file with `sed -i`, which it did on any machine that had the plugin.
 
 Each suite's rationale — what it pins, which cases earn their keep, and the
 harness traps that made earlier versions green while proving nothing — is in the
-doc beside it. The recurring lesson across all of them: **assert on the observable
-contract, not on the exit status**, because nearly every failure mode here is
-silent.
+doc beside it — `<script>.md`, or the suite's own header where there is none.
+The exceptions: zsh suites are in [zsh/README.md](zsh/README.md), skill eval
+graders in [skill-eval.md](bin/skill-eval.md), and the curl/rm guard and Codex
+rules suites in [root/README.md](root/README.md). The recurring lesson across
+all of them: **assert on the observable contract, not on the exit status**,
+because nearly every failure mode here is silent.
 
-| Suite | Doc |
-| --- | --- |
-| `bin/lint-shell.test.sh` | [lint-shell.md](bin/lint-shell.md) |
-| `bin/ci-enrollment.test.sh` | its header (the not-in-CI list and each reason) |
-| `bin/skill-eval.test.sh` | [skill-eval.md](bin/skill-eval.md) |
-| `root/.agents/skills/init-project/evals/*/assert.test.sh` | [skill-eval.md](bin/skill-eval.md) |
-| `root/.agents/skills/review-test/evals/assert.test.sh`, `root/.agents/skills/review-design/evals/assert.test.sh` | [skill-eval.md](bin/skill-eval.md) |
-| `bin/tmux-agents.test.sh` | [tmux-agents.md](bin/tmux-agents.md) |
-| `bin/tmux-agent-view.test.sh` | [tmux-agent-view.md](bin/tmux-agent-view.md) |
-| `bin/tmux-popup.test.sh` (also `tmux-tig`, `fzf-nvim`) | [tmux-popup.md](bin/tmux-popup.md) |
-| `bin/tmux-cheatsheet.test.sh` | [tmux-cheatsheet.md](bin/tmux-cheatsheet.md) |
-| `bin/tmux-conf.test.sh` | [tmux-conf.md](bin/tmux-conf.md) |
-| `bin/tmux-pane-titles.test.sh` | [tmux-pane-titles.md](bin/tmux-pane-titles.md) |
-| `bin/tmux-session-swap.test.sh` | [tmux-session-swap.md](bin/tmux-session-swap.md) |
-| `bin/tmux-track-session.test.sh` | [tmux-track-session.md](bin/tmux-track-session.md) |
-| `bin/tmux-restore-tabs.test.sh` | [tmux-restore-tabs.md](bin/tmux-restore-tabs.md) |
-| `bin/tmux-restore-ssh-tabs.test.sh` | [tmux-restore-ssh-tabs.md](bin/tmux-restore-ssh-tabs.md) |
-| `bin/test-in-docker` (runs the tmux suites above), `bin/tmux-test-guard.test.sh` | [test-in-docker.md](bin/test-in-docker.md) |
-| `bin/autossh-ssh.test.sh` | [autossh-ssh.md](bin/autossh-ssh.md) |
-| `bin/pr-review-common.test.sh` | [pr-review-common.md](bin/pr-review-common.md) |
-| `bin/pr-review-watch.test.sh` | [pr-review-watch.md](bin/pr-review-watch.md) |
-| `bin/pr-state-watch.test.sh` | [pr-state-watch.md](bin/pr-state-watch.md) |
-| `bin/pr-review-dispatch.test.sh` | [pr-review-dispatch.md](bin/pr-review-dispatch.md) |
-| `root/.claude/hooks/agent-state.test.sh` | [agent-state.md](root/.claude/hooks/agent-state.md) |
-| `root/.claude/hooks/approve-multiline-commands.test.sh` | [approve-multiline-commands.md](root/.claude/hooks/approve-multiline-commands.md) |
-| `root/.claude/hooks/curl-guard.test.sh` | [root/README.md](root/README.md) |
-| `root/.claude/hooks/rm-guard.test.sh` | [root/README.md](root/README.md) |
-| `root/.codex/rules/default.rules.test.sh` | [root/README.md](root/README.md) — local only, not in CI |
-| `root/.agents/skills/retrospective/*.test.sh` | [NOTES.md](root/.agents/skills/retrospective/NOTES.md) |
-| `zsh/*.test.zsh` | [zsh/README.md](zsh/README.md) |
-| `bin/launchd-load.test.sh` | [launchd-load.md](bin/launchd-load.md) |
-| `bin/relink.test.sh` (also `link_with_backup`/`backup_path`/`ensure_ssh_base_include` in `bin/init/common.sh`, and `link_dotfiles`) | its header |
-| `bin/read-doc.test.sh` | [read-doc.md](bin/read-doc.md) — needs pandoc (pinned in CI) |
-| `bin/textlint-docs.test.sh` | [textlint-docs.md](bin/textlint-docs.md) (the rules themselves are checked by using them) |
-| `bin/git-generated.test.sh`, `bin/fzf-files.test.sh` | their headers |
-| `bin/wsl/notify-send.test.sh` | its header (runs anywhere; WSL is not needed) |
-| `bin/init/winget-result.test.ps1` | its header (the Windows workflow runs it; locally, pwsh in a container) |
-
-- **GitHub Actions CI** (`.github/workflows/`) runs the platform setup scripts plus lint, the hook tests, the tmux script tests, the retrospective tests and the `zsh/` unit tests. `git-guard.test.sh` is **not** wired in yet. The workflow lists suites by hand, so **a new suite needs its own step** — for a `*.test.sh` / `*.test.zsh`, `bin/ci-enrollment.test.sh` fails CI until it has one, or is added to its `not_in_ci` list with the reason. A `*.test.ps1` goes in `windows-setup.yml` by hand, and nothing checks that it did.
+- **GitHub Actions CI** (`.github/workflows/`) runs the platform setup scripts, `bin/lint-shell`, and every `*.test.sh` / `*.test.zsh` through `bin/test`. **A new suite needs no workflow step**: tracked is enough. To leave one out, add it to `bin/test.skip` with the reason; `git-guard.test.sh` is there, **not** wired in yet. `bin/ci-enrollment.test.sh` checks that the workflow runs `bin/test` and that every suite is run or skipped with a reason. A `*.test.ps1` goes in `windows-setup.yml` by hand, and nothing checks that it did.
 - **Setup workflows must test the pushed branch.** They `actions/checkout`, symlink the checkout to `~/dotfiles`, and run the bootstrap with `DOTFILES_SKIP_UPDATE=1` so it does not self-update over the branch under test. The earlier form — `curl .../main/bin/init/bootstrap-*.sh | sh`, letting the bootstrap `git clone` the default branch — meant every job validated `main` regardless of the pushed ref, so the checks could not fail on unmerged code. **Do not reintroduce a hardcoded `/main/` raw URL or drop the skip flag.**
