@@ -12,14 +12,27 @@ HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/git-guard.sh"
 pass=0
 fail=0
 
-check() {
-  local expect=$1 cmd=$2 out got
-  out=$(jq -Rn --arg c "$cmd" '{tool_name:"Bash", tool_input:{command:$c}}' | "$HOOK" 2>/dev/null)
-  if printf '%s' "$out" | grep -q '"permissionDecision": *"deny"'; then
-    got=DENY
+# PASS means exactly "exit 0, nothing on stdout" -- the hook staying out of the
+# way. Anything else that is not a deny is ERROR, so a hook that crashes on an
+# input cannot be mistaken for one that let it through on purpose.
+run_hook() {
+  jq -Rn --arg c "$1" '{tool_name:"Bash", tool_input:{command:$c}}' | "$HOOK" 2>/dev/null
+}
+verdict() {
+  local cmd=$1 out rc
+  out=$(run_hook "$cmd") && rc=0 || rc=$?
+  if [[ $rc -eq 0 ]] && printf '%s' "$out" | grep -q '"permissionDecision": *"deny"'; then
+    echo DENY
+  elif [[ $rc -eq 0 && -z "$out" ]]; then
+    echo PASS
   else
-    got=PASS
+    echo "ERROR(rc=$rc)"
   fi
+}
+
+check() {
+  local expect=$1 cmd=$2 got
+  got=$(verdict "$cmd")
   if [[ "$got" == "$expect" ]]; then
     pass=$((pass + 1))
     printf '  ok   %-4s %s\n' "$got" "$cmd"
@@ -93,6 +106,7 @@ check PASS "git commit -m \"it's broken\""
 check PASS 'git commit -m "fix: a && b"'
 check PASS 'git commit -m "wip; more"'
 check PASS 'git log --grep="a|b"'
+check PASS 'git commit -m "fix(scope): subject"'
 
 echo "-- must PASS: heredoc bodies are data, not commands --"
 # Regression: this hook's own commit message quoted `git -c ...` as an example,
@@ -154,7 +168,23 @@ check DENY '{ git -c a=b status; }'
 check DENY 'if git -c a=b status; then echo y; fi'
 check DENY 'while git -c a=b status; do break; done'
 check DENY 'true && ! git -c a=b status'
-check PASS 'git commit -m "fix(scope): subject"'
+check DENY 'until git -c a=b status; do break; done'
+check DENY 'if false; then :; elif git -c a=b status; then :; fi'
+check DENY 'if false; then git -c a=b status; fi'
+check DENY 'if false; then :; else git -c a=b status; fi'
+
+echo "-- must DENY: every separator Claude Code recognises --"
+check DENY 'false || git -c a=b status'
+check DENY 'echo | git -c a=b status'
+check DENY 'echo |& git -c a=b status'
+check DENY 'sleep 1 & git -c a=b status'
+check DENY 'cat <(git -c a=b status)'
+# shellcheck disable=SC2016 # literal command text under test
+check DENY 'echo "$x" "$(git -c a=b status)"'
+
+echo "-- must DENY: the option itself quoted or glued --"
+check DENY 'git "-c" a=b status'
+check DENY 'git -c"a=b" status'
 
 echo "-- must finish well inside the 5s hook timeout --"
 # A timed-out hook does not block the call, so slowness is a bypass, not a
@@ -162,21 +192,23 @@ echo "-- must finish well inside the 5s hook timeout --"
 # loop over `${s:i:1}` ~9s even under LC_ALL=C (it is quadratic), so a 3s bound
 # tells them apart with room for a slow CI runner. Both paths are timed: the awk
 # walk, and the sed fallback that unbalanced quoting falls through to.
+# Each case ends in a git that must be refused, so a hook that bails out early
+# on a huge input fails here rather than looking fast.
 check_fast() {
-  local label=$1 cmd=$2
+  local label=$1 cmd=$2 got
   SECONDS=0
-  jq -Rn --arg c "$cmd" '{tool_name:"Bash", tool_input:{command:$c}}' | "$HOOK" >/dev/null 2>&1
-  if ((SECONDS < 3)); then
+  got=$(verdict "$cmd")
+  if ((SECONDS < 3)) && [[ "$got" == DENY ]]; then
     pass=$((pass + 1))
-    printf '  ok   %s in %ds\n' "$label" "$SECONDS"
+    printf '  ok   %s: DENY in %ds\n' "$label" "$SECONDS"
   else
     fail=$((fail + 1))
-    printf '  FAIL %s took %ds\n' "$label" "$SECONDS"
+    printf '  FAIL %s: %s in %ds\n' "$label" "$got" "$SECONDS"
   fi
 }
 filler=$(printf 'é%.0s' $(seq 50000))
-check_fast "100k-byte quoted message" "git commit -m \"$filler\""
-check_fast "100k-byte unbalanced quote (fallback)" "git commit -m \"$filler"
+check_fast "100k-byte quoted message" "git commit -m \"$filler\"; git -c a=b status"
+check_fast "100k-byte unbalanced quote (fallback)" "git commit -m \"$filler; git -c a=b status"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]
