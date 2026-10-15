@@ -73,6 +73,17 @@ echo "-- must DENY: hiding behind a separator or unparseable quoting --"
 check DENY 'echo hi; git -c a=b status'
 check DENY 'ls && git -c a=b status'
 check DENY "git -C '/unterminated status"
+check DENY 'git -C'
+check DENY 'timeout 5 git -C'
+
+echo "-- must DENY: wrapper flags that take a value are not the command --"
+# Claude Code strips `timeout` before matching, so `Bash(git status*)` would
+# approve these; reading `KILL` as the duration made `5` the command word.
+check DENY 'timeout -s KILL 5 git -c a=b status'
+check DENY 'timeout -k 1 5 git -c a=b status'
+check DENY 'timeout --signal KILL 5 git -c a=b status'
+check DENY 'timeout --kill-after=1 5 git -c a=b status'
+check DENY 'stdbuf -o 0 git -c a=b status'
 
 # Paths here are placeholders on purpose: this repository is public, so a real
 # private-repo path in a test fixture would publish it.
@@ -185,6 +196,32 @@ check DENY 'echo "$x" "$(git -c a=b status)"'
 echo "-- must DENY: the option itself quoted or glued --"
 check DENY 'git "-c" a=b status'
 check DENY 'git -c"a=b" status'
+
+echo "-- must PASS: input with nothing to inspect --"
+check_input() {
+  local label=$1 json=$2 out rc
+  out=$(printf '%s' "$json" | "$HOOK" 2>/dev/null) && rc=0 || rc=$?
+  if [[ $rc -eq 0 && -z "$out" ]]; then
+    pass=$((pass + 1))
+    printf '  ok   PASS %s\n' "$label"
+  else
+    fail=$((fail + 1))
+    printf '  FAIL want=PASS got=rc=%s out=%s  %s\n' "$rc" "$out" "$label"
+  fi
+}
+check_input "no tool_input" '{}'
+check_input "no command" '{"tool_name":"Bash","tool_input":{}}'
+check_input "empty command" '{"tool_name":"Bash","tool_input":{"command":""}}'
+
+echo "-- the reason names the refused option --"
+reason=$(run_hook 'git -c a=b status' | jq -r '.hookSpecificOutput.permissionDecisionReason')
+if [[ "$reason" == *"refused '-c'"* ]]; then
+  pass=$((pass + 1))
+  echo "  ok   reason names '-c'"
+else
+  fail=$((fail + 1))
+  printf '  FAIL reason does not name -c: %s\n' "$reason"
+fi
 
 echo "-- must finish well inside the 5s hook timeout --"
 # A timed-out hook does not block the call, so slowness is a bypass, not a

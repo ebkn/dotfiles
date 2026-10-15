@@ -31,6 +31,12 @@
 # widen anything; the existing allow/deny/ask rules keep deciding every command
 # it stays silent on.
 #
+# What "a git invocation" means here is bounded by what an allow rule could
+# approve, since the threat is a `git ...` rule waving the call through. So the
+# wrappers stripped are the ones Claude Code itself strips before matching, and
+# forms no `git ...` rule matches are left to the prompt: `env git`, `sudo git`,
+# `sh -c "git ..."`, `g''it`, `\git`, `$(echo git) ...`.
+#
 # Registered without an `if:` filter, unlike curl-guard. A filter is itself a
 # Bash permission pattern and so inherits the same blind spot this hook exists
 # to cover -- `echo hi; git -c ... status` and wrapper forms could be filtered
@@ -162,7 +168,10 @@ strip_wrappers() {
       if | then | else | elif | while | until | do | '!' | '{') continue ;;
       timeout | nice | stdbuf)
         local w=$TOKEN
-        # Skip the wrapper's own flags, including the value `nice -n` takes.
+        # Skip the wrapper's own flags, including the separate value some take
+        # (`nice -n 5`, `timeout -s KILL`, `timeout -k 1`). Missing one is a
+        # bypass, not a false deny: the value is read as the duration and the
+        # duration as the command word, so the git after it goes unseen.
         while true; do
           saved_rest=$REST
           next_token && rc=0 || rc=$?
@@ -171,7 +180,7 @@ strip_wrappers() {
             return 1
           }
           [[ "$TOKEN" == -* ]] || break
-          if [[ "$w" == "nice" && "$TOKEN" == "-n" ]]; then
+          if [[ "$w $TOKEN" =~ ^(nice\ -n|timeout\ (-s|-k|--signal|--kill-after)|stdbuf\ (-i|-o|-e))$ ]]; then
             next_token && rc=0 || rc=$?
             [[ $rc -eq 0 ]] || return 1
           fi
