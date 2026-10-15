@@ -217,6 +217,13 @@ check DENY 'git <&0 -c a=b status'
 check DENY 'git >|x -c a=b status'
 check PASS 'git status 2>&1'
 check PASS 'git status &>/dev/null'
+# Read, not refused: each operator before the subcommand is removed and the
+# words around it still inspected.
+check PASS 'git 2>&1 status'
+check PASS 'git >&2 -C . status'
+check PASS 'git &>/dev/null status'
+check PASS 'git <&0 status'
+check PASS 'git >|x status'
 # A quoted operator character is no redirection, so the `&` after it still is.
 check DENY 'echo ">"& git -c a=b status'
 check DENY "echo '>'| git -c a=b status"
@@ -243,6 +250,11 @@ check PASS 'git -C "$D" status'
 check DENY 'git "$X" status'
 # shellcheck disable=SC2016 # literal command text under test
 check DENY 'git -C . "${X}" status'
+# Past the subcommand nothing is read, so a parameter there is ordinary.
+# shellcheck disable=SC2016 # literal command text under test
+check PASS 'git log "$X"'
+# shellcheck disable=SC2016 # literal command text under test
+check PASS 'git commit -m "$MSG"'
 check PASS "git log --format='%h {x}' -- '*.sh'"
 # `{}` is not a brace expansion, so xargs' placeholder is read as written.
 check PASS 'xargs -I{} git -C {} status'
@@ -430,6 +442,10 @@ check_reason 'git -C "a\"b" status' "an unreadable word after -C" "no path"
 check_reason 'git -C {.,-c} a=b status' "an unreadable word after -C" "no path"
 check_reason 'git -C . {-c,a=b} status' "an unreadable word before the subcommand" "refused '-c'"
 check_reason 'FOO="x git -c a=b status' "could not read the words before the command" "refused '"
+# The same command on both paths: read past the redirection on the main one, and
+# refused at the operator left without a target on the split-everywhere fallback.
+check_reason 'git >&2 -c a=b status' "refused '-c'" "unreadable"
+check_reason 'echo "x; git >&2 -c a=b status' "an unreadable word before the subcommand" "refused '-c'"
 
 echo "-- must finish well inside the 5s hook timeout --"
 # A timed-out hook does not block the call, so slowness is a bypass, not a
