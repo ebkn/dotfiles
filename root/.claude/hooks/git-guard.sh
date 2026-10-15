@@ -100,9 +100,12 @@ is_safe_global() {
 # global options -- never past the git subcommand, so never a git commit
 # message. Outside quotes a backslash escapes the next byte, so `a\ b` is one
 # word as the shell reads it -- read as two, `git -C a\ b -c x status` took `b`
-# for the subcommand. Inside double quotes `\"` is not interpreted, which ends
-# the run early and leaves its quote unterminated: refused, never passed. A word
-# this reads differently from the shell must only ever make the hook refuse more.
+# for the subcommand. Quoting it does not model is refused rather than guessed
+# at: a backslash inside double quotes, and ANSI-C `$'...'`. Guessing was a
+# bypass -- `\"` closed the run early, a later `'` re-synchronised the quotes,
+# and `-c` was read as part of a quoted subcommand that the shell ran as an
+# option. A word this reads differently from the shell must only ever make the
+# hook refuse more.
 #
 # Returns 1 when $REST is empty, 2 when the word cannot be read: an unterminated
 # quote, or more than MAX_WORD_RUNS runs, since each run copies the rest of the
@@ -123,7 +126,9 @@ next_token() {
         q="${REST:0:1}"
         body="${REST:1}"
         [[ "$body" == *"$q"* ]] || return 2
-        TOKEN+="${body%%"$q"*}"
+        chunk="${body%%"$q"*}"
+        [[ "$q" == "'" || "$chunk" != *\\* ]] || return 2
+        TOKEN+="$chunk"
         REST="${body#*"$q"}"
         ;;
       \\*)
@@ -132,6 +137,8 @@ next_token() {
         ;;
       *)
         chunk="${REST%%[[:space:]\'\"\\]*}"
+        # `$'` opens ANSI-C quoting, whose own escapes this does not model.
+        [[ "$chunk" != *\$ || "${REST:${#chunk}:1}" != "'" ]] || return 2
         TOKEN+="$chunk"
         REST="${REST#"$chunk"}"
         ;;

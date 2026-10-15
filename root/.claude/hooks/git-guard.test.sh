@@ -171,6 +171,15 @@ check DENY 'git -C a\ b -c a=b status'
 check DENY 'FOO=a\ b git -c a=b status'
 check PASS 'git -C a\ b status'
 check DENY '\git -c a=b status'
+# Quoting the word reader does not model exactly is refused, not guessed at: a
+# backslash inside double quotes, and ANSI-C $'...'. Guessed, `\"` closed the
+# run early and a later `'` re-synchronised the quotes, so `-c` was read as
+# part of a quoted subcommand while the shell ran it as an option.
+check DENY "git -C \"x\\\" '\" -c a=b status \"' y\""
+check DENY "git -C \$'x\\' \"' -c a=b status '\" y'"
+check DENY 'git -C "a\"b" status'
+check PASS 'git -C "a b" status'
+check PASS "git -C 'a\\b' status"
 check PASS 'git -C /tmp commit -m "fix: something"'
 check PASS 'git -C /tmp'
 check PASS 'git -C /tmp status --short'
