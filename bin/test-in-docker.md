@@ -73,11 +73,14 @@ Docker. It was confirmed red by removing one suite's guard line.
 ## Why the image looks the way it does
 
 Every difference from the runner is a failure the container invents
-(CLAUDE.md, Testing), so each line reproduces one runner property:
+(CLAUDE.md, Testing), so each line reproduces one runner property -- except
+the architecture, the one difference chosen on purpose:
 
-- **tmux 3.7c and fzf 0.74.3, the same pins and checksums as the workflow.** The
-  suites read rendered output, which moves between versions. Bump the
-  Dockerfile, the workflow and `brewfiles/Brewfile-shell` together.
+- **tmux 3.7c, fzf 0.74.3 and pandoc 3.12, the workflow's versions.** The
+  suites read rendered output, which moves between versions. tmux's checksum
+  and the amd64 ones of fzf and pandoc are the workflow's; the arm64 ones are
+  only in the Dockerfile. Bump the Dockerfile (both checksums), the workflow
+  and `brewfiles/Brewfile-shell` together.
 - **The host's architecture, not the runner's** -- the one deliberate
   difference. Under `linux/amd64` emulation on Apple silicon the tmux suites
   took ~60 s (agent-state 49 s, tmux-agents 41 s); native arm64 takes ~8 s
@@ -87,10 +90,11 @@ Every difference from the runner is a failure the container invents
   **A failure seen only natively, or only on CI, is the case to re-run with
   `TEST_DOCKER_PLATFORM=linux/amd64`**, which is the runner's architecture at
   emulation's cost. `DOCKER_DEFAULT_PLATFORM`, if exported, is docker's own
-  default and applies when the variable here is unset. The image keeps one tag, and the build re-points it to the
-  platform asked for, so the run never starts a stale one; BuildKit keeps both
-  platforms' layers, so switching back is a cache hit. The first build
-  compiles tmux and takes a while.
+  default and applies when the variable here is unset. The image keeps one
+  tag, and the build re-points it to the platform asked for, so the run never
+  starts a stale one. Switching back was a cache hit on Docker Desktop
+  (measured 2026-10: a full native run with its build, 9.5 s, right after an
+  amd64 one). The first build compiles tmux and takes a while.
 - **A non-root user.** As root the kernel ignores a `chmod 500`, and a permission
   case reports a bug that does not exist.
 - **`LANG=C.UTF-8`**, or tmux renders every wide glyph as `_`.
@@ -99,8 +103,8 @@ Every difference from the runner is a failure the container invents
   config it writes by what `ssh -G` resolves; it fails rather than skips
   without it.
 - **No `TERM`.** `docker run` without `-t` leaves it unset, as the runner does.
-  That is the one environment difference worth keeping, because the suites have
-  to survive it.
+  Of what a laptop has and the runner lacks, that is the one worth keeping
+  absent, because the suites have to survive it.
 
 The checkout is mounted **read-only**: a suite writes to its own `mktemp` dir,
 and one that tries to write to the checkout should fail loudly here.
