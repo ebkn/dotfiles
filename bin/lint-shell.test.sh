@@ -21,6 +21,9 @@
 set -uo pipefail
 
 cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
+# Read by bin/lint-shell or by the stubs: a value exported in the caller's
+# shell would otherwise change cases that mean the defaults.
+unset LINT_SHELL_JOBS FAIL_ON SLOW_ON
 
 LINT="$PWD/bin/lint-shell"
 
@@ -28,9 +31,11 @@ LINT="$PWD/bin/lint-shell"
 . bin/test-lib.sh || exit 2
 
 # A status captured with $(run_lint ...), which prints it. Not assert_status:
-# the run's output goes to its own file, and the cases read that too.
+# the run's output goes to its own file, and the cases read that too. Written
+# so that a FAIL reads "want status 1, got status 0" -- the way round the lint
+# run went.
 assert_nonzero() { # assert_nonzero <what> <status>
-  assert_status "$1" 0 test "$2" != 0
+  assert_status "$1" 1 test "$2" = 0
 }
 
 # Whole-argument matches against a stub's recorded argv, one argument per line.
@@ -180,8 +185,8 @@ assert_nonzero "an empty git ls-files exits non-zero" "$(run_lint "$work/empty")
 
 # --- a normal listing checks the files it was given --------------------------
 # bin/init/macos.sh is a real `#!/bin/zsh` script outside zsh/, so only its
-# shebang can route it -- the case a loosened pattern (`^#!.*sh`, or `\bsh\b`
-# matching the `sh` inside `zsh`) would wrongly hand to shellcheck.
+# shebang can route it -- the case a loosened match (`sh` as a substring, which
+# `zsh` contains) would wrongly hand to shellcheck.
 make_stubs "$work/normal"
 make_git_stub "$work/normal" 0 "bin/lint-shell
 bin/tmux-popup
@@ -192,13 +197,14 @@ README.md
 assert_eq "a normal listing exits 0" "0" "$(run_lint "$work/normal")"
 assert_arg "the bash script reaches shellcheck" "$work/normal/shellcheck.argv" "bin/lint-shell"
 # bin/tmux-popup is `#!/bin/sh`, like seven other scripts in bin/. Without one in
-# the listing, a pattern tightened to `\bbash\b` would drop all eight from both
-# checkers and still pass.
+# the listing, a match tightened to `bash` alone would drop all eight from both
+# checkers and still pass. (The shebang case below pins `sh` without relying on
+# what this file says.)
 assert_arg "a #!/bin/sh script reaches shellcheck" "$work/normal/shellcheck.argv" "bin/tmux-popup"
-assert_arg "and shfmt" "$work/normal/shfmt.argv" "bin/tmux-popup"
+assert_arg "a #!/bin/sh script reaches shfmt" "$work/normal/shfmt.argv" "bin/tmux-popup"
 assert_arg "the zsh module reaches zsh -n" "$work/normal/zsh.argv" "zsh/alias.zsh"
 assert_arg "a zsh-shebang script outside zsh/ reaches zsh -n" "$work/normal/zsh.argv" "bin/init/macos.sh"
-refute_arg "and not shellcheck" "$work/normal/shellcheck.argv" "bin/init/macos.sh"
+refute_arg "a zsh-shebang script outside zsh/ does not reach shellcheck" "$work/normal/shellcheck.argv" "bin/init/macos.sh"
 # The entrypoints have no shebang and live outside zsh/, so only their inline
 # names put them in front of zsh -n.
 assert_arg "the zsh entrypoint .zshrc is always checked" "$work/normal/zsh.argv" ".zshrc"
@@ -206,6 +212,50 @@ assert_arg "the zsh entrypoint .zshenv is always checked" "$work/normal/zsh.argv
 for tool in shellcheck shfmt zsh; do
   refute_arg "a file with no shell shebang reaches no checker ($tool)" "$work/normal/$tool.argv" "README.md"
 done
+
+# --- the shebang line decides, by whole words ------------------------------
+# Fixture files, listed by absolute path: lint-shell only reads them, and an
+# absolute path never matches the `zsh/*.zsh` route, so the first line alone
+# decides. Data, not executables: nothing here runs them. Each shape is one a
+# faster or tidier reading of the first line could drop without a sound --
+# a CRLF line end, a last line with no newline, a word that only contains a
+# shell's name.
+sb="$work/shebangs"
+mkdir -p "$sb"
+printf '#!/bin/bash\r\necho\r\n' >"$sb/crlf"
+printf '#!/bin/sh' >"$sb/no-newline"
+printf '#!/bin/dash\n' >"$sb/dash"
+printf '#!/usr/bin/env -S bash -eu\n' >"$sb/env-s"
+printf '#!/bin/sh -e\n' >"$sb/sh-flag"
+printf '#!/usr/local/bin/bashful\n' >"$sb/bashful"
+printf '#!/usr/bin/env zsh\n' >"$sb/env-zsh"
+printf '# run this with bash or sh\n' >"$sb/not-a-shebang"
+make_stubs "$work/shebang"
+# zsh/no-such-module.zsh is listed but absent: the `zsh/*.zsh` route must not
+# hand a checker a path that is not there.
+make_git_stub "$work/shebang" 0 "$sb/crlf
+$sb/no-newline
+$sb/dash
+$sb/env-s
+$sb/sh-flag
+$sb/bashful
+$sb/env-zsh
+$sb/not-a-shebang
+zsh/no-such-module.zsh
+"
+assert_eq "a listing of shebang shapes exits 0" "0" "$(run_lint "$work/shebang")"
+for f in crlf no-newline dash env-s sh-flag; do
+  assert_arg "shebang shape $f reaches shellcheck" "$work/shebang/shellcheck.argv" "$sb/$f"
+done
+assert_arg "an env zsh shebang reaches zsh -n" "$work/shebang/zsh.argv" "$sb/env-zsh"
+refute_arg "an env zsh shebang does not reach shellcheck" "$work/shebang/shellcheck.argv" "$sb/env-zsh"
+for f in bashful not-a-shebang; do
+  for tool in shellcheck zsh; do
+    refute_arg "$f reaches no checker ($tool)" "$work/shebang/$tool.argv" "$sb/$f"
+  done
+done
+refute_arg "a listed file that is absent reaches no checker" \
+  "$work/shebang/zsh.argv" "zsh/no-such-module.zsh"
 
 # --- every sourced fragment is a target --------------------------------------
 # Fragments carry no shebang, so discovery cannot find them and they are named
@@ -337,9 +387,12 @@ for target in "$first" "$last"; do
 done
 
 # Rejected by name, before any job starts. An exit status alone would not do:
-# both values also crash the chunk arithmetic (division by zero, an unset
+# 0 and abc also crash the chunk arithmetic (division by zero, an unset
 # variable under -u), so a run with no validation fails too, for that reason.
-for jobs in 0 abc; do
+# 010 would not even crash: a leading zero is octal to bash, so it would
+# silently mean 8 jobs. (Not -1: with validation broken it never ends the
+# chunk loop, and the run would spawn jobs until bin/test's timeout.)
+for jobs in 0 010 abc; do
   make_stubs "$work/bad-jobs"
   make_git_stub "$work/bad-jobs" 0 "$split_listing"
   assert_nonzero "LINT_SHELL_JOBS=$jobs is rejected" "$(LINT_SHELL_JOBS=$jobs run_lint "$work/bad-jobs")"
@@ -349,6 +402,15 @@ for jobs in 0 abc; do
     test -e "$work/bad-jobs/shellcheck.calls"
   rm -rf "$work/bad-jobs"
 done
+
+# Empty is the default, not a rejection: `${LINT_SHELL_JOBS:-...}` with the
+# colon dropped would turn it into one.
+make_stubs "$work/empty-jobs"
+make_git_stub "$work/empty-jobs" 0 "$split_listing"
+assert_eq "an empty LINT_SHELL_JOBS means the default and exits 0" "0" \
+  "$(LINT_SHELL_JOBS='' run_lint "$work/empty-jobs")"
+assert_eq "an empty LINT_SHELL_JOBS checks exactly the targets one job does" \
+  "$baseline" "$(targets_of "$work/empty-jobs/shellcheck.argv")"
 
 # --- an unknown argument is rejected -----------------------------------------
 make_stubs "$work/badarg"
