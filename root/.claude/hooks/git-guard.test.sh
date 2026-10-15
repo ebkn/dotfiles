@@ -111,7 +111,7 @@ check PASS 'echo git -c a=b'
 check PASS 'grep git -c file.txt'
 check PASS 'rg "git -c" .'
 
-echo "-- must PASS: a separator inside quotes does not start a command --"
+echo "-- must PASS: a separator inside quotes (outside any substitution) does not start a command --"
 # Regression: an rg alternation `"warn|git -C|hook"` was split at the quoted
 # `|`, leaving a bare `git -C` fragment that was refused as "-C with no path".
 check PASS 'rg -n "warn|git -C|hook" file.txt'
@@ -128,22 +128,55 @@ check DENY $'echo "multi\nline"\ngit -c a=b status'
 # Unbalanced quoting cannot be segmented reliably, so it falls back to splitting
 # at every operator: refusing too much is the safe direction for a deny-only hook.
 check DENY 'echo "x; git -c a=b status'
+# A backslash is literal inside single quotes, so `'a\'` is closed there; treating
+# it as an escape would swallow the closing quote and hide the git that follows.
+check DENY "echo 'a\\' ; git -c a=b status"
+# An escaped quote outside quotes opens nothing.
+check DENY 'echo \"; git -c a=b status'
+
+echo "-- must DENY: a command substitution runs, even inside double quotes --"
+# The substitutions are the command text under test, so they must stay unexpanded.
+# shellcheck disable=SC2016
+{
+  check DENY 'echo "$(true; git -c a=b status)"'
+  check DENY 'echo "`true; git -c a=b status`"'
+  check DENY 'echo "$(git -c a=b status)"'
+  check DENY 'echo $(git -c a=b status)'
+  check DENY 'echo `git -c a=b status`'
+  check DENY 'x=$(git -c a=b status)'
+}
+check PASS "echo '\$(git -c a=b status)'"
+
+echo "-- must DENY: grouping and compound-command keywords are not the command --"
+check DENY '(git -c a=b status)'
+check DENY '( git -c a=b status )'
+check DENY '{ git -c a=b status; }'
+check DENY 'if git -c a=b status; then echo y; fi'
+check DENY 'while git -c a=b status; do break; done'
+check DENY 'true && ! git -c a=b status'
+check PASS 'git commit -m "fix(scope): subject"'
 
 echo "-- must finish well inside the 5s hook timeout --"
 # A timed-out hook does not block the call, so slowness is a bypass, not a
 # nuisance. Measured on 100k bytes: the linear awk walk takes ~0.35s, a bash
 # loop over `${s:i:1}` ~9s even under LC_ALL=C (it is quadratic), so a 3s bound
-# tells them apart with room for a slow CI runner.
-long_cmd="git commit -m \"$(printf 'é%.0s' $(seq 50000))\""
-SECONDS=0
-check PASS "$long_cmd" >/dev/null
-if ((SECONDS < 3)); then
-  pass=$((pass + 1))
-  printf '  ok   100k-byte command in %ds\n' "$SECONDS"
-else
-  fail=$((fail + 1))
-  printf '  FAIL 100k-byte command took %ds\n' "$SECONDS"
-fi
+# tells them apart with room for a slow CI runner. Both paths are timed: the awk
+# walk, and the sed fallback that unbalanced quoting falls through to.
+check_fast() {
+  local label=$1 cmd=$2
+  SECONDS=0
+  jq -Rn --arg c "$cmd" '{tool_name:"Bash", tool_input:{command:$c}}' | "$HOOK" >/dev/null 2>&1
+  if ((SECONDS < 3)); then
+    pass=$((pass + 1))
+    printf '  ok   %s in %ds\n' "$label" "$SECONDS"
+  else
+    fail=$((fail + 1))
+    printf '  FAIL %s took %ds\n' "$label" "$SECONDS"
+  fi
+}
+filler=$(printf 'é%.0s' $(seq 50000))
+check_fast "100k-byte quoted message" "git commit -m \"$filler\""
+check_fast "100k-byte unbalanced quote (fallback)" "git commit -m \"$filler"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]

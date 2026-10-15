@@ -156,6 +156,10 @@ strip_wrappers() {
       # Leading environment assignment.
       [A-Za-z_]*=*) continue ;;
       time | nohup | command | builtin | noglob | xargs) continue ;;
+      # Shell syntax that precedes a command without being one. Unlike the
+      # wrappers above, Claude Code does not strip these, but the git after them
+      # runs all the same.
+      if | then | else | elif | while | until | do | '!' | '{') continue ;;
       timeout | nice | stdbuf)
         local w=$TOKEN
         # Skip the wrapper's own flags, including the value `nice -n` takes.
@@ -218,8 +222,15 @@ COMMAND=$(strip_heredoc_bodies "$COMMAND")
 # as "warn|git -C|hook" -- became a fragment of its own and was refused. A quoted
 # newline is likewise data and is flattened to a space.
 #
-# Returns 1 on unbalanced quoting, where the caller falls back to splitting at
-# every operator: for a deny-only hook, refusing too much is the safe direction.
+# A command substitution or subshell runs a command of its own, so `(`, `)` and
+# a backtick split too -- `echo $(git -c ...)` and `(git -c ...)` otherwise
+# start with a word that is not git. Inside double quotes a substitution still
+# runs, and tracking its nested quoting is more parser than this hook should
+# be, so `$(` or a backtick there makes the command unsplittable instead.
+#
+# Returns 1 on unbalanced quoting or such a substitution, where the caller falls
+# back to splitting at every operator: for a deny-only hook, refusing too much is
+# the safe direction.
 #
 # The walk is awk, byte-wise under LC_ALL=C, and prints as it goes. Both halves
 # are about the 5s timeout, past which a hook lets the call through: a bash loop
@@ -237,11 +248,13 @@ split_segments() {
         c = substr(s, i, 1)
         if (q != "") {
           if (c == q) q = ""
+          else if (q == "\"" && c == "`") exit 1
+          else if (q == "\"" && c == "$" && substr(s, i + 1, 1) == "(") exit 1
           else if (q == "\"" && c == "\\") { i++; c = c substr(s, i, 1) }
           else if (c == "\n") c = " "
         } else if (c == "\047" || c == "\"") q = c
         else if (c == "\\") { i++; c = c substr(s, i, 1) }
-        else if (c == ";" || c == "&" || c == "|") c = "\n"
+        else if (index(";&|()`", c)) c = "\n"
         printf "%s", c
       }
       exit (q != "")
@@ -249,7 +262,7 @@ split_segments() {
 }
 
 if ! segments=$(split_segments "$COMMAND"); then
-  segments=$(printf '%s' "$COMMAND" | sed -E 's/(\|\||&&|\|&|[;|&])/\n/g')
+  segments=$(printf '%s' "$COMMAND" | sed -E 's/(\|\||&&|\|&|[;|&()`])/\n/g')
 fi
 
 while IFS= read -r segment; do
