@@ -148,6 +148,9 @@ scan_globals() {
 # $CMD_WORD holds the segment's command word and $REST its arguments.
 # See: permissions.md (Wrappers).
 CMD_WORD=""
+# "<wrapper> <flag>" pairs whose value is the next token. Held in a variable so
+# the pattern is read as written, with no backslash-escaped spaces.
+VALUED_WRAPPER_FLAG='^(nice (-n|--adjustment)|timeout (-s|-k|--signal|--kill-after)|stdbuf (-i|-o|-e))$'
 strip_wrappers() {
   local rc
   while true; do
@@ -180,7 +183,7 @@ strip_wrappers() {
             return 1
           }
           [[ "$TOKEN" == -* ]] || break
-          if [[ "$w $TOKEN" =~ ^(nice\ -n|timeout\ (-s|-k|--signal|--kill-after)|stdbuf\ (-i|-o|-e))$ ]]; then
+          if [[ "$w $TOKEN" =~ $VALUED_WRAPPER_FLAG ]]; then
             next_token && rc=0 || rc=$?
             [[ $rc -eq 0 ]] || return 1
           fi
@@ -198,38 +201,24 @@ strip_wrappers() {
   done
 }
 
-# A heredoc body is data, not commands. `git commit -F - <<'EOF'` is the normal
-# way to write a multi-line message here, and such a message routinely quotes
-# git command lines -- this hook's own commit message did, and was refused by an
-# earlier version of it. Drop those bodies before segmenting.
+# Split the command into the simple commands it runs, one per output line.
 #
-# A body that really is executed (`bash <<'EOF'`) is not a way around this: the
-# outer command is then `bash`, which has no allow rule of its own, so the
-# permission prompt decides it rather than any `git ...` rule.
-strip_heredoc_bodies() {
-  local line tag="" trimmed out=""
-  while IFS= read -r line; do
-    if [[ -n "$tag" ]]; then
-      trimmed="${line#"${line%%[![:space:]]*}"}"
-      [[ "$trimmed" == "$tag" ]] && tag=""
-      continue
-    fi
-    out+="$line"$'\n'
-    # `<<TAG`, `<<'TAG'`, `<<"TAG"`, `<<-TAG`. The `[A-Za-z_]` requirement means
-    # a here-string (`<<<`) is not mistaken for a heredoc opener.
-    if [[ "$line" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*) ]]; then
-      tag="${BASH_REMATCH[1]}"
-    fi
-  done <<<"$1"
-  printf '%s' "$out"
-}
-COMMAND=$(strip_heredoc_bodies "$COMMAND")
-
+# A heredoc body is data, not commands, and is dropped. `git commit -F - <<'EOF'`
+# is the normal way to write a multi-line message here, and such a message
+# routinely quotes git command lines -- this hook's own commit message did, and
+# was refused by an earlier version of it. The opener is recognised in the same
+# walk that tracks quotes, because recognising it apart from that is a bypass:
+# a line-wise regex took `<<<EOF` and a quoted "<<EOF" for openers and dropped
+# every later line unread. A body with no terminator is kept, for the same
+# reason. A body that really is executed (`bash <<'EOF'`) is not a way around
+# any of this: the outer command is then `bash`, which no `git ...` rule matches.
+#
 # Split on every shell operator Claude Code recognises as a command separator,
 # but only outside quotes. Splitting inside them is not harmless: a quoted
 # argument that happens to contain `git -C` or `git -c` -- an rg alternation such
 # as "warn|git -C|hook" -- became a fragment of its own and was refused. A quoted
-# newline is likewise data and is flattened to a space.
+# newline is likewise data and is flattened to a space, and a backslash-newline
+# joins two lines into one command, as the shell does.
 #
 # A command substitution or subshell runs a command of its own, so `(`, `)` and
 # a backtick split too -- `echo $(git -c ...)` and `(git -c ...)` otherwise
@@ -238,8 +227,8 @@ COMMAND=$(strip_heredoc_bodies "$COMMAND")
 # be, so `$(` or a backtick there makes the command unsplittable instead.
 #
 # Returns 1 on unbalanced quoting or such a substitution, where the caller falls
-# back to splitting at every operator: for a deny-only hook, refusing too much is
-# the safe direction.
+# back to splitting at every operator, heredoc bodies included: for a deny-only
+# hook, refusing too much is the safe direction.
 #
 # The walk is awk, byte-wise under LC_ALL=C, and prints as it goes. Both halves
 # are about the 5s timeout, past which a hook lets the call through: a bash loop
@@ -250,21 +239,46 @@ COMMAND=$(strip_heredoc_bodies "$COMMAND")
 # the partial output is discarded by the caller.
 split_segments() {
   printf '%s' "$1" | LC_ALL=C awk '
-    { s = s (NR > 1 ? "\n" : "") $0 }
+    { L[NR] = $0 }
     END {
-      n = length(s); q = ""
-      for (i = 1; i <= n; i++) {
-        c = substr(s, i, 1)
-        if (q != "") {
-          if (c == q) q = ""
-          else if (q == "\"" && c == "`") exit 1
-          else if (q == "\"" && c == "$" && substr(s, i + 1, 1) == "(") exit 1
-          else if (q == "\"" && c == "\\") { i++; c = c substr(s, i, 1) }
-          else if (c == "\n") c = " "
-        } else if (c == "\047" || c == "\"") q = c
-        else if (c == "\\") { i++; c = c substr(s, i, 1) }
-        else if (index(";&|()`", c)) c = "\n"
-        printf "%s", c
+      q = ""
+      for (ln = 1; ln <= NR; ln++) {
+        s = L[ln]; n = length(s); np = 0; joined = 0
+        for (i = 1; i <= n; i++) {
+          c = substr(s, i, 1)
+          if (c == "\\" && i == n && q != "\047") { joined = 1; break }
+          if (q != "") {
+            if (c == q) q = ""
+            else if (q == "\"" && (c == "`" || (c == "$" && substr(s, i + 1, 1) == "("))) exit 1
+            else if (q == "\"" && c == "\\") { i++; c = c substr(s, i, 1) }
+          } else if (c == "\047" || c == "\"") q = c
+          else if (c == "\\") { i++; c = c substr(s, i, 1) }
+          else if (substr(s, i, 3) == "<<<") { c = "<<<"; i += 2 }
+          else if (substr(s, i, 2) == "<<") {
+            # <<TAG, <<-TAG, <<'\''TAG'\'', <<"TAG"; the quote, if any, is walked
+            # as an ordinary quote afterwards.
+            if (match(substr(s, i + 2), /^-?[ \t]*[\047"]?[A-Za-z_][A-Za-z0-9_]*/)) {
+              t = substr(s, i + 2, RLENGTH); sub(/^-?[ \t]*[\047"]?/, "", t)
+              tags[++np] = t
+            }
+            c = "<<"; i++
+          }
+          else if (index(";&|()`", c)) c = "\n"
+          printf "%s", c
+        }
+        if (joined) continue
+        if (q != "") { printf " "; continue }
+        # Bodies follow the line in opener order, each through its terminator.
+        # Leading whitespace is ignored on the terminator, which can only end a
+        # body early -- more inspected, never less.
+        for (k = 1; k <= np; k++) {
+          for (t = ln + 1; t <= NR; t++) {
+            b = L[t]; sub(/^[ \t]+/, "", b)
+            if (b == tags[k]) break
+          }
+          if (t <= NR) ln = t
+        }
+        printf "\n"
       }
       exit (q != "")
     }'

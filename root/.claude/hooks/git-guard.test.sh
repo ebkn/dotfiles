@@ -84,6 +84,18 @@ check DENY 'timeout -k 1 5 git -c a=b status'
 check DENY 'timeout --signal KILL 5 git -c a=b status'
 check DENY 'timeout --kill-after=1 5 git -c a=b status'
 check DENY 'stdbuf -o 0 git -c a=b status'
+check DENY 'stdbuf -i 0 git -c a=b status'
+check DENY 'stdbuf -e 0 git -c a=b status'
+check DENY 'timeout --signal=KILL 5 git -c a=b status'
+check DENY 'nice -n5 git -c a=b status'
+check DENY 'nice --adjustment 5 git -c a=b status'
+check DENY 'nice --adjustment=5 git -c a=b status'
+
+echo "-- must DENY: every wrapper Claude Code strips is seen through --"
+check DENY 'time git -c a=b status'
+check DENY 'command git -c a=b status'
+check DENY 'builtin git -c a=b status'
+check DENY 'noglob git -c a=b status'
 
 # Paths here are placeholders on purpose: this repository is public, so a real
 # private-repo path in a test fixture would publish it.
@@ -108,6 +120,19 @@ check PASS 'git'
 check PASS 'git --no-pager log --oneline'
 check PASS 'git -P diff'
 check PASS 'git --no-optional-locks status'
+check PASS 'git --paginate log'
+check PASS 'git --no-replace-objects log'
+check PASS 'git --no-lazy-fetch log'
+check PASS 'git --no-advice status'
+check PASS 'git --literal-pathspecs add a'
+check PASS 'git --glob-pathspecs add a'
+check PASS 'git --noglob-pathspecs add a'
+check PASS 'git --icase-pathspecs add a'
+check PASS 'git -v'
+check PASS 'git --version'
+check PASS 'git -h'
+check PASS 'git --man-path'
+check PASS 'git --html-path'
 check PASS 'timeout 5 git status'
 check PASS 'nice -n 5 git status'
 check PASS 'git add -p'
@@ -129,6 +154,21 @@ check PASS $'cat <<-EOF\n\tgit -c a=b status\n\tEOF'
 echo "-- must DENY: a real invocation outside the heredoc still counts --"
 check DENY $'git -c a=b commit -F - <<\'EOF\'\nsubject\nEOF'
 check DENY $'cat <<\'EOF\'\ngit -c harmless=example status\nEOF\ngit -c a=b status'
+
+echo "-- must DENY: what only looks like a heredoc opener hides nothing --"
+check DENY $'cat <<<EOF\ngit -c a=b status'
+check DENY $'echo "<<EOF"\ngit -c a=b status\nEOF'
+check DENY $'echo \'<<EOF\'\ngit -c a=b status\nEOF'
+check DENY $'echo \\<<EOF\ngit -c a=b status\nEOF'
+# No terminator: stripping to the end would hide every later line, so the body
+# is inspected rather than assumed to be data.
+check DENY $'cat <<EOF\ngit -c a=b status'
+check DENY $'cat <<A <<B\na\nA\nb\nB\ngit -c a=b status'
+check PASS $'cat <<A <<B\ngit -c a=b status\nA\ngit -c a=b status\nB'
+
+echo "-- must DENY: a backslash-newline continues the same command --"
+check DENY $'git \\\n-c a=b status'
+check PASS $'git status \\\n--short'
 
 echo "-- must PASS: not a git command --"
 check PASS 'npm test'
