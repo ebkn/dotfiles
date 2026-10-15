@@ -66,16 +66,29 @@ fi
 # The zsh entrypoints have no shebang and live outside zsh/, so name them; the
 # `zsh/*.zsh` case picks up the modules (including .p10k.zsh — a `case`
 # pattern has no dotfile exclusion, unlike pathname expansion).
+#
+# The first line is read with builtins, not `head -n 1 | grep`: that pipeline
+# is three processes per tracked file, ~1.2 s of a ~3 s run on macOS for 327
+# files. Its regexes were `^#!.*\b(bash|sh|dash)\b` and `^#!.*\bzsh\b`; the
+# same test is "one of these is a whole word of the shebang line", which is
+# what splitting the line on non-word characters and matching words gives.
 sh_targets=()
 zsh_targets=(.zshrc .zshenv)
 while IFS= read -r f; do
   [ -f "$f" ] || continue
-  if head -n 1 "$f" | grep -qE '^#!.*\b(bash|sh|dash)\b'; then
-    sh_targets+=("$f")
-  fi
+  # A file without a trailing newline still has its line read; read fails.
+  line=''
+  IFS= read -r line <"$f" || :
+  case "$line" in
+    '#!'*) words=" ${line//[^A-Za-z0-9_]/ } " ;;
+    *) words='' ;;
+  esac
+  case "$words" in
+    *' bash '* | *' sh '* | *' dash '*) sh_targets+=("$f") ;;
+  esac
   case "$f" in
     zsh/*.zsh) zsh_targets+=("$f") ;;
-    *) head -n 1 "$f" | grep -qE '^#!.*\bzsh\b' && zsh_targets+=("$f") ;;
+    *) case "$words" in *' zsh '*) zsh_targets+=("$f") ;; esac ;;
   esac
 done <<<"$tracked"
 

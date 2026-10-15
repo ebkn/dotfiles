@@ -24,7 +24,11 @@ by default, `LINT_SHELL_JOBS=<n>` to override (a positive integer; empty means
 the default; anything else is rejected, each reason beside the check in the
 script). Measured on an 18-core Mac:
 8.2s → 3.3s; what remains is mostly the chunk holding `tmux-agents.test.sh`
-and the shebang discovery loop.
+and the shebang discovery loop. That loop ran `head -n 1 | grep` per tracked
+file, three processes each, ~1.2 s for 327 files; reading the first line with
+`read` and matching whole words with `case` took the run to ~1.8 s (2026-10),
+and gave the same target lists on the repo and on an edge-case fixture
+(`env -S bash`, `bashful`, `my-sh`, CRLF, no trailing newline).
 
 Two things the split must not lose, both pinned by the suite and both confirmed
 red by mutation:
