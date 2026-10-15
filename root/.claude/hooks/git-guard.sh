@@ -107,12 +107,21 @@ is_safe_global() {
 # option. A word this reads differently from the shell must only ever make the
 # hook refuse more.
 #
+# An unquoted redirection, brace or glob character is refused for the same
+# reason: the shell removes a redirection from argv and expands the others, so
+# the word read here is not the argument git receives. Read as words,
+# `git -C . 2>/dev/null -c x status` and `git -C . {-c,x} status` each took a
+# word for the subcommand and left `-c` uninspected.
+#
 # Returns 1 when $REST is empty, 2 when the word cannot be read: an unterminated
-# quote, or more than MAX_WORD_RUNS runs, since each run copies the rest of the
-# string and a word built to have thousands would outlast the timeout.
+# quote, quoting this does not model (a backslash inside double quotes, `$'`),
+# an unquoted character of UNMODELLED, or more than MAX_WORD_RUNS runs, since
+# each run copies the rest of the string and a word built to have thousands
+# would outlast the timeout.
 REST=""
 TOKEN=""
 MAX_WORD_RUNS=64
+UNMODELLED='*[<>{*?[]*'
 next_token() {
   REST="${REST#"${REST%%[![:space:]]*}"}"
   [[ -n "$REST" ]] || return 1
@@ -139,6 +148,8 @@ next_token() {
         chunk="${REST%%[[:space:]\'\"\\]*}"
         # `$'` opens ANSI-C quoting, whose own escapes this does not model.
         [[ "$chunk" != *\$ || "${REST:${#chunk}:1}" != "'" ]] || return 2
+        # shellcheck disable=SC2053 # $UNMODELLED is a pattern, deliberately unquoted
+        [[ "$chunk" != $UNMODELLED ]] || return 2
         TOKEN+="$chunk"
         REST="${REST#"$chunk"}"
         ;;
@@ -167,10 +178,16 @@ scan_globals() {
 
     if [[ "$TOKEN" == "-C" ]]; then
       next_token && rc=0 || rc=$?
-      [[ $rc -eq 0 ]] || {
-        BAD="-C with no path"
-        return 1
-      }
+      case $rc in
+        1)
+          BAD="-C with no path"
+          return 1
+          ;;
+        2)
+          BAD="an unreadable word after -C"
+          return 1
+          ;;
+      esac
       continue
     fi
 

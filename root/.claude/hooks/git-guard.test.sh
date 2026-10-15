@@ -185,6 +185,29 @@ check PASS "git -C 'a\\b' status"
 # instead would leave the git after it unread.
 check DENY 'FOO="a\"b" git status'
 check DENY "FOO=\$'a' git status"
+
+echo "-- must DENY: a word the shell turns into other argv before the subcommand --"
+# The shell removes a redirection from argv and expands braces and globs, so a
+# word that looked like the subcommand can leave `-c` as git's next argument.
+check DENY 'git -C . 2>/dev/null -c a=b status'
+check DENY '>/dev/null git -C . -c a=b status'
+check DENY 'git -C {.,-c} a=b status'
+check DENY 'git -C . {-c,a=b} status'
+check DENY 'git -C . -* status'
+check DENY 'git -C . ?c a=b status'
+check DENY 'git -C . [-]c a=b status'
+check PASS 'git -C "{dir}" status'
+check PASS 'git status >/dev/null 2>&1'
+check PASS "git log --format='%h {x}' -- '*.sh'"
+# The deny reason names what went wrong after -C, not a missing path.
+reason=$(run_hook 'git -C "a\"b" status' | jq -r '.hookSpecificOutput.permissionDecisionReason')
+if [[ "$reason" == *"unreadable word after -C"* ]]; then
+  pass=$((pass + 1))
+  echo "  ok   reason for an unreadable -C path"
+else
+  fail=$((fail + 1))
+  printf '  FAIL reason for an unreadable -C path: %s\n' "$reason"
+fi
 check PASS 'git -C /tmp commit -m "fix: something"'
 check PASS 'git -C /tmp'
 check PASS 'git -C /tmp status --short'
