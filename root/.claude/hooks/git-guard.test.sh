@@ -406,7 +406,18 @@ check PASS "echo '\$(git -c a=b status)'"
   check DENY 'echo "`echo a; git -c a=b status`"; true'
   check PASS $'git commit -m "$(cat <<\'EOF\'\nsubject\n\ngit -c a=b status\nEOF\n)"'
   check DENY 'echo "$(true; git status"'
+  # The outer word keeps a placeholder where the substitution was, so what
+  # follows it is still read as git's options.
+  check PASS 'git -C "$(pwd)" status'
+  check DENY 'git -C "$(pwd)" -c a=b status'
+  check DENY 'git -C "`pwd`" -c a=b status'
+  # A case pattern's `)` would close the substitution early, leaving the git
+  # after it as data; a `case` inside a quoted substitution is unsplittable.
+  check DENY 'echo "$(case x in x) git -c a=b status;; esac)"'
+  check DENY 'echo $(case x in x) git -c a=b status;; esac)'
 }
+# Unsplittable with no word that could be git: nothing to inspect, so it passes.
+check PASS "echo \"it's"
 
 echo "-- must DENY: grouping and compound-command keywords are not the command --"
 check DENY '(git -c a=b status)'
@@ -472,6 +483,7 @@ check_reason 'FOO="a\"b" git -c a=b status' "could not read the words before the
 # Read past the redirection, and refused whole when the command cannot be split.
 check_reason 'git >&2 -c a=b status' "refused '-c'" "unreadable"
 check_reason 'echo "x; git >&2 -c a=b status' "could not split" "refused '-c'"
+check_reason 'echo "x; git status' "could not split" "refused '"
 
 echo "-- must finish well inside the 5s hook timeout --"
 # A timed-out hook does not block the call, so slowness is a bypass, not a

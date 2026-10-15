@@ -34,8 +34,9 @@
 # That is also why its parser is correct in one direction only, and must not be
 # reused by a hook that allows. Every ambiguity is resolved toward "inspect it"
 # or "refuse it": after a wrapper the first git word is taken as the command,
-# an unsplittable command is split at every operator, a quoted newline becomes a
-# space, and an input too large or unreadable is refused. A hook that approved
+# an unsplittable command is refused whole if a word in it could be git, a
+# quoted newline becomes a space, and an input too large or unreadable is
+# refused. A hook that approved
 # whatever this parser calls a clean `git -C . status` would approve
 # `timeout 5 rm -rf ~ git -C . status`.
 #
@@ -421,6 +422,13 @@ split_segments() {
             else if (q == "\"" && c == "`") { push("`"); c = ""; lu = "" }
             else if (q == "\"" && c == "\\") { i++; c = c ch[i] }
           } else if (c == "\047" || c == "\"") { q = c; lu = "" }
+          # Inside a quoted substitution the `)` of a case pattern would close
+          # it early and leave the git after it as data, and modelling case is
+          # past this walk: the command is unsplittable instead. (No apostrophe
+          # in these comments: the program is single-quoted.)
+          else if (sp > 0 && c == "c" && (lu == "" || lu == " " || lu == "\t") && \
+            ch[i + 1] == "a" && ch[i + 2] == "s" && ch[i + 3] == "e" && \
+            (ch[i + 4] == " " || ch[i + 4] == "\t" || ch[i + 4] == "")) exit 1
           else if (c == "(") { pd++; c = "\n"; lu = "" }
           else if (c == ")") {
             if (sp > 0 && sk[sp] == "(" && pd == sd[sp]) { pop(); c = "" }
