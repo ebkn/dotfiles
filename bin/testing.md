@@ -44,7 +44,7 @@ green run). Poll for the thing the assertion is about, with a deadline that is
 only reached when the test is failing:
 
 ```bash
-wait_until 5 test -s "$out" || fail "nothing was written"
+assert_status "something was written" 0 wait_until 5 test -s "$out"
 ```
 
 A **negative** assertion ("nothing was sent", "the view did not open") is the
@@ -144,7 +144,10 @@ print `ok`, `  ok`, `PASS`; counting them took a regex per dialect.)
 One sourced fragment instead of a hand-rolled `t`/`check`/`ok`/`eq` per file:
 
 - assertions: `assert_eq`, `assert_contains`, `assert_not_contains`,
-  `assert_status` — each prints the rule-5 lines;
+  `assert_status` — each prints the rule-5 lines; any other condition is
+  checked as `assert_status "<what>" 0 <cmd…>`. A suite's own ok/fail counter
+  is invisible to `test_summary`, so replace its summary in the same edit that
+  adds the first `assert_*`, or its FAILs print and the run still exits 0;
 - `wait_until <seconds> <cmd…>` for rule 1: polls every 0.05 s, the deadline
   in seconds (one decimal allowed) rather than a loop count times a step;
 - `next_second <epoch>`: waits for the clock to pass a one-second stamp,
@@ -158,8 +161,8 @@ One sourced fragment instead of a hand-rolled `t`/`check`/`ok`/`eq` per file:
 - `run_tests`: runs every `test_*` function in the order the file defines them,
   each in a subshell (0.6 ms; a case cannot leak `cd` or variables into the
   next), skipping those that do not contain `$TEST_FILTER`, then `test_summary`.
-  A case that calls `exit` non-zero is a FAIL; the status it merely returns is
-  not.
+  A case that calls `exit` non-zero is a FAIL. Without `set -e` the status it
+  merely returns is not; under it, a failing command ends the case as a FAIL.
 
 Pinned by `bin/test-lib.test.sh`, which runs fixture suites under `/bin/bash`
 (3.2 on a Mac) rather than judging the library with itself.

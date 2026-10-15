@@ -17,6 +17,10 @@
 # Mixed, the top level's checks count in the same verdict, and what it set up
 # (test_tmpdir, track_pid) lasts through every case -- rule 3's shape.
 #
+# Any condition is checked as `assert_status "<what>" 0 <cmd...>`. A counter of
+# a suite's own is invisible to test_summary: moving a suite here, replace its
+# summary in the same edit, or its FAILs print and the run still exits 0.
+#
 # Works under `set -u` and `set -e` alike. Under `set -e` a failing command in
 # a case ends that case, which is a FAIL like an `exit` non-zero; without it,
 # the status a case function returns is not a verdict.
@@ -111,7 +115,8 @@ assert_status() {
 }
 
 # wait_until <seconds> <command...> -- run the command every 0.05 s until it
-# succeeds (return 0) or <seconds> have been slept (return 1). Rule 1: the
+# succeeds (return 0) or <seconds> have been slept (return 1); 2 and a message
+# when <seconds> is not a number. Rule 1: the
 # deadline is only reached when the test is failing, so a generous one costs
 # nothing on a green run. <seconds> may have one decimal (0.5). The deadline
 # counts the sleeps, not the command's own time, so a slow command stretches it.
@@ -238,8 +243,9 @@ run_tests() {
       trap _tl_exit EXIT
       if [ -n "$errexit" ]; then set -e; fi
       "$fn"
-      # A function's return status is not a verdict -- one ending in a false
-      # `[ ]` returns 1 -- but an `exit` is: it never reaches this line.
+      # Without set -e a function's return status is not a verdict -- one
+      # ending in a false `[ ]` returns 1 -- but an `exit` is: it never reaches
+      # this line. Under set -e a failing command exits before it, too.
       exit 0
     )
     status=$?
