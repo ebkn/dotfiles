@@ -59,7 +59,23 @@ Functions available to `assert.sh`: `check`, `check_eq`, `check_match`,
 `transcript_skill_uses <skill>`, `transcript_first_tool_index <tool>`,
 `transcript_first_command_index <regex>`, `transcript_first_text_index <regex>`,
 `transcript_tool_uses_precede <tool> <index>`,
+`transcript_skill_rounds <skill>`, `transcript_caller_writes_between <from> <to>`,
+`review_loop_reran_only_after_findings <skill>`,
+`review_loop_fixed_before_each_rerun <skill>`, `review_loop_ended_clean <skill>`,
 `check_llm <label> <rubric> [<text>]`.
+
+**The review loop is graded per round, not by a count.** `review-test` and
+`review-design` both fix their P1 and P2 findings and review again until a
+round reports none. Two Skill calls are the same number whether the second
+followed a fix or was the same review started twice, so
+`transcript_skill_rounds` takes each call apart: its brief, the report it handed
+back (the forked `tool_result`, which the caller may never have written out),
+how many P1/P2 items that report lists, and how many tool calls the fork made.
+The three `review_loop_*` predicates are built on it — no re-run after a clean
+round, a caller write before every re-run, and a clean last round — and
+`bin/skill-eval.test.sh` pins each against a two-round fixture transcript.
+A fix made through `Bash` instead of `Write`/`Edit` is invisible to them; the
+review cases open no command that writes.
 
 The four index functions exist for **ordering** assertions, which is what is
 left once a skill's caller acts on its report in the same run: "never wrote" is

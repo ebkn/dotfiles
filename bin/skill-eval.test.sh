@@ -792,6 +792,78 @@ t "commands: one call per line, newlines folded" $'git status\\n--short\ngit com
 t "result_text: the final response" "done" "$(reader transcript_result_text)"
 t "denials: every refused call" "2" "$(reader transcript_denials)"
 
+# --- review rounds, against a fixture transcript ---
+#
+# The review loop is graded per round: what each round reported, and whether
+# the caller fixed something before the next. A reader that matched a result
+# to the wrong call, counted the caller's own calls as the fork's, or read an
+# empty priority section as a finding would grade a loop that never ended as
+# clean, or a clean one as running forever. Two rounds of review-test: the
+# first reports a P1 as a string result, the second only "なし" under P2, as
+# an array result; an unrelated skill and an Edit inside the fork sit between.
+# Indices: 1 Skill#1, 2 fork Read, 3 fork Edit, 4 result#1, 5 caller Edit,
+# 6 commit Skill, 7 Skill#2, 8 result#2.
+cat >"$DIR/rounds.jsonl" <<'EOF'
+{"type":"system","subtype":"init"}
+{"type":"assistant","parent_tool_use_id":null,"message":{"content":[{"type":"tool_use","id":"s1","name":"Skill","input":{"skill":"review-test","args":"first brief"}}]}}
+{"type":"assistant","parent_tool_use_id":"s1","message":{"content":[{"type":"tool_use","id":"r1","name":"Read","input":{"file_path":"a.test.sh"}},{"type":"tool_use","id":"r2","name":"Grep","input":{"pattern":"x"}}]}}
+{"type":"assistant","parent_tool_use_id":"s1","message":{"content":[{"type":"tool_use","id":"r3","name":"Edit","input":{"file_path":"a.test.sh"}}]}}
+{"type":"user","tool_use_result":{"totalDurationMs":4200,"totalTokens":900},"message":{"content":[{"type":"tool_result","tool_use_id":"s1","content":"## Test review: a\n\n### P1 (Critical)\n- the refusal is untested\n- [ ] stderr unchecked\n\n### P3 (Nice to have)\n- naming"}]}}
+{"type":"assistant","parent_tool_use_id":null,"message":{"content":[{"type":"tool_use","id":"e1","name":"Edit","input":{"file_path":"a.test.sh"}}]}}
+{"type":"assistant","parent_tool_use_id":null,"message":{"content":[{"type":"tool_use","id":"c1","name":"Skill","input":{"skill":"commit"}}]}}
+{"type":"assistant","parent_tool_use_id":null,"message":{"content":[{"type":"tool_use","id":"s2","name":"Skill","input":{"skill":"review-test","args":"second brief: fixed the refusal"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"s2","content":[{"type":"text","text":"## Test review: a\n\n### P2 (Important)\n- なし\n\n### P3\n- naming"}]}]}}
+{"type":"result","result":"done"}
+EOF
+rounds_of() { # <jq filter over the rounds array>
+  (
+    SKILL_EVAL_TRANSCRIPT="$DIR/rounds.jsonl"
+    . bin/skill-eval-assert.sh
+    transcript_skill_rounds review-test
+  ) | jq -sc "$1"
+}
+t "skill_rounds: one round per call of that skill, not of another" "2" "$(rounds_of 'length')"
+t "skill_rounds: each call's own index and result index" "[[1,4],[7,8]]" "$(rounds_of '[.[] | [.index, .result_index]]')"
+t "skill_rounds: the brief is the args, not the skill's name" '["first brief","second brief: fixed the refusal"]' "$(rounds_of '[.[].brief]')"
+t "skill_rounds: a string result and an array result both read as the report" "[true,true]" \
+  "$(rounds_of '[.[].report | startswith("## Test review: a")]')"
+# P3 items are not open, a checkbox item is, and "なし" under P2 is nothing.
+t "skill_rounds: open counts P1/P2 items only, and not an item saying none" "[2,0]" "$(rounds_of '[.[].open]')"
+t "skill_rounds: tool_calls counts the fork's calls, every block, none of the caller's" "[3,0]" "$(rounds_of '[.[].tool_calls]')"
+t "skill_rounds: duration and tokens when recorded, null when not" "[[4200,900],[null,null]]" \
+  "$(rounds_of '[.[] | [.duration_ms, .tokens]]')"
+
+# loop <predicate> [<transcript>] -- the predicate's sense, as a word.
+loop() {
+  if (
+    SKILL_EVAL_TRANSCRIPT="${2:-$DIR/rounds.jsonl}"
+    . bin/skill-eval-assert.sh
+    "$1" review-test
+  ); then echo yes; else echo no; fi
+}
+t "caller_writes_between: the caller's Edit, not the fork's" "1" \
+  "$(SKILL_EVAL_TRANSCRIPT="$DIR/rounds.jsonl" bash -c '. bin/skill-eval-assert.sh; transcript_caller_writes_between 1 7')"
+t "caller_writes_between: bounds are exclusive" "0" \
+  "$(SKILL_EVAL_TRANSCRIPT="$DIR/rounds.jsonl" bash -c '. bin/skill-eval-assert.sh; transcript_caller_writes_between 5 7')"
+t "loop: the fixture re-ran only after findings" "yes" "$(loop review_loop_reran_only_after_findings)"
+t "loop: the fixture fixed before re-running" "yes" "$(loop review_loop_fixed_before_each_rerun)"
+t "loop: the fixture ended clean" "yes" "$(loop review_loop_ended_clean)"
+
+# Each predicate broken by one change to the fixture.
+sed '6d' "$DIR/rounds.jsonl" >"$DIR/rounds-nofix.jsonl"
+t "loop: a re-run with no caller write between is caught" "no" "$(loop review_loop_fixed_before_each_rerun "$DIR/rounds-nofix.jsonl")"
+# The same Edit made inside a fork must not stand in for the caller's fix.
+sed '6s/"parent_tool_use_id":null/"parent_tool_use_id":"s1"/' "$DIR/rounds.jsonl" >"$DIR/rounds-forkfix.jsonl"
+t "loop: an Edit inside the fork does not count as the fix" "no" "$(loop review_loop_fixed_before_each_rerun "$DIR/rounds-forkfix.jsonl")"
+sed 's/- the refusal is untested/- なし/; s/- \[ \] stderr unchecked/- None/' "$DIR/rounds.jsonl" >"$DIR/rounds-clean-first.jsonl"
+t "loop: a re-run after a clean round is caught" "no" "$(loop review_loop_reran_only_after_findings "$DIR/rounds-clean-first.jsonl")"
+sed 's/### P2 (Important)\\n- なし/### P2 (Important)\\n- still open/' "$DIR/rounds.jsonl" >"$DIR/rounds-dirty-last.jsonl"
+t "loop: a last round with a P2 left is caught" "no" "$(loop review_loop_ended_clean "$DIR/rounds-dirty-last.jsonl")"
+head -n 1 "$DIR/rounds.jsonl" >"$DIR/rounds-none.jsonl"
+t "loop: no round at all is not a clean end" "no" "$(loop review_loop_ended_clean "$DIR/rounds-none.jsonl")"
+t "loop: but re-ran nothing, so the other two hold" "yes yes" \
+  "$(loop review_loop_reran_only_after_findings "$DIR/rounds-none.jsonl") $(loop review_loop_fixed_before_each_rerun "$DIR/rounds-none.jsonl")"
+
 if [ "$fails" -eq 0 ]; then
   printf '\nall skill-eval tests passed\n'
   exit 0

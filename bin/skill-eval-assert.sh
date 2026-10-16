@@ -178,6 +178,134 @@ transcript_skill_uses() {
   ' "$SKILL_EVAL_TRANSCRIPT"
 }
 
+# --- review rounds ---
+#
+# review-test and review-design rank findings P1/P2/P3 and share one loop: fix
+# the P1 and P2 findings, review again in a fresh run, and stop once a round
+# reports none. A count of Skill calls cannot tell that loop apart from a skill
+# started twice for nothing, so these readers take each round apart.
+
+# transcript_skill_rounds <skill name>
+# One JSON object per line, one per call of the skill, in order:
+#   index        record index of the Skill call
+#   brief        the input's strings other than the skill's name (its args)
+#   result_index record index of the call's tool_result; null if none came back
+#   report       that tool_result's text -- a forked skill's report, which the
+#                caller has not necessarily written out
+#   open         P1 and P2 items in the report (see below)
+#   tool_calls   tool calls made inside the fork: records carrying the call's
+#                id as parent_tool_use_id. The one measure of a round's weight
+#                every transcript has
+#   duration_ms, tokens
+#                the tool_result record's tool_use_result.totalDurationMs /
+#                .totalTokens, or null. Agent results carry them; whether a
+#                forked Skill's does was not known when this was written, so
+#                null means "not recorded", never zero
+#
+# `open` counts list items under a heading naming P1 or P2 ("### P1 (Critical)",
+# "### P2"), skipping an item that says there is nothing ("なし", "None"). Both
+# skills drop an empty priority section, so a clean round has no such heading
+# at all; the skip is for a run that kept the heading anyway.
+transcript_skill_rounds() {
+  jq -sc --arg name "$1" '
+    def open_findings:
+      [ foreach split("\n")[] as $l ({sec: false, n: 0};
+          if ($l | test("^#+")) then .sec = ($l | test("^#+\\s*P[12]([^0-9]|$)"))
+          elif .sec and ($l | test("^\\s*([-*]|[0-9]+\\.)\\s+"))
+            and ($l | test("なし|ありません|[Nn]one|[Nn]o findings|N/A") | not) then .n += 1
+          else . end;
+          .n) ] | last // 0;
+    . as $all
+    | [ to_entries[]
+        | select(.value.type == "assistant")
+        | .key as $i
+        | .value.message.content[]?
+        | select(.type == "tool_use" and .name == "Skill")
+        | select([ .input // {} | .. | strings ] | any(. == $name or . == "/" + $name))
+        | { index: $i,
+            id: (.id // ""),
+            brief: ([ .input // {} | .. | strings | select(. != $name and . != "/" + $name) ] | join("\n")) } ]
+    | .[]
+    | . as $r
+    | ( [ $all
+          | to_entries[]
+          | select(.value.type == "user")
+          | .key as $k
+          | .value as $rec
+          | .value.message.content
+          | select(type == "array")
+          | .[]
+          | select(.type == "tool_result" and .tool_use_id == $r.id)
+          | { index: $k, content: .content, meta: ($rec.tool_use_result // null) } ]
+        | first ) as $res
+    | ( if $res == null then ""
+        elif ($res.content | type) == "string" then $res.content
+        else [ $res.content[]? | select(.type == "text") | .text ] | join("\n") end ) as $report
+    | { index: $r.index,
+        brief: $r.brief,
+        result_index: ($res.index // null),
+        report: $report,
+        open: ($report | open_findings),
+        tool_calls: ([ $all[]
+                       | select(.type == "assistant" and (.parent_tool_use_id // null) == $r.id)
+                       | .message.content[]?
+                       | select(.type == "tool_use") ] | length),
+        duration_ms: ($res.meta.totalDurationMs? // null),
+        tokens: ($res.meta.totalTokens? // null) }
+  ' "$SKILL_EVAL_TRANSCRIPT"
+}
+
+# transcript_caller_writes_between <from> <to>
+# Write and Edit calls the caller made strictly between two record indices --
+# the fix a re-run must follow. Calls inside a fork do not count: the skill
+# writes nothing, and a write of its own is the boundary checks' business. A
+# fix made through Bash (sed -i, a heredoc) is not seen; the review cases open
+# no such command.
+transcript_caller_writes_between() {
+  jq -s --argjson a "$1" --argjson b "$2" '
+    [ to_entries[]
+      | select(.key > $a and .key < $b)
+      | .value
+      | select(.type == "assistant" and (.parent_tool_use_id // null) == null)
+      | .message.content[]?
+      | select(.type == "tool_use" and (.name == "Write" or .name == "Edit")) ]
+    | length
+  ' "$SKILL_EVAL_TRANSCRIPT"
+}
+
+# review_loop_reran_only_after_findings <skill name>
+# Every round after the first follows one that reported a P1 or P2. A re-run
+# after a clean round, or a second start of the same review, is the waste "once
+# per unit" exists to prevent. True with one round or none.
+review_loop_reran_only_after_findings() {
+  transcript_skill_rounds "$1" |
+    jq -se '[ range(1; length) as $k | .[$k - 1].open > 0 ] | all' >/dev/null
+}
+
+# review_loop_fixed_before_each_rerun <skill name>
+# Between the result of every round and the call of the next, the caller wrote
+# something: a re-run with nothing fixed reviews the same thing again. A round
+# whose result never came back counts as a failure here.
+review_loop_fixed_before_each_rerun() {
+  local rounds n k from to
+  rounds="$(transcript_skill_rounds "$1")"
+  n="$(jq -s 'length' <<<"$rounds")"
+  for ((k = 1; k < n; k++)); do
+    from="$(jq -s --argjson k "$k" '.[$k - 1].result_index // empty' <<<"$rounds")"
+    to="$(jq -s --argjson k "$k" '.[$k].index' <<<"$rounds")"
+    [ -n "$from" ] || return 1
+    [ "$(transcript_caller_writes_between "$from" "$to")" -gt 0 ] || return 1
+  done
+}
+
+# review_loop_ended_clean <skill name>
+# The loop's stopping rule: the last round reported no P1 and no P2. False when
+# the skill never ran, so a case must decide on its own whether it should have.
+review_loop_ended_clean() {
+  transcript_skill_rounds "$1" |
+    jq -se 'length > 0 and (last.open == 0)' >/dev/null
+}
+
 # --- grading with an LLM ---
 
 SKILL_EVAL_JUDGE_SYSTEM_PROMPT='You grade text. Decide only whether the text under review satisfies the criterion, and answer with pass and a reason of one or two sentences. Whether the claims in the text are true is not your concern -- only whether the criterion is met.'
