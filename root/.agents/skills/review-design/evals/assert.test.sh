@@ -1012,6 +1012,30 @@ proactive_run "$work_records" "$closing_ok" "fix_kg; printf 'x\n' >stray.txt"
 grade "$proactive_closing"
 expect_fail "proactive: something left uncommitted is caught" "left nothing uncommitted"
 
+# --- the CLAUDE.md pair ---
+# proactive-at-breakpoint-with-claude-md runs the other case's scaffold and
+# grader; only its prompt is a copy, so only the prompt can drift. A scenario
+# of its own, so exactly one shard runs it.
+pair_part() { # <case> body|allowed_tools
+  awk -v part="$2" '
+    NR == 1 && $0 == "---" { inside = 1; next }
+    inside && $0 == "---" { inside = 0; next }
+    inside { if (part == "allowed_tools" && index($0, "allowed_tools:") == 1) print; next }
+    part == "body" { print }
+  ' "$evals_dir/$1/prompt.md"
+}
+if shard_begin; then
+  for part in body allowed_tools; do
+    without="$(pair_part proactive-at-breakpoint "$part")"
+    with="$(pair_part proactive-at-breakpoint-with-claude-md "$part")"
+    if [ -n "$without" ] && [ "$without" = "$with" ]; then
+      ok "the CLAUDE.md pair shares its prompt $part"
+    else
+      bad "the CLAUDE.md pair shares its prompt $part"
+    fi
+  done
+fi
+
 # A shard's ending: shard_drive prints the summary.
 shard_end
 [ "$fails" -eq 0 ]

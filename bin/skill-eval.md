@@ -89,7 +89,16 @@ A case whose first round may or may not find something asks only that every
 re-run had a finding and a fix before it and that the last round was clean; a
 case with nothing to find asks only that the review was not started twice.
 The loop needs a second forked review, so `gaps-in-error-contract` was given
-80 turns and 3 USD, and the four `review-design` cases 90 turns and 4 USD. **None of this has been measured on real runs yet.**
+80 turns and 3 USD, and the four `review-design` cases 90 turns and 4 USD.
+
+**Starting too often has cases of its own.** `review-test`'s
+`no-fire-test-typo` (a committed change to a test file that changes nothing it
+asserts) runs with `root/CLAUDE.md`, because that is where `review-test`'s
+auto-start rests and without it the case would pass by never starting
+anything. `review-design`'s `no-fire-small-fix` runs without it, which is
+meaningful only because `review-design` starts on its description alone (9/9,
+measured before `context: fork`, in its `evals/README.md`); it has no CLAUDE.md variant yet. `proactive-at-breakpoint-with-claude-md`
+is `review-design`'s counterpart of `proactive-with-claude-md`. **None of this has been measured on real runs yet.**
 
 The four index functions exist for **ordering** assertions, which is what is
 left once a skill's caller acts on its report in the same run: "never wrote" is

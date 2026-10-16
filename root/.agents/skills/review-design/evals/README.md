@@ -14,6 +14,7 @@ Each pair differs in one thing, so a pass is not a fluke of the scenario:
 | `stale-doc-after-change` / `clean-unit-no-false-p1` | the docs moved with the code, or did not |
 | `pass-through-layer` / `intended-layer-asks` | nobody asked for the shallow layer, or the commit did |
 | `proactive-at-breakpoint` / `no-fire-small-fix` | the unit changed an interface, or did not |
+| `proactive-at-breakpoint` / `proactive-at-breakpoint-with-claude-md` | `root/CLAUDE.md` is brought in, or not — the same prompt, scaffold and grader, as `review-test`'s pair (`assert.test.sh` pins the prompt as shared) |
 
 Two stand alone for now, one per remaining lens: `hidden-clock-no-seam`
 (testability — a new interface reads the clock with no seam) and
