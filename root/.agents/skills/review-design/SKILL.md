@@ -69,15 +69,15 @@ Two prices start rising once a unit of work is done.
 
 This skill changes no files while it runs, per the boundary above. When it ran forked, the report arrives as the skill's result, which the user does not necessarily see; the caller is the one who passes it on. After a requested review, the caller writes the report out to the user and takes over once it is out, and not before. After a review it started itself, the caller takes over as soon as the review is done, and the report follows the fixes ("When to start"). Either way the caller carries on without stopping. The order, then:
 
-- **requested**: report (Phase 5) → tests → fixes → tests → commit
-- **started by itself**: tests → fixes → tests → commit → the report atop the closing message
+- **requested**: report (Phase 5) → tests → fixes → tests → commit → review again, until a round reports no P1 and no P2
+- **started by itself**: tests → fixes → tests → commit → review again, until a round reports no P1 and no P2 → the report atop the closing message
 
 1. **Fix the P1 and P2 findings of the first report whose reach is local, without asking first** (see "Reach" below). The report is not the deliverable; code and docs that agree, and interfaces that hide what they should, are. Reporting and stopping leaves every P1 in place, and asking permission to act on a review the caller already asked for is the failure this step exists to prevent.
 2. **For drift, fix the doc, not the code.** Rewriting a doc's old promise — and the reason it gave — is not changing a requirement: the commit already changed it, and the doc is catching up. If the code looks like what is wrong, that is a question for "Outside this review", not a fix.
 3. **For structure, change the code's shape and nothing it does.** Work in small named refactorings — Inline Function, Move Function, Change Function Declaration, Split Phase — and prefer deleting a layer to adding a better one. A missing seam is added the same way: Introduce Parameter, with the old source as its default, so every existing caller behaves as before.
 4. **Keep behavior where it is.** Run the tests before and after. The tests of what callers see must pass unchanged — a new test beside them, say for a function the fix extracted, changes nothing they expect; a fix that would change what such a test expects is not a tidying — stop and report it. The one exception is a test the fix's seam was for: it may move onto the seam, asserting the same behavior with a fixed input in place of the clock or the environment.
 5. **Commit the fixes on their own, after the commits of the unit of work.** Never amend them into those commits or fold them in: the review is what justifies the fix, and folding it in hides that. This is the caller's step — the skill runs no git that writes.
-6. **Review again, in a fresh run, until a round reports no P1 and no P2.** Its brief carries the last `Reviewed:` line and what this round fixed. There is no round cap.
+6. **Review again, in a fresh run, until a round reports no P1 and no P2.** Its brief carries the last `Reviewed:` line and what this round fixed. There is no round cap, and no fix too small to skip it: a one-line fix is where a doc that still disagrees is easiest to miss.
 7. **Never auto-fix P3**; report it.
 
 What is left for the user to decide is what "Outside this review" asks, and any fix whose reach crosses the range — nothing else.
@@ -151,7 +151,7 @@ The cheapest evidence is in the callers: when each one repeats the same preparat
 
 ### Phase 5: Report
 
-Write the full report, in the format below, as your final message. The caller passes it on: a requested review as a message of its own before its next tool call, a self-started one as the short form from "When to start" at the top of its closing message. Translate the headings into the language of the report, but keep the `Reviewed:` line that closes it exactly as shown: the next run of this skill reads it.
+Write the full report, in the format below, as your final message. The caller passes it on: a requested review as a message of its own before its next tool call, a self-started one as the short form from "When to start" at the top of its closing message. Translate the headings into the language of the report, but keep the `Reviewed:` line that ends it, just above the `Caller:` line, exactly as shown: the next run of this skill reads it.
 
 ```
 ## Design review: <base>..<head> (<N> commits[, plus uncommitted changes])
@@ -174,13 +174,13 @@ Write the full report, in the format below, as your final message. The caller pa
 ### Outside this review
 - <a question about behavior for the user; a suspected bug, a test-quality issue or a line-level cleanup, with the skill that covers it>
 
-Caller: the user may not see this result. If they asked for this review, write the report out to them in full as your own message before any other tool call; if you started it yourself, put it in full at the top of your closing message once the fixes are committed. A summary does not count. Act on it per "After the review" in ${CLAUDE_SKILL_DIR}/SKILL.md.
 Reviewed: <base>..<head>
+Caller: the user may not see this result. If they asked for this review, write the report out to them in full as your own message before any other tool call; if you started it yourself, put it in full at the top of your closing message once the fixes are committed. A summary does not count. Then, without asking: fix every P1 and P2 whose reach is local — the questions under "Outside this review" do not hold them back and are asked at the end — run the tests, commit the fixes on their own, and run this skill again with the Reviewed line above and what you fixed, however small the fix, until a round reports no P1 and no P2. Details: "After the review" in ${CLAUDE_SKILL_DIR}/SKILL.md.
 ```
 
-Keep the `Caller:` line untranslated: a forked caller never read this file, and that line is how it learns what its part is.
+Keep the `Caller:` line untranslated: a forked caller never read this file, and that line is how it learns what its part is. It comes last, after the `Reviewed:` line, because it is addressed to the caller and is left out when the report is passed on — on 2026-10-16, with the `Reviewed:` line placed after a long `Caller:` line, the report a caller passed on named no reviewed range in 9 of 9 runs, and the one inspected had dropped both lines.
 
-Drop any section with nothing in it. If nothing is worth a finding, say so under the heading and list, under `### Checked`, what was checked: each doc and comment and the code it was compared with, and each red flag looked for and where. "No findings" alone cannot tell a clean change from an unread one. Still end with the `Reviewed:` line. Write abbreviated commit hashes there and in the heading, never a branch or tag name: names move, and the next session may not have them.
+Drop any section with nothing in it. If nothing is worth a finding, say so under the heading and list, under `### Checked`, what was checked: each doc and comment and the code it was compared with, and each red flag looked for and where. "No findings" alone cannot tell a clean change from an unread one. Still end the report with the `Reviewed:` line, above the `Caller:` line. Write abbreviated commit hashes there and in the heading, never a branch or tag name: names move, and the next session may not have them.
 
 **For a requested review, the report comes first.** Nothing is edited, run or committed until it is out — the fixes answer to it. **The report does not end the caller's turn either.** Once it is out, the caller goes straight on to "After the review". A self-started review reports at the end instead, but its range is still the one it reviewed, never the fixes that came after.
 
