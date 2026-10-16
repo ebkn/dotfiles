@@ -392,6 +392,26 @@ fi
 tmux -L "$socket" kill-session -t _popup_probe
 tmux -L "$socket" kill-session -t plain_probe
 
+# Where prefix + p / t open is @popup_dir: the Claude session's own cwd when the
+# pane runs one (@claude_cwd, published by root/.claude/hooks/session-cwd.sh),
+# the pane's path otherwise. #{pane_current_path} alone is the claude process's
+# directory, which a Bash-tool cd (`gw`) never moves, so the popups opened in
+# the checkout a session had already left. Evaluated as a format against a pane
+# with the option and one without; a lost E: or a swapped branch fails silently.
+tmux -L "$socket" new-session -d -s dir_probe -c "$work"
+dir_pane=$(tmux -L "$socket" display-message -p -t dir_probe: '#{pane_id}')
+plain_dir=$(tmux -L "$socket" display-message -p -t "$dir_pane" '#{E:@popup_dir}')
+tmux -L "$socket" set-option -p -t "$dir_pane" @claude_cwd /moved/here,with-comma
+moved_dir=$(tmux -L "$socket" display-message -p -t "$dir_pane" '#{E:@popup_dir}')
+pane_path=$(tmux -L "$socket" display-message -p -t "$dir_pane" '#{pane_current_path}')
+if [ "$plain_dir" = "$pane_path" ] && [ "$moved_dir" = /moved/here,with-comma ]; then
+  pass "@popup_dir is the session's cwd when published, the pane's path otherwise"
+else
+  fail "@popup_dir is the session's cwd when published, the pane's path otherwise" \
+    "without: [$plain_dir] (pane: [$pane_path]), with: [$moved_dir]"
+fi
+tmux -L "$socket" kill-session -t dir_probe
+
 # "Is this the remote's view?" is @ssh_view: an ssh pane here (@ssh_host), or a
 # session a myssh tab created on this machine (local-*). It colours the whole
 # status bar and the active border purple, and every failure is silent -- a
@@ -474,6 +494,16 @@ for k in p t o a A g '?'; do
   # Matched in place, as the TRUE branch straight after the condition: with the
   # branches swapped every word is still in the row, and the chord would then
   # send C-q to every local pane while opening a popup over the remote's.
+  # p and t open where the session is (@popup_dir, evaluated above), so the
+  # binding has to ask it; o still uses the pane's path.
+  case $k in
+    p | t)
+      case "$row" in
+        *'display-popup -E -d \"#{E:@popup_dir}\"'*) pass "prefix + $k opens in @popup_dir" ;;
+        *) fail "prefix + $k opens in @popup_dir" "got: $row" ;;
+      esac
+      ;;
+  esac
   case $k in
     p | t | o)
       case "$row" in

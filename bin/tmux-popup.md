@@ -41,7 +41,28 @@ verbatim as one shared literal name. ([bin/tmux-agents](tmux-agents.md) derives
 its calling client from `$TMUX` for the same reason.)
 
 `-d` has already set the popup shell's directory, which is why `$PWD` stands in
-for `#{pane_current_path}`.
+for it here.
+
+## Where `p` and `t` open: `@popup_dir`
+
+`-d` for `p` and `t` is `#{E:@popup_dir}`, set once in `.tmux.conf`: the
+Claude session's own cwd (`@claude_cwd`) when the pane runs one, the pane's
+`#{pane_current_path}` otherwise. That path is the claude process's directory,
+and a Bash-tool `cd` (`gw`) never moves it, so the popups opened in the checkout
+a session had already left for a worktree.
+[session-cwd.sh](../root/.claude/hooks/session-cwd.md) publishes `@claude_cwd`
+on SessionStart/CwdChanged and unsets it on SessionEnd. `o` still uses the pane
+path.
+
+**The `p` shell popup keeps the directory it was created in.** `new-session -A`
+attaches to an existing `_popup_<id>` and ignores `-c`, so a scratch shell left
+open in that tab stays where it was. That was already true when the pane itself
+moved; `t` exits with tig, so it always starts fresh.
+
+`tmux-conf.test.sh` evaluates `@popup_dir` against a pane with and without the
+option, a path containing a comma included (the conditional splits on commas
+before expanding its branches, so the value is safe), and checks both bindings
+ask it.
 
 ## Testing (`tmux-popup.test.sh`)
 
