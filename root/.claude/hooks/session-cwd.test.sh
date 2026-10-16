@@ -1,13 +1,15 @@
 #!/bin/bash
 # Exercises session-cwd.sh, the hook that records where each Claude Code session
-# is NOW, for the PR review pipeline (with_current_cwd in bin/pr-review-common.sh).
+# is NOW, for two readers: a file per session (with_current_cwd in
+# bin/pr-review-common.sh) and, under tmux, the pane option @claude_cwd.
 #
 # What it is up against is silent in both directions: a record that is never
 # written leaves a moved session unreachable for its own PR, exactly the bug it
 # was added for, and a record that is wrong sends a review to a session working
-# on something else. So the cases assert the file itself, the one thing the
-# reader sees, rather than the hook's exit status -- which is 0 by design
-# whatever happens, because a hook must never get in the session's way.
+# on something else. So the cases assert what the readers see -- the file, and
+# the tmux calls as argv to a stub -- rather than the hook's exit status, which
+# is 0 by design whatever happens. What tmux actually stores is checked against
+# a real server in bin/tmux-conf.test.sh, which runs this hook in the container.
 set -uo pipefail
 
 HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/session-cwd.sh"
@@ -123,10 +125,9 @@ hook start '{"session_id":"s6","cwd":"/y"}'
 assert_eq 'start sweeps a month-old record' 'absent' "$(field old .cwd)"
 assert_eq 'and keeps a current one' '/only-cwd' "$(field s2 .cwd)"
 
-# The same cwd goes onto the session's tmux pane as @claude_cwd, which the
-# prefix + p / t bindings read in display-popup's -d: a session that ran `gw`
-# should open its popups in the worktree, while #{pane_current_path} is the
-# claude process's own directory, which a Bash-tool cd never moves.
+# The same cwd goes onto the session's tmux pane as @claude_cwd, because
+# #{pane_current_path} is the claude process's own directory, which a Bash-tool
+# cd never moves. Who reads it is .tmux.conf's business, tested there.
 assert_eq 'outside tmux, tmux is never called' 'absent' "$(cat "$TMUXLOG" 2>/dev/null || echo absent)"
 PANE_TMUX=/tmp/tmux-1/default,1,0 PANE_ID=%7
 hook cd '{"session_id":"p1","new_cwd":"/repo/git-worktrees/x"}'

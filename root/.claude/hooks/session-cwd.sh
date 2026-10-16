@@ -16,7 +16,7 @@
 #   {"cwd": "<where it is>", "since": <epoch ms it got there>}
 # `since` is in milliseconds to compare with the registry's startedAt, which
 # the reader falls back to for a session with no record. Under tmux the cwd is
-# also set as the pane option @claude_cwd, for the prefix + p / t popups.
+# also set as the pane option @claude_cwd; .tmux.conf decides who reads it.
 #
 # Usage: session-cwd.sh <mode>, hook payload on stdin
 #   start — SessionStart: sweep month-old records, then record
@@ -49,13 +49,13 @@ case "$id" in
 esac
 file="$dir/$id.json"
 
-# The same answer goes onto this session's tmux pane as @claude_cwd, for the
-# prefix + p / t popups: their -d reads it with #{pane_current_path} as the
-# fallback, and pane_current_path is the claude process's own directory, which
-# a Bash-tool cd never moves. A pane option rather than the file because -d is
-# a format, and a format can read an option but not a file -- the same reason
-# agent-state.sh publishes its state there. $TMUX_PANE is inherited from the
-# shell that launched claude.
+# The same answer goes onto this session's tmux pane as @claude_cwd, because
+# #{pane_current_path} is the claude process's own directory, which a Bash-tool
+# cd never moves. Which bindings read it is .tmux.conf's business (@popup_dir,
+# bin/tmux-popup.md). A pane option rather than the file because display-popup
+# -d is a format, and a format can read an option but not a file -- the same
+# reason agent-state.sh publishes its state there. $TMUX_PANE is inherited from
+# the shell that launched claude.
 pane_set() {
   [ -n "${TMUX:-}" ] && [ -n "${TMUX_PANE:-}" ] || return 0
   local v=$1

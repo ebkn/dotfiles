@@ -1,9 +1,14 @@
 # session-cwd.sh — where each session is now
 
-Records each Claude Code session's **current** working directory, so the PR
-review pipeline can route a PR to the session that is actually in its worktree.
-The consumer is `with_current_cwd` in
-[bin/pr-review-common.sh](../../../bin/pr-review-common.md#a-session-that-moved-after-it-started).
+Records each Claude Code session's **current** working directory, and publishes
+it in two places for two readers:
+
+- a file per session, which `with_current_cwd` in
+  [bin/pr-review-common.sh](../../../bin/pr-review-common.md#a-session-that-moved-after-it-started)
+  reads so the PR review pipeline routes a PR to the session actually in its
+  worktree;
+- under tmux, the pane option `@claude_cwd`, which `.tmux.conf` reads (see
+  [below](#the-tmux-pane-option-claude_cwd)).
 
 ## Why the registry is not enough
 
@@ -70,15 +75,16 @@ ${CLAUDE_SESSION_CWD_DIR:-${XDG_STATE_HOME:-~/.local/state}/claude-session-cwd}/
 
 The same cwd is set as the pane option `@claude_cwd` on `$TMUX_PANE`, which
 hooks inherit from the shell that launched claude (as
-[agent-state.sh](agent-state.md) relies on). `.tmux.conf`'s `@popup_dir` reads
-it so that `prefix + p` / `t` open where the session is, not in
-`#{pane_current_path}`, which a Bash-tool `cd` never moves — see
-[bin/tmux-popup.md](../../../bin/tmux-popup.md#where-p-and-t-open-popup_dir).
+[agent-state.sh](agent-state.md) relies on). Which tmux features read it, and
+what they fall back to, is decided in `.tmux.conf` (`@popup_dir`) and described
+in [bin/tmux-popup.md](../../../bin/tmux-popup.md#where-p-and-t-open-popup_dir),
+not here. It exists because `#{pane_current_path}` is the claude process's
+directory, which a Bash-tool `cd` never moves.
 
 A pane option rather than the file, because `display-popup -d` is a format and
-a format can read an option but not a file. It is set only after a record was
-written, so the two never disagree; SessionEnd unsets it so the popups fall back
-to the pane path. A session that crashes leaves it set until the next session
+a format can read an option but not a file. It is set only after a record has
+landed, so the pane never runs ahead of the record (the reverse can happen: a
+failed `tmux set-option` is not reported, by design). SessionEnd unsets it. A session that crashes leaves it set until the next session
 in that pane starts. Outside tmux nothing is called. A trailing `;` is escaped as
 `\;`, the same tmux argv trap `agent-state.sh` documents.
 
@@ -99,7 +105,13 @@ cwd, and an unwritable directory all do nothing.
 
 ## Testing (`session-cwd.test.sh`)
 
-Asserts the file, the one thing the reader sees, rather than the exit status,
-which is 0 by design whatever happens. The routing that consumes the record is
-pinned in `bin/pr-review-common.test.sh` (overlay and ranking) and in each of
-the three pipeline suites (that the program actually applies it).
+Asserts what the two readers see, rather than the exit status, which is 0 by
+design whatever happens: the file itself, and the `@claude_cwd` calls as argv
+to a stubbed tmux (the suite runs on the host, where a real tmux is off limits).
+
+What tmux actually STORES is pinned in `bin/tmux-conf.test.sh`, which runs this
+hook for real against its throwaway server in the container — a change to how
+the option is written can break that suite too. The routing that consumes the
+file is pinned in `bin/pr-review-common.test.sh` (overlay, ranking, and a case
+running this hook with nothing overridden) and in each of the three pipeline
+suites (that the program actually applies it).
