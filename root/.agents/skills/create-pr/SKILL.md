@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Create a GitHub pull request with context-aware description
+description: Create a GitHub pull request with context-aware description; as a draft when called with `draft`
 effort: low
 allowed-tools: Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git rev-parse *), Bash(git push *), Bash(git ls-files *), Bash(gh repo view *), Bash(gh pr create *), Bash(echo *), Read, Glob, Grep, AskUserQuestion
 ---
@@ -19,7 +19,9 @@ Create a pull request. Follow this flow:
 
 1. **Gather context**: Get the default branch locally via `git rev-parse --abbrev-ref origin/HEAD` (strip the `origin/` prefix); only if that fails (origin/HEAD unset) fall back to `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`. Then read the commits **with full messages** via `git log <base>..HEAD` (bodies included — the commit skill records the *why* there) plus `git diff --stat <base>..HEAD` for the file-level shape. Pull the full `git diff <base>..HEAD` only when the messages and stat don't sufficiently explain the changes (thin or missing commit bodies) — for large PRs this avoids reading the whole diff needlessly.
 
-2. **Uncommitted changes**: Don't block. Create the PR from the commits that already exist and note in your reply that any uncommitted changes were left out. Only stop if there are no commits ahead of the base branch — there is then nothing to open a PR from.
+2. **Uncommitted changes**: Don't block. Create the PR from the commits that already exist and note in your reply that any uncommitted changes were left out. Only stop if there are no commits ahead of the base branch — there is then nothing to open a PR from — or if the current branch *is* the base branch: report that the commits stay local, and do not create a branch to open a PR from.
+
+   **Draft or ready**: open it as a draft (`gh pr create --draft`) when the arguments say `draft` — the caller is opening it at a unit's first commit, with more to come, and `update-pr ready` marks it ready at the end. Otherwise open it ready, as a direct `/create-pr` at the end of the work expects.
 
 3. **PR template**:
    - If a template path is listed, `Read` it before writing title/body.
@@ -48,7 +50,7 @@ Create a pull request. Follow this flow:
    Then create the PR, passing the body via a **quoted** heredoc into `--body-file -` (stdin) so backticks, `$`, and quotes in the body stay literal — no escaping, no temp file, and no `$()` subshell:
 
    ```sh
-   gh pr create --title "<title>" --body-file - <<'PR_BODY_EOF'
+   gh pr create [--draft] --title "<title>" --body-file - <<'PR_BODY_EOF'
    <body>
    PR_BODY_EOF
    ```

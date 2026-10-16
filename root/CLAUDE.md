@@ -42,7 +42,7 @@
 
 # Design Review
 
-- Use the `review-design` skill at an implementation breakpoint, without waiting to be asked: once a unit of work (a plan step, a task, a request) is committed with its tests passing and it added or changed an interface, before reporting it back. Also before `create-pr` while part of the branch is unreviewed. Not after every commit, and not for a small fix that changes no interface — the next breakpoint's range still covers it.
+- Use the `review-design` skill at an implementation breakpoint, without waiting to be asked: once a unit of work (a plan step, a task, a request) is committed with its tests passing and it added or changed an interface, before reporting it back. Also before `update-pr` marks the PR ready while part of the branch is unreviewed. Not after every commit, and not for a small fix that changes no interface — the next breakpoint's range still covers it.
 - It runs in a forked, fresh context, so it knows only what you pass as its arguments: what the unit set out to do and why, the next planned change if one is known, the range or the last `Reviewed:` line, and the language to answer in. The next change matters most — without it the reviewer cannot weigh change cost. State intent, not a defence of the code.
 - The order at a breakpoint is commit → `review-test` → its fixes as commits of their own → `review-design` → its fixes as commits of their own. A doc `review-design` brings back in line is a separate commit too, although the unit should have updated it itself: the review caught it, and that stays visible.
 - Fix the P1 and P2 findings whose reach is local without asking. A fix that reaches outside the range — another caller, a published contract, a structure the commit set out to build — is proposed and waits for an answer. Re-run until a round reports no P1 and no P2, with no round cap; P3 is reported, never auto-fixed.
@@ -51,6 +51,13 @@
 
 - Use the `commit` skill to commit. The user may invoke it explicitly (`/commit`), but by default call it automatically whenever changes reach a natural commit boundary — do not wait to be asked.
 - Do not wait until the end of a task — commit incrementally as logical units complete.
+
+# Pull Requests
+
+- On a branch other than the default one, with a GitHub `origin`, the work goes out as a PR without being asked. **Never ask whether to push, open a PR, update it or mark it ready** — that is decided here, and a question at the end leaves the work unpublished until someone answers.
+- Once the first commit of a request lands, call `create-pr` with `draft` as its argument, so the work in progress is visible while it continues. If that one commit finishes the request, call it without `draft` and the PR opens ready. Skip it when the branch already has an open PR.
+- Before reporting finished work back, call `update-pr` with `ready` as its argument: it pushes what is left, rewrites the title and body for the whole branch, and marks the PR ready for review. It comes last, after `review-test`, `review-design` and their fix commits. Skip it when nothing was committed since the PR was last written — a question answered, an investigation reported — and mid-request.
+- On the default branch, or with no GitHub `origin`, open no PR and push nothing, and do not create a branch to make one possible: say in the report that the commits are local.
 
 # Temporary Files
 
