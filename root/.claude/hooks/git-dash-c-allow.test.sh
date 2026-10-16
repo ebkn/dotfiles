@@ -30,17 +30,17 @@ ln -s "$PROJ/sub" "$PROJ/link-in"
 mkdir -p "$PROJ/~" "$PROJ/[b]" "$PROJ/{..,}" "$PROJ/x=~"
 ln -s "$TMP/outside" "$PROJ/b"
 
-# User-level settings: the only rules the hook may read.
+# User-level settings: the only allow rules the hook may read.
 mkdir -p "$TMP/home/.claude"
 jq -n '{permissions: {allow: [
   "Bash(git status*)", "Bash(git log *)", "Bash(git add *)", "Bash(git diff*)",
   "Bash(git commit -m *)", "Bash(git push)", "Bash(git rev-parse:*)",
-  "Bash(git --no-pager log*)", "Bash(npm test)"
-]}}' >"$TMP/home/.claude/settings.json"
+  "Bash(git --no-pager log*)", "Bash(npm test)", "Bash(git branch*)", "Bash(git stash*)"
+], deny: ["Bash(git stash clear*)"], ask: ["Bash(git branch -D *)"]}}' >"$TMP/home/.claude/settings.json"
 
-# Project settings are untrusted until the trust dialog is accepted, so a rule
-# here must never be honoured.
-jq -n '{permissions: {allow: ["Bash(git reset *)"]}}' >"$PROJ/.claude/settings.json"
+# Project settings are untrusted until the trust dialog is accepted, so an
+# allow rule here must never be honoured. A deny rule only refuses more, and is.
+jq -n '{permissions: {allow: ["Bash(git reset *)"], deny: ["Bash(git diff --output*)"]}}' >"$PROJ/.claude/settings.json"
 
 # A user whose only -C rule is the wildcard kind this hook exists to replace,
 # plus rules whose words hold glob characters, which must compare literally.
@@ -137,6 +137,18 @@ check DEFER 'nor -c' 'git -C sub -c core.fsmonitor=x status' "$PROJ" "$TMP/home-
 check DEFER 'a rule word with [ ] compares literally' 'git -C sub log ab' "$PROJ" "$TMP/home-wild"
 check DEFER 'a rule word with ? compares literally' 'git -C sub log x' "$PROJ" "$TMP/home-wild"
 check DEFER 'a quoted subcommand containing a space' 'git -C sub "log --output=x"'
+
+echo "-- must DEFER: the rest matches an allow rule, but a deny or ask rule too --"
+# Claude Code applies its deny and ask rules after a hook's "allow", but to the
+# command as written, which `git -C sub` keeps out of their reach. git-guard.sh
+# applies them to the -C form; this hook stays silent on one of them rather
+# than depend on how the two hooks' decisions combine.
+check ALLOW 'the allow rule alone' 'git -C sub branch -a'
+check DEFER 'an ask rule' 'git -C sub branch -D topic'
+check DEFER 'a deny rule' 'git -C sub stash clear'
+check DEFER "a deny rule in the project's settings" 'git -C sub diff --output=x'
+check ALLOW 'which reaches nothing else' 'git -C sub diff --stat'
+check DEFER 'in any segment' 'git -C sub status && git -C sub branch -D topic'
 
 echo "-- must DEFER: a segment that is not an approved git --"
 check DEFER 'a non-git segment' 'git -C sub status; rm -rf x'

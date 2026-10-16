@@ -26,9 +26,12 @@
 #      word and exact, so no rule matches more here than it would as written:
 #      the words git receives are those of a command the rule approves.
 #
-# Silent on anything else, so a bug degrades to "you get asked". Claude Code
-# still evaluates deny and ask rules after an "allow", and git-guard.sh's deny
-# outranks it, so `git -C * push --force*` and friends keep their effect.
+# Silent on anything else, so a bug degrades to "you get asked". That includes
+# a `git <rest>` a deny or ask rule of any settings layer covers: Claude Code
+# applies those rules after an "allow", but to the command as written, so
+# `Bash(git branch -D *)` never sees `git -C x branch -D y`. git-guard.sh
+# applies them to the -C form; staying silent here as well means the result
+# does not hang on how the two hooks' decisions combine (git-rules.lib.sh).
 #
 # Docs: https://code.claude.com/docs/en/hooks
 
@@ -64,6 +67,13 @@ rules=$(jq -r '
 . "$(dirname "${BASH_SOURCE[0]}")/segment-scan.lib.sh"
 # shellcheck source=root/.claude/hooks/git-workdir.lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/git-workdir.lib.sh"
+# shellcheck source=root/.claude/hooks/git-rules.lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/git-rules.lib.sh"
+
+REFUSING=$(
+  git_rule_patterns deny
+  git_rule_patterns ask
+)
 
 # $@: an argv. Returns 0 when some rule approves it.
 rule_approves() {
@@ -106,7 +116,8 @@ segment_ok() {
   done
   git_dash_c_in_project "$CWD" "$PROJECT" "$@" || return 1
   ((GIT_DASH_C_SEEN == 0)) || SAW_DASH_C=1
-  rule_approves git "${argv[@]:GIT_DASH_C_NEXT}"
+  rule_approves git "${argv[@]:GIT_DASH_C_NEXT}" || return 1
+  ! git_rule_match "$REFUSING" git "${argv[@]:GIT_DASH_C_NEXT}"
 }
 
 scan_command "$COMMAND" segment_ok || exit 0

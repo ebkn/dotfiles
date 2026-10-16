@@ -33,11 +33,16 @@ the approval into a hook turns that around — this hook failing means a prompt.
 - only rules whose single `*` is trailing are used: `git log *` / `git log:*`
   (word prefix, also matching bare `git log`), `git status*` (string prefix of the
   last word), and exact rules. Matching is per argv word, so the words git
-  receives are those of a command the rule approves.
+  receives are those of a command the rule approves;
+- `git <rest>` matches no deny or ask rule, from any settings layer
+  (`git-rules.lib.sh`). Claude Code evaluates those rules after an `allow`, but
+  against the command as written, so `Bash(git branch -D *)` never sees
+  `git -C x branch -D y`. `git-guard.sh` applies them to the `-C` form too;
+  staying silent here keeps the outcome from depending on how the two hooks'
+  decisions combine.
 
 Anything else — no `-C`, an expansion, a redirection, a non-git segment — emits
-nothing. Claude Code still evaluates deny and ask rules after an `allow`, and
-`git-guard.sh`'s `deny` outranks it.
+nothing.
 
 ## What it costs
 
