@@ -203,6 +203,13 @@ written for the spellings git accepts — `--upload-pack` abbreviates down to
 against git 2.55 and pinned in `git-guard.test.sh`; recheck them when an allow
 rule for another subcommand is added.
 
+**`git grep` has no allow rule, and must not get one back.** `git grep
+-O<cmd>` runs `<cmd>`, and so does the bundled short form `-iO<cmd>`. A deny
+rule is a glob over the whole command, so it cannot say "an `O` inside a
+short-option word": `*-*O*` also refuses `git grep -n TODO`, and anything
+narrower misses a bundle. `rg` covers the searching, and a `git grep` asks.
+`git-guard.test.sh` fails on an allow rule for it.
+
 **This reverses the rm section's "not worth reimplementing the matcher"**, for a
 narrower matcher: only rules whose single `*` is trailing are used, compared word
 by word against the argv, so a rule approves nothing through the hook that it

@@ -146,7 +146,6 @@
       "Bash(git diff*)",
       "Bash(git fetch*)",
       "Bash(git for-each-ref *)",
-      "Bash(git grep *)",
       "Bash(git log*)",
       "Bash(git ls-files*)",
       "Bash(git ls-tree *)",

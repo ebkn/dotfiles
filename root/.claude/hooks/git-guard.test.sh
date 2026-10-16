@@ -825,6 +825,18 @@ else
   printf '  FAIL git rules naming -C: %s\n' "$dash_c"
 fi
 
+# `git grep -O<cmd>` runs <cmd>, and so does the bundled `-iO<cmd>` (git 2.55),
+# which no glob deny rule can tell from `-n TODO` without refusing that too.
+# So git grep has no allow rule at all.
+grep_allow=$(jq -r '[.permissions.allow[]? | strings | select(test("^Bash\\(git grep"))] | join(", ")' "$SETTINGS")
+if [[ -z "$grep_allow" ]]; then
+  pass=$((pass + 1))
+  echo "  ok   no allow rule for git grep"
+else
+  fail=$((fail + 1))
+  printf '  FAIL allow rules for git grep: %s\n' "$grep_allow"
+fi
+
 # A hook that fails or times out lets the call through by default. The deny
 # and ask rules for a git -C live only here, so a failure must block instead.
 registered=$(jq -r '[.hooks.PreToolUse[]?.hooks[]? | select(.command? | strings | endswith("/git-guard.sh"))]
