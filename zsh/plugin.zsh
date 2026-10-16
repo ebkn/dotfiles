@@ -6,6 +6,7 @@
 # `zinit update` (a plugin) or start a new shell (zinit). Never add `depth` to
 # a pinned ice: the shallow clone cannot check out the pin, and every shell
 # after the first loads the newest commit without a word. See zsh/README.md.
+_zinit_repo=zdharma-continuum/zinit
 _zinit_pin=f466c8805d8890f76bed8cf0972e0f7310fc5fc9
 _zinit_bin=$HOME/.zinit/bin
 
@@ -13,7 +14,7 @@ _zinit_bin=$HOME/.zinit/bin
 if [[ ! -f $_zinit_bin/zinit.zsh ]]; then
     print -P "%F{33}▓▒░ %F{220}Installing DHARMA Initiative Plugin Manager (zdharma/zinit)…%f"
     command mkdir -p "$HOME/.zinit" && command chmod g-rwX "$HOME/.zinit"
-    command git clone git@github.com:zdharma-continuum/zinit.git "$_zinit_bin" && \
+    command git clone "git@github.com:$_zinit_repo.git" "$_zinit_bin" && \
         print -P "%F{33}▓▒░ %F{34}Installation successful.%f" || \
         print -P "%F{160}▓▒░ The clone has failed.%f"
 fi
