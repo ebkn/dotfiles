@@ -103,8 +103,8 @@ printf '%s' "$json" | jq -c --arg old "$old" '
 # when jq produced one: an empty file would read as a record that says nothing.
 #
 # The pane is told only once the rename has landed, and what it is told comes
-# from the record just written: publishing after a failed rename would point
-# the popups at a cwd the record does not hold. A directory in the record's
+# from the record just written: publishing after a failed rename would publish
+# a cwd the record does not hold. A directory in the record's
 # place is refused outright, because `mv` does not fail there -- it moves the
 # file INTO it and returns 0.
 if [ -s "$tmp" ] && [ ! -d "$file" ]; then

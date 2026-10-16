@@ -161,7 +161,7 @@ assert_eq 'nor is its temp file left behind' "$before" "$(count)"
 rm -rf "$DIR/p2.json"
 PANE_ID=%7
 hook end '{"session_id":"p1"}'
-assert_eq 'end unsets it, so the popup falls back to the pane path' \
+assert_eq 'end unsets it on its pane' \
   '[set-option][-p][-u][-t][%7][@claude_cwd]' "$(tail -n 1 "$TMUXLOG")"
 lines=$(wc -l <"$TMUXLOG" | tr -d ' ')
 before=$(count)

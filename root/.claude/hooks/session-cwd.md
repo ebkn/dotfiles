@@ -77,7 +77,7 @@ The same cwd is set as the pane option `@claude_cwd` on `$TMUX_PANE`, which
 hooks inherit from the shell that launched claude (as
 [agent-state.sh](agent-state.md) relies on). Which tmux features read it, and
 what they fall back to, is decided in `.tmux.conf` (`@popup_dir`) and described
-in [bin/tmux-popup.md](../../../bin/tmux-popup.md#where-p-and-t-open-popup_dir),
+in [bin/tmux-popup.md](../../../bin/tmux-popup.md),
 not here. It exists because `#{pane_current_path}` is the claude process's
 directory, which a Bash-tool `cd` never moves.
 
