@@ -113,8 +113,13 @@ git switch -q main
 git switch -q -c feat/seeded
 git commit -q --allow-empty -m "feat: seeded"
 skill_eval_fake_pr "feat: seeded" "old body" true
+assert_eq "the scaffold's own gh call is not left as the run's" "" "$(fake_github_calls)"
 assert_eq "skill_eval_fake_pr opens a draft gh can see" "true" "$(gh pr view --json isDraft -q .isDraft)"
 assert_eq "and pushes the branch it belongs to" "$(git rev-parse HEAD)" "$(fake_github_remote_head feat/seeded)"
+# The graders read .edits and .readied off a seeded PR; a record of another
+# shape would make them read null.
+assert_eq "a seeded PR has the fields of one a run opens" \
+  "$(fake_github_pr feat/x | jq -c 'keys')" "$(fake_github_pr | jq -c 'keys')"
 assert_eq "without touching the other branch's PR" "docs: only title" "$(fake_github_pr feat/x | jq -r .title)"
 
 test_summary

@@ -21,6 +21,8 @@
 
 SKILL_EVAL_FAKE_ORIGIN=.git/fake-origin.git
 SKILL_EVAL_FAKE_ORIGIN_URL=git@github.com:example/fixture.git
+# The URL the stub prints for every PR; for a grader or test comparing to it.
+# shellcheck disable=SC2034
 SKILL_EVAL_FAKE_PR_URL=https://github.com/example/fixture/pull/1
 
 # skill_eval_fake_github
@@ -188,15 +190,15 @@ GH_STUB
 # skill_eval_fake_pr <title> <body> <draft: true|false>
 # A PR already open for the current branch, as if create-pr had run in an
 # earlier session. The branch is pushed first, since a PR needs it there.
+# Opened through the stub's own `pr create`, so the record has one shape,
+# defined there; the call is the scaffold's, not the run's, so the log that
+# fake_github_calls reads starts empty again.
 skill_eval_fake_pr() {
-  local branch
-  branch="$(git rev-parse --abbrev-ref HEAD)"
-  git push -q -u origin "$branch"
-  jq -n --arg title "$1" --arg body "$2" --argjson draft "$3" \
-    --arg branch "$branch" --arg url "$SKILL_EVAL_FAKE_PR_URL" '
-    { number: 1, url: $url, title: $title, body: $body, state: "OPEN",
-      isDraft: $draft, createdAsDraft: $draft, edits: 0, readied: 0,
-      baseRefName: "main", headRefName: $branch }' >"bin/gh-state/${branch//\//_}.json"
+  local draft=()
+  [ "$3" = true ] && draft=(--draft)
+  git push -q -u origin HEAD
+  bin/gh pr create ${draft[@]+"${draft[@]}"} --title "$1" --body "$2" >/dev/null
+  : >bin/gh-calls.log
 }
 
 # fake_github_pr [<branch>]
