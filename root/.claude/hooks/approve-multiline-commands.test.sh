@@ -15,10 +15,19 @@ HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/approve-multiline-commands.s
 pass=0
 fail=0
 
+# A throwaway project, for the -C cases: a git -C is approved only inside it.
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+TMP=$(cd -P "$TMP" && pwd -P)
+PROJ="$TMP/proj"
+mkdir -p "$PROJ/wt" "$PROJ/~" "$TMP/outside"
+ln -s "$TMP/outside" "$PROJ/link-out"
+
+# check <expect> <label> <command> [cwd] [project]
 check() {
-  local expect=$1 label=$2 cmd=$3 out got
-  out=$(printf '%s' "$cmd" | jq -Rs '{tool_name:"Bash", tool_input:{command:.}}' |
-    "$HOOK" 2>/dev/null)
+  local expect=$1 label=$2 cmd=$3 cwd=${4-$PROJ} project=${5-$PROJ} out got
+  out=$(printf '%s' "$cmd" | jq -Rs --arg d "$cwd" '{tool_name:"Bash", tool_input:{command:.}, cwd:$d}' |
+    CLAUDE_PROJECT_DIR=$project "$HOOK" 2>/dev/null)
   if printf '%s' "$out" | grep -q '"permissionDecision": *"allow"'; then
     got=ALLOW
   else
@@ -62,10 +71,13 @@ Body explaining why."'
 check ALLOW 'quoted multiline -m, single quotes' "git commit -m 'feat: subject
 
 Body.'"
-check ALLOW 'git -C worktree' "git -C /tmp/wt commit -F - <<'EOF'
+check ALLOW 'git -C into the project' "git -C $PROJ/wt commit -F - <<'EOF'
 msg
 
 more
+EOF"
+check ALLOW 'git -C, relative' "git -C wt commit -F - <<'EOF'
+msg
 EOF"
 check ALLOW 'bare git push after commit' "$COMMIT_HEREDOC
 git push"
@@ -181,6 +193,23 @@ b" > /tmp/out'
 check DEFER 'subshell' 'git commit -m "a
 
 b" && (rm -rf /tmp/x)'
+
+echo "-- must DEFER: a git -C that leaves the project --"
+# The `git -C * ...` allow rules this used to mirror reached any repository on
+# the machine; git_dash_c_in_project is the same check git-dash-c-allow.sh makes.
+CDMSG="commit -F - <<'EOF'
+msg
+EOF"
+check DEFER '-C outside the project' "git -C $TMP/outside $CDMSG"
+check DEFER '-C to the parent' "git -C .. $CDMSG"
+check DEFER '-C through a symlink out' "git -C link-out $CDMSG"
+check DEFER '-C to a missing directory' "git -C missing $CDMSG"
+# A directory named `~` is inside the project as read, but the shell runs git in
+# $HOME: an expanding -C value is refused, though `git add *.sh` is not.
+check DEFER '-C a tilde the project ships' "git -C ~ $CDMSG"
+check ALLOW 'a glob outside -C is still fine' "git add *.sh && git $CDMSG"
+check DEFER 'no project to compare against' "git -C wt $CDMSG" "$PROJ" ''
+check DEFER 'no cwd to resolve against' "git -C wt $CDMSG" '' "$PROJ"
 
 echo "-- must DEFER: git invocations outside the safelist --"
 check DEFER 'dangerous global option' "git -c core.fsmonitor=/tmp/x.sh commit -F - <<'EOF'

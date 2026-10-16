@@ -43,6 +43,9 @@ set -euo pipefail
 
 INPUT=$(cat)
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
+# For a git -C only; empty, every -C is refused (git_dash_c_in_project).
+CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty')
+PROJECT=${CLAUDE_PROJECT_DIR:-}
 
 [[ -n "$COMMAND" ]] || exit 0
 
@@ -98,13 +101,13 @@ segment_is_approved() {
     # Options before the subcommand can make git run a program of the caller's
     # choosing (-c core.fsmonitor=..., --exec-path, --git-dir into a repo with
     # hooks -- see git-guard.sh). `-C <dir>` is the only one accepted here,
-    # matching the `git -C * ...` allow rules.
-    while ((i < n)) && [[ "${argv[i]}" == -* ]]; do
-      [[ "${argv[i]}" == "-C" ]] || return 1
-      ((i + 1 < n)) || return 1
-      i=$((i + 2))
-    done
+    # and only into the project: the same check git-dash-c-allow.sh makes, so
+    # the two cannot disagree. A -C elsewhere reaches a repository whose own
+    # .git/config can run a program on `git commit`.
+    git_dash_c_in_project "$CWD" "$PROJECT" "${argv[@]}" || return 1
+    i=$GIT_DASH_C_NEXT
     ((i < n)) || return 1
+    [[ "${argv[i]}" != -* ]] || return 1
     sub=${argv[i]}
     i=$((i + 1))
 
@@ -168,6 +171,8 @@ segment_is_approved() {
 # the same argv and sources it too.
 # shellcheck source=root/.claude/hooks/segment-scan.lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/segment-scan.lib.sh"
+# shellcheck source=root/.claude/hooks/git-workdir.lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/git-workdir.lib.sh"
 
 scan_command "$COMMAND" segment_is_approved || exit 0
 ((SCAN_SEGMENTS)) || exit 0

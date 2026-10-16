@@ -25,7 +25,11 @@ was approved: the guard token sat in a shell comment.
 - reads the command word positionally per segment;
 - requires the newlines to be *data* (inside a quoted argument or a heredoc
   body) rather than a plain statement separator — several statements on several
-  lines have no wildcard problem to solve and are left to the normal flow.
+  lines have no wildcard problem to solve and are left to the normal flow;
+- accepts `git -C <dir>` only into the project, through `git_dash_c_in_project`
+  in `git-workdir.lib.sh` — the check `git-dash-c-allow.sh` makes, so the two
+  hooks cannot disagree. It reads `.cwd` and `CLAUDE_PROJECT_DIR` for that, and
+  refuses every `-C` when either is missing.
 
 Beyond newline handling it grants almost nothing new: `git add *`,
 `git commit -m *`, the three allow-listed `git push` forms, `gh pr create *` and
