@@ -87,6 +87,12 @@ assert_eq "gh pr edit takes -t, and --body-file from a path" "docs: short flags|
   "$(fake_github_pr | jq -r '"\(.title)|\(.body)"')"
 gh pr edit -b "inline body" >/dev/null
 assert_eq "and -b inline" "inline body" "$(fake_github_pr | jq -r .body)"
+gh pr edit --title="docs: equals form" --body=x=y >/dev/null
+assert_eq "and --flag=value, splitting at the first =" "docs: equals form|x=y" \
+  "$(fake_github_pr | jq -r '"\(.title)|\(.body)"')"
+assert_status "a flag the stub does not know fails" 1 gh pr edit --fill
+assert_contains "and names itself as the stub" "$(gh pr edit --fill 2>&1 || true)" "flag --fill is not stubbed"
+assert_eq "leaving the PR as it was" "docs: equals form" "$(fake_github_pr | jq -r .title)"
 gh pr edit --title "docs: only title" >/dev/null
 assert_contains "gh pr view without --json prints it for a reader" "$(gh pr view)" "draft:	true"
 

@@ -74,9 +74,15 @@ pr="$here/gh-state/${branch//\//_}.json"
 
 # Flags shared by the subcommands below; positional arguments (a PR number or
 # URL) are accepted and ignored, since a fixture has one PR per branch.
+# `--flag=value` is split as gh's own parser does. A flag the stub does not
+# know fails, as an unknown subcommand does: ignored, `--title=x` or `--fill`
+# would open a PR with an empty title and fail a correct run on its content.
 title= body= body_set=0 draft=false json= jq_filter= undo=0 head= state=open
 parse() {
   while [ $# -gt 0 ]; do
+    case "$1" in
+      --*=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ;;
+    esac
     case "$1" in
       -t | --title) title="$2" && shift ;;
       -b | --body) body="$2" && body_set=1 && shift ;;
@@ -91,6 +97,10 @@ parse() {
       -H | --head) head="$2" && shift ;;
       -s | --state) state="$2" && shift ;;
       -B | --base | -R | --repo | -a | --assignee | -l | --label | -r | --reviewer | -L | --limit) shift ;;
+      -*)
+        printf 'gh (eval stub): flag %s is not stubbed\n' "$1" >&2
+        exit 1
+        ;;
       *) ;;
     esac
     shift
