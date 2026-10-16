@@ -361,7 +361,10 @@ review_loop_checks() {
 # --- grading with an LLM ---
 
 SKILL_EVAL_JUDGE_SYSTEM_PROMPT='You grade text. Decide only whether the text under review satisfies the criterion, and answer with pass and a reason of one or two sentences. Whether the claims in the text are true is not your concern -- only whether the criterion is met.'
-SKILL_EVAL_JUDGE_SCHEMA='{"type":"object","properties":{"pass":{"type":"boolean"},"reason":{"type":"string"}},"required":["pass","reason"]}'
+# reason before pass: the verdict is generated in this order, and a verdict
+# written first was once argued against by its own reason (a FAIL whose
+# reason said the text should pass).
+SKILL_EVAL_JUDGE_SCHEMA='{"type":"object","properties":{"reason":{"type":"string"},"pass":{"type":"boolean"}},"required":["reason","pass"]}'
 
 # check_llm <label> <rubric> [<text>]
 # Asks a toolless `claude -p` whether the text (the final response by default)

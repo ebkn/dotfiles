@@ -481,6 +481,8 @@ judge_stdin="$(cat "$STUB_CLAUDE_OUT/judge-stdin")"
 contains "the judge is given the rubric" "the rubric" "$judge_stdin"
 contains "the judge is given the final response" "done" "$judge_stdin"
 t "the judge runs without tools" "" "$(flag_value "$STUB_CLAUDE_OUT/judge-args" --tools)"
+t "the judge reasons before its verdict (schema order)" "reason pass" \
+  "$(flag_value "$STUB_CLAUDE_OUT/judge-args" --json-schema | jq -r '.properties | keys_unsorted | join(" ")')"
 t "the judge reads no settings" "" "$(flag_value "$STUB_CLAUDE_OUT/judge-args" --setting-sources)"
 contains "the judge's verdict carries its reason" "PASS  judged (judge: stub reason)" \
   "$(cat "$(find "$SKILL_EVAL_OUT_DIR/$skill/case-a" -name assert.log)")"
