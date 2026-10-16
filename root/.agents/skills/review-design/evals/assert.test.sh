@@ -998,6 +998,20 @@ grade "$proactive_closing"
 expect_fail "proactive: a range ending off the branch is caught" \
   "names the range it reviewed, from eval-base to a commit on the branch"
 
+# The loop checks this grader carries: a second start after a clean round, and
+# a round that still reports a P1 left as the last.
+proactive_run "$work_records" "$closing_ok" fix_kg 2
+grade "$proactive_closing"
+expect_fail "proactive: a second start after a clean round is caught" \
+  "re-ran only after a round with P1 or P2"
+expect_fail "proactive: ... with nothing fixed before it" \
+  "fixed something before every re-run"
+
+skill_result="$dirty_result" proactive_run "$work_records" "$closing_ok" fix_kg
+grade "$proactive_closing"
+expect_fail "proactive: stopping on a round that still reports P1 is caught" \
+  "the last round reports no P1 and no P2"
+
 proactive_run "$work_records" "$closing_ok" :
 grade "$proactive_closing"
 expect_fail "proactive: a run that never built --kg is caught" \
