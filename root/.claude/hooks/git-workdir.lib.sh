@@ -21,7 +21,8 @@ git_dash_c_in_project() {
   GIT_DASH_C_NEXT=1 GIT_DASH_C_SEEN=0
   while ((i < n)) && [[ "${argv[i]}" == "-C" ]]; do
     ((i + 1 < n)) || return 1
-    [[ "${SCAN_ARGV_EXPANDS[i + 1]:-0}" == 0 ]] || return 1
+    # An absent mark -- called outside a predicate -- counts as expanding.
+    [[ "${SCAN_ARGV_EXPANDS[i + 1]:-1}" == 0 ]] || return 1
     dirs[${#dirs[@]}]=${argv[i + 1]}
     i=$((i + 2))
   done

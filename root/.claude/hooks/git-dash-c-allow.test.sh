@@ -171,5 +171,23 @@ else
   printf '  FAIL want=DEFER got rc=%s out=%s  no cwd in the input\n' "$rc" "$no_cwd"
 fi
 
+echo "-- git_dash_c_in_project called outside a scanner predicate --"
+# Its expansion marks exist only while a predicate runs; read anywhere else,
+# an absent mark must count as expanding, not as literal, or `git -C ~` would be
+# resolved as written.
+lib_rc=$(
+  # shellcheck source=root/.claude/hooks/git-workdir.lib.sh
+  . "$(dirname "$HOOK")/git-workdir.lib.sh"
+  SCAN_ARGV_EXPANDS=()
+  git_dash_c_in_project "$PROJ" "$PROJ" git -C sub status && echo 0 || echo 1
+)
+if [[ "$lib_rc" == 1 ]]; then
+  pass=$((pass + 1))
+  echo "  ok   with no marks, a -C value is refused"
+else
+  fail=$((fail + 1))
+  echo "  FAIL with no marks, a -C value was accepted"
+fi
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]
