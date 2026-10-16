@@ -21,10 +21,15 @@ DIR="$TEST_TMPDIR/records"
 # emptied for every case that does not set them, because this suite is usually
 # run from inside tmux and the real hook would otherwise set options on the
 # pane running the tests.
+#
+# Each argument is logged in brackets, so a value split in two by a lost quote
+# shows up as two. What tmux then STORES is checked against a real server in
+# bin/tmux-conf.test.sh, which runs this hook end to end in the container.
 mkdir -p "$TEST_TMPDIR/stub"
 cat >"$TEST_TMPDIR/stub/tmux" <<'EOF'
 #!/bin/bash
-printf '%s\n' "$*" >>"$TMUXLOG"
+printf '[%s]' "$@" >>"$TMUXLOG"
+echo >>"$TMUXLOG"
 EOF
 chmod +x "$TEST_TMPDIR/stub/tmux"
 TMUXLOG="$TEST_TMPDIR/tmux.log"
@@ -111,15 +116,18 @@ assert_eq 'outside tmux, tmux is never called' 'absent' "$(cat "$TMUXLOG" 2>/dev
 PANE_TMUX=/tmp/tmux-1/default,1,0 PANE_ID=%7
 hook cd '{"session_id":"p1","new_cwd":"/repo/git-worktrees/x"}'
 assert_eq 'cd publishes the cwd on its pane' \
-  'set-option -p -t %7 @claude_cwd /repo/git-worktrees/x' "$(tail -n 1 "$TMUXLOG")"
+  '[set-option][-p][-t][%7][@claude_cwd][/repo/git-worktrees/x]' "$(tail -n 1 "$TMUXLOG")"
 hook start '{"session_id":"p1","cwd":"/repo"}'
-assert_eq 'start publishes it too' 'set-option -p -t %7 @claude_cwd /repo' "$(tail -n 1 "$TMUXLOG")"
+assert_eq 'start publishes it too' '[set-option][-p][-t][%7][@claude_cwd][/repo]' "$(tail -n 1 "$TMUXLOG")"
+hook cd '{"session_id":"p1","new_cwd":"/repo/with space"}'
+assert_eq 'a path with a space stays one argument' \
+  '[set-option][-p][-t][%7][@claude_cwd][/repo/with space]' "$(tail -n 1 "$TMUXLOG")"
 # A trailing ";" on argv is a command separator to tmux; `\;` is its escape.
 hook cd '{"session_id":"p1","new_cwd":"/odd;"}'
-assert_eq 'a trailing semicolon is escaped' 'set-option -p -t %7 @claude_cwd /odd\;' "$(tail -n 1 "$TMUXLOG")"
+assert_eq 'a trailing semicolon is escaped' '[set-option][-p][-t][%7][@claude_cwd][/odd\;]' "$(tail -n 1 "$TMUXLOG")"
 hook end '{"session_id":"p1"}'
 assert_eq 'end unsets it, so the popup falls back to the pane path' \
-  'set-option -p -u -t %7 @claude_cwd' "$(tail -n 1 "$TMUXLOG")"
+  '[set-option][-p][-u][-t][%7][@claude_cwd]' "$(tail -n 1 "$TMUXLOG")"
 lines=$(wc -l <"$TMUXLOG" | tr -d ' ')
 hook cd '{"session_id":"p1"}'
 assert_eq 'nothing is published when no record was written' "$lines" "$(wc -l <"$TMUXLOG" | tr -d ' ')"
