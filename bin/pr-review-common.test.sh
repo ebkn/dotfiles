@@ -251,6 +251,25 @@ eq 'an id that is not a plain name reads no record' "$REPO" "$(printf '%s' "$cur
 eq 'a session with no id keeps its cwd' "$REPO/git-worktrees/b" "$(printf '%s' "$cur" | jq -r '.[1].cwd')"
 
 echo
+echo "== the session-cwd hook and with_current_cwd agree =="
+# The writer and the reader each spell out the default directory, the id rule
+# and the record shape, and every other case here hand-writes the record under
+# an explicit CLAUDE_SESSION_CWD_DIR. Changing either side alone would leave
+# them green while the reader silently found no record -- the routing bug back.
+# So the real hook writes, with nothing overridden, and the reader reads.
+HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")/../root/.claude/hooks" && pwd)/session-cwd.sh"
+seam=$(
+  unset CLAUDE_SESSION_CWD_DIR XDG_STATE_HOME
+  export HOME="$TMP/seam-home"
+  printf '{"session_id":"seam-1","hook_event_name":"CwdChanged","old_cwd":"%s","new_cwd":"%s"}' \
+    "$REPO" "$REPO/git-worktrees/a" | "$HOOK" cd
+  sid "$(with_current_cwd "$(jq -n --arg r "$REPO" \
+    '[{kind:"interactive", pid:14, sessionId:"seam-1", startedAt:1, status:"idle", cwd:$r}]')")" \
+    "$REPO/git-worktrees/a" "$WTS2"
+)
+eq 'what the hook writes by default is what the reader overlays' 'seam-1' "$seam"
+
+echo
 echo "== session_in_worktree: newest ARRIVAL wins, not newest launch =="
 # Moving in makes two sessions in one worktree more likely: one launched there
 # and one that cd'd in later. The one that arrived last is the one working
