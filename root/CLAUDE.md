@@ -55,7 +55,7 @@
 # Pull Requests
 
 - On a branch other than the default one, with a GitHub `origin`, the work goes out as a PR without being asked. **Never ask whether to push, open a PR, update it or mark it ready** — that is decided here, and a question at the end leaves the work unpublished until someone answers.
-- Once the first commit of a request lands, call `create-pr` with `draft` as its argument, so the work in progress is visible while it continues. If that one commit finishes the request, call it without `draft` and the PR opens ready. Skip it when the branch already has an open PR.
+- Call `create-pr` with `draft` as its argument right after the first commit of a request, before going on with the rest: the work in progress is visible while it continues. Not once everything is committed — a PR opened at the end is the behaviour this replaces. Only when that first commit finishes the request, call it without `draft` and the PR opens ready. Skip it when the branch already has an open PR.
 - Before reporting finished work back, call `update-pr` with `ready` as its argument: it pushes what is left, rewrites the title and body for the whole branch, and marks the PR ready for review. It comes last, after `review-test`, `review-design` and their fix commits. Skip it when nothing was committed since the PR was last written — a question answered, an investigation reported — and mid-request.
 - On the default branch, or with no GitHub `origin`, open no PR and push nothing, and do not create a branch to make one possible: say in the report that the commits are local.
 
