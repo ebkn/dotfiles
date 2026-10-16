@@ -59,10 +59,13 @@ attaches to an existing `_popup_<id>` and ignores `-c`, so a scratch shell left
 open in that tab stays where it was. That was already true when the pane itself
 moved; `t` exits with tig, so it always starts fresh.
 
-`tmux-conf.test.sh` evaluates `@popup_dir` against a pane with and without the
-option, a path containing a comma included (the conditional splits on commas
-before expanding its branches, so the value is safe), and checks both bindings
-ask it.
+`tmux-conf.test.sh` runs the real hook against its throwaway server and
+evaluates `@popup_dir` after each write, over values that are traps for one side
+or the other: a trailing `;` and a literal `\;` (tmux argv), a space, a comma
+(the conditional's separator, safe because it splits before expanding its
+branches) and a `#{...}` (not expanded a second time). It also checks the
+fallback against the pane's real directory, not just against itself, and that
+both bindings ask `@popup_dir`.
 
 ## Testing (`tmux-popup.test.sh`)
 

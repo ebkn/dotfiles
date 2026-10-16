@@ -398,17 +398,44 @@ tmux -L "$socket" kill-session -t plain_probe
 # directory, which a Bash-tool cd (`gw`) never moves, so the popups opened in
 # the checkout a session had already left. Evaluated as a format against a pane
 # with the option and one without; a lost E: or a swapped branch fails silently.
+#
+# The option is written by the REAL hook, against this server: session-cwd's
+# own suite runs on the host and so can only stub tmux, which proves the argv
+# and not what tmux stores. Here the whole seam runs -- hook writes, @popup_dir
+# reads -- over values that are traps for one side or the other: a trailing
+# `;` (a command separator on tmux argv), a literal `\;`, a space, a comma (the
+# conditional's separator) and `#{...}` (which must not be expanded again).
 tmux -L "$socket" new-session -d -s dir_probe -c "$work"
 dir_pane=$(tmux -L "$socket" display-message -p -t dir_probe: '#{pane_id}')
-plain_dir=$(tmux -L "$socket" display-message -p -t "$dir_pane" '#{E:@popup_dir}')
-tmux -L "$socket" set-option -p -t "$dir_pane" @claude_cwd /moved/here,with-comma
-moved_dir=$(tmux -L "$socket" display-message -p -t "$dir_pane" '#{E:@popup_dir}')
+dir_sock=$(tmux -L "$socket" display-message -p '#{socket_path}')
+cwd_hook="$(cd "$(dirname "$0")/../root/.claude/hooks" && pwd)/session-cwd.sh"
 pane_path=$(tmux -L "$socket" display-message -p -t "$dir_pane" '#{pane_current_path}')
-if [ "$plain_dir" = "$pane_path" ] && [ "$moved_dir" = /moved/here,with-comma ]; then
-  pass "@popup_dir is the session's cwd when published, the pane's path otherwise"
+plain_dir=$(tmux -L "$socket" display-message -p -t "$dir_pane" '#{E:@popup_dir}')
+# Against $work, not just against pane_path: both are read from tmux, and two
+# empty strings would agree with a format that had lost its fallback.
+if [ "$pane_path" = "$work" ] && [ "$plain_dir" = "$work" ]; then
+  pass "@popup_dir falls back to the pane's path when no session cwd is published"
 else
-  fail "@popup_dir is the session's cwd when published, the pane's path otherwise" \
-    "without: [$plain_dir] (pane: [$pane_path]), with: [$moved_dir]"
+  fail "@popup_dir falls back to the pane's path when no session cwd is published" \
+    "want [$work], pane: [$pane_path], @popup_dir: [$plain_dir]"
+fi
+for want in '/moved/here,with-comma' '/odd;' ';' '/a\;' '/with space' '/x#{pane_id}'; do
+  jq -cn --arg d "$want" '{session_id:"probe", new_cwd:$d}' |
+    TMUX="$dir_sock,0,0" TMUX_PANE="$dir_pane" CLAUDE_SESSION_CWD_DIR="$work/cwd-records" "$cwd_hook" cd
+  got=$(tmux -L "$socket" display-message -p -t "$dir_pane" '#{E:@popup_dir}')
+  if [ "$got" = "$want" ]; then
+    pass "the hook's cwd reaches @popup_dir intact: $want"
+  else
+    fail "the hook's cwd reaches @popup_dir intact: $want" "got: [$got]"
+  fi
+done
+printf '{"session_id":"probe"}' |
+  TMUX="$dir_sock,0,0" TMUX_PANE="$dir_pane" CLAUDE_SESSION_CWD_DIR="$work/cwd-records" "$cwd_hook" end
+got=$(tmux -L "$socket" display-message -p -t "$dir_pane" '#{E:@popup_dir}')
+if [ "$got" = "$work" ]; then
+  pass "after SessionEnd @popup_dir is the pane's path again"
+else
+  fail "after SessionEnd @popup_dir is the pane's path again" "got: [$got]"
 fi
 tmux -L "$socket" kill-session -t dir_probe
 
