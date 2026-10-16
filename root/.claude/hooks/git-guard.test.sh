@@ -367,6 +367,7 @@ echo "-- must PASS: a separator inside quotes (outside any substitution) does no
 # Regression: an rg alternation `"warn|git -C|hook"` was split at the quoted
 # `|`, leaving a bare `git -C` fragment that was refused as "-C with no path".
 check PASS 'rg -n "warn|git -C|hook" file.txt'
+check PASS "rg -n 'allow|matcher|git -C|approve-multiline' root/README.md"
 check PASS 'rg "x; git -c a=b status" .'
 check PASS "echo 'a && git -c a=b status'"
 check PASS 'echo "a \" ; git -c a=b status"'
