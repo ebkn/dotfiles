@@ -1,6 +1,8 @@
-# lib.sh — update-pr's fixture: create-pr's (see its evals/lib.sh), one
-# step further on. A branch whose first commit is pushed and already has a
-# draft PR, as create-pr leaves it at a unit's first commit.
+# lib.sh — update-pr's fixtures: create-pr's (see its evals/lib.sh), one
+# step further on, in two states. update_pr_eval_branch: a branch with its
+# first commit, neither pushed nor with a PR -- what a skipped or failed
+# first-commit create-pr leaves. update_pr_eval_scaffold: that branch pushed,
+# with a draft PR -- what create-pr leaves at a unit's first commit.
 #
 # Sourced by scaffold.sh, so it declares no `set -e` / `set -o`.
 #
