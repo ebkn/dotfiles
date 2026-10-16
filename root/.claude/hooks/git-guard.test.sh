@@ -615,6 +615,7 @@ echo "-- the settings this hook's silence relies on --"
 # an option of the caller's choosing in. A rule whose command word could be git
 # through a wildcard (`Bash`, `Bash(*)`, `Bash(g*)`) or a path (`/usr/bin/git`)
 # counts as a git rule too.
+# shellcheck disable=SC2016 # $t, $w, $p and $r are jq variables, not shell ones
 GIT_RULE_DEFS='
   def inner: ltrimstr("Bash(") | rtrimstr(")");
   def cmdword: inner | split(" ")[0] | split(":")[0];
