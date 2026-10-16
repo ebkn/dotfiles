@@ -620,6 +620,7 @@
   "theme": "dark-ansi",
   "editorMode": "normal",
   "preferredNotifChannel": "auto",
+  "autoCompactEnabled": false,
   "remoteControlAtStartup": true,
   "agentPushNotifEnabled": false,
   "skipAutoPermissionPrompt": true,
@@ -635,5 +636,5 @@
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
   },
-  "autoCompactEnabled": false
+  "model": "opus"
 }

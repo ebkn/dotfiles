@@ -10,7 +10,7 @@
 # 0 for a run that did nothing useful.
 #
 # Sourced, so it declares no `set -e` / `set -o`: those would leak into the
-# caller's shell (see the shell conventions in CLAUDE.md).
+# caller's shell (see .claude/rules/shell-scripts.md).
 #
 # Passed in by the runner:
 #   SKILL_EVAL_TRANSCRIPT       path to the stream-json (JSONL) transcript

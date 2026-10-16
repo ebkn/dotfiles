@@ -1,175 +1,60 @@
 # Project: dotfiles
 
-Personal dotfiles repository managing shell, editor, terminal, and development tool configurations for macOS, Linux, and Windows.
+Personal dotfiles for macOS, Linux and Windows — shell, editor, terminal and agent config, symlinked into `~/`. `AGENTS.md` is a symlink to this file, for Codex.
 
-## Structure
+<!-- Maintainers: this file is loaded into every session, so keep a line only if removing it would make the agent err. Anything that matters for one area goes in a path-scoped rule under .claude/rules/ or in the doc beside the thing. -->
 
-Only what `ls` cannot tell you; the file names say the rest.
+## Layout
 
-```
-.
-├── zsh/         # Modules sourced from .zshrc, one per concern; *.test.zsh beside them
-├── vim/         # Neovim (lazy.nvim) + core *.vim; coc/ extension config
-├── bin/         # Everything that ends up on $PATH; a non-trivial script has a sibling .md
-│   ├── init/    #   Platform setup; links.sh holds link_dotfiles(), shared with bin/relink
-│   └── wsl/     #   WSL-only helpers
-├── root/        # Agent and tool config linked into ~/ (CLAUDE.md, .claude/, .codex/, .agents/skills/)
-├── brewfiles/   # Brewfile-{shell,lang,xcode,cask,mas}
-├── launchd/     # LaunchAgents linked into ~/Library/LaunchAgents; linking is not loading (bin/launchd-load)
-├── systemd/     # systemd user units (ssh-agent relay)
-├── textlint/    # Rules bin/textlint-docs carries to OTHER repos; this repo's own is ./.textlintignore
-├── read-doc/    # Stylesheet and script bin/read-doc injects
-├── autohotkey/  # Windows key remapping (AutoHotkey v2)
-├── cursor/      # Cursor settings and keybindings
-└── .zshrc, .tmux.conf, .gitconfig, wezterm.lua, …  # Linked into ~/ as-is
-```
+Only what `ls` cannot tell you.
 
-Scripts that back one skill (e.g. retrospective's `session-extract`) live beside
-its `SKILL.md`, not in `bin/`, and are linked to `~/.local/bin` the same way.
+- `zsh/` — modules sourced from `.zshrc`, one per concern; `*.test.zsh` beside them.
+- `bin/` — everything that ends up on `$PATH`. `bin/init/` is platform setup; `bin/init/links.sh` holds `link_dotfiles()`, shared with `bin/relink`. One-OS helpers go in `bin/<platform>/`.
+- `root/` — agent and tool config linked into `~/` (`CLAUDE.md`, `.claude/`, `.codex/`, `.agents/skills/`).
+- `launchd/` — LaunchAgents. Linking is not loading: see `bin/launchd-load`.
+- `textlint/` — rules `bin/textlint-docs` carries to *other* repos; this repo's own is `./.textlintignore`.
+- Top-level dotfiles (`.zshrc`, `.tmux.conf`, `wezterm.lua`, …) are linked as-is.
 
-`AGENTS.md` is a symlink to this file for Codex compatibility.
+**Every non-trivial script has a sibling `.md`, and each area has one (`zsh/README.md`, `root/README.md`, `vim/coc-trust.md`). Read it before editing the thing**: most failure modes here are silent, and the doc holds the reason.
 
-**Detailed notes live next to the thing they describe**, not here. Every
-non-trivial script has a sibling `.md` (`bin/tmux-agents.md`,
-`bin/pr-state-watch.md`, …), and each area has one too (`zsh/README.md`,
-`root/README.md`, `vim/coc-trust.md`). This file keeps the conventions and one
-line per feature pointing at its doc. **Read the doc before editing the thing** —
-most of these have failure modes that are completely silent, and the doc is where
-the measurement and the reason live.
+## Path-scoped rules
 
-## Key Conventions
+Claude Code loads these from `.claude/rules/` when a matching file is touched. Codex does not — read the matching one before editing.
 
-- **Symlink-based**: Setup scripts in `bin/init/` symlink files from this repo to `~/`. Existing files are backed up to `~/backup/`.
-- **Modular zsh**: Shell config is split by concern in `zsh/` and sourced from `.zshrc`. **Module order is not fully free** and the constraint is invisible — `alias.zsh` must precede `git.zsh`. See [zsh/README.md](zsh/README.md).
-- **`.zshrc` finds `zsh/` relative to itself** via `${(%):-%N}`, never `$0`, so a checkout anywhere loads its own modules. See [zsh/README.md](zsh/README.md); pinned by `zsh/zshrc-resolve.test.zsh`.
-- **Never `stat` a path under `/home` on macOS** — autofs makes it ~16ms per stat, on every zsh start. Guard on `$OSTYPE`. See [zsh/README.md](zsh/README.md).
-- **Tmux auto-start**: `.zshrc` starts tmux automatically and exits the shell when tmux closes.
-- **Lazy loading**: `nvm`, `gcloud` and `kubectl` are lazy-loaded in `zsh/lang.zsh` for fast startup.
-- **Plugin managers**: Neovim uses lazy.nvim; Zsh uses Zinit.
-- **Everything clones over SSH, deliberately.** `.gitconfig` rewrites every `https://github.com/…` URL to SSH before git dials out, including zinit's plugin clones. So a brand-new machine can fetch **nothing** from GitHub until an SSH key is in place (key first, then first login), and **changing a URL here to HTTPS accomplishes nothing** — the rewrite converts it straight back, silently. Verify which transport a command really uses with `GIT_SSH_COMMAND=false git ls-remote https://github.com/…`; `GIT_CONFIG_GLOBAL=/dev/null` is the only switch that neutralizes it, at the cost of the credential helper.
+| Rule               | Covers                                                     |
+| ------------------ | ---------------------------------------------------------- |
+| `shell-scripts.md` | any shell script: shebang, `set` flags, format, shellcheck |
+| `testing.md`       | suites, CI workflows, the test container, version pins     |
+| `zsh.md`           | `zsh/`, `.zshrc`, `.zshenv`                                |
+| `vim.md`           | `vim/`, including coc workspace trust                      |
+| `agent-config.md`  | `root/`                                                    |
 
-## Editing Guidelines
+## Conventions
 
-- **Zsh config**: Identify the correct module in `zsh/` rather than editing `.zshrc` directly. See [zsh/README.md](zsh/README.md), and [ssh.md](zsh/ssh.md) / [git.md](zsh/git.md) / [alias.md](zsh/alias.md).
-- **Neovim plugins**: Config lives in `vim/nvim/lua/plugins/`, split into `instantly/` (always loaded) and `lazy/` (on-demand by filetype). Core Vim settings are in `vim/*.vim`.
-- **coc.nvim workspace trust**: coc has no trust model at all, so a cloned repo's `.vim/coc-settings.json` can spawn an arbitrary executable just by opening a file in it. The only gate is not starting coc. Four things silently break it — read [vim/coc-trust.md](vim/coc-trust.md) before touching `vim/nvim/lua/coc_trust.lua`.
-- **Brewfiles**: Changes go in the appropriate category file under `brewfiles/` (shell, lang, cask, mas).
-- **New dotfiles**: For a plain, order-independent `$HOME` symlink, add a `link_with_backup` line to `link_dotfiles()` in `bin/init/links.sh` — the single source of truth shared by `bin/init/macos.sh` and `bin/relink`, so `update-all` picks it up with no init re-run. For `ubuntu.sh`/`wsl.sh` add the line inline (not yet migrated). Keep order-sensitive links (`.zshrc`/`.zshenv`, `.npmrc`) or links wrapped in special logic inline in the platform init script.
-- **Re-syncing symlinks**: `update-all` runs `relink` at the end; it reports drift and asks before creating/fixing links. Run `relink` directly anytime.
-- **Platform-specific binaries**: Helpers that only make sense on one OS go under `bin/<platform>/` (e.g. `bin/wsl/`). Cross-platform helpers stay at `bin/` root. Symlink them from the matching `bin/init/<platform>.{sh,ps1}`.
-- **Executables live in `bin/`, never at the repo root.** The root is for files symlinked into `$HOME` as-is (`.zshrc`, `.tmux.conf`, `wezterm.lua`); anything that ends up on `$PATH` belongs in `bin/`. **Moving a `bin/` script breaks running machines until `relink` is run**: `~/.local/bin/<name>` becomes a dangling symlink, and every caller here redirects stderr to `/dev/null`, so the only symptom is a feature quietly not happening. `relink` does detect and re-point it, but it has to actually be run.
-- **Home directory agent config**: Global Claude Code/Codex settings live in `root/` and are symlinked to `~/`. **This repository is public, and `root/.claude/settings.json` is the one file that keeps forgetting it** — `/config` writes machine-local state, and `autoMode.environment` is a profile of whatever private repo you were working in. That, the three `root/CLAUDE.md` destinations, the curl, `rm` and git permission rules (no git allow rule may put a `*` before the subcommand), the Codex prefix rules and the skill-linking policy are all in [root/README.md](root/README.md). **Read it before editing anything under `root/`.**
-- **Agent skills**: Skills this repo OWNS live once under `root/.agents/skills/<name>/SKILL.md` and are linked **individually** into each consumer dir. A new owned skill needs a `relink` to appear. Note that Codex ignores `allowed-tools`, so **a read-only skill must state that boundary in its body** — see [root/README.md](root/README.md).
-
-### Features
-
-One line each: what it is, and the one thing that breaks silently. The doc
-holds the rest.
-
-- **Agent state indicator** — tmux pane options per actor; three transitions no hook reports are corrected by a 5s launchd `tmux-agents --sync`, whose rule the picker must keep sharing. → [agent-state.md](root/.claude/hooks/agent-state.md)
-- **Agent picker** (`prefix + a`) — latency is process count, not work, so the first list comes from pane options alone. → [tmux-agents.md](bin/tmux-agents.md)
-- **Answering a blocked agent** (`ctrl-o` in the picker, `prefix + A` for the first red one) — `A` and `ctrl-o` pick by one rule, which must not drift. → [tmux-agent-view.md](bin/tmux-agent-view.md), [tmux-agents.md](bin/tmux-agents.md)
-- **tmux popups** (`prefix + p`/`t`/`o`) — the leading `_` in `_<name>_<id>` is what stops a popup opening inside a popup. → [tmux-popup.md](bin/tmux-popup.md)
-- **`.tmux.conf`** — every non-`-n` binding carries `-N "<category>: <description>"`; that note is the `prefix + ?` cheatsheet. → [tmux-conf.md](bin/tmux-conf.md), [tmux-cheatsheet.md](bin/tmux-cheatsheet.md)
-- **One WezTerm tab means one tmux session** (`prefix + w`) — nothing in tmux enforces it, so `w` swaps clients. → [tmux-session-swap.md](bin/tmux-session-swap.md)
-- **Remote sessions** — the autossh reconnect binding stays single-valued both ways; restoring tabs needs `adopt` on the remote first. → [tmux-track-session.md](bin/tmux-track-session.md), [tmux-restore-ssh-tabs.md](bin/tmux-restore-ssh-tabs.md), [autossh-ssh.md](bin/autossh-ssh.md)
-- **Document reading** (`bin/read-doc`) — the point is the stylesheet; **do not turn it into a terminal pager.** → [read-doc.md](bin/read-doc.md)
-- **PR automation** — detectors queue, dispatch delivers; **the queue must never be bypassed**, and nothing in it writes to a worktree. → [pr-review-watch.md](bin/pr-review-watch.md), [pr-state-watch.md](bin/pr-state-watch.md), [pr-review-dispatch.md](bin/pr-review-dispatch.md)
-- **Japanese prose linting** (`bin/textlint-docs`) — the target project gets no config; narrowing to Japanese files is the caller's job. → [textlint-docs.md](bin/textlint-docs.md)
-- **Skill evals** (`bin/skill-eval`) — running cases spends model usage, so CI runs only the graders. → [skill-eval.md](bin/skill-eval.md)
-- **Session retrospective** (`/retrospective`) — distributions, never a mean. → [NOTES.md](root/.agents/skills/retrospective/NOTES.md)
-
-Linking a launchd agent is not loading it: see [launchd-load.md](bin/launchd-load.md).
-
-## Shell Script Conventions
-
-Adopted from `tetsunavi-monorepo`'s `015_shell_scripts.md`, with the divergences below recorded rather than papered over. Enforced by `bin/lint-shell` (`shellcheck` + `shfmt -i 2 -ci` + `zsh -n`), which CI runs on every push.
-
-- **Formatting is `shfmt -i 2 -ci`, and is not a matter of taste.** `bin/lint-shell --write` applies it. `-ci` keeps `case` branches indented, which is what the repo already did; dropping it de-indents every branch in the repo for no reading benefit. **zsh is formatted by nobody.** shfmt parses as bash, and `shfmt -f` claims `*.zsh` by extension (21 files here), so a listing built with `shfmt -f` — the form the monorepo uses, where no zsh exists — would rewrite `zsh/` modules through a parser that cannot represent them. `bin/lint-shell` therefore feeds shfmt its own shebang-discovered list, and `bin/lint-shell.test.sh` pins that no zsh module reaches shfmt.
-- **The shebang here is `#!/bin/bash`, not the monorepo's `#!/usr/bin/env bash`, and the difference is deliberate.** `env bash` resolves the *newest* bash on `PATH`, which on a developed macOS is Homebrew's 5.x — so a script using `mapfile` or `declare -A` passes locally and breaks on a machine that has only the stock shell. This repo's whole job is to provision such a machine: `bin/init/*` runs **before** Homebrew exists, and the hooks under `root/.claude/` run wherever Claude Code is started. `#!/bin/bash` pins **3.2** on macOS, so writing to the oldest bash is enforced by running the script at all rather than by remembering to. That is why `approve-multiline-commands.sh` and `pr-review-*.test.sh` say "written for bash 3.2": no `mapfile`, no associative arrays, no `${var^^}`, and no empty-array expansion under `set -u`. Portable scripts that never touch a bare machine keep `#!/usr/bin/env bash`. **The rule does not invert:** do not "modernise" a `#!/bin/bash` to `env bash` — it removes the only thing checking the 3.2 constraint, and nothing fails until someone runs the script on a fresh Mac.
-- **A process substitution's exit status reaches neither `set -e` nor `pipefail`.** `while read …; do …; done < <(cmd)` runs zero iterations when `cmd` fails and carries on. This is the single most expensive trap in this file's history: `bin/lint-shell` itself read `git ls-files` that way and, with the listing failing, checked 3 files instead of 52 and printed `ok`. Take the output with a command substitution (`out=$(cmd)` with an explicit status check) and read it with `<<<`. Note `<<<` on an empty string still yields one empty line, so skip empties — `[ -f "$f" ] || continue` already does.
-- **`$?` is not tested directly.** Use `if cmd; then … else … fi`, which is also what keeps `set -e` honest. `2>&1` goes last in a redirection (`>/dev/null 2>&1`).
-- **`curl` that saves a response takes `-f`.** Without it a 4xx/5xx exits 0 and the error body is written as though it were the payload. `-sf` when silent, `-fsS` when the message is wanted.
-- **shellcheck runs at its default severity here, not the monorepo's `--severity=warning`.** The repo is small and already clean at style level, so there is nothing to gain by lowering the bar. Suppress a false positive on the **line above** it with a reason (`# shellcheck disable=SCxxxx`), never file-wide, and only after trying to satisfy the check instead. `external-sources` / `source-path` are set once in `/.shellcheckrc` so an editor and the gate agree.
-- **`set -eo pipefail` at the top of anything executed directly**; `-u` is optional and genuinely awkward around optional arguments and empty-array expansion on bash 3.2. **Sourced fragments get none of it** — `bin/init/common.sh`, `links.sh`, `bin/pr-review-common.sh` — because `set` mutates the caller's shell. Like every sourced fragment, they have no shebang either, so they carry `# shellcheck shell=bash` and must be named inline in `bin/lint-shell` (`lint-shell.test.sh` fails on one that is not).
+- **New `$HOME` link**: add a `link_with_backup` line to `link_dotfiles()` in `bin/init/links.sh`, so `bin/init/macos.sh` and `relink` both pick it up (`ubuntu.sh`/`wsl.sh`: inline, not yet migrated). Order-sensitive links (`.zshrc`/`.zshenv`, `.npmrc`) stay inline in the platform script. `relink` reports drift and asks before fixing; `update-all` runs it at the end.
+- **Executables live in `bin/`, never at the repo root.** Moving a `bin/` script leaves `~/.local/bin/<name>` dangling until `relink` runs, and callers discard stderr, so the only symptom is a feature quietly not happening.
+- **Everything clones over SSH.** `.gitconfig` rewrites every `https://github.com/…` URL to SSH, zinit's included, so a new machine fetches nothing from GitHub until it has an SSH key, and changing a URL here to HTTPS does nothing. Check with `GIT_SSH_COMMAND=false git ls-remote https://github.com/…`; only `GIT_CONFIG_GLOBAL=/dev/null` neutralises the rewrite.
+- **This repository is public.** `root/.claude/settings.json` collects machine-local state from `/config` and private-repo profiles in `autoMode.environment`; read [root/README.md](root/README.md) before staging it.
 
 ## Testing
 
-**How a suite should be shaped — waiting, fixtures, process count, output
-format — is in [bin/testing.md](bin/testing.md).** Read it before writing or
-speeding up a suite: a suite's time is processes spawned × ~2 ms plus waiting,
-not its number of cases. A new or touched bash suite takes its assertions and
-waits from `bin/test-lib.sh` (rule 6) rather than hand-rolling them.
+- `bin/test` runs every suite in parallel, and CI runs exactly that. Discovery is `git ls-files`, so `git add` a new suite first. See [bin/test.md](bin/test.md).
+- `bin/lint-shell` is the static gate; run it before pushing, after `git add`.
+- **IMPORTANT: never run tmux suites or tmux experiments on the host.** Use `bin/test-in-docker`. `TMUX_TMPDIR` does not isolate inside a pane because tmux prefers the socket in `$TMUX`; a probe that forgot `unset TMUX` killed every local session. Ad hoc: the container, or an explicit `-L`/`-S` socket with `TMUX` unset.
+- Assert on the observable contract, not the exit status: nearly every failure mode here is silent.
 
-`bin/lint-shell` is the static gate for every shell script and CI runs the same
-command. Its shellcheck and shfmt passes cannot disagree between local and CI
-**only because both tools are version-pinned in the workflow**; an unpinned
-linter turned main red on a runner-image bump with no shell script changed. Its
-`zsh -n` pass **can** disagree, and did: zsh is not pinned, and Homebrew's
-5.9.2 accepts what CI's 5.9 rejects, so main was red for a week behind green
-local runs. Check zsh changes with `/bin/zsh -n` too. See
-[bin/lint-shell.md](bin/lint-shell.md).
+## Feature docs
 
-Run it before pushing, and **after `git add`**: discovery is `git ls-files`, so an
-untracked script passes vacuously.
-
-**`bin/test` runs every suite, in parallel, and CI runs exactly that.** It
-discovers suites with `git ls-files` (so `git add` a new one first), leaves the
-tmux suites to `bin/test-in-docker` on a laptop, and skips what `bin/test.skip`
-names, each with its reason (`bin/test --list`). It needs GNU parallel, pinned
-in three places like tmux. See [bin/test.md](bin/test.md).
-
-**tmux suites run in Docker, never on the host: use `bin/test-in-docker`.**
-`TMUX_TMPDIR` does not isolate a suite inside a tmux pane, because tmux prefers
-the socket in `$TMUX`. A probe that forgot `unset TMUX` killed every local
-session. Every tmux suite (each `bin/tmux-*.test.sh`, and any suite that invokes
-`tmux … new-session|kill-server`) sources `bin/tmux-test-guard.sh`, which exits
-2 outside a container or CI. `bin/tmux-test-guard.test.sh` fails CI when a
-suite is missing it. The same goes for any ad-hoc tmux experiment: run it in the
-container, or with an explicit `-L`/`-S` socket and `TMUX` unset. See
-[bin/test-in-docker.md](bin/test-in-docker.md).
-
-**The same rule reaches tools a suite runs *against*, not just the ones that
-judge it.** `tmux` is built from a pinned release in CI because
-`agent-state.test.sh` pins how values survive a round trip through `set-option`
-and a `-F` format, and tmux has changed how it renders non-printable bytes
-between versions — an unpinned one was green locally and red in CI on code
-nobody had touched. `fzf` is pinned and installed for the same reason —
-`tmux-agents.test.sh` drives the real binary in a real pane and reads the
-rendered screen back — and the runner image does not carry it at all. `pandoc`
-likewise, for `read-doc.test.sh`, which asserts on the HTML it renders. Each such
-pin lives in three places — the workflow, `bin/test-in-docker.Dockerfile` and
-`brewfiles/Brewfile-shell`, each naming the other two; bump all three together,
-and the workflow prints each version so the next gap is visible in the log
-rather than only in its failures.
-
-**A test that asserts a permission failure needs a non-root runner.** The
-container standing in for CI must therefore run as an ordinary user: as root the
-kernel ignores the `chmod 500` such a case sets up with, the operation it expects
-to fail succeeds, and it reports a bug that does not exist. That, an absent
-UTF-8 locale (tmux renders every wide glyph as `_`), an absent `nc` and an absent
-`fzf` are four failures a careless container invented — so **a difference the
-container finds is a hypothesis until the container is shown to match the
-runner**, and the one environment difference worth keeping is the runner's
-missing `TERM`. The container does differ in one way on purpose: it runs on the
-host's architecture (arm64 on a Mac, ~7x faster than emulating amd64), so a
-failure only it shows is re-run with `TEST_DOCKER_PLATFORM=linux/amd64` before
-it is believed ([test-in-docker.md](bin/test-in-docker.md)).
-
-**A test that needs something installed must supply it, not require it.** CI has
-no tmux plugin manager, and `.tmux.conf` runs one — so `tmux-conf.test.sh` builds
-a fixture `$HOME` containing a no-op `tpm` rather than tolerating its absence in
-the captured stderr. The same fixture stops that suite rewriting a real plugin
-file with `sed -i`, which it did on any machine that had the plugin.
-
-Each suite's rationale — what it pins, which cases earn their keep, and the
-harness traps that made earlier versions green while proving nothing — is in the
-doc beside it — `<script>.md`, or the suite's own header where there is none.
-The exceptions: zsh suites are in [zsh/README.md](zsh/README.md), skill eval
-graders in [skill-eval.md](bin/skill-eval.md), and the curl/rm guard and Codex
-rules suites in [root/README.md](root/README.md). The recurring lesson across
-all of them: **assert on the observable contract, not on the exit status**,
-because nearly every failure mode here is silent.
-
-- **GitHub Actions CI** (`.github/workflows/`) runs the platform setup scripts, `bin/lint-shell`, and every `*.test.sh` / `*.test.zsh` through `bin/test`. **A new suite needs no workflow step**: tracked is enough. To leave one out, add it to `bin/test.skip` with the reason. `bin/ci-enrollment.test.sh` checks that the workflow runs `bin/test` and that every suite is run or skipped with a reason. A `*.test.ps1` goes in `windows-setup.yml` by hand, and nothing checks that it did.
-- **Setup workflows must test the pushed branch.** They `actions/checkout`, symlink the checkout to `~/dotfiles`, and run the bootstrap with `DOTFILES_SKIP_UPDATE=1` so it does not self-update over the branch under test. The earlier form — `curl .../main/bin/init/bootstrap-*.sh | sh`, letting the bootstrap `git clone` the default branch — meant every job validated `main` regardless of the pushed ref, so the checks could not fail on unmerged code. **Do not reintroduce a hardcoded `/main/` raw URL or drop the skip flag.**
+| Feature                                          | Doc |
+| ------------------------------------------------ | --- |
+| Agent state indicator (tmux pane options, sync)  | [root/.claude/hooks/agent-state.md](root/.claude/hooks/agent-state.md) |
+| Agent picker (`prefix + a`), answering (`ctrl-o`, `prefix + A`) | [bin/tmux-agents.md](bin/tmux-agents.md), [bin/tmux-agent-view.md](bin/tmux-agent-view.md) |
+| tmux popups (`prefix + p`/`t`/`o`)               | [bin/tmux-popup.md](bin/tmux-popup.md) |
+| `.tmux.conf` and the `prefix + ?` cheatsheet     | [bin/tmux-conf.md](bin/tmux-conf.md), [bin/tmux-cheatsheet.md](bin/tmux-cheatsheet.md) |
+| One WezTerm tab = one tmux session (`prefix + w`) | [bin/tmux-session-swap.md](bin/tmux-session-swap.md) |
+| Remote sessions, autossh, tab restore            | [bin/tmux-track-session.md](bin/tmux-track-session.md), [bin/tmux-restore-ssh-tabs.md](bin/tmux-restore-ssh-tabs.md), [bin/autossh-ssh.md](bin/autossh-ssh.md) |
+| Document reading (`read-doc`)                    | [bin/read-doc.md](bin/read-doc.md) |
+| PR automation (detectors → queue → dispatch)     | [bin/pr-review-watch.md](bin/pr-review-watch.md), [bin/pr-state-watch.md](bin/pr-state-watch.md), [bin/pr-review-dispatch.md](bin/pr-review-dispatch.md) |
+| Japanese prose linting (`textlint-docs`)         | [bin/textlint-docs.md](bin/textlint-docs.md) |
+| Skill evals (`skill-eval`)                       | [bin/skill-eval.md](bin/skill-eval.md) |
+| Session retrospective (`/retrospective`)         | [root/.agents/skills/retrospective/NOTES.md](root/.agents/skills/retrospective/NOTES.md) |
