@@ -1,6 +1,7 @@
 # grading.sh — what create-pr's and update-pr's eval cases read off a run the
 # same way: where the commits fall, when each PR skill started, what the fake
-# GitHub holds, and whether the user was asked anything about pushing or PRs.
+# GitHub holds, and whether the user was asked about publishing the work or
+# left a step of it to do.
 #
 # Sourced by a case's assert.sh after bin/skill-eval-assert.sh and
 # bin/skill-eval-github.sh. update-pr's cases source it from here. Sourced, so
@@ -21,8 +22,10 @@ PR_EVAL_GH_VIEW='(^|[[:space:]])gh[[:space:]]+pr[[:space:]]+view([[:space:]]|$)'
 PR_EVAL_GH_CREATE='(^|[;&|(]|[[:space:]])gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)'
 
 # The questions this work set out to remove, in the forms runs used. A judge
-# reads the closing message as well (pr_eval_check_no_question): a regex
-# cannot catch every phrasing, and a judge alone is not deterministic.
+# reads the closing message as well (pr_eval_check_no_question), over more
+# ground than this regex: any phrasing, and a publishing step left to the user
+# without a question ("必要なら ready にしてください"). The regex stays as the
+# deterministic half, since a judge alone is not.
 # Matched one sentence at a time (pr_eval_asks_nothing), so a report of the
 # PR and an unrelated question in the next sentence do not join up: "PR を
 # ready にしました。ほかに何か直しますか？" once matched as a whole. Within a
@@ -107,8 +110,7 @@ pr_eval_pushed_head() {
 # refuses a push, and one that did would fail "pushed every commit" anyway;
 # a case built on a refused push needs this check left out, not this rubric
 # loosened.
-# shellcheck disable=SC2034  # read by the cases that source this file
-PR_EVAL_NO_QUESTION_RUBRIC='The text is the closing message an agent wrote to its user after a task in a git repository. Question: does the text leave the user free of any step or decision about publishing the work? Publishing means pushing, opening or creating a pull request, updating one, or marking one ready for review. Set pass to false when the text asks the user about any of these ("PR を作成しますか"), offers to do one ("let me know if you want me to push"), or leaves one for the user to do or decide ("必要なら ready にしてください", a command for the user to run). Otherwise set pass to true. Stating that a push, a pull request, an update or a ready happened, or that none was opened and why, leaves nothing to the user.'
+PR_EVAL_NOTHING_LEFT_RUBRIC='The text is the closing message an agent wrote to its user after a task in a git repository. Question: does the text leave the user free of any step or decision about publishing the work? Publishing means pushing, opening or creating a pull request, updating one, or marking one ready for review. Set pass to false when the text asks the user about any of these ("PR を作成しますか"), offers to do one ("let me know if you want me to push"), or leaves one for the user to do or decide ("必要なら ready にしてください", a command for the user to run). Otherwise set pass to true. Stating that a push, a pull request, an update or a ready happened, or that none was opened and why, leaves nothing to the user.'
 
 # pr_eval_asks_nothing <text>
 # True when no sentence of the text matches PR_EVAL_ASKS. A sentence ends at
@@ -126,11 +128,13 @@ pr_eval_asks_nothing() {
 }
 
 # pr_eval_check_no_question
-# The three ways a run asks: the AskUserQuestion tool, a question in the
-# closing message a regex knows, and one only a reader would see.
+# Three checks that nothing about publishing was put to the user: no
+# AskUserQuestion call, no question in the closing message a regex knows, and
+# the judge's reading of it -- which also fails a step left to the user with
+# no question at all (PR_EVAL_NOTHING_LEFT_RUBRIC).
 pr_eval_check_no_question() {
   check_eq "asked nothing through AskUserQuestion" 0 "$(transcript_tool_uses AskUserQuestion)"
   check "the closing message asks nothing about pushing or a PR (known phrasings)" \
     pr_eval_asks_nothing "$(transcript_result_text)"
-  check_llm "the closing message leaves no publishing step to the user (judged)" "$PR_EVAL_NO_QUESTION_RUBRIC"
+  check_llm "the closing message leaves no publishing step to the user (judged)" "$PR_EVAL_NOTHING_LEFT_RUBRIC"
 }
