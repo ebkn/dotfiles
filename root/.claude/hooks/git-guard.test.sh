@@ -657,6 +657,9 @@ GUARD_PROJECT=
 check PASS 'git -C sub stash clear' 'no project, no project rules'
 GUARD_HOME=$TMP/bad-home
 check PASS 'git -C sub push --force' 'settings that are not JSON hold no rules'
+GUARD_PROJECT=$TMP/rules-proj
+check DENY 'git -C sub stash clear' "and take no other layer's rules with them"
+GUARD_PROJECT=
 check DENY 'git -C sub -c a=b push' 'and the option check still runs'
 GUARD_HOME=$TMP/empty-home
 check PASS 'git -C sub push --force' 'no settings, no rules'
