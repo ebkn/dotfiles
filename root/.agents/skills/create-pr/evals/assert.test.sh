@@ -266,6 +266,8 @@ main_run 'rec_bash "git commit -qam a"' "$fix_readme" "$main_msg"
 expect_pass "no-pr-on-default-branch: a commit on main, reported, passes"
 main_run 'rec_bash "git commit -qam a"; rec_bash "git push"' "$fix_readme; git push -q" "$main_msg"
 expect_fail "no-pr-on-default-branch: pushing main" "pushed nothing"
+main_run 'rec_bash "git commit -qam a"; rec_bash "git push origin main:docs/x"' "$fix_readme; git push -q origin main:docs/x" "$main_msg"
+expect_fail "no-pr-on-default-branch: pushing main to another branch, main untouched" "pushed nothing"
 main_run 'rec_bash "git commit -qam a"; rec_skill create-pr; rec_bash "gh pr create --draft"' \
   "$fix_readme; git switch -qc docs/install; git push -q -u origin HEAD; gh pr create --draft --title t --body b" "$main_msg"
 expect_fail "no-pr-on-default-branch: a branch made to open a PR from" "stayed on main"

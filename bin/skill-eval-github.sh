@@ -227,6 +227,14 @@ fake_github_remote_head() {
   git --git-dir="$SKILL_EVAL_FAKE_ORIGIN" rev-parse --verify -q "refs/heads/$1" || true
 }
 
+# fake_github_remote_refs
+# Every branch origin holds, as "<branch> <commit>" lines in name order. For a
+# case asking that nothing was pushed anywhere: `git push origin main:other`
+# leaves origin's main as it was.
+fake_github_remote_refs() {
+  git --git-dir="$SKILL_EVAL_FAKE_ORIGIN" for-each-ref --format='%(refname:short) %(objectname)' refs/heads
+}
+
 # fake_github_calls
 # Every gh call of the run, one per line, shell-quoted.
 fake_github_calls() {

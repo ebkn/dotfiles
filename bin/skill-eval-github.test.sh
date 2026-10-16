@@ -51,6 +51,9 @@ git push -q -u origin HEAD
 assert_eq "fake_github_remote_head reads what was pushed" "$(git rev-parse HEAD)" \
   "$(fake_github_remote_head feat/x)"
 assert_eq "and is empty for a branch never pushed" "" "$(fake_github_remote_head nope)"
+assert_eq "fake_github_remote_refs lists every branch origin holds" \
+  "feat/x $(git rev-parse HEAD)
+main $(git rev-parse main)" "$(fake_github_remote_refs)"
 
 out="$(
   gh pr create --draft --title "docs: more" --body-file - <<'BODY'
