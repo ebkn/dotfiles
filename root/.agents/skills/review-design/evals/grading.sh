@@ -86,14 +86,9 @@ review_design_reruns_carry_reviewed_line() {
 review_design_check_loop() {
   check "reviewed again after fixing (two rounds or more)" \
     test "$(transcript_skill_uses review-design)" -ge 2
-  check "fixed something before every re-run" \
-    review_loop_fixed_before_each_rerun review-design
   check "briefed every re-run with the last Reviewed line" \
     review_design_reruns_carry_reviewed_line
-  check "re-ran only after a round with P1 or P2" \
-    review_loop_reran_only_after_findings review-design
-  check "the last round reports no P1 and no P2" \
-    review_loop_ended_clean review-design
+  review_loop_checks review-design
 }
 
 review_design_ran_no_writing_git_before() {

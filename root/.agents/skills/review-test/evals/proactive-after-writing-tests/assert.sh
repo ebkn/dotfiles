@@ -32,12 +32,7 @@ check_llm "reaches a conclusion about P1 and P2" \
 # Whether the first round finds anything depends on the tests this run wrote,
 # so two rounds are not required -- only that every re-run had a reason and a
 # fix before it, and that the loop stopped on a clean round.
-check "fixed something before every re-run" \
-  review_loop_fixed_before_each_rerun review-test
-check "re-ran only after a round with P1 or P2" \
-  review_loop_reran_only_after_findings review-test
-check "the last round reports no P1 and no P2" \
-  review_loop_ended_clean review-test
+review_loop_checks review-test
 # The step the review loop ends on. A fix left in the working tree is
 # indistinguishable from a review that was never acted on, which is why the
 # commit is asserted rather than inferred from the report.

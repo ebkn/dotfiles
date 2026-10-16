@@ -64,11 +64,6 @@ check "names the range it reviewed, from eval-base to a commit on the branch" na
 # Whether the first round finds anything depends on the --kg this run wrote, so
 # two rounds are not required: only that every re-run had a finding and a fix
 # before it, and that the loop stopped on a clean round.
-check "fixed something before every re-run" \
-  review_loop_fixed_before_each_rerun review-design
-check "re-ran only after a round with P1 or P2" \
-  review_loop_reran_only_after_findings review-design
-check "the last round reports no P1 and no P2" \
-  review_loop_ended_clean review-design
+review_loop_checks review-design
 
 skill_eval_finish

@@ -164,18 +164,11 @@ transcript_tool_uses_precede() {
 
 # transcript_skill_uses <skill name>
 # How many times the Skill tool started that skill -- the measurement behind
-# "did it start without being asked". The input key of the Skill tool (skill,
-# command, ...) changes between versions, so any string value in the input that
-# equals the name counts as one use.
+# "did it start without being asked". The rounds below, counted: one rule for
+# what is a call of the skill, so a count and a per-round check cannot disagree
+# about it.
 transcript_skill_uses() {
-  jq -s --arg name "$1" '
-    [ .[]
-      | select(.type == "assistant")
-      | .message.content[]?
-      | select(.type == "tool_use" and .name == "Skill")
-      | select([ .input // {} | .. | strings ] | any(. == $name or . == "/" + $name)) ]
-    | length
-  ' "$SKILL_EVAL_TRANSCRIPT"
+  transcript_skill_rounds "$1" | jq -s 'length'
 }
 
 # --- review rounds ---
@@ -186,7 +179,9 @@ transcript_skill_uses() {
 # started twice for nothing, so these readers take each round apart.
 
 # transcript_skill_rounds <skill name>
-# One JSON object per line, one per call of the skill, in order:
+# One JSON object per line, one per call of the skill, in order. The input key
+# of the Skill tool (skill, command, ...) changes between versions, so any
+# string value in the input that equals the name, or "/<name>", is a call.
 #   index        record index of the Skill call
 #   brief        the input's strings other than the skill's name (its args)
 #   result_index record index of the call's tool_result; null if none came back
@@ -308,6 +303,21 @@ review_loop_fixed_before_each_rerun() {
 review_loop_ended_clean() {
   transcript_skill_rounds "$1" |
     jq -se 'length > 0 and last.result_index != null and last.open == 0' >/dev/null
+}
+
+# review_loop_checks <skill name>
+# The three predicates above as `check` lines, for a case whose first round may
+# or may not find something. One place for them, so a check added to the loop
+# -- a ceiling on rounds, say -- reaches every case that grades it. A case
+# whose first round must find something adds its own on top (*_check_loop in
+# each review skill's evals/grading.sh).
+review_loop_checks() {
+  check "fixed something before every re-run" \
+    review_loop_fixed_before_each_rerun "$1"
+  check "re-ran only after a round with P1 or P2" \
+    review_loop_reran_only_after_findings "$1"
+  check "the last round reports no P1 and no P2" \
+    review_loop_ended_clean "$1"
 }
 
 # --- grading with an LLM ---
