@@ -263,11 +263,14 @@ seam=$(
   export HOME="$TMP/seam-home"
   printf '{"session_id":"seam-1","hook_event_name":"CwdChanged","old_cwd":"%s","new_cwd":"%s"}' \
     "$REPO" "$REPO/git-worktrees/a" | "$HOOK" cd
-  sid "$(with_current_cwd "$(jq -n --arg r "$REPO" \
-    '[{kind:"interactive", pid:14, sessionId:"seam-1", startedAt:1, status:"idle", cwd:$r}]')")" \
-    "$REPO/git-worktrees/a" "$WTS2"
+  cur=$(with_current_cwd "$(jq -n --arg r "$REPO" \
+    '[{kind:"interactive", pid:14, sessionId:"seam-1", startedAt:1, status:"idle", cwd:$r}]')")
+  # Both fields the reader consumes: cwd routes, since ranks. A renamed `since`
+  # would leave routing intact and silently drop ranking back to startedAt.
+  printf '%s %s' "$(sid "$cur" "$REPO/git-worktrees/a" "$WTS2")" \
+    "$(printf '%s' "$cur" | jq -r '.[0].enteredAt | type')"
 )
-eq 'what the hook writes by default is what the reader overlays' 'seam-1' "$seam"
+eq 'what the hook writes by default is what the reader overlays' 'seam-1 number' "$seam"
 
 echo
 echo "== session_in_worktree: newest ARRIVAL wins, not newest launch =="
