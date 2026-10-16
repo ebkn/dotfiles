@@ -63,11 +63,22 @@ record_expands() {
   EXP="${SCAN_ARGV_EXPANDS[*]}"
   return 0
 }
+expands_of() { # <command> <expected marks> <label>
+  EXP='(predicate not called)'
+  scan_command "$1" record_expands && rc=0 || rc=$?
+  ok "$3: scan succeeds" "$rc" 0
+  ok "$3" "$EXP" "$2"
+}
 # shellcheck disable=SC2016 # literal command text under test
-scan_command "git -C ~ log '*' HEAD~1 {a,b} \"~\" x{y} *.sh a\\*" record_expands
-ok "expansion marks line up with argv" "$EXP" "0 0 1 0 0 0 1 0 0 1 0"
-scan_command 'git status; ls ~' record_expands
-ok "and are reset per segment" "$EXP" "0 1"
+expands_of "git -C ~ log '*' HEAD~1 {a,b} \"~\" x{y} *.sh a\\*" "0 0 1 0 0 0 1 0 0 1 0" \
+  "expansion marks line up with argv"
+expands_of 'ls a? [x] {a..c} ""~ HEAD@{1}' "0 1 1 1 0 0" "? [ ] {..}, and a ~ after an empty quote is literal"
+# Bash expands a brace whose comma or `..` is quoted, and a tilde after `=` or
+# `:` in a word shaped like an assignment, even as an argument.
+expands_of "ls {\"..\",} {.\\.,} {'..',}" "0 1 1 1" "a brace expansion with its insides quoted"
+expands_of 'ls x=~ a=b:~ --o=~' "0 1 1 1" "a tilde after = or :"
+expands_of 'git status; ls ~' "0 1" "marks are reset per segment"
+expands_of 'ls ~; git status' "0 0" "and do not leak into the next one"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]

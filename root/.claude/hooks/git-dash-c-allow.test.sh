@@ -27,7 +27,7 @@ ln -s "$PROJ/sub" "$PROJ/link-in"
 # Directories named as the shell would expand them, as a cloned repository can
 # ship: read literally they are inside the project, while the shell runs git in
 # $HOME, in what `b` points at, or in the parent.
-mkdir -p "$PROJ/~" "$PROJ/[b]" "$PROJ/{..,}"
+mkdir -p "$PROJ/~" "$PROJ/[b]" "$PROJ/{..,}" "$PROJ/x=~"
 ln -s "$TMP/outside" "$PROJ/b"
 
 # User-level settings: the only rules the hook may read.
@@ -115,6 +115,10 @@ echo "-- must DEFER: a word the shell expands, even when read literally it is in
 check DEFER 'a tilde' 'git -C ~ status'
 check DEFER 'a glob' 'git -C [b] status'
 check DEFER 'a brace expansion' 'git -C {..,} status'
+check DEFER 'a brace expansion with its insides quoted' 'git -C {"..",} status'
+check DEFER 'a brace expansion with its insides escaped' 'git -C {.\.,} status'
+check DEFER "a brace expansion with its insides single-quoted" "git -C {'..',} status"
+check DEFER 'a tilde after =' 'git -C x=~ status'
 check DEFER 'a glob anywhere in the segment' 'git -C sub add *.sh'
 # Not expansions: a tilde past the start, braces with no comma or `..`.
 check ALLOW 'HEAD~1' 'git -C sub diff HEAD~1'

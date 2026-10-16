@@ -18,8 +18,9 @@
 # neither may be swapped for the other.
 #
 # While the predicate runs, SCAN_ARGV_EXPANDS[k] is 1 when its argument k held
-# unquoted text the shell expands -- a leading `~`, a glob character, a brace
-# with a comma or `..` -- so the word it receives is not the word read here.
+# text the shell may expand -- a leading `~` or one after `=`, an unquoted glob
+# character, a brace expansion -- so the word it receives is not the word read
+# here.
 # The scanner does not refuse those itself: `git add *.sh` is fine for one
 # caller, and `git -C ~ status` would let another approve a command run in
 # $HOME because the project holds a directory named `~`. The predicate decides.
@@ -47,12 +48,19 @@ SCAN_EXPANDS_LIST=()
 SCAN_ARGV_EXPANDS=()
 
 # Called with an unquoted run before it is pushed, while SCAN_HAVE_CUR still
-# says whether it starts the token.
+# says whether it starts the token. A brace and a tilde are judged per token at
+# its end, not per run: bash expands `{"..",}` though its `..` is quoted, and the
+# tilde in an assignment-shaped word (`x=~`, `a=b:~`) even as an argument. Both
+# err wide -- any unquoted `{` with a `,` or `..` anywhere in the word, any
+# unquoted `~` in a word with an `=` -- which costs `--format=x~` a prompt.
+SCAN_CUR_BRACE=0
+SCAN_CUR_TILDE=0
 scan_mark_unquoted() {
   case "$1" in
     *[*?[]*) SCAN_CUR_EXPANDS=1 ;;
-    *'{'*,* | *'{'*..*) SCAN_CUR_EXPANDS=1 ;;
   esac
+  case "$1" in *'{'*) SCAN_CUR_BRACE=1 ;; esac
+  case "$1" in *'~'*) SCAN_CUR_TILDE=1 ;; esac
   if ((SCAN_HAVE_CUR == 0)) && [[ "$1" == "~"* ]]; then SCAN_CUR_EXPANDS=1; fi
   return 0
 }
@@ -71,12 +79,16 @@ SCAN_UNQ_SPECIAL='[[:space:]'\''"\\$`()<>#;&|]'
 
 scan_end_token() {
   if ((SCAN_HAVE_CUR)); then
+    if ((SCAN_CUR_BRACE)) && [[ "$SCAN_CUR" == *,* || "$SCAN_CUR" == *..* ]]; then
+      SCAN_CUR_EXPANDS=1
+    fi
+    if ((SCAN_CUR_TILDE)) && [[ "$SCAN_CUR" == *=* ]]; then SCAN_CUR_EXPANDS=1; fi
     SCAN_TOKENS[${#SCAN_TOKENS[@]}]=$SCAN_CUR
     SCAN_EXPANDS_LIST[${#SCAN_EXPANDS_LIST[@]}]=$SCAN_CUR_EXPANDS
     SCAN_CUR=''
     SCAN_HAVE_CUR=0
   fi
-  SCAN_CUR_EXPANDS=0
+  SCAN_CUR_EXPANDS=0 SCAN_CUR_BRACE=0 SCAN_CUR_TILDE=0
 }
 
 scan_end_segment() {
@@ -225,7 +237,7 @@ scan_line() {
 scan_command() {
   SCAN_PREDICATE=$2
   SCAN_QSTATE='' SCAN_CUR='' SCAN_HAVE_CUR=0 SCAN_DATA_NEWLINE=0 SCAN_SEGMENTS=0
-  SCAN_CUR_EXPANDS=0
+  SCAN_CUR_EXPANDS=0 SCAN_CUR_BRACE=0 SCAN_CUR_TILDE=0
   SCAN_TOKENS=()
   SCAN_EXPANDS_LIST=()
   SCAN_PENDING_TAGS=()
