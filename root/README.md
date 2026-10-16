@@ -183,7 +183,10 @@ Three hooks now cover git, with different jobs:
 - **`git-guard.sh`** denies a dangerous option before the subcommand. A
   PreToolUse `deny` outranks another hook's `allow`, so it is the backstop for a
   bug in either allow hook, and it refuses such a command before the auto mode
-  classifier has to judge it.
+  classifier has to judge it. It also applies every settings layer's git
+  **deny and ask** rules to a git with an option before its subcommand —
+  `git -C x push --force` under `Bash(git push --force*)` — which Claude Code's
+  matcher, reading the command as written, does not (`git-rules.lib.sh`).
 
 **This reverses the rm section's "not worth reimplementing the matcher"**, for a
 narrower matcher: only rules whose single `*` is trailing are used, compared word
@@ -199,7 +202,7 @@ is safe only while no git allow rule has a `*` before the subcommand.
 
 Run `root/.claude/hooks/git-guard.test.sh`, `git-dash-c-allow.test.sh`,
 `approve-multiline-commands.test.sh` and `segment-scan.lib.test.sh` after
-touching any of them.
+touching any of them, or `git-rules.lib.sh`.
 
 ## Codex prefix rules
 

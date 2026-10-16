@@ -35,9 +35,15 @@
 # rather than waved through. This is the opposite of a blocklist and is why the
 # rule set does not need revisiting every git release.
 #
-# Scope: this hook only ever emits "deny". It never emits "allow", so it cannot
-# widen anything; the existing allow/deny/ask rules keep deciding every command
-# it stays silent on.
+# It also applies the settings' git deny and ask rules to a git with an option
+# before its subcommand -- `git -C x push --force` under `git push --force*` --
+# which Claude Code's own matcher, reading the command as written, does not.
+# settings.json keeps no `git -C *` copies of its rules for that reason; see
+# git-rules.lib.sh.
+#
+# Scope: this hook only ever emits "deny" or "ask". It never emits "allow", so
+# it cannot widen anything; the existing allow/deny/ask rules keep deciding
+# every command it stays silent on.
 #
 # That is also why its parser is correct in one direction only, and must not be
 # reused by a hook that allows. Every ambiguity is resolved toward "inspect it"
@@ -76,16 +82,18 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
 # parser, which decides what is really a git invocation from the command word.
 [[ "$COMMAND" == *git* ]] || exit 0
 
-deny() {
-  jq -n --arg reason "$1" '{
+# decide <deny|ask> <reason>: emit the decision and end the hook.
+decide() {
+  jq -n --arg decision "$1" --arg reason "$2" '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
-      permissionDecision: "deny",
+      permissionDecision: $decision,
       permissionDecisionReason: $reason
     }
   }'
   exit 0
 }
+deny() { decide deny "$1"; }
 
 # git's global options that cannot make git execute a program of our choosing.
 # -C is handled separately because it consumes the following token.
@@ -242,10 +250,16 @@ read_word() {
 # the shell decides at run time rather than one written out, which takes a
 # reason of its own: it is not unreadable, and moving it after the subcommand
 # is no fix when it is the subcommand.
+#
+# On a clean region $SUBCOMMAND is the subcommand (empty for a bare `git`), $REST
+# the text after it, and $GLOBALS_SEEN whether any option came before it.
 BAD=""
 EXPANDED=0
+SUBCOMMAND=""
+GLOBALS_SEEN=0
 scan_globals() {
   local rc
+  SUBCOMMAND="" GLOBALS_SEEN=0
   while true; do
     next_token && rc=0 || rc=$?
     case $rc in
@@ -263,7 +277,11 @@ scan_globals() {
     fi
 
     # First non-option token is the subcommand: everything before it was clean.
-    [[ "$TOKEN" == -* ]] || return 0
+    if [[ "$TOKEN" != -* ]]; then
+      SUBCOMMAND=$TOKEN
+      return 0
+    fi
+    GLOBALS_SEEN=1
 
     if [[ "$TOKEN" == "-C" ]]; then
       next_token && rc=0 || rc=$?
@@ -568,6 +586,68 @@ if ((n_candidates > MAX_CANDIDATES)); then
   deny "git-guard: ${n_candidates} segments look like git invocations, more than the ${MAX_CANDIDATES} it inspects within its timeout. Split the command."
 fi
 
+# shellcheck source=root/.claude/hooks/git-rules.lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/git-rules.lib.sh"
+
+# Apply the deny and ask rules to `git $SUBCOMMAND $REST`, the segment with
+# its options before the subcommand set aside. A deny ends the hook; the first
+# ask is kept in ASK_RULE, since a later segment may still be denied.
+#
+# Two forms are matched, either one sufficing: the words as written, and the
+# words with their quotes removed (`push "--force"` is `push --force` to git),
+# the second only where this reader can read them, and below
+# MAX_RULE_TEXT bytes, past which reading word by word outlasts the timeout.
+# Either way a run of spaces counts as one.
+MAX_RULE_TEXT=4096
+RULES_LOADED=0
+DENY_PATTERNS=""
+ASK_PATTERNS=""
+ASK_RULE=""
+check_rules() {
+  local -a written=() unquoted=()
+  local rest=$REST rc ok=1
+  if ((RULES_LOADED == 0)); then
+    DENY_PATTERNS=$(git_rule_patterns deny)
+    ASK_PATTERNS=$(git_rule_patterns ask)
+    RULES_LOADED=1
+  fi
+  [[ -n "$DENY_PATTERNS$ASK_PATTERNS" ]] || return 0
+
+  read -r -a written <<<"$rest"
+  if ((${#rest} <= MAX_RULE_TEXT)); then
+    while true; do
+      next_token && rc=0 || rc=$?
+      case $rc in
+        0) unquoted+=("$TOKEN") ;;
+        1) break ;;
+        *)
+          ok=0
+          break
+          ;;
+      esac
+    done
+  else
+    ok=0
+  fi
+
+  local form
+  for form in written unquoted; do
+    [[ $form == written || $ok -eq 1 ]] || continue
+    local -a words=(git "$SUBCOMMAND")
+    if [[ $form == written ]]; then
+      words+=(${written[@]+"${written[@]}"})
+    else
+      words+=(${unquoted[@]+"${unquoted[@]}"})
+    fi
+    if git_rule_match "$DENY_PATTERNS" "${words[@]}"; then
+      deny "git-guard: the deny rule ${GIT_RULE_MATCHED} covers this git once the options before its subcommand (-C and the like) are set aside; settings.json keeps no git -C copies of its rules, so this hook applies them."
+    fi
+    if [[ -z "$ASK_RULE" ]] && git_rule_match "$ASK_PATTERNS" "${words[@]}"; then
+      ASK_RULE=$GIT_RULE_MATCHED
+    fi
+  done
+}
+
 while IFS= read -r segment; do
   segment="${segment#"${segment%%[![:space:]]*}"}"
   [[ -n "$segment" ]] || continue
@@ -587,6 +667,15 @@ while IFS= read -r segment; do
     fi
     deny "git-guard: refused '${BAD}' before the git subcommand. Options in that position can make git execute an arbitrary program (e.g. -c core.fsmonitor=..., -c core.hooksPath=..., --git-dir into a repo with hooks), and the Bash allow rules cannot express argument position. Put the option after the subcommand, or run it yourself."
   fi
+
+  # With no option before the subcommand the rules match the command as
+  # written, and Claude Code applies them itself.
+  if ((GLOBALS_SEEN)) && [[ -n "$SUBCOMMAND" ]]; then
+    check_rules
+  fi
 done <<<"$candidates"
 
+if [[ -n "$ASK_RULE" ]]; then
+  decide ask "git-guard: the ask rule ${ASK_RULE} covers this git once the options before its subcommand (-C and the like) are set aside; settings.json keeps no git -C copies of its rules, so this hook applies them."
+fi
 exit 0

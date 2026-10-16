@@ -608,6 +608,59 @@ check DENY 'echo x; "/usr/bin/git" -c a=b status'
 check DENY $'echo x;\tgit\t-c a=b status'
 check DENY 'echo x; \git -c a=b status'
 
+echo "-- deny and ask rules reach a git with -C, as they reach one without --"
+# Claude Code matches a rule against the command as written, so `git push
+# --force*` never matches `git -C x push --force`. settings.json carries no
+# `git -C *` copies of its rules; this hook applies each git deny and ask rule
+# to the `git <subcommand> ...` left once the options before the subcommand are
+# set aside. Every settings layer counts: a deny or an ask only refuses more.
+mkdir -p "$TMP/rules-home/.claude" "$TMP/rules-proj/.claude" "$TMP/bad-home/.claude"
+jq -n '{permissions: {
+  allow: ["Bash(git push*)", "Bash(git branch*)"],
+  deny: ["Bash(git push --force*)", "Bash(git push * --force*)", "Bash(git reset --hard *)",
+    "Bash(git log [a]*)", "Bash(npm publish *)"],
+  ask: ["Bash(git branch -D *)", "Bash(git checkout:*)"]
+}}' >"$TMP/rules-home/.claude/settings.json"
+jq -n '{permissions: {deny: ["Bash(git stash clear*)"]}}' >"$TMP/rules-proj/.claude/settings.json"
+jq -n '{permissions: {ask: ["Bash(git tag -d *)"]}}' >"$TMP/rules-proj/.claude/settings.local.json"
+printf 'not json' >"$TMP/bad-home/.claude/settings.json"
+GUARD_HOME=$TMP/rules-home GUARD_PROJECT=$TMP/rules-proj
+check DENY 'git -C sub push --force'
+check DENY 'git -C /x push origin main --force' 'a * in the middle of the rule'
+check DENY 'git -C a -C b reset --hard HEAD'
+check DENY 'timeout 5 git -C sub push --force'
+check DENY 'git -C sub   push   --force' 'runs of spaces count as one'
+check DENY 'git -C sub push "--force"' 'quotes removed, as the shell removes them'
+check DENY 'git --no-pager -C sub push --force' 'any option before the subcommand is set aside'
+check DENY 'git -C sub log [a]' 'a rule glob character compares literally'
+check PASS 'git -C sub log a' 'and matches only itself'
+check ASK 'git -C sub branch -D topic'
+check ASK 'git -C sub branch -D' 'a trailing " *" also matches the bare command'
+check ASK 'git -C sub checkout main' 'a :* rule'
+check DENY 'git -C sub stash clear' "the project's settings"
+check ASK 'git -C sub tag -d v1' "the project's local settings"
+check DENY 'git -C sub branch -D a; git -C sub push --force' 'a deny anywhere outranks an ask'
+check DENY 'git -C sub branch -D a; git -c a=b status' 'an ask does not end the inspection'
+check PASS 'git -C sub push'
+check PASS 'git -C sub push origin HEAD'
+check PASS 'git -C sub branch -a'
+check PASS 'git -C sub pushx --force' 'the rule word is matched whole'
+check PASS 'git -C sub log --force'
+check PASS 'npm publish x' 'a rule for another command is not read'
+# Without an option before the subcommand the rules match the command as
+# written, and Claude Code applies them itself.
+check PASS 'git push --force'
+# The reason names the rule, as written in the settings.
+check_reason 'git -C sub push --force' 'the deny rule Bash(git push --force*)' 'ask rule'
+check_reason 'git -C sub branch -D a' 'the ask rule Bash(git branch -D *)' 'deny rule'
+GUARD_PROJECT=
+check PASS 'git -C sub stash clear' 'no project, no project rules'
+GUARD_HOME=$TMP/bad-home
+check PASS 'git -C sub push --force' 'settings that are not JSON hold no rules'
+check DENY 'git -C sub -c a=b push' 'and the option check still runs'
+GUARD_HOME=$TMP/empty-home
+check PASS 'git -C sub push --force' 'no settings, no rules'
+
 echo "-- the settings this hook's silence relies on --"
 # git-guard leaves a `case` inside a quoted substitution to the normal flow,
 # which is safe only while no git allow rule puts a `*` before the subcommand
