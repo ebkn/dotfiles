@@ -22,7 +22,11 @@ PR_EVAL_GH_CREATE='(^|[;&|(]|[[:space:]])gh[[:space:]]+pr[[:space:]]+create([[:s
 # ready にしました。ほかに何か直しますか？" once matched as a whole. Within a
 # sentence the gap is still bounded; whether `.` counts characters or bytes
 # follows the locale, which only moves where a long sentence stops matching.
-PR_EVAL_ASKS='((PR|プルリク|プッシュ|push|ドラフト|draft|ready).{0,40}(しますか|しましょうか|ましょうか|いたしますか|よろしいですか))|((Shall|Should) I|Would you like( me)? to|Do you want( me)? to|Want me to).{0,60}(push|PR|pull request|draft|ready)'
+# The ASCII keywords stand as words ([^A-Za-z] on both sides), or "ready" in
+# "already" would turn any question into one about the PR. Not [:alpha:]: in
+# some locales a Japanese character is a letter, and "PRを" must still count.
+# しましょうか and いたしますか are covered by ましょうか and しますか.
+PR_EVAL_ASKS='(((^|[^A-Za-z])(PR|push|draft|ready)([^A-Za-z]|$)|プルリク|プッシュ|ドラフト).{0,40}(しますか|ましょうか|よろしいですか))|((Shall|Should) I|Would you like( me)? to|Do you want( me)? to|Want me to).{0,60}[^A-Za-z](push|PR|pull request|draft|ready)([^A-Za-z]|$)'
 
 # pr_eval_skill_index <skill>
 # Record index of the skill's first call; empty when it never started.

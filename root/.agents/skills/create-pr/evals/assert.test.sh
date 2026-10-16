@@ -192,6 +192,18 @@ expect_pass "draft-at-first-commit: a PR reported, then an unrelated question, p
 # reaching "PR" in the next sentence.
 draft_run "$draft_records" "$draft_tree" "Should I tidy the notes too? The PR is ready."
 expect_pass "draft-at-first-commit: a PR reported, then an unrelated question, passes (split at ?)"
+# A keyword inside another word is not the keyword.
+draft_run "$draft_records" "$draft_tree" "Should I also fix the typo that is already in the docs?"
+expect_pass "draft-at-first-commit: \"already\" is not \"ready\""
+draft_run "$draft_records" "$draft_tree" "PRを ready にしますか？"
+expect_fail "draft-at-first-commit: a keyword against a Japanese character still counts" \
+  "the closing message asks nothing about pushing or a PR (known phrasings)"
+draft_run "$draft_records" "$draft_tree" "PR を作成してもよろしいですか？"
+expect_fail "draft-at-first-commit: よろしいですか" \
+  "the closing message asks nothing about pushing or a PR (known phrasings)"
+draft_run "$draft_records" "$draft_tree" "Should I push the branch now?"
+expect_fail "draft-at-first-commit: Should I ... push" \
+  "the closing message asks nothing about pushing or a PR (known phrasings)"
 # `read` splits lines whatever the awk does; this pins the contract for an
 # implementation that matches the text in one piece.
 draft_run "$draft_records" "$draft_tree" "$(printf 'PR を ready にしました\nほかに直しますか')"
