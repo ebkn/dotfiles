@@ -25,7 +25,10 @@ check "started review-design without being asked" test "$skill_uses" -ge 1
 # shellcheck disable=SC2329
 started_after_the_commit() {
   local first_skill first_commit
-  first_skill="$(transcript_first_tool_index Skill)"
+  # The first call of review-design, not of any skill: with root/CLAUDE.md,
+  # review-test rightly starts first at the same breakpoint, and a run calls
+  # `commit` before committing.
+  first_skill="$(transcript_skill_rounds review-design | jq -s '.[0].index // empty')"
   first_commit="$(transcript_first_command_index '(^|[;&|(]|[[:space:]])git([[:space:]]+(-C|-c)[[:space:]]+[^[:space:]]+)*[[:space:]]+commit([[:space:]]|$)')"
   [ -n "$first_skill" ] && [ -n "$first_commit" ] && [ "$first_skill" -gt "$first_commit" ]
 }

@@ -58,6 +58,19 @@ nothing is written before it.
 
 ## Last measured
 
+**With the loop graded, 2026-10-16, one run each, sonnet.** 3 of 9 passed
+(`clean-unit-no-false-p1`, `no-fire-small-fix`, `pass-through-layer`).
+- Only `pass-through-layer` reviewed again after fixing (open 3 → 0). In
+  `stale-doc-after-change` and `next-change-scattered`, the run fixed the docs
+  and committed, then stopped without the second round step 6 asks for.
+- `hidden-clock-no-seam` stopped to ask before fixing a local P1, next to a
+  question under "Outside this review".
+- `proactive-at-breakpoint-with-claude-md` failed "started at the breakpoint"
+  on the grader, not the skill: it took the first call of any skill, and
+  review-test rightly starts first there. Fixed since.
+- Per round: 2–14 tool calls inside the fork. Forked Skill results carry no
+  `totalDurationMs` / `totalTokens`, so a round's time is not measured.
+
 **Forked, 2026-10-10, one run each.** `proactive-at-breakpoint` passed.
 `stale-doc-after-change` failed on the skill, not the graders: the report came
 back as the Skill's result, ending in its `Caller:` line, and the caller went

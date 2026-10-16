@@ -957,6 +957,12 @@ grade "$proactive_closing"
 expect_fail "proactive: a run that never starts the skill is caught" \
   "started review-design without being asked"
 
+# Another skill before the commit -- review-test, which root/CLAUDE.md starts
+# first, or `commit` -- is not review-design starting early.
+proactive_run 'rec_tool Skill "{\"skill\":\"commit\"}"; '"$work_records" "$closing_ok" fix_kg
+grade "$proactive_closing"
+expect_pass "proactive: another skill before the commit does not count as an early start"
+
 # A review in the middle of the unit, before its commit.
 proactive_run 'rec_skill; rec_edit Edit total.sh; rec_bash "git commit -m feat"' "$closing_ok" fix_kg 0
 grade "$proactive_closing"
