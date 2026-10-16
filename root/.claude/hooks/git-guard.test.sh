@@ -496,8 +496,14 @@ check_reason() {
 check_reason 'git -c a=b status' "refused '-c'"
 check_reason 'git -C' "-C with no path" "unreadable"
 check_reason 'git -C "a\"b" status' "an unreadable word after -C" "no path"
-check_reason 'git -C {.,-c} a=b status' "an unreadable word after -C" "no path"
-check_reason 'git -C . {-c,a=b} status' "an unreadable word before the subcommand" "refused '-c'"
+# An expansion is not unreadable but decided when the shell runs it, and the
+# usual advice -- move the option after the subcommand -- does not apply to it.
+check_reason 'git -C {.,-c} a=b status' "decided only when the shell runs it" "unreadable"
+check_reason 'git -C . {-c,a=b} status' "decided only when the shell runs it" "Put the option after"
+# shellcheck disable=SC2016 # literal command text under test
+check_reason 'git "$(echo status)"' "decided only when the shell runs it" "unreadable"
+# shellcheck disable=SC2016 # literal command text under test
+check_reason 'git -C . "$X" status' "Write that word out literally" "Put the option after"
 check_reason 'FOO="a\"b" git -c a=b status' "could not read the words before the command" "refused '"
 # Read past the redirection, and refused whole when the command cannot be split.
 check_reason 'git >&2 -c a=b status' "refused '-c'" "unreadable"

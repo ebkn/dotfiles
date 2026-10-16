@@ -229,8 +229,12 @@ read_word() {
 }
 
 # Walk the tokens after `git` up to the subcommand. Returns 0 when the region
-# is clean, 1 with $BAD set when it is not.
+# is clean, 1 with $BAD set when it is not. $EXPANDED says the cause is a word
+# the shell decides at run time rather than one written out, which takes a
+# reason of its own: it is not unreadable, and moving it after the subcommand
+# is no fix when it is the subcommand.
 BAD=""
+EXPANDED=0
 scan_globals() {
   local rc
   while true; do
@@ -245,7 +249,7 @@ scan_globals() {
     # Here a quoted parameter is refused too: one word, but an option of its
     # content's choosing (`git "$X" status` with X=--exec-path=...).
     if ((TOKEN_EXPANDS || TOKEN_VARIES)); then
-      BAD="an unreadable word before the subcommand"
+      BAD="where git reads an option or the subcommand" EXPANDED=1
       return 1
     fi
 
@@ -265,7 +269,7 @@ scan_globals() {
           ;;
       esac
       if ((TOKEN_EXPANDS)); then
-        BAD="an unreadable word after -C"
+        BAD="as the path after -C, where the shell may split it into more words" EXPANDED=1
         return 1
       fi
       continue
@@ -555,6 +559,9 @@ while IFS= read -r segment; do
   is_git_word "$CMD_WORD" || continue
 
   if ! scan_globals; then
+    if ((EXPANDED)); then
+      deny "git-guard: refused a word decided only when the shell runs it (a substitution, parameter, brace or glob) ${BAD}. Its value could be an option that makes git execute a program (e.g. --exec-path=..., --config-env=core.fsmonitor=...), which no rule can see. Write that word out literally, or run it yourself."
+    fi
     deny "git-guard: refused '${BAD}' before the git subcommand. Options in that position can make git execute an arbitrary program (e.g. -c core.fsmonitor=..., -c core.hooksPath=..., --git-dir into a repo with hooks), and the Bash allow rules cannot express argument position. Put the option after the subcommand, or run it yourself."
   fi
 done <<<"$candidates"
