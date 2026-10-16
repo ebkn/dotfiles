@@ -195,8 +195,10 @@ read_prompt() {
 }
 
 # case_settings <case>
-# Sets case_max_turns, case_budget_usd and case_claude_md from the case's
-# frontmatter, or fails saying which value is wrong.
+# Sets case_max_turns, case_budget_usd, case_claude_md and case_skills (the
+# skills to carry in beside the one under evaluation) from the case's
+# frontmatter, or fails saying which value is wrong -- before any case runs,
+# so a refusal of a value belongs here, not where the value is used.
 case_settings() {
   local meta="$evals_dir/$1/prompt.md"
 
