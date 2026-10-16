@@ -169,13 +169,20 @@ frontmatter_value() {
 # and recorded as a permission denial the case can assert on. Read the value
 # straight out of the frontmatter rather than restating it here: a copy would
 # drift, and it would drift towards being more permissive than the skill.
-allowed_line="$(frontmatter_value "$skill_dir/SKILL.md" allowed-tools)"
+#
+# allowed_tools_of <SKILL.md>
+# Its allowed-tools, one per line; nothing when it declares none.
+allowed_tools_of() {
+  local line
+  line="$(frontmatter_value "$1" allowed-tools)"
+  [ -n "$line" ] || return 0
+  printf '%s\n' "${line//, /$'\n'}"
+}
 skill_allowed_tools=()
-if [ -n "$allowed_line" ]; then
-  while IFS= read -r tool; do
-    [ -n "$tool" ] && skill_allowed_tools+=("$tool")
-  done <<<"${allowed_line//, /$'\n'}"
-fi
+allowed_lines="$(allowed_tools_of "$skill_dir/SKILL.md")"
+while IFS= read -r tool; do
+  [ -n "$tool" ] && skill_allowed_tools+=("$tool")
+done <<<"$allowed_lines"
 
 # The YAML frontmatter of prompt.md (`claude plugin eval` metadata) is not part
 # of the prompt.
