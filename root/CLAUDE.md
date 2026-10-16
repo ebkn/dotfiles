@@ -75,6 +75,17 @@
 - Never chain commands with `&&`, `||`, or `;`. Each command must be a single, standalone tool call. Use parallel tool calls instead of chaining.
 - Avoid pipes (`|`) and subshells (`$()`) when possible. These trigger permission prompts even when individual commands are allowed.
 
+# Permission Denials
+
+- **A denied command is a decision, not a syntax error.** Do not re-issue it in another form — dropping a pipe or `2>&1`, splitting a compound, adding `git -C`, switching tools, or reaching the same effect another way (`sed` to undo what `git checkout --` would have). Stop and tell the user what was refused and what state it leaves behind, such as a local branch rebased while the remote is not; if the step is still needed, hand it over as `! <command>`.
+- Never carry on as if a denied step had succeeded. Anything built on it afterwards (a PR, a report, the next commit) inherits the gap silently.
+- The one exception: a message saying the auto mode classifier gave no verdict is a transient error and asks for one retry as-is.
+
+# Git
+
+- **Bring main into a branch with a merge** (`git merge origin/main`), not a rebase, unless the user asks for a rebase. A merge needs no force push.
+- **Undo a temporary edit with git, never by hand.** When a file is changed only to check something — a mutation to prove a test fails — restore it with `git checkout -- <path>` or `git restore <path>`, which ask first. A hand-written `sed` back to the original leaves the change in place when its pattern misses. Prefer mutating a copy when the test can be pointed at one.
+
 # Tool Usage
 
 - **Prefer dedicated tools**: Use Read, Grep, Glob, Edit, Write over shell commands whenever possible. Fall back to Bash only when dedicated tools cannot accomplish the task.
