@@ -11,6 +11,10 @@
 # A git commit, wherever it sits in a command line (as review-design's
 # graders spell it). `commit-tree` and a path containing "commit" do not match.
 PR_EVAL_GIT_COMMIT='(^|[;&|(]|[[:space:]])git([[:space:]]+(-C|-c)[[:space:]]+[^[:space:]]+)*[[:space:]]+commit([[:space:]]|$)'
+# Moved unchanged from ready-without-pr's grader. Narrower than
+# PR_EVAL_GH_CREATE on purpose until decided: widening it to `[;&|(]` would
+# change what that grader accepts (`;gh pr view`), so do not align the two in
+# passing.
 # shellcheck disable=SC2034  # read by the cases that source this file
 PR_EVAL_GH_VIEW='(^|[[:space:]])gh[[:space:]]+pr[[:space:]]+view([[:space:]]|$)'
 # shellcheck disable=SC2034  # read by the cases that source this file
