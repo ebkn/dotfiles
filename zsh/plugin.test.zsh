@@ -20,7 +20,6 @@
 # Run: zsh zsh/plugin.test.zsh   (exit 0 = pass)
 
 set -u
-setopt extendedglob # (#c40) in the SHA patterns
 
 HERE=${0:A:h}
 PLUGIN=$HERE/plugin.zsh
@@ -48,8 +47,13 @@ pins=$($HERE/../bin/zinit-pins $PLUGIN 2>&1)
 check 'bin/zinit-pins reads plugin.zsh without refusing anything' \
   'exit=0 *' \
   "exit=$? $pins"
+
+# How many plugins plugin.zsh loads, counted apart from the reader so that it
+# can disagree with it. Also what the offline case expects zinit to be asked
+# for, so one count serves both.
+plugins=$(grep -c '^[[:space:]]*zinit \(light\|load\) ' $PLUGIN)
 check 'every plugin is pinned, and zinit too' \
-  "$(( $(grep -c '^[[:space:]]*zinit \(light\|load\) ' $PLUGIN) + 1 ))" \
+  "$(( plugins + 1 ))" \
   "${#${(f)pins}}"
 
 # Anywhere but a comment: an ice can be inline or continued onto a next line.
@@ -149,7 +153,7 @@ check 'offline: the warning names the pin and the commit running instead' \
   "*$LATER*$PINNED*" \
   "$(start_shell $home_offline $LATER)"
 check 'offline: every plugin is still loaded' \
-  "$(grep -c '^[[:space:]]*zinit \(light\|load\) ' $PLUGIN)" \
+  "$plugins" \
   "$(grep -c '^light ' $home_offline/zinit.log)"
 
 if (( failures )); then
