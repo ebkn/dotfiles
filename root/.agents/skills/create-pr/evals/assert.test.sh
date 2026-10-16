@@ -206,14 +206,21 @@ expect_fail "draft-at-first-commit: Should I ... push" \
   "the closing message asks nothing about pushing or a PR (known phrasings)"
 # The word boundary must not cost the plurals: each of these matched before
 # it was added.
+# Each holds one keyword only, so it pins that keyword's plural alone.
 for asks in "Should I open PRs for these?" "Would you like me to open pull requests for both?" \
-  "PRs を作成しますか？" "Shall I mark the drafts ready?"; do
+  "PRs を作成しますか？" "Shall I discard the drafts?" "Do you want me to do the pushes now?"; do
   draft_run "$draft_records" "$draft_tree" "$asks"
   expect_fail "draft-at-first-commit: a plural still asks ($asks)" \
     "the closing message asks nothing about pushing or a PR (known phrasings)"
 done
-draft_run "$draft_records" "$draft_tree" "Should I list what is unready in the docs?"
-expect_pass "draft-at-first-commit: \"unready\" is not \"ready\" either"
+# The boundary on each side, in each branch of the regex: a keyword that only
+# begins or ends a longer word is not the keyword.
+draft_run "$draft_records" "$draft_tree" "Should I fix the PRNG seed?"
+expect_pass "draft-at-first-commit: a word that begins with a keyword is not it (English)"
+draft_run "$draft_records" "$draft_tree" "PRNG の seed を固定しますか？"
+expect_pass "draft-at-first-commit: a word that begins with a keyword is not it (Japanese)"
+draft_run "$draft_records" "$draft_tree" "already merged のブランチを削除しますか？"
+expect_pass "draft-at-first-commit: a word that ends with a keyword is not it (Japanese)"
 # `read` splits lines whatever the awk does; this pins the contract for an
 # implementation that matches the text in one piece.
 draft_run "$draft_records" "$draft_tree" "$(printf 'PR を ready にしました\nほかに直しますか')"
