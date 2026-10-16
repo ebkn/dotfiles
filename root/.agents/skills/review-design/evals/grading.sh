@@ -68,6 +68,34 @@ review_design_wrote_nothing_before() {
   return 0
 }
 
+# review_design_reruns_carry_reviewed_line
+# Every round after the first was briefed with a `Reviewed: <base>..<head>`
+# line. SKILL.md's step 6 asks for it, and Phase 1 starts the next range from
+# its head; without it the second round re-reviews the unit and finds again
+# what was just fixed.
+review_design_reruns_carry_reviewed_line() {
+  transcript_skill_rounds review-design |
+    jq -se '[ .[1:][] | .brief | test("Reviewed: [0-9a-f]{7,40}\\.\\.[0-9a-f]{7,40}") ] | all' >/dev/null
+}
+
+# review_design_check_loop
+# The loop of "## After the review", steps 1-6, as `check` lines, for a case
+# whose first round must find something local to fix: two rounds or more, a fix
+# before each re-run, a Reviewed line in each re-run's brief, no re-run after a
+# clean round, and a clean last round.
+review_design_check_loop() {
+  check "reviewed again after fixing (two rounds or more)" \
+    test "$(transcript_skill_uses review-design)" -ge 2
+  check "fixed something before every re-run" \
+    review_loop_fixed_before_each_rerun review-design
+  check "briefed every re-run with the last Reviewed line" \
+    review_design_reruns_carry_reviewed_line
+  check "re-ran only after a round with P1 or P2" \
+    review_loop_reran_only_after_findings review-design
+  check "the last round reports no P1 and no P2" \
+    review_loop_ended_clean review-design
+}
+
 review_design_ran_no_writing_git_before() {
   local first
   [ -n "$1" ] || return 1

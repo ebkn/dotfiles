@@ -64,4 +64,9 @@ check "wrote nothing before the review was reported" \
 check "ran no git that writes before the review was reported" \
   review_design_ran_no_writing_git_before "$report_at"
 
+# --- the loop ("## After the review", step 6) ---
+# The first round has a local P1 by construction, so stopping after the fix
+# skips the re-review that would show whether the fix is complete.
+review_design_check_loop
+
 skill_eval_finish

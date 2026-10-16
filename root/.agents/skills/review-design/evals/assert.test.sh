@@ -271,13 +271,14 @@ rec_edit() { rec_tool "$1" "$(jq -nc --arg p "$2" '{file_path: $p}')"; }
 # Set for one call:
 #   skill_inside  records the fork makes, in rec_* calls (default: one git diff)
 #   skill_result  what the Skill hands back (default: a placeholder)
+#   skill_args    the brief it is started with (default: "brief")
 skill_seq=0
 rec_skill() {
   local id
   skill_seq=$((skill_seq + 1))
   id="toolu_skill_$skill_seq"
-  jq -nc --arg id "$id" \
-    '{type: "assistant", message: {content: [{type: "tool_use", id: $id, name: "Skill", input: {skill: "review-design", args: "brief"}}]}}'
+  jq -nc --arg id "$id" --arg args "${skill_args:-brief}" \
+    '{type: "assistant", message: {content: [{type: "tool_use", id: $id, name: "Skill", input: {skill: "review-design", args: $args}}]}}'
   jq -nc --arg id "$id" --rawfile body "$repo_root/root/.agents/skills/review-design/SKILL.md" \
     '{type: "user", parent_tool_use_id: $id, message: {content: [{type: "text", text: ("Base directory for this skill: .claude/skills/review-design\n\n" + $body)}]}}'
   eval "${skill_inside:-rec_bash \"git diff main..HEAD\"}" | jq -c --arg id "$id" '. + {parent_tool_use_id: $id}'
@@ -480,7 +481,24 @@ good_report='## 設計レビュー: BASE..HEAD
 
 Reviewed: BASE..HEAD'
 before_default='rec_bash "git log --oneline main..HEAD"; rec_bash "git diff --stat main...HEAD"'
-after_default='rec_edit Edit README.md; rec_bash ./run-tests.sh; rec_bash "git add -A"; rec_bash "git commit -m fix"'
+# The loop: the first round hands back a P1 (unless a scenario sets
+# skill_result), the caller fixes and commits, and a second round briefed with
+# the last Reviewed line comes back clean.
+dirty_result='## 設計レビュー: abc1234..def5678
+
+### P1
+- 指摘
+
+Reviewed: abc1234..def5678'
+clean_result='## 設計レビュー: def5678..0123abc
+
+指摘なし。
+
+Reviewed: def5678..0123abc'
+rerun_brief='前回の P1 を直した。Reviewed: abc1234..def5678'
+design_rerun='skill_args="$rerun_brief" skill_result="$clean_result" rec_skill'
+after_fix='rec_edit Edit README.md; rec_bash ./run-tests.sh; rec_bash "git add -A"; rec_bash "git commit -m fix"'
+after_default="$after_fix; $design_rerun"
 
 design_run() {
   local report="$2" starts="${6:-1}" base head i
@@ -490,7 +508,7 @@ design_run() {
   report="${report//BASE/$base}"
   report="${report//HEAD/$head}"
   {
-    for ((i = 0; i < starts; i++)); do rec_skill; done
+    for ((i = 0; i < starts; i++)); do skill_result="${skill_result-$dirty_result}" rec_skill; done
     eval "$3"
     [ "$report" = none ] || rec_text "$report"
     eval "$4"
@@ -511,9 +529,51 @@ while read -r c fix; do
   grade "直してコミットしました。"
   expect_pass "$c: a good run passes every assertion"
 
-  design_run "$c" "$good_report" "$before_default" "$after_default" "$fix" 0
+  design_run "$c" "$good_report" "$before_default" "$after_fix" "$fix" 0
   grade "直してコミットしました。"
   expect_fail "$c: a run that never starts the skill is caught" "started review-design"
+
+  # --- the loop: wired into every case that grades it ---
+  case "$c" in
+    intended-layer-asks) ;;
+    clean-unit-no-false-p1)
+      design_run "$c" "$good_report" "$before_default" "$design_rerun; $after_fix" "$fix"
+      grade "直してコミットしました。"
+      expect_fail "$c: a re-run with nothing fixed before it is caught" \
+        "fixed something before every re-run"
+
+      skill_result="$clean_result" design_run "$c" "$good_report" "$before_default" "$after_default" "$fix"
+      grade "直してコミットしました。"
+      expect_fail "$c: a re-run after a clean round is caught" \
+        "re-ran only after a round with P1 or P2"
+      ;;
+    *)
+      design_run "$c" "$good_report" "$before_default" "$after_fix" "$fix"
+      grade "直してコミットしました。"
+      expect_fail "$c: fixing and stopping without a second review is caught" \
+        "reviewed again after fixing (two rounds or more)"
+
+      design_run "$c" "$good_report" "$before_default" "$design_rerun; $after_fix" "$fix"
+      grade "直してコミットしました。"
+      expect_fail "$c: a re-run with nothing fixed before it is caught" \
+        "fixed something before every re-run"
+
+      design_run "$c" "$good_report" "$before_default" "$after_fix; skill_args=\"\$rerun_brief\" skill_result=\"\$dirty_result\" rec_skill" "$fix"
+      grade "直してコミットしました。"
+      expect_fail "$c: stopping on a round that still reports P1 is caught" \
+        "the last round reports no P1 and no P2"
+
+      design_run "$c" "$good_report" "$before_default" "$after_default; $design_rerun" "$fix"
+      grade "直してコミットしました。"
+      expect_fail "$c: a third round after a clean one is caught" \
+        "re-ran only after a round with P1 or P2"
+
+      design_run "$c" "$good_report" "$before_default" "$after_fix; skill_args=\"前回の P1 を直した。\" skill_result=\"\$clean_result\" rec_skill" "$fix"
+      grade "直してコミットしました。"
+      expect_fail "$c: a re-run briefed without the Reviewed line is caught" \
+        "briefed every re-run with the last Reviewed line"
+      ;;
+  esac
 
   design_run "$c" none "$before_default" "$after_default" "$fix"
   grade "直してコミットしました。"

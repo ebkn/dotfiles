@@ -1,8 +1,9 @@
 ---
 name: stale-doc-after-change
 allowed_tools: Skill, Write, Edit, Bash(./run-tests.sh*), Bash(git*), Bash(tail*), Bash(head*), Bash(echo*)
-max_turns: 60
-budget_usd: 2
+max_turns: 90
+budget_usd: 4
+# 90 turns and 4 USD: room for the second review round the loop requires.
 # The second line of the prompt stands in for the caller's own conventions
 # (CLAUDE.md, which the runner deliberately leaves out). Without it the model
 # chains `./run-tests.sh | grep ...; echo rc=$?` with the commit, or runs the
