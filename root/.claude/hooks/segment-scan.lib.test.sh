@@ -76,7 +76,12 @@ expands_of 'ls a? [x] {a..c} ""~ HEAD@{1}' "0 1 1 1 0 0" "? [ ] {..}, and a ~ af
 # Bash expands a brace whose comma or `..` is quoted, and a tilde after `=` or
 # `:` in a word shaped like an assignment, even as an argument.
 expands_of "ls {\"..\",} {.\\.,} {'..',}" "0 1 1 1" "a brace expansion with its insides quoted"
-expands_of 'ls x=~ a=b:~ --o=~' "0 1 1 1" "a tilde after = or :"
+expands_of 'ls x=~ a=b:~' "0 1 1" "a tilde after = or : in an assignment-shaped word"
+# Bash leaves `--o=~` alone, but zsh with magic_equal_subst does not, and the
+# command may run in the user's zsh: marked on purpose.
+expands_of 'ls --o=~' "0 1" "a tilde after = in any word (deliberately wide)"
+# zsh expands a leading `=cmd` to the command's path (EQUALS, on by default).
+expands_of 'ls =git a=b' "0 1 0" "a leading = (zsh)"
 expands_of 'git status; ls ~' "0 1" "marks are reset per segment"
 expands_of 'ls ~; git status' "0 0" "and do not leak into the next one"
 

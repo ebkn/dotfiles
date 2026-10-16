@@ -18,9 +18,13 @@
 # neither may be swapped for the other.
 #
 # While the predicate runs, SCAN_ARGV_EXPANDS[k] is 1 when its argument k held
-# text the shell may expand -- a leading `~` or one after `=`, an unquoted glob
-# character, a brace expansion -- so the word it receives is not the word read
-# here.
+# text the shell may expand -- a leading `~` or one after `=`, a leading `=`, an
+# unquoted glob character, a brace expansion -- so the word it receives is not
+# the word read here. "The shell" is bash or zsh: Claude Code runs a command in
+# the user's shell, here zsh, so zsh's own expansions count too -- a leading
+# `=cmd` (EQUALS, on by default) and, with magic_equal_subst, a `~` after any
+# `=`, which is why a `~` in any word holding `=` is marked, not only in an
+# assignment-shaped one.
 # The scanner does not refuse those itself: `git add *.sh` is fine for one
 # caller, and `git -C ~ status` would let another approve a command run in
 # $HOME because the project holds a directory named `~`. The predicate decides.
@@ -61,7 +65,7 @@ scan_mark_unquoted() {
   esac
   case "$1" in *'{'*) SCAN_CUR_BRACE=1 ;; esac
   case "$1" in *'~'*) SCAN_CUR_TILDE=1 ;; esac
-  if ((SCAN_HAVE_CUR == 0)) && [[ "$1" == "~"* ]]; then SCAN_CUR_EXPANDS=1; fi
+  if ((SCAN_HAVE_CUR == 0)) && [[ "$1" == [~=]* ]]; then SCAN_CUR_EXPANDS=1; fi
   return 0
 }
 
