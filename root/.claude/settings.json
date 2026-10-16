@@ -459,6 +459,11 @@
           },
           {
             "type": "command",
+            "command": "~/.claude/hooks/git-dash-c-allow.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
             "command": "~/.claude/hooks/strip-redundant-cd.sh",
             "timeout": 5
           },
