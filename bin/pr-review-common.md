@@ -83,3 +83,31 @@ Two things bite when editing it:
 
 Both halves passed the shallow cases while broken, which is why the suite carries
 a cwd *deeper* than a worktree root.
+
+## A session that moved after it started
+
+Both session sources, the registry files the dispatcher reads and `claude agents
+--json` that the detectors read, report the directory a session was
+**launched** in. A `cd` through the Bash tool (`gw`) never updates it. So a
+session started at the project root that then ran `gw` and opened a PR from the
+worktree was never found for that PR, and was still taken as the owner of the
+main checkout.
+
+`with_current_cwd` overlays the record
+[session-cwd.sh](../root/.claude/hooks/session-cwd.md) keeps per session id, and
+**all three programs apply it** before calling `session_in_worktree`. A session
+with no record keeps what its source said, so one that predates the hook
+behaves as before.
+
+Records are looked up by the ids in the list, never globbed: a record left
+behind by a crashed session belongs to an id nobody lists, and is never read. A
+record that does not parse costs that one session its overlay, not the whole
+list.
+
+**"Newest" means newest arrival.** Once moved sessions are visible, one worktree
+can hold a session launched there and one that cd'd in. The ranking is the
+record's `since` (when it got there), falling back to `startedAt`, both in ms.
+The session that arrived last is the one working there now.
+
+Each suite sets `CLAUDE_SESSION_CWD_DIR` in its `run`, so no case reads the
+developer's own records.

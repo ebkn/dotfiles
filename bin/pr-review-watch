@@ -202,7 +202,10 @@ fi
 # state the dispatcher will read to decide whether a session may be interrupted,
 # so resolving the id from it here keeps both stages on one source of truth.
 # Queried once per run: it is the most expensive lookup in this script.
-agents_json=$(claude agents --json 2>/dev/null || printf '[]')
+#
+# Its cwd is where each session was launched, not where it is now, hence the
+# overlay -- see with_current_cwd in pr-review-common.sh.
+agents_json=$(with_current_cwd "$(claude agents --json 2>/dev/null || printf '[]')")
 
 # See session_in_worktree in pr-review-common.sh for why the worktree list has
 # to be passed in: worktrees nest here, so containment alone picks the wrong

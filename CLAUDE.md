@@ -54,7 +54,7 @@ Claude Code loads these from `.claude/rules/` when a matching file is touched. C
 | One WezTerm tab = one tmux session (`prefix + w`) | [bin/tmux-session-swap.md](bin/tmux-session-swap.md) |
 | Remote sessions, autossh, tab restore            | [bin/tmux-track-session.md](bin/tmux-track-session.md), [bin/tmux-restore-ssh-tabs.md](bin/tmux-restore-ssh-tabs.md), [bin/autossh-ssh.md](bin/autossh-ssh.md) |
 | Document reading (`read-doc`)                    | [bin/read-doc.md](bin/read-doc.md) |
-| PR automation (detectors → queue → dispatch)     | [bin/pr-review-watch.md](bin/pr-review-watch.md), [bin/pr-state-watch.md](bin/pr-state-watch.md), [bin/pr-review-dispatch.md](bin/pr-review-dispatch.md) |
+| PR automation (detectors → queue → dispatch)     | [bin/pr-review-watch.md](bin/pr-review-watch.md), [bin/pr-state-watch.md](bin/pr-state-watch.md), [bin/pr-review-dispatch.md](bin/pr-review-dispatch.md), [root/.claude/hooks/session-cwd.md](root/.claude/hooks/session-cwd.md) |
 | Japanese prose linting (`textlint-docs`)         | [bin/textlint-docs.md](bin/textlint-docs.md) |
 | Skill evals (`skill-eval`)                       | [bin/skill-eval.md](bin/skill-eval.md) |
 | Session retrospective (`/retrospective`)         | [root/.agents/skills/retrospective/NOTES.md](root/.agents/skills/retrospective/NOTES.md) |

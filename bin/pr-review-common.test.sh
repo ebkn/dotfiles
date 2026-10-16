@@ -190,6 +190,67 @@ eq 'a background session is not a delivery target' 'none' \
   "$(sid "$bg" "$REPO/git-worktrees/a" "$WTS2")"
 
 echo
+echo "== with_current_cwd: a session that moved after it started =="
+# The registry's cwd is where the session was LAUNCHED and never follows a `cd`
+# (measured: a Bash-tool cd into a worktree left it on the main checkout). The
+# session-cwd hook records where each session is now, keyed by session id, and
+# this is the one place the pipeline overlays it. Without it, a session started
+# at the project root that ran `gw` and opened a PR from the worktree could not
+# be found for that PR, and was still taken as the owner of the main checkout.
+export CLAUDE_SESSION_CWD_DIR="$TMP/session-cwd"
+mkdir -p "$CLAUDE_SESSION_CWD_DIR"
+record_cwd() { # record_cwd <sessionId> <cwd> <since>
+  jq -n --arg cwd "$2" --argjson since "$3" '{cwd:$cwd, since:$since}' \
+    >"$CLAUDE_SESSION_CWD_DIR/$1.json"
+}
+moved=$(jq -n --arg r "$REPO" '[
+  {kind:"interactive", pid:8, sessionId:"mover", startedAt:10, status:"idle", cwd:$r}
+]')
+record_cwd mover "$REPO/git-worktrees/a" 50
+cur=$(with_current_cwd "$moved")
+eq 'the moved session answers for the worktree it is in' 'mover' \
+  "$(sid "$cur" "$REPO/git-worktrees/a" "$WTS2")"
+eq 'and no longer for the checkout it was launched in' 'none' \
+  "$(sid "$cur" "$REPO" "$WTS2")"
+
+/bin/rm -f "$CLAUDE_SESSION_CWD_DIR"/*
+eq 'with no record the registry cwd stands' 'mover' \
+  "$(sid "$(with_current_cwd "$moved")" "$REPO" "$WTS2")"
+
+# Records outlive sessions that crash before SessionEnd. One belonging to no
+# listed session must change nothing, and must not add a session either.
+record_cwd someone-else "$REPO/git-worktrees/a" 50
+eq 'a record for an unlisted session adds nobody' '1' \
+  "$(with_current_cwd "$moved" | jq 'length')"
+eq 'and moves nobody' 'mover' "$(sid "$(with_current_cwd "$moved")" "$REPO" "$WTS2")"
+
+# A truncated record must cost that one session its overlay, not the whole list:
+# an empty list holds every job as "no live session", the failure the registry
+# reader in pr-review-dispatch is shaped to avoid.
+printf '{"cwd":"/trunc' >"$CLAUDE_SESSION_CWD_DIR/mover.json"
+eq 'a corrupt record is skipped, not fatal' 'mover' \
+  "$(sid "$(with_current_cwd "$moved")" "$REPO" "$WTS2")"
+/bin/rm -f "$CLAUDE_SESSION_CWD_DIR"/*
+
+echo
+echo "== session_in_worktree: newest ARRIVAL wins, not newest launch =="
+# Moving in makes two sessions in one worktree more likely: one launched there
+# and one that cd'd in later. The one that arrived last is the one working
+# there now, so arrival time (the record's `since`) ranks, and startedAt stands
+# in for it only when a session never moved.
+pair=$(jq -n --arg r "$REPO" '[
+  {kind:"interactive", pid:9,  sessionId:"launched-there", startedAt:20, status:"idle", cwd:($r + "/git-worktrees/a")},
+  {kind:"interactive", pid:10, sessionId:"moved-in",       startedAt:10, status:"idle", cwd:$r}
+]')
+record_cwd moved-in "$REPO/git-worktrees/a" 30
+eq 'a session that moved in after another launched there wins' 'moved-in' \
+  "$(sid "$(with_current_cwd "$pair")" "$REPO/git-worktrees/a" "$WTS2")"
+record_cwd moved-in "$REPO/git-worktrees/a" 15
+eq 'one launched there after the move wins instead' 'launched-there' \
+  "$(sid "$(with_current_cwd "$pair")" "$REPO/git-worktrees/a" "$WTS2")"
+/bin/rm -f "$CLAUDE_SESSION_CWD_DIR"/*
+
+echo
 echo "== repo_path =="
 # ghq is stubbed: it prints $GHQ_OUT whatever it is asked, which is all
 # repo_path reads from it. The extra-repos half is the only route by which this

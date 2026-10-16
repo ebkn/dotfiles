@@ -100,7 +100,10 @@ trap 'release_lock "$lock"' EXIT
 # lookup here, and the id is only advisory anyway -- the dispatcher resolves the
 # session from the worktree at delivery time, since a session restarted since
 # queueing has a new id but is still the right target.
-agents_json=$(claude agents --json 2>/dev/null || printf '[]')
+#
+# Its cwd is where each session was launched, not where it is now, hence the
+# overlay -- see with_current_cwd in pr-review-common.sh.
+agents_json=$(with_current_cwd "$(claude agents --json 2>/dev/null || printf '[]')")
 
 session_for_worktree() {
   session_in_worktree "$agents_json" "$2" "$(worktree_paths_json "$1")" |

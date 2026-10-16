@@ -122,6 +122,10 @@ STATE="$TMP/state"
 mkdir -p "$STATE/jobs"
 SESS="$TMP/sessions"
 mkdir -p "$SESS"
+# Where the session-cwd hook records each session's live cwd. Always set, so no
+# case can pick up the developer's own records from ~/.local/state.
+CWDS="$TMP/session-cwd"
+mkdir -p "$CWDS"
 STUB="$TMP/stub"
 mkdir -p "$STUB"
 
@@ -258,13 +262,14 @@ make_job() { # make_job [worktree] [pr]
 
 job() { jq -r "$1" "$STATE/jobs/acme__widget__42.json"; }
 jobf() { jq -r "$2" "$STATE/jobs/acme__widget__$1.json"; } # jobf <pr> <filter>
-reset() { /bin/rm -f "$STATE"/jobs/* "$SESS"/*.json "$TMP"/wire-* "$TMP/resume.log" "$TMP/resume.fail"; }
+reset() { /bin/rm -f "$STATE"/jobs/* "$SESS"/*.json "$CWDS"/*.json "$TMP"/wire-* "$TMP/resume.log" "$TMP/resume.fail"; }
 
 run() {
   PATH="$STUB:$PATH" \
     RESUMELOG="$TMP/resume.log" RESUMEFAIL="$TMP/resume.fail" \
     RESUMEAPPEND="${RESUMEAPPEND:-}" \
     PR_REVIEW_WATCH_STATE_DIR="$STATE" CLAUDE_SESSIONS_DIR="$SESS" \
+    CLAUDE_SESSION_CWD_DIR="$CWDS" \
     PR_REVIEW_DISPATCH_RESUME="${RESUME:-0}" \
     "$DISPATCH" "$@" 2>&1
 }
@@ -627,6 +632,30 @@ make_job
 run >/dev/null
 settle "$WIRE" || no "nothing reached the socket (deep cwd)"
 eq "a cwd below the worktree root still belongs to it" "delivered" "$(job .status)"
+
+# The registry's cwd is where the session was LAUNCHED; a Bash-tool `cd` (which
+# is what `gw` is) never updates it. The session-cwd hook's record is what says
+# where the session is now. This is the reported case: launched at the project
+# root, PR opened from the worktree, job held as "no live session" forever.
+reset
+PID=$(spawn_holder)
+WIRE="$TMP/wire-6b"
+SOCKP="$TMP/s6b.sock"
+listen "$SOCKP" "$WIRE" || no "listener came up"
+session moved "$PID" "$REPO" "$SOCKP" 100
+jq -n --arg cwd "$WT" '{cwd:$cwd, since:200}' >"$CWDS/sess-$PID.json"
+make_job
+run >/dev/null
+settle "$WIRE" || no "nothing reached the socket (moved session)"
+eq "a session that cd'd into the worktree after launch receives its job" "delivered" "$(job .status)"
+
+# And it no longer answers for the checkout it left. Its listener is spent on
+# the delivery above, so a send here would fail rather than be captured: the
+# status is the assertion.
+make_job "$REPO" 43
+out=$(run)
+eq "nor does it answer for the checkout it was launched in" "pending" "$(jobf 43 .status)"
+has "which holds as having no session" "$out" "hold  acme/widget#43: no live session"
 
 # --- dry run ----------------------------------------------------------------
 

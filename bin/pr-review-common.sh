@@ -76,13 +76,48 @@ worktree_paths_json() {
     jq -R -s 'split("\n") | map(select(length > 0))'
 }
 
+# with_current_cwd <sessions-json> -- the same array, each session's .cwd
+# replaced by where it is NOW, with .enteredAt set to when it got there.
+#
+# Both session sources (the registry files and `claude agents --json`) report
+# the directory a session was LAUNCHED in, and neither follows a `cd`: a session
+# started at the project root that runs `gw` and opens a PR from the worktree
+# would otherwise never be found for that PR, and would go on answering for the
+# main checkout instead. root/.claude/hooks/session-cwd.sh records the live cwd
+# per session id from SessionStart and CwdChanged; this overlays it.
+#
+# A session with no record keeps what its source said, so a session that
+# predates the hook behaves exactly as before. Records are looked up by the
+# listed ids only, never globbed: one left behind by a crashed session belongs
+# to an id nobody lists, and is never read. A file that does not parse costs
+# that one session its overlay, not the whole list -- see the registry reader in
+# pr-review-dispatch for why an emptied list is the failure to avoid.
+with_current_cwd() {
+  local dir=${CLAUDE_SESSION_CWD_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/claude-session-cwd}
+  local id recs
+  recs=$(printf '%s' "$1" |
+    jq -r '.[].sessionId // empty | select(test("^[A-Za-z0-9_.-]+$"))' 2>/dev/null |
+    while IFS= read -r id; do
+      [ -f "$dir/$id.json" ] || continue
+      jq -c --arg id "$id" 'select(.cwd | type == "string") | {($id): {cwd, since}}' \
+        "$dir/$id.json" 2>/dev/null || true
+    done | jq -s 'add // {}' 2>/dev/null) || recs='{}'
+  [ -n "$recs" ] || recs='{}'
+  printf '%s' "$1" | jq -c --argjson rec "$recs" '
+    map($rec[.sessionId // ""] as $r
+      | if $r then .cwd = $r.cwd | .enteredAt = $r.since else . end)' 2>/dev/null ||
+    printf '%s' "$1"
+}
+
 # session_in_worktree <agents-json> <worktree> <worktrees-json>
 # Prints the newest matching interactive session as a JSON object, or nothing.
 #
 # Newest wins when a single worktree holds several sessions. That is arbitrary
 # but bounded: two sessions in one worktree already break the one-writer rule
 # the pipeline is built on, so there is no better answer to pick -- only a
-# documented one.
+# documented one. "Newest" is by ARRIVAL in the worktree (.enteredAt, from
+# with_current_cwd) where known, launch time otherwise: a session that cd'd in
+# after another launched there is the one working there now.
 session_in_worktree() {
   printf '%s' "$1" | jq -c --arg wt "$2" --argjson all "$3" '
     # $w is bound explicitly rather than left as `.`, because `$cwd |
@@ -96,7 +131,7 @@ session_in_worktree() {
     [ .[]
       | select(.kind == "interactive")
       | select(owner(.cwd) == $wt) ]
-    | sort_by(.startedAt) | last // empty' 2>/dev/null
+    | sort_by(.enteredAt // .startedAt) | last // empty' 2>/dev/null
 }
 
 # release_lock <dir> -- safe to call from an EXIT trap that never ran take_lock.

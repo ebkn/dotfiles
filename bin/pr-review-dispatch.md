@@ -215,6 +215,14 @@ The old version crossed `claude agents --json` with the same files to get a pane
 One source cannot disagree with itself, and `messagingSocketPath` exists nowhere
 else.
 
+**Except for `cwd`, which says where the session was launched, not where it
+is.** A session that started at the project root and then ran `gw` would never
+receive its own PR's feedback. The registry's `cwd` is therefore overlaid with
+the record [session-cwd.sh](../root/.claude/hooks/session-cwd.md) keeps (see
+[pr-review-common.md](pr-review-common.md#a-session-that-moved-after-it-started)).
+The registry stays the only source for which sessions exist and how to reach
+them; the record only says where each one is.
+
 **It is also the one dependency whose breakage would otherwise be invisible, so
 it is guarded explicitly.** Posting to a socket is documented; finding *another*
 session's socket is not, and there is no API for it — `/status` and

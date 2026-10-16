@@ -585,7 +585,10 @@ report_unmarked() {
 
 # --- main -------------------------------------------------------------------
 
-sessions=$(live_sessions_json)
+# The registry's cwd is where each session was launched, not where it is: a
+# session that ran `gw` after starting at the project root would otherwise be
+# unreachable for its own PR. See with_current_cwd in pr-review-common.sh.
+sessions=$(with_current_cwd "$(live_sessions_json)")
 delivered=0
 held=0
 

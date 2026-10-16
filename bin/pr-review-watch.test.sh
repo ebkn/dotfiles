@@ -230,9 +230,15 @@ STATE="$TMP/state"
 # "none": the script defaults it with `:-`, so "" meant the developer's real
 # ~/dotfiles was consulted on every run. The extra-repos lookup itself is pinned
 # in pr-review-common.test.sh.
+#
+# CLAUDE_SESSION_CWD_DIR is always set for the same reason: unset, the run reads
+# the developer's own session-cwd records from ~/.local/state.
+CWDS="$TMP/session-cwd"
+mkdir -p "$CWDS"
 run() { # run [args...] -> stdout+stderr
   PATH="$STUB:$PATH" FIX="$FIX" \
     PR_REVIEW_WATCH_STATE_DIR="$STATE" \
+    CLAUDE_SESSION_CWD_DIR="$CWDS" \
     PR_REVIEW_WATCH_EXTRA_REPOS="$TMP/no-extra-repos" \
     "$WATCH" "$@" 2>&1
 }
@@ -438,6 +444,19 @@ EOF
 STATE="$TMP/state6"
 run --pr acme/widget#42 >/dev/null
 eq 'a session in a subdirectory still counts' 'deep-sess' "$(job .sessionId)"
+
+# `claude agents --json` reports the LAUNCH directory: a session started at the
+# checkout that then ran `gw` is listed there. Its session-cwd record is what
+# says it is in the nested worktree now. The id stored here is the one the
+# dispatcher's resume fallback uses, so a miss is a job with nothing to resume.
+cat >"$FIX/agents.json" <<EOF
+[{"pid":12,"cwd":"$REPO","kind":"interactive","sessionId":"moved-sess","startedAt":12,"status":"idle"}]
+EOF
+jq -n --arg cwd "$REPO/git-worktrees/nested" '{cwd:$cwd, since:13}' >"$CWDS/moved-sess.json"
+STATE="$TMP/state6b"
+run --pr acme/widget#42 >/dev/null
+eq 'a session that cd'"'"'d into the worktree after launch is resolved' 'moved-sess' "$(job .sessionId)"
+/bin/rm -f "$CWDS"/*.json
 
 # Restore the fixtures the remaining cases expect.
 cat >"$FIX/pull.json" <<'EOF'

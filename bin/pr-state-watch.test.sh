@@ -165,10 +165,16 @@ JOB="$STATE/jobs/acme__widget__42__conflict.json"
 # EXTRA_REPOS names a directory that does not exist: "" is defaulted with `:-`
 # to the real ~/dotfiles, which made the "no local checkout" cases depend on
 # that repo's origin. The lookup itself is pinned in pr-review-common.test.sh.
+#
+# CLAUDE_SESSION_CWD_DIR is always set for the same reason: unset, the run reads
+# the developer's own session-cwd records from ~/.local/state.
+CWDS="$TMP/session-cwd"
+mkdir -p "$CWDS"
 run() {
   : >"$TMP/gh.log"
   PATH="$STUB:$PATH" FIX="$FIX" GHLOG="$TMP/gh.log" \
     PR_REVIEW_WATCH_STATE_DIR="$STATE" \
+    CLAUDE_SESSION_CWD_DIR="$CWDS" \
     PR_REVIEW_WATCH_EXTRA_REPOS="$TMP/no-extra-repos" \
     "$WATCH" "$@" 2>&1
 }
@@ -689,6 +695,18 @@ has 'the run says what merged' "$out" 'queue acme/widget#42: feature/x was merge
 has 'and counts it' "$out" 'queued 1 merge(s)'
 eq 'a PR the search did not name is left alone' 'no' \
   "$(exists "$STATE/jobs/acme__widget__43__merged.json")"
+
+echo "-- a session that moved into the worktree after launch is resolved --"
+# `claude agents --json` reports the LAUNCH directory, so a session started at
+# the checkout that then ran `gw` is listed there; its session-cwd record says
+# where it is now.
+arrange_merged state-m1b
+printf '[{"pid":2,"cwd":"%s","kind":"interactive","sessionId":"moved-sess","startedAt":2,"status":"idle"}]' \
+  "$REPO" >"$FIX/agents.json"
+jq -n --arg cwd "$WT" '{cwd:$cwd, since:3}' >"$CWDS/moved-sess.json"
+run >/dev/null
+eq 'the moved session is resolved' 'moved-sess' "$(mjob .sessionId)"
+/bin/rm -f "$CWDS"/*.json
 
 echo "-- a merge is announced once, delivered or not --"
 # A merge happens once, so unlike a conflict there is no head to re-key on: the
