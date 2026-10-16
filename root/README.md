@@ -167,8 +167,11 @@ program of the caller's choosing; Claude Code warns about the shape at startup
 ("has a wildcard before the rest of the command"). The 33 `git -C *` allow rules
 were removed for that, and because their path reached any repository on the
 machine — whose own `.git/config` runs a program on `git status` just as well.
-The `git -C *` **deny and ask** rules stay: a wildcard there only widens what is
-refused or asked about.
+**No git rule names `-C` at all, deny and ask included.** Write a git rule once,
+for `git <subcommand>`, and the hooks below give it the same effect on
+`git -C <dir> <subcommand>`: an allow rule through `git-dash-c-allow.sh`, a
+deny or ask rule through `git-guard.sh`. The 13 `git -C *` copies of deny and
+ask rules were removed for that; the suite fails on a git rule naming `-C`.
 
 Three hooks now cover git, with different jobs:
 
@@ -210,7 +213,9 @@ would not approve as written. It can under-approve — a prompt — but not over
 pairs a git -C with a non-git segment no longer pass silently; in auto mode they
 go to the classifier. And git-guard leaves one shape it cannot split — a `case`
 inside a quoted substitution — to that classifier rather than refusing it, which
-is safe only while no git allow rule has a `*` before the subcommand.
+is safe only while no git allow rule has a `*` before the subcommand. That shape
+also skips the deny and ask rules for a `-C`: `git -C x branch -D "$(echo case)"`
+reaches the classifier rather than a prompt.
 
 Run `root/.claude/hooks/git-guard.test.sh`, `git-dash-c-allow.test.sh`,
 `approve-multiline-commands.test.sh` and `segment-scan.lib.test.sh` after

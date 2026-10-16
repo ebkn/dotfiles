@@ -774,7 +774,26 @@ check DENY 'git -C sub show --output=x HEAD'
 check DENY 'git --no-pager log --output=x'
 check PASS 'git -C sub fetch origin'
 check PASS 'git -C sub log --oneline -5'
+# The rules settings.json no longer copies as `git -C *` still reach -C.
+check DENY 'git -C sub push --force'
+check DENY 'git -C sub push origin main -f'
+check DENY 'git -C sub reset --hard HEAD'
+check DENY 'git -C sub checkout -- f'
+check ASK 'git -C sub branch -D topic'
+check ASK 'git -C sub switch main'
 GUARD_HOME=$TMP/empty-home
+
+# A git rule naming -C is either an allow rule of the shape the invariant above
+# refuses, or a copy of a deny or ask rule that this hook applies to -C already.
+dash_c=$(jq -r '[.permissions | (.allow, .deny, .ask)[]? | strings
+  | select(test("^Bash\\([^ ]*git .*-C"))] | join(", ")' "$SETTINGS")
+if [[ -z "$dash_c" ]]; then
+  pass=$((pass + 1))
+  echo "  ok   no git rule names -C"
+else
+  fail=$((fail + 1))
+  printf '  FAIL git rules naming -C: %s\n' "$dash_c"
+fi
 
 # A hook that fails or times out lets the call through by default. The deny
 # and ask rules for a git -C live only here, so a failure must block instead.
