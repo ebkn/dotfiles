@@ -204,6 +204,16 @@ expect_fail "draft-at-first-commit: よろしいですか" \
 draft_run "$draft_records" "$draft_tree" "Should I push the branch now?"
 expect_fail "draft-at-first-commit: Should I ... push" \
   "the closing message asks nothing about pushing or a PR (known phrasings)"
+# The word boundary must not cost the plurals: each of these matched before
+# it was added.
+for asks in "Should I open PRs for these?" "Would you like me to open pull requests for both?" \
+  "PRs を作成しますか？" "Shall I mark the drafts ready?"; do
+  draft_run "$draft_records" "$draft_tree" "$asks"
+  expect_fail "draft-at-first-commit: a plural still asks ($asks)" \
+    "the closing message asks nothing about pushing or a PR (known phrasings)"
+done
+draft_run "$draft_records" "$draft_tree" "Should I list what is unready in the docs?"
+expect_pass "draft-at-first-commit: \"unready\" is not \"ready\" either"
 # `read` splits lines whatever the awk does; this pins the contract for an
 # implementation that matches the text in one piece.
 draft_run "$draft_records" "$draft_tree" "$(printf 'PR を ready にしました\nほかに直しますか')"
@@ -352,6 +362,14 @@ handover_run 'rec_skill create-pr; rec_bash "gh pr create --title t --body b"' "
 expect_fail "ready-without-pr: create-pr without looking for the PR" "update-pr looked for the PR"
 handover_run "$handover_records" "${handover_tree//gh pr create/gh pr create --draft}" "$done_msg"
 expect_fail "ready-without-pr: opened as a draft" "opened the PR ready, since the work is finished"
+# Unlike ready-in-one-commit, a draft readied afterwards fails here: the work
+# was finished before create-pr started, so a draft was the wrong opening.
+handover_run "$handover_records; rec_bash \"gh pr ready\"" "${handover_tree//gh pr create/gh pr create --draft}; gh pr ready" "$done_msg"
+expect_fail "ready-without-pr: opened as a draft, then readied" "opened the PR ready, since the work is finished"
+# Skipping update-pr's own look: create-pr's step runs gh pr view too, but
+# after the Skill call, so the order is what tells the two apart.
+handover_run 'rec_skill create-pr; rec_bash "gh pr view --json url,isDraft"; rec_bash "git push -u origin HEAD"; rec_bash "gh pr create --title t --body b"' "$handover_tree" "$done_msg"
+expect_fail "ready-without-pr: create-pr started before any look for the PR" "handed over to create-pr after finding none"
 handover_run "$handover_records" "${handover_tree//docs: add CONTRIBUTING/Add CONTRIBUTING}" "$done_msg"
 expect_fail "ready-without-pr: a title that is not a Conventional Commit" "the PR title is a Conventional Commit"
 handover_run "$handover_records" "git commit -q --allow-empty -m extra; $handover_tree" "$done_msg"

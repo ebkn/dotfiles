@@ -25,8 +25,10 @@ PR_EVAL_GH_CREATE='(^|[;&|(]|[[:space:]])gh[[:space:]]+pr[[:space:]]+create([[:s
 # The ASCII keywords stand as words ([^A-Za-z] on both sides), or "ready" in
 # "already" would turn any question into one about the PR. Not [:alpha:]: in
 # some locales a Japanese character is a letter, and "PRを" must still count.
-# しましょうか and いたしますか are covered by ましょうか and しますか.
-PR_EVAL_ASKS='(((^|[^A-Za-z])(PR|push|draft|ready)([^A-Za-z]|$)|プルリク|プッシュ|ドラフト).{0,40}(しますか|ましょうか|よろしいですか))|((Shall|Should) I|Would you like( me)? to|Do you want( me)? to|Want me to).{0,60}[^A-Za-z](push|PR|pull request|draft|ready)([^A-Za-z]|$)'
+# Their plurals count too ("open PRs", "pull requests"), which the boundary
+# alone would cut off. しましょうか and いたしますか are covered by ましょうか
+# and しますか.
+PR_EVAL_ASKS='(((^|[^A-Za-z])(PRs?|push(es)?|drafts?|ready)([^A-Za-z]|$)|プルリク|プッシュ|ドラフト).{0,40}(しますか|ましょうか|よろしいですか))|((Shall|Should) I|Would you like( me)? to|Do you want( me)? to|Want me to).{0,60}[^A-Za-z](push(es)?|PRs?|pull requests?|drafts?|ready)([^A-Za-z]|$)'
 
 # pr_eval_skill_index <skill>
 # Record index of the skill's first call; empty when it never started.
