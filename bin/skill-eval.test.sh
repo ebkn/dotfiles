@@ -749,7 +749,18 @@ check_fails "a claude_md that does not exist says why, before spending anything"
 # create-pr's cases follow a unit to its finished PR, which takes update-pr and
 # commit as well. The skill carried in must arrive the way the one under
 # evaluation does: without its evals/, and under its own allowed-tools.
-mkdir -p "$skills_dir/helper-skill/evals/its-case" "$skills_dir/$skill/evals/case-h" "$skills_dir/$skill/evals/case-i"
+mkdir -p "$skills_dir/helper-skill/evals/its-case" "$skills_dir/helper-two" "$skills_dir/$skill/evals/case-h" "$skills_dir/$skill/evals/case-i"
+# Two of them, as every PR case names: the `, ` split and the second skill's
+# allowed-tools are what those cases rest on.
+cat >"$skills_dir/helper-two/SKILL.md" <<'EOF'
+---
+name: helper-two
+description: test
+allowed-tools: Bash(gh pr ready*)
+---
+
+body
+EOF
 cat >"$skills_dir/helper-skill/SKILL.md" <<'EOF'
 ---
 name: helper-skill
@@ -762,7 +773,7 @@ EOF
 cat >"$skills_dir/$skill/evals/case-h/prompt.md" <<'EOF'
 ---
 name: case-h
-skills: helper-skill
+skills: helper-skill, helper-two
 ---
 do it
 EOF
@@ -770,10 +781,11 @@ cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-
 cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-h/assert.sh"
 rm -rf "$STUB_CLAUDE_OUT"
 $RUN "$skill" case-h >/dev/null
-t "a skill named in skills is carried in beside the one under evaluation" "helper-skill $skill" \
+t "each skill named in skills is carried in beside the one under evaluation" "helper-skill helper-two $skill" \
   "$(tr '\n' ' ' <"$STUB_CLAUDE_OUT/skills" | sed 's/ $//')"
 t "without its evals/" "" "$(cat "$STUB_CLAUDE_OUT/evals_anywhere")"
-contains "its allowed-tools are passed" "Bash(gh pr view *)" "$(cat "$STUB_CLAUDE_OUT/args")"
+contains "the first one's allowed-tools are passed" "Bash(gh pr view *)" "$(cat "$STUB_CLAUDE_OUT/args")"
+contains "and the second one's" "Bash(gh pr ready*)" "$(cat "$STUB_CLAUDE_OUT/args")"
 contains "beside the evaluated skill's own" "Bash(git status *)" "$(cat "$STUB_CLAUDE_OUT/args")"
 absent "the skills line stays out of the prompt" "skills:" "$(cat "$STUB_CLAUDE_OUT/args")"
 rm -rf "$STUB_CLAUDE_OUT"
