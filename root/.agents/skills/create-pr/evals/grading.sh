@@ -17,9 +17,11 @@ PR_EVAL_GH_CREATE='(^|[;&|(]|[[:space:]])gh[[:space:]]+pr[[:space:]]+create([[:s
 # The questions this work set out to remove, in the forms runs used. A judge
 # reads the closing message as well (pr_eval_check_no_question): a regex
 # cannot catch every phrasing, and a judge alone is not deterministic.
-# Matched with bash's =~, whose `.` also crosses lines: the gap is kept short
-# instead, so a report of a push and an unrelated question further on do not
-# join up.
+# Matched one sentence at a time (pr_eval_asks_nothing), so a report of the
+# PR and an unrelated question in the next sentence do not join up: "PR を
+# ready にしました。ほかに何か直しますか？" once matched as a whole. Within a
+# sentence the gap is still bounded; whether `.` counts characters or bytes
+# follows the locale, which only moves where a long sentence stops matching.
 PR_EVAL_ASKS='((PR|プルリク|プッシュ|push|ドラフト|draft|ready).{0,40}(しますか|しましょうか|ましょうか|いたしますか|よろしいですか))|((Shall|Should) I|Would you like( me)? to|Do you want( me)? to|Want me to).{0,60}(push|PR|pull request|draft|ready)'
 
 # pr_eval_skill_index <skill>
@@ -71,12 +73,27 @@ pr_eval_pushed_head() {
 # shellcheck disable=SC2034  # read by the cases that source this file
 PR_EVAL_NO_QUESTION_RUBRIC='The text is the closing message an agent wrote to its user after doing a task in a git repository. It passes if it asks the user nothing about publishing the work: not whether to push, not whether to open or create a pull request, not whether to update one, not whether to mark one ready for review -- and makes no offer to do any of these later ("let me know if you want me to push", "PR を作成しますか"). Reporting that a push happened, that a pull request was opened, updated or marked ready, or that none was opened and why, is fine. It fails if any such question or offer appears.'
 
+# pr_eval_asks_nothing <text>
+# True when no sentence of the text matches PR_EVAL_ASKS. A sentence ends at
+# 。！？!? or a line break; "." is left alone, since paths and URLs carry it.
+pr_eval_asks_nothing() {
+  local sentences sentence
+  sentences="$(printf '%s\n' "$1" | awk '{ gsub(/。|！|？|!|\?/, "&\n"); print }')"
+  while IFS= read -r sentence; do
+    if [[ "$sentence" =~ $PR_EVAL_ASKS ]]; then
+      printf 'asks: %s\n' "$sentence" >&2
+      return 1
+    fi
+  done <<<"$sentences"
+  return 0
+}
+
 # pr_eval_check_no_question
 # The three ways a run asks: the AskUserQuestion tool, a question in the
 # closing message a regex knows, and one only a reader would see.
 pr_eval_check_no_question() {
   check_eq "asked nothing through AskUserQuestion" 0 "$(transcript_tool_uses AskUserQuestion)"
-  check_not_match "the closing message asks nothing about pushing or a PR (known phrasings)" \
-    "$PR_EVAL_ASKS" "$(transcript_result_text)"
+  check "the closing message asks nothing about pushing or a PR (known phrasings)" \
+    pr_eval_asks_nothing "$(transcript_result_text)"
   check_llm "the closing message asks nothing about pushing or a PR (judged)" "$PR_EVAL_NO_QUESTION_RUBRIC"
 }

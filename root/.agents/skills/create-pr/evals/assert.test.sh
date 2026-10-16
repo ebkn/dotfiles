@@ -163,6 +163,28 @@ expect_fail "draft-at-first-commit: the judge reads the closing message" \
 draft_run "$draft_records; rec_tool AskUserQuestion '{\"questions\":[]}'" "$draft_tree" "$done_msg"
 expect_fail "draft-at-first-commit: a question through the tool" "asked nothing through AskUserQuestion"
 
+# The pass side of PR_EVAL_ASKS: a report of the PR followed by a question
+# about something else is not the question this removes. The regex once let
+# "ready" in one sentence and "直しますか" in the next join up.
+draft_run "$draft_records" "$draft_tree" "PR を ready にしました。ほかに何か直しますか？"
+expect_pass "draft-at-first-commit: a PR reported, then an unrelated question, passes"
+draft_run "$draft_records" "$draft_tree" "I pushed the branch and marked the PR ready. Should I also tidy the Makefile notes?"
+expect_pass "draft-at-first-commit: and so does the same in English"
+
+# The checks on the request itself, each provoked once, after a good run.
+draft_run "$draft_records" "$draft_tree; printf '# tally\n' >README.md; git commit -qam x; git push -q" "$done_msg"
+expect_fail "draft-at-first-commit: README not fixed" "README now installs with ./install.sh"
+draft_run "$draft_records" "$draft_tree; echo 'make install' >>README.md; git commit -qam x; git push -q" "$done_msg"
+expect_fail "draft-at-first-commit: make install still in README" "and no longer with make install"
+draft_run "$draft_records" "$draft_tree; printf '# Contributing\n' >CONTRIBUTING.md; git commit -qam x; git push -q" "$done_msg"
+expect_fail "draft-at-first-commit: CONTRIBUTING without the rule" "CONTRIBUTING.md asks for Conventional Commits"
+draft_run "$draft_records" "$draft_tree; echo x >>README.md" "$done_msg"
+expect_fail "draft-at-first-commit: work left uncommitted" "left nothing uncommitted"
+draft_run "$draft_records" "$draft_tree; git switch -qc elsewhere" "$done_msg"
+expect_fail "draft-at-first-commit: ended on another branch" "stayed on the branch it was given"
+draft_run "$draft_records" "${draft_tree//--title \"docs: install steps and CONTRIBUTING\"/--title \"Install steps\"}" "$done_msg"
+expect_fail "draft-at-first-commit: a title that is not a Conventional Commit" "the PR title is a Conventional Commit"
+
 # ============================================================
 # ready-in-one-commit
 # ============================================================
@@ -185,6 +207,21 @@ ready_run 'rec_skill create-pr; rec_bash "gh pr create --title t --body b"; rec_
 expect_fail "ready-in-one-commit: a PR opened before the commit" "opened the PR after committing"
 ready_run "$ready_records" "$ready_tree; echo more >>README.md; git commit -qam more" "$done_msg"
 expect_fail "ready-in-one-commit: a commit left unpushed" "pushed every commit"
+ready_run "$ready_records" "$ready_tree; printf '# tally\n' >README.md; git commit -qam x; git push -q" "$done_msg"
+expect_fail "ready-in-one-commit: README not fixed" "README now installs with ./install.sh"
+ready_run "$ready_records" "$ready_tree; echo 'make install' >>README.md; git commit -qam x; git push -q" "$done_msg"
+expect_fail "ready-in-one-commit: make install still in README" "and no longer with make install"
+ready_run "$ready_records" "${ready_tree//git commit -qam \"docs: install with install.sh\"/:}" "$done_msg"
+expect_fail "ready-in-one-commit: nothing committed" "committed the work"
+expect_fail "ready-in-one-commit: and the fix left in the tree" "left nothing uncommitted"
+ready_run "$ready_records" "$ready_tree; git switch -qc elsewhere" "$done_msg"
+expect_fail "ready-in-one-commit: ended on another branch" "stayed on the branch it was given"
+ready_run "${ready_records//rec_skill create-pr; /}" "$ready_tree" "$done_msg"
+expect_fail "ready-in-one-commit: gh run by hand, not through create-pr" "through create-pr"
+ready_run "$ready_records" "${ready_tree//--title \"docs: install steps\"/--title \"Install steps\"}" "$done_msg"
+expect_fail "ready-in-one-commit: a title that is not a Conventional Commit" "the PR title is a Conventional Commit"
+ready_run "$ready_records; rec_tool AskUserQuestion '{\"questions\":[]}'" "$ready_tree" "$done_msg"
+expect_fail "ready-in-one-commit: a question through the tool" "asked nothing through AskUserQuestion"
 ready_run "$ready_records" "$ready_tree" "$done_msg JUDGE_FAIL"
 expect_fail "ready-in-one-commit: the judge reads the closing message" \
   "the closing message asks nothing about pushing or a PR (judged)"
@@ -212,6 +249,11 @@ expect_fail "no-pr-on-default-branch: create-pr started" "started neither PR ski
 main_run 'rec_bash "git commit -qam a"' "$fix_readme" "README を直してコミットしました。ブランチを切って PR を作成しますか？"
 expect_fail "no-pr-on-default-branch: offering a PR instead" \
   "the closing message asks nothing about pushing or a PR (known phrasings)"
+main_run 'rec_bash "git commit -qam a"' "printf '# tally\n' >README.md; git commit -qam x" "$main_msg"
+expect_fail "no-pr-on-default-branch: README not fixed" "README now installs with ./install.sh"
+main_run ':' "sed 's#make install#./install.sh#' README.md >R.tmp; mv R.tmp README.md" "$main_msg"
+expect_fail "no-pr-on-default-branch: nothing committed" "committed the work"
+expect_fail "no-pr-on-default-branch: and the fix left in the tree" "left nothing uncommitted"
 
 # ============================================================
 # update-pr: ready-at-finish
@@ -242,6 +284,12 @@ expect_fail "ready-at-finish: left a draft" "marked it ready, since the request 
 finish_run "$finish_records" "$finish_tree" "完了しました。PR を ready にしましょうか？"
 expect_fail "ready-at-finish: asking before readying" \
   "the closing message asks nothing about pushing or a PR (known phrasings)"
+finish_run "$finish_records" "$finish_tree; printf '# Contributing\n' >CONTRIBUTING.md; git commit -qam x; git push -q" "$done_msg"
+expect_fail "ready-at-finish: the test section missing" "CONTRIBUTING.md says how to run the tests"
+expect_fail "ready-at-finish: and the commit rule dropped" "and keeps the commit message rule"
+finish_run ':' "printf '\n## Tests\n\nRun ./run-tests.sh.\n' >>CONTRIBUTING.md" "$done_msg"
+expect_fail "ready-at-finish: nothing committed" "committed the work"
+expect_fail "ready-at-finish: and the section left in the tree" "left nothing uncommitted"
 
 # ============================================================
 # update-pr: no-update-without-commits
