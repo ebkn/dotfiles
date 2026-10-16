@@ -154,9 +154,79 @@ segment too; every segment must therefore be a verifiable `rm` on its own.
 Measured over 30 days of transcripts (39,282 Bash calls, 253 leading `rm`), that
 covers **72 calls — 28%** of them, the rest being compound. Recovering more would
 mean reimplementing the allow-list matcher inside the hook, where being looser
-than Claude Code's own matcher means over-approving; not worth it.
+than Claude Code's own matcher means over-approving; not worth it. (For `git -C`
+that judgement was reversed, for a narrower matcher — see below.)
 
 Run `root/.claude/hooks/rm-guard.test.sh` after touching it.
+
+## git permissions
+
+**No git allow rule may put a `*` before the subcommand.** `Bash(git -C * status*)`
+also matched `git -C . -c core.fsmonitor=<cmd> status`, and `-c` makes git run a
+program of the caller's choosing; Claude Code warns about the shape at startup
+("has a wildcard before the rest of the command"). The 33 `git -C *` allow rules
+were removed for that, and because their path reached any repository on the
+machine — whose own `.git/config` runs a program on `git status` just as well.
+**No git rule names `-C` at all, deny and ask included.** Write a git rule once,
+for `git <subcommand>`, and the hooks below give it the same effect on
+`git -C <dir> <subcommand>`: an allow rule through `git-dash-c-allow.sh`, a
+deny or ask rule through `git-guard.sh`. The 13 `git -C *` copies of deny and
+ask rules were removed for that; the suite fails on a git rule naming `-C`.
+
+Three hooks now cover git, with different jobs:
+
+- **`git-dash-c-allow.sh`** approves `git -C <dir> <rest>` when the `-C` lands
+  physically inside `$CLAUDE_PROJECT_DIR` and `git <rest>` matches a git allow
+  rule from **`~/.claude/settings.json` only** — never project settings, which
+  Claude Code ignores until its trust dialog is accepted, and which a cloned repo
+  could otherwise use to approve itself. See
+  [git-dash-c-allow.md](.claude/hooks/git-dash-c-allow.md).
+- **`approve-multiline-commands.sh`** accepts a `-C` on the same terms, through
+  the same `git_dash_c_in_project` (`git-workdir.lib.sh`).
+- **`git-guard.sh`** denies a dangerous option before the subcommand. A
+  PreToolUse `deny` outranks another hook's `allow`, so it is the backstop for a
+  bug in either allow hook, and it refuses such a command before the auto mode
+  classifier has to judge it. It also applies every settings layer's git
+  **deny and ask** rules to a git with an option before its subcommand —
+  `git -C x push --force` under `Bash(git push --force*)` — which Claude Code's
+  matcher, reading the command as written, does not (`git-rules.lib.sh`).
+  Because those rules now live nowhere else, it is registered with
+  `"onFailure": "block"` (Claude Code ≥ 2.1.295): a failed hook otherwise lets
+  the call through. The price is that a broken git-guard — a syntax error, no
+  `jq`, a missing link — blocks **every** Bash call until it is fixed.
+
+**An allow rule's trailing `*` lets every option after the subcommand in,** and
+some of those run or write: `git fetch --upload-pack=<cmd>` runs `<cmd>`, and
+`--output=<file>` on log, diff and show writes anywhere. Each is a deny rule,
+written for the spellings git accepts — `--upload-pack` abbreviates down to
+`--upl`, `--output` not at all (every shorter prefix is ambiguous). Verified
+against git 2.55 and pinned in `git-guard.test.sh`; recheck them when an allow
+rule for another subcommand is added.
+
+**`git grep` has no allow rule, and must not get one back.** `git grep
+-O<cmd>` runs `<cmd>`, and so does the bundled short form `-iO<cmd>`. A deny
+rule is a glob over the whole command, so it cannot say "an `O` inside a
+short-option word": `*-*O*` also refuses `git grep -n TODO`, and anything
+narrower misses a bundle. `rg` covers the searching, and a `git grep` asks.
+`git-guard.test.sh` fails on an allow rule for it.
+
+**This reverses the rm section's "not worth reimplementing the matcher"**, for a
+narrower matcher: only rules whose single `*` is trailing are used, compared word
+by word against the argv, so a rule approves nothing through the hook that it
+would not approve as written. It can under-approve — a prompt — but not over.
+
+**Know what it costs.** A git -C outside the project, `git -C x remote add`
+(`remote*` was wider than the plain `remote` rules), and a compound command that
+pairs a git -C with a non-git segment no longer pass silently; in auto mode they
+go to the classifier. And git-guard leaves one shape it cannot split — a `case`
+inside a quoted substitution — to that classifier rather than refusing it. That
+shape also skips the deny and ask rules for a `-C`: `git -C x branch -D "$(echo
+case)"` reaches the classifier rather than a prompt. Why that is acceptable, and
+the conditions it rests on, are argued at the status 3 exit in `git-guard.sh`.
+
+Run `root/.claude/hooks/git-guard.test.sh`, `git-dash-c-allow.test.sh`,
+`approve-multiline-commands.test.sh` and `segment-scan.lib.test.sh` after
+touching any of them, or `git-rules.lib.sh`.
 
 ## Codex prefix rules
 

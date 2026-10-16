@@ -12,20 +12,49 @@ HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/git-guard.sh"
 pass=0
 fail=0
 
-check() {
-  local expect=$1 cmd=$2 out got
-  out=$(jq -Rn --arg c "$cmd" '{tool_name:"Bash", tool_input:{command:$c}}' | "$HOOK" 2>/dev/null)
-  if printf '%s' "$out" | grep -q '"permissionDecision": *"deny"'; then
-    got=DENY
+# The hook reads no settings of the machine running the suite: HOME is a
+# fixture, and the project unset, unless a case sets GUARD_HOME/GUARD_PROJECT.
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+mkdir -p "$TMP/empty-home"
+GUARD_HOME=$TMP/empty-home
+GUARD_PROJECT=
+
+# PASS means exactly "exit 0, nothing on stdout" -- the hook staying out of the
+# way. ASK is an "ask" decision. Anything else is ERROR, so a hook that crashes
+# on an input cannot be mistaken for one that let it through on purpose.
+# The command goes to jq on stdin, not as --arg: Linux caps a single argument at
+# 128KB, and the timing cases below are larger than that.
+run_guard() {
+  HOME=$GUARD_HOME CLAUDE_PROJECT_DIR=$GUARD_PROJECT "$HOOK" 2>/dev/null
+}
+run_hook() {
+  printf '%s' "$1" | jq -Rs '{tool_name:"Bash", tool_input:{command:.}}' | run_guard
+}
+verdict() {
+  local cmd=$1 out rc
+  out=$(run_hook "$cmd") && rc=0 || rc=$?
+  if [[ $rc -eq 0 ]] && printf '%s' "$out" | grep -q '"permissionDecision": *"deny"'; then
+    echo DENY
+  elif [[ $rc -eq 0 ]] && printf '%s' "$out" | grep -q '"permissionDecision": *"ask"'; then
+    echo ASK
+  elif [[ $rc -eq 0 && -z "$out" ]]; then
+    echo PASS
   else
-    got=PASS
+    echo "ERROR(rc=$rc)"
   fi
+}
+
+# An optional third argument labels a command too long to print.
+check() {
+  local expect=$1 cmd=$2 label=${3:-$2} got
+  got=$(verdict "$cmd")
   if [[ "$got" == "$expect" ]]; then
     pass=$((pass + 1))
-    printf '  ok   %-4s %s\n' "$got" "$cmd"
+    printf '  ok   %-4s %s\n' "$got" "$label"
   else
     fail=$((fail + 1))
-    printf '  FAIL want=%s got=%s  %s\n' "$expect" "$got" "$cmd"
+    printf '  FAIL want=%s got=%s  %s\n' "$expect" "$got" "$label"
   fi
 }
 
@@ -41,6 +70,9 @@ check DENY 'git --git-dir=/tmp/e/.git commit -m x'
 check DENY 'git --work-tree=/tmp/e add .'
 check DENY 'git --namespace=x push'
 check DENY 'git -C /tmp --bare status'
+# Bare, it only prints a path, but the safelist matches whole tokens and the
+# `--exec-path=<dir>` form is a vector; keeping both out keeps the list simple.
+check DENY 'git --exec-path'
 
 echo "-- must DENY: unknown option before the subcommand (safelist, not blocklist) --"
 check DENY 'git --some-future-option add .'
@@ -60,6 +92,84 @@ echo "-- must DENY: hiding behind a separator or unparseable quoting --"
 check DENY 'echo hi; git -c a=b status'
 check DENY 'ls && git -c a=b status'
 check DENY "git -C '/unterminated status"
+check DENY 'git -C'
+check DENY 'timeout 5 git -C'
+
+echo "-- must DENY: after a wrapper, the first git word is the command (each form here once bypassed a flag parser) --"
+# Claude Code strips `timeout` before matching, so `Bash(git status*)` would
+# approve these; reading `KILL` as the duration made `5` the command word.
+check DENY 'timeout -s KILL 5 git -c a=b status'
+check DENY 'timeout -k 1 5 git -c a=b status'
+check DENY 'timeout --signal KILL 5 git -c a=b status'
+check DENY 'timeout --kill-after=1 5 git -c a=b status'
+check DENY 'stdbuf -o 0 git -c a=b status'
+check DENY 'stdbuf -i 0 git -c a=b status'
+check DENY 'stdbuf -e 0 git -c a=b status'
+check DENY 'timeout --signal=KILL 5 git -c a=b status'
+check DENY 'nice -n5 git -c a=b status'
+check DENY 'nice --adjustment 5 git -c a=b status'
+check DENY 'nice --adjustment=5 git -c a=b status'
+
+echo "-- must DENY: every wrapper Claude Code strips is seen through --"
+check DENY 'time git -c a=b status'
+check DENY 'command git -c a=b status'
+check DENY 'builtin git -c a=b status'
+check DENY 'noglob git -c a=b status'
+# Whether Claude Code strips these with flags is not documented (it strips
+# xargs only without), but seeing through them costs nothing and errs to deny.
+check DENY 'time -p git -c a=b status'
+check DENY 'command -p git -c a=b status'
+check DENY 'xargs -0 git -c a=b status'
+check DENY 'xargs -n 1 git -c a=b status'
+check DENY 'xargs -I {} git -c a=b status'
+check DENY 'xargs -L 1 git -c a=b status'
+check DENY 'xargs -P 2 git -c a=b status'
+check DENY 'timeout --kill-after 1 5 git -c a=b status'
+# Long forms and flags no list anticipated: after a wrapper, the first `git`
+# word is the command, whatever flags come before it.
+check DENY 'stdbuf --output 0 git -c a=b status'
+check DENY 'stdbuf --input=0 git -c a=b status'
+check DENY 'xargs --max-args 1 git -c a=b status'
+check DENY 'time -f %e git -c a=b status'
+check DENY 'nice --some-future-flag x 5 git -c a=b status'
+check DENY 'timeout 5 nice -n 1 git -c a=b status'
+# Over-refusal accepted in exchange: a wrapped non-git command with a git word
+# among its arguments, bare or as a path ending in /git.
+check DENY 'timeout 5 echo git -c a=b'
+check DENY 'timeout 5 ls build/git -c a=b'
+# A wrapper with no git word after it runs no git. The text must still contain
+# "git" -- otherwise the substring bail-out ends the hook before this path.
+check PASS 'timeout 5 echo "a git"'
+check PASS 'timeout 5 git'
+# The git word after a wrapper is recognised in every spelling the segment head
+# is, and assignments and keywords around the wrapper change nothing.
+check DENY 'timeout 5 /usr/bin/git -c a=b status'
+check DENY 'timeout 5 "git" -c a=b status'
+check DENY 'timeout 5 \git -c a=b status'
+check DENY 'FOO=1 timeout 5 git -c a=b status'
+check DENY 'timeout 5 FOO=1 git -c a=b status'
+check DENY 'if timeout 5 git -c a=b status; then :; fi'
+# Everyday wrapped forms stay out of the way.
+check PASS 'command -v git'
+check PASS 'xargs git status'
+# Reading stops at the git word: what follows the subcommand is never parsed.
+check PASS "timeout 5 git commit -m $(printf 'a"b"%.0s' $(seq 100))" "timeout 5 git commit -m <200-run word>"
+check DENY "timeout 5 FOO=$(printf 'a"b"%.0s' $(seq 32))a git status" "65-run word before the git word: refused"
+
+echo "-- must DENY: an assignment with a quoted value is one word --"
+# Read as `FOO="a` and `b"`, the second half became the command word.
+check DENY 'FOO="a b" git -c a=b status'
+check DENY "FOO='a b' git -c a=b status"
+check DENY 'FOO=a"b c"d git -c a=b status'
+check PASS 'FOO="a b" git status'
+# Too many quoted runs in one word to read within the timeout: refused unread.
+check DENY "FOO=$(printf 'a"b"%.0s' $(seq 2000)) git status" "2000 quoted runs in one word"
+# Each `a"b"` pair is two runs (`FOO=a` being the first), so 32 pairs are 64
+# runs and a trailing `a` makes 65.
+check PASS "FOO=$(printf 'a"b"%.0s' $(seq 32)) git status" "64 runs in one word: read"
+check DENY "FOO=$(printf 'a"b"%.0s' $(seq 32))a git status" "65 runs in one word: refused"
+# An unterminated quote before the command word: unreadable, so refused.
+check DENY 'FOO="x git -c a=b status'
 
 # Paths here are placeholders on purpose: this repository is public, so a real
 # private-repo path in a test fixture would publish it.
@@ -67,6 +177,128 @@ echo "-- must PASS: a monorepo's everyday git -C usage --"
 check PASS 'git -C /tmp add .'
 check PASS 'git -C /Users/x/ghq/github.com/acme/example-monorepo/git-worktrees/some-branch add apps/frontend'
 check PASS 'git -C "/path with space" add .'
+check DENY 'git -C "/path with space" -c a=b status'
+# A backslash-escaped space is part of the word, as the shell reads it. Read as
+# a word break, `a\` became the -C path and `b` the subcommand, and the -c after
+# it went uninspected.
+check DENY 'git -C a\ b -c a=b status'
+check DENY 'FOO=a\ b git -c a=b status'
+check PASS 'git -C a\ b status'
+check DENY '\git -c a=b status'
+# Quoting the word reader does not model exactly is refused, not guessed at: a
+# backslash inside double quotes, and ANSI-C $'...'. Guessed, `\"` closed the
+# run early and a later `'` re-synchronised the quotes, so `-c` was read as
+# part of a quoted subcommand while the shell ran it as an option.
+check DENY "git -C \"x\\\" '\" -c a=b status \"' y\""
+check DENY "git -C \$'x\\' \"' -c a=b status '\" y'"
+check DENY 'git -C "a\"b" status'
+check PASS 'git -C "a b" status'
+check PASS "git -C 'a\\b' status"
+# The same refusal before the command word, where skipping the unreadable word
+# instead would leave the git after it unread.
+check DENY 'FOO="a\"b" git status'
+check DENY "FOO=\$'a' git status"
+
+echo "-- a redirection is removed from argv, as the shell does --"
+# Read as words, `2>/dev/null` took the subcommand's place and left `-c` unread,
+# and a leading `>/dev/null` took the command word's.
+check DENY 'git -C . 2>/dev/null -c a=b status'
+check DENY 'git -C . > /dev/null -c a=b status'
+check DENY '>/dev/null git -C . -c a=b status'
+check DENY 'timeout 5 2>/dev/null git -c a=b status'
+check PASS 'git -C . 2>/dev/null status'
+check PASS 'git status>/dev/null'
+check PASS 'git status >/dev/null 2>&1'
+check PASS 'command -v git >/dev/null 2>&1'
+# Only an unquoted digit run is a file descriptor: `"2">x` passes "2" to git, so
+# here it is the -C path and `-c` is git's next option.
+check DENY 'git -C "2">x -c a=b status'
+# More than one redirection in a word, or more than a handful in a row, is
+# beyond what this models: refused.
+check DENY 'git -C . >a>b status'
+check PASS "git -C . $(printf '>a %.0s' $(seq 15))status" "15 redirections before the subcommand: read"
+check DENY "git -C . $(printf '>a %.0s' $(seq 16))status" "16 redirections before the subcommand: refused"
+check DENY 'git <in -c a=b status'
+check PASS 'git status <in'
+# The `&` or `|` of a redirection operator is no separator. Split there, `git >`
+# looked like a whole command and `2 -c a=b status` like another.
+check DENY 'git >&2 -c a=b status'
+check DENY 'git 2>&1 -c a=b status'
+check DENY 'git &>/dev/null -c a=b status'
+check DENY 'git &>>log -c a=b status'
+check DENY 'git <&0 -c a=b status'
+check DENY 'git >|x -c a=b status'
+check PASS 'git status 2>&1'
+check PASS 'git status &>/dev/null'
+# Read, not refused: each operator before the subcommand is removed and the
+# words around it still inspected.
+check PASS 'git 2>&1 status'
+check PASS 'git >&2 -C . status'
+check PASS 'git &>/dev/null status'
+check PASS 'git <&0 status'
+check PASS 'git >|x status'
+# A quoted operator character is no redirection, so the `&` after it still is.
+check DENY 'echo ">"& git -c a=b status'
+check DENY "echo '>'| git -c a=b status"
+# A command the walk cannot split (unbalanced quoting) is refused whole if any
+# word could be git; there is no second, cruder splitter to get wrong.
+check DENY 'echo "x; git >&2 -c a=b status'
+check DENY 'echo "x; git status'
+# On the raw text of an unsplittable command a separator glued to the word
+# still bounds it.
+check DENY 'echo "x;git -c a=b status'
+check DENY 'echo "x(git -c a=b status'
+# A redirection glued to the git word still leaves it the git word.
+check DENY 'git>/dev/null -C . -c a=b status'
+check DENY 'git&>/dev/null -C . -c a=b status'
+check PASS 'git>/dev/null status'
+check PASS 'git&>/dev/null status'
+# A redirection target is no argument of git's: its `$` marks nothing, attached
+# to the operator or not.
+# shellcheck disable=SC2016 # literal command text under test
+check PASS 'git -C . >"$f" status'
+# shellcheck disable=SC2016 # literal command text under test
+check PASS 'git -C . > "$f" status'
+
+echo "-- must DENY: an expansion where git reads its options --"
+# The shell expands braces, globs and unquoted parameters, so the word read here
+# is not what git receives -- each of these left `-c` as git's next argument.
+check DENY 'git -C {.,-c} a=b status'
+check DENY 'git -C . {-c,a=b} status'
+check DENY 'git -C . -* status'
+check DENY 'git -C . ?c a=b status'
+check DENY 'git -C . [-]c a=b status'
+# shellcheck disable=SC2016 # literal command text under test
+check DENY 'git -C $D status'
+check PASS 'git -C "{dir}" status'
+# shellcheck disable=SC2016 # literal command text under test
+check PASS 'git -C "$D" status'
+# Quoted, a parameter is one word but of unknown content: harmless as -C's path,
+# an option of its choosing where git reads options (`X=--exec-path=...`).
+# shellcheck disable=SC2016 # literal command text under test
+check DENY 'git "$X" status'
+# shellcheck disable=SC2016 # literal command text under test
+check DENY 'git -C . "${X}" status'
+# Past the subcommand nothing is read, so a parameter there is ordinary.
+# shellcheck disable=SC2016 # literal command text under test
+check PASS 'git log "$X"'
+# shellcheck disable=SC2016 # literal command text under test
+check PASS 'git commit -m "$MSG"'
+check PASS "git log --format='%h {x}' -- '*.sh'"
+# `{}` is not a brace expansion, so xargs' placeholder is read as written.
+check PASS 'xargs -I{} git -C {} status'
+# Before the git word an expansion is not refused, and a word is judged as
+# written: an assignment is not expanded at all, a command word like `[` is not
+# git, and one whose text ends in /git is, expansion or not.
+check DENY 'FOO=* git -c a=b status'
+check PASS 'FOO={a,b} git status'
+check PASS '[ -x /usr/bin/git ]'
+check PASS '{ git status; }'
+# shellcheck disable=SC2016 # literal command text under test
+check DENY '$D/git -c a=b status'
+# Over-refusal accepted in exchange: after a wrapper, an argument named git
+# followed by a glob (the same cost as `timeout 5 echo git -c x` above).
+check DENY 'timeout 5 rg git *.md'
 check PASS 'git -C /tmp commit -m "fix: something"'
 check PASS 'git -C /tmp'
 check PASS 'git -C /tmp status --short'
@@ -84,6 +316,20 @@ check PASS 'git'
 check PASS 'git --no-pager log --oneline'
 check PASS 'git -P diff'
 check PASS 'git --no-optional-locks status'
+check PASS 'git --paginate log'
+check PASS 'git --no-replace-objects log'
+check PASS 'git --no-lazy-fetch log'
+check PASS 'git --no-advice status'
+check PASS 'git --literal-pathspecs add a'
+check PASS 'git --glob-pathspecs add a'
+check PASS 'git --noglob-pathspecs add a'
+check PASS 'git --icase-pathspecs add a'
+check PASS 'git -v'
+check PASS 'git --version'
+check PASS 'git -h'
+check PASS 'git --man-path'
+check PASS 'git --html-path'
+check PASS 'git --info-path'
 check PASS 'timeout 5 git status'
 check PASS 'nice -n 5 git status'
 check PASS 'git add -p'
@@ -93,6 +339,7 @@ check PASS "git commit -m \"it's broken\""
 check PASS 'git commit -m "fix: a && b"'
 check PASS 'git commit -m "wip; more"'
 check PASS 'git log --grep="a|b"'
+check PASS 'git commit -m "fix(scope): subject"'
 
 echo "-- must PASS: heredoc bodies are data, not commands --"
 # Regression: this hook's own commit message quoted `git -c ...` as an example,
@@ -105,11 +352,502 @@ echo "-- must DENY: a real invocation outside the heredoc still counts --"
 check DENY $'git -c a=b commit -F - <<\'EOF\'\nsubject\nEOF'
 check DENY $'cat <<\'EOF\'\ngit -c harmless=example status\nEOF\ngit -c a=b status'
 
+echo "-- must DENY: what only looks like a heredoc opener hides nothing --"
+check DENY $'cat <<<EOF\ngit -c a=b status'
+check DENY $'echo "<<EOF"\ngit -c a=b status\nEOF'
+check DENY $'echo \'<<EOF\'\ngit -c a=b status\nEOF'
+check DENY $'echo \\<<EOF\ngit -c a=b status\nEOF'
+# No terminator: stripping to the end would hide every later line, so the body
+# is inspected rather than assumed to be data.
+check DENY $'cat <<EOF\ngit -c a=b status'
+check DENY $'cat <<A <<B\na\nA\nb\nB\ngit -c a=b status'
+check PASS $'cat <<A <<B\ngit -c a=b status\nA\ngit -c a=b status\nB'
+check PASS $'cat << "EOF"\ngit -c a=b status\nEOF'
+check DENY $'cat << "EOF"\nbody\nEOF\ngit -c a=b status'
+check PASS $'cat <<"EOF"\ngit -c a=b status\nEOF'
+
+echo "-- must DENY: a backslash-newline continues the same command --"
+check DENY $'git \\\n-c a=b status'
+check PASS $'git status \\\n--short'
+
 echo "-- must PASS: not a git command --"
 check PASS 'npm test'
 check PASS 'echo git -c a=b'
 check PASS 'grep git -c file.txt'
 check PASS 'rg "git -c" .'
+
+echo "-- must PASS: a separator inside quotes (outside any substitution) does not start a command --"
+# Regression: an rg alternation `"warn|git -C|hook"` was split at the quoted
+# `|`, leaving a bare `git -C` fragment that was refused as "-C with no path".
+check PASS 'rg -n "warn|git -C|hook" file.txt'
+check PASS "rg -n 'allow|matcher|git -C|approve-multiline' root/README.md"
+check PASS 'rg "x; git -c a=b status" .'
+check PASS "echo 'a && git -c a=b status'"
+check PASS 'echo "a \" ; git -c a=b status"'
+check PASS 'echo a\; git -c a=b status'
+check PASS $'git commit -m "subject\ngit -c a=b status"'
+
+echo "-- must DENY: a separator outside quotes still does --"
+check DENY 'echo "hi"; git -c a=b status'
+check DENY "echo 'x' && git -c a=b status"
+check DENY $'echo "multi\nline"\ngit -c a=b status'
+# Unbalanced quoting cannot be segmented, so the command is refused whole.
+check DENY 'echo "x; git -c a=b status'
+# A backslash is literal inside single quotes, so `'a\'` is closed there; treating
+# it as an escape would swallow the closing quote and hide the git that follows.
+check DENY "echo 'a\\' ; git -c a=b status"
+# An escaped quote outside quotes opens nothing.
+check DENY 'echo \"; git -c a=b status'
+
+echo "-- must DENY: a command substitution runs, even inside double quotes --"
+# The substitutions are the command text under test, so they must stay unexpanded.
+# shellcheck disable=SC2016
+{
+  check DENY 'echo "$(true; git -c a=b status)"'
+  check DENY 'echo "`true; git -c a=b status`"'
+  check DENY 'echo "$(git -c a=b status)"'
+  check DENY 'echo $(git -c a=b status)'
+  check DENY 'echo `git -c a=b status`'
+  check DENY 'x=$(git -c a=b status)'
+}
+check PASS "echo '\$(git -c a=b status)'"
+# A substitution inside double quotes is walked as commands, and the double
+# quotes resume after it. Before, such a command was unsplittable and went to a
+# split-everywhere fallback, where `&>` and `a\;b` each hid a git.
+# shellcheck disable=SC2016 # literal command text under test
+{
+  check DENY 'echo "$(date)"; git -C . &>/dev/null -c a=b status'
+  check DENY 'echo "$(date)"; git -C a\;b -c a=b status'
+  check DENY 'echo "$(echo "a;b")"; git -c a=b status'
+  check PASS 'echo "$(echo "a;b") git -c a=b"'
+  check DENY 'echo "$(echo "$(git -c a=b status)")"'
+  check DENY 'echo "`echo a; git -c a=b status`"; true'
+  check PASS $'git commit -m "$(cat <<\'EOF\'\nsubject\n\ngit -c a=b status\nEOF\n)"'
+  check DENY 'echo "$(true; git status"'
+  # The outer word keeps a placeholder where the substitution was, so what
+  # follows it is still read as git's options.
+  check PASS 'git -C "$(pwd)" status'
+  check DENY 'git -C "$(pwd)" -c a=b status'
+  check DENY 'git -C "`pwd`" -c a=b status'
+  # The placeholder still varies, like the substitution it stands for: where
+  # git reads an option it is refused, since the shell passes whatever the
+  # substitution printed -- `--config-env=...` as one word.
+  check DENY 'git -C . "$(echo --config-env=core.fsmonitor=X)" status'
+  check DENY 'git "`echo --git-dir=/x`" status'
+  check PASS 'git commit -m "$(echo subject)"'
+  # In the subcommand position too: the word git reads first after its options
+  # is a substitution of unknown output, which may well be an option. As -C's
+  # path it is only a path, whatever it prints.
+  check DENY 'git "$(echo status)"'
+  check PASS 'git -C "$(echo -c)" status'
+  # A case pattern's `)` would close the substitution early, leaving the git
+  # after it as data, so a `case` inside a quoted substitution cannot be split.
+  # Rather than refuse it -- it is an ordinary word, `git commit -m "$(echo
+  # case 1)"` -- the hook stays silent and the normal flow decides: no allow
+  # rule left can approve a git with an option before its subcommand, so it
+  # prompts or goes to the auto mode classifier.
+  check PASS 'echo "$(case x in x) git -c a=b status;; esac)"'
+  check PASS 'git commit -m "$(echo case 1)"'
+  check PASS 'echo "$(true;case x in x) y;; esac)"; git -c a=b status'
+  # `case` is recognised after a separator too, not only first in the
+  # substitution, and is silent there as well.
+  check PASS 'echo "$(true;case x in x) git -c a=b status;; esac)"'
+  check PASS 'echo "$(true&&case x in x) git -c a=b status;; esac)"'
+  # Unquoted, the `)` only splits, so the git after it is inspected as usual.
+  check DENY 'echo $(case x in x) git -c a=b status;; esac)'
+  # Silence is the whole command's, so `case` must mean the keyword and no
+  # more: a wider match lifts the guard from any command that adds the word.
+  check DENY 'echo "$(echo showcase)"; git -c a=b status'
+  check DENY 'echo "$(echo cases x)"; git -c a=b status'
+  check DENY "echo \"\$(echo 'a case b')\"; git -c a=b status"
+  # An escaped space joins words, so `a\ case` is one word, not the keyword.
+  check DENY 'echo "$(echo a\ case b)"; git -c a=b status'
+  # In a backtick substitution a `)` does not close it, so a case there is
+  # walked like any other text.
+  check DENY 'echo "`echo case x`"; git -c a=b status'
+}
+# Unsplittable with no word that could be git: nothing to inspect, so it passes.
+check PASS "echo \"it's"
+
+echo "-- must DENY: grouping and compound-command keywords are not the command --"
+check DENY '(git -c a=b status)'
+check DENY '( git -c a=b status )'
+check DENY '{ git -c a=b status; }'
+check DENY 'if git -c a=b status; then echo y; fi'
+check DENY 'while git -c a=b status; do break; done'
+check DENY 'true && ! git -c a=b status'
+check DENY 'until git -c a=b status; do break; done'
+check DENY 'if false; then :; elif git -c a=b status; then :; fi'
+check DENY 'if false; then git -c a=b status; fi'
+check DENY 'if false; then :; else git -c a=b status; fi'
+
+echo "-- must DENY: every separator Claude Code recognises --"
+check DENY 'false || git -c a=b status'
+check DENY 'echo | git -c a=b status'
+check DENY 'echo |& git -c a=b status'
+check DENY 'sleep 1 & git -c a=b status'
+check DENY 'cat <(git -c a=b status)'
+# shellcheck disable=SC2016 # literal command text under test
+check DENY 'echo "$x" "$(git -c a=b status)"'
+
+echo "-- must DENY: the option itself quoted or glued --"
+check DENY 'git "-c" a=b status'
+check DENY 'git -c"a=b" status'
+
+echo "-- must PASS: input with nothing to inspect --"
+check_input() {
+  local label=$1 json=$2 out rc
+  out=$(printf '%s' "$json" | run_guard) && rc=0 || rc=$?
+  if [[ $rc -eq 0 && -z "$out" ]]; then
+    pass=$((pass + 1))
+    printf '  ok   PASS %s\n' "$label"
+  else
+    fail=$((fail + 1))
+    printf '  FAIL want=PASS got=rc=%s out=%s  %s\n' "$rc" "$out" "$label"
+  fi
+}
+check_input "no tool_input" '{}'
+check_input "no command" '{"tool_name":"Bash","tool_input":{}}'
+check_input "empty command" '{"tool_name":"Bash","tool_input":{"command":""}}'
+
+echo "-- the reason names what went wrong --"
+# check_reason <cmd> <must contain> [<must not contain>]: the second pins which
+# branch produced the reason, so swapping two branches cannot pass.
+check_reason() {
+  local cmd=$1 want=$2 not=${3:-} reason
+  reason=$(run_hook "$cmd" | jq -r '.hookSpecificOutput.permissionDecisionReason')
+  if [[ "$reason" == *"$want"* && (-z "$not" || "$reason" != *"$not"*) ]]; then
+    pass=$((pass + 1))
+    printf '  ok   %s -> %s\n' "$cmd" "$want"
+  else
+    fail=$((fail + 1))
+    printf '  FAIL %s: want "%s"%s, got: %s\n' "$cmd" "$want" "${not:+ and not \"$not\"}" "$reason"
+  fi
+}
+check_reason 'git -c a=b status' "refused '-c'"
+check_reason 'git -C' "-C with no path" "unreadable"
+check_reason 'git -C "a\"b" status' "an unreadable word after -C" "no path"
+# An expansion is not unreadable but decided when the shell runs it, and the
+# usual advice -- move the option after the subcommand -- does not apply to it.
+check_reason 'git -C {.,-c} a=b status' "decided only when the shell runs it" "unreadable"
+check_reason 'git -C . {-c,a=b} status' "decided only when the shell runs it" "Put the option after"
+# shellcheck disable=SC2016 # literal command text under test
+check_reason 'git "$(echo status)"' "decided only when the shell runs it" "unreadable"
+# shellcheck disable=SC2016 # literal command text under test
+check_reason 'git -C . "$X" status' "Write that word out literally" "Put the option after"
+check_reason 'FOO="a\"b" git -c a=b status' "could not read the words before the command" "refused '"
+# Read past the redirection, and refused whole when the command cannot be split.
+check_reason 'git >&2 -c a=b status' "refused '-c'" "unreadable"
+check_reason 'echo "x; git >&2 -c a=b status' "could not split" "refused '-c'"
+check_reason 'echo "x; git status' "could not split" "refused '"
+# Nesting too deep reaches the same refusal, not a later branch's. (A `case` in
+# a quoted substitution is the one unsplittable cause left to the normal flow.)
+# shellcheck disable=SC2016 # the openers are command text under test
+check_reason "$(printf 'echo "$(%.0s' $(seq 17))true$(printf ')"%.0s' $(seq 17)); git status" "could not split" "refused '"
+
+echo "-- must finish well inside the 5s hook timeout --"
+# A timed-out hook does not block the call, so slowness is a bypass, not a
+# nuisance. Measured on 100k bytes: the linear awk walk takes ~0.35s, a bash
+# loop over `${s:i:1}` ~9s even under LC_ALL=C (it is quadratic), so a 3s bound
+# tells them apart with room for a slow CI runner. Both outcomes of the walk are
+# timed: a split, and the refusal of a command it cannot split.
+# Each case ends in a git that must be refused, so a hook that bails out early
+# on a huge input fails here rather than looking fast.
+check_fast() {
+  local label=$1 cmd=$2 got
+  SECONDS=0
+  got=$(verdict "$cmd")
+  if ((SECONDS < 3)) && [[ "$got" == DENY ]]; then
+    pass=$((pass + 1))
+    printf '  ok   %s: DENY in %ds\n' "$label" "$SECONDS"
+  else
+    fail=$((fail + 1))
+    printf '  FAIL %s: %s in %ds\n' "$label" "$got" "$SECONDS"
+  fi
+}
+filler=$(printf 'é%.0s' $(seq 50000))
+check_fast "100k-byte quoted message" "git commit -m \"$filler\"; git -c a=b status"
+check_fast "100k-byte unbalanced quote (unsplittable)" "git commit -m \"$filler; git -c a=b status"
+# Each unterminated opener searches the lines after it for its terminator; done
+# per opener that is quadratic, and 20000 of them took 58s.
+# ($(...) drops the final newline, so it is put back before the git line.)
+openers=$(printf 'cat <<EOF%.0s\n' $(seq 20000))
+check_fast "20000 unterminated heredoc openers" "${openers}"$'\n'"git -c a=b status"
+openers=$(for i in $(seq 20000); do printf 'cat <<T%d\n' "$i"; done)
+check_fast "20000 distinct unterminated openers" "${openers}"$'\n'"git -c a=b status"
+# Each segment costs the bash loop ~0.2ms and more as they grow (100000 took
+# 56s), so non-git segments must never reach it, and too many git-looking ones
+# are refused rather than inspected one by one.
+check_fast "100000 non-git segments" "$(printf 'echo x;%.0s' $(seq 100000)) git -c a=b status"
+check_fast "100000 openers on one line" "cat $(printf '<<a %.0s' $(seq 100000))"$'\n'"git -c a=b status"
+check_fast "a 500k-byte heredoc tag" "cat <<$(printf 'a%.0s' $(seq 500000))"$'\n'"git -c a=b status"
+# shellcheck disable=SC2016 # literal command text under test
+check_fast "100k-byte substitution inside double quotes" "echo \"\$(echo $filler)\"; git -c a=b status"
+# Substitutions nest 16 deep inside double quotes; deeper is unsplittable.
+# shellcheck disable=SC2016 # the openers are command text under test
+{
+  nest16="$(printf 'echo "$(%.0s' $(seq 16))true$(printf ')"%.0s' $(seq 16))"
+  nest17="$(printf 'echo "$(%.0s' $(seq 17))true$(printf ')"%.0s' $(seq 17))"
+}
+check DENY "${nest16}; git -c a=b status" "16 nested substitutions, then a git: read"
+check PASS "${nest16}; git status" "16 nested substitutions, then a safe git: read"
+check DENY "${nest17}; git status" "17 nested substitutions: unsplittable, refused"
+many_git=$(printf 'echo git;%.0s' $(seq 5000))
+check_fast "5000 git-looking segments, refused unread" "$many_git"
+check PASS "$(printf 'git status;%.0s' $(seq 1000))" "1000 git segments: at the cap, inspected"
+check DENY "$(printf 'git status;%.0s' $(seq 1001))" "1001 git segments: past the cap, refused"
+check DENY "git status; git -c a=b status" "a safe git first does not end the inspection"
+tag64=$(printf 'a%.0s' $(seq 64))
+check PASS "cat <<${tag64}"$'\n'"git -c a=b status"$'\n'"${tag64}" "64-byte heredoc tag: a heredoc"
+check DENY "cat <<${tag64}a"$'\n'"git -c a=b status"$'\n'"${tag64}a" "65-byte heredoc tag: body inspected"
+# Any spelling of the command word strip_wrappers would read as git survives
+# the prefilter, or the inspection never sees it.
+check DENY 'echo x; "git" -c a=b status'
+check DENY "echo x; 'git' -c a=b status"
+check DENY 'echo x; "/usr/bin/git" -c a=b status'
+check DENY $'echo x;\tgit\t-c a=b status'
+check DENY 'echo x; \git -c a=b status'
+
+echo "-- deny and ask rules reach a git with -C, as they reach one without --"
+# Claude Code matches a rule against the command as written, so `git push
+# --force*` never matches `git -C x push --force`. settings.json carries no
+# `git -C *` copies of its rules; this hook applies each git deny and ask rule
+# to the `git <subcommand> ...` left once the options before the subcommand are
+# set aside. Every settings layer counts: a deny or an ask only refuses more.
+mkdir -p "$TMP/rules-home/.claude" "$TMP/rules-proj/.claude" "$TMP/bad-home/.claude"
+jq -n '{permissions: {
+  allow: ["Bash(git push*)", "Bash(git branch*)"],
+  deny: ["Bash(git push --force*)", "Bash(git push * --force*)", "Bash(git reset --hard *)",
+    "Bash(git log [a]*)", "Bash(npm publish *)"],
+  ask: ["Bash(git branch -D *)", "Bash(git checkout:*)"]
+}}' >"$TMP/rules-home/.claude/settings.json"
+jq -n '{permissions: {deny: ["Bash(git stash clear*)"]}}' >"$TMP/rules-proj/.claude/settings.json"
+jq -n '{permissions: {ask: ["Bash(git tag -d *)"]}}' >"$TMP/rules-proj/.claude/settings.local.json"
+printf 'not json' >"$TMP/bad-home/.claude/settings.json"
+GUARD_HOME=$TMP/rules-home GUARD_PROJECT=$TMP/rules-proj
+check DENY 'git -C sub push --force'
+check DENY 'git -C /x push origin main --force' 'a * in the middle of the rule'
+check DENY 'git -C a -C b reset --hard HEAD'
+check DENY 'timeout 5 git -C sub push --force'
+check DENY 'git -C sub   push   --force' 'runs of spaces count as one'
+check DENY 'git -C sub push "--force"' 'quotes removed, as the shell removes them'
+check DENY 'git --no-pager -C sub push --force' 'any option before the subcommand is set aside'
+# Quotes are removed from the text however the word reader would fare with it:
+# a word it cannot read (a backslash inside double quotes, `$'...'`) or a long
+# rest must not take the quoted --force out of the rule's reach.
+check DENY 'git -C sub push --force "a\"b"' 'an unreadable word after a written --force'
+check DENY 'git -C sub push "--force" "a\"b"' 'a quoted --force beside an unreadable word'
+check DENY "git -C sub push \"--force\" \$'x'" "a quoted --force beside \$'...'"
+check DENY "git -C sub push \$'--force'" "--force in \$'...'"
+check DENY "git -C sub push '--force' $(printf 'y%.0s' $(seq 4100))" 'a quoted --force before 4100 bytes'
+# The quote deletion runs over the whole rest of the segment, a commit message
+# included, and must stay inside the timeout like every other pass.
+check_fast "rules over a 100k-byte quoted rest" "git -C sub push --force \"$filler\""
+check_fast "rules over 20000 quoted words" "git -C sub push --force $(printf '"a" %.0s' $(seq 20000))"
+# And per segment, up to the candidate cap: a process or a here-string for each
+# of them put this at 5s, which with onFailure "block" refuses the command.
+check_fast "rules over 999 quoted git -C segments" "$(printf "git -C sub status 'a';%.0s" $(seq 999)) git -C sub push --force"
+check DENY 'git -C sub log [a]' 'a rule glob character compares literally'
+check PASS 'git -C sub log a' 'and matches only itself'
+check ASK 'git -C sub branch -D topic'
+check ASK 'git -C sub branch -D' 'a trailing " *" also matches the bare command'
+check ASK 'git -C sub checkout main' 'a :* rule'
+check DENY 'git -C sub stash clear' "the project's settings"
+check ASK 'git -C sub tag -d v1' "the project's local settings"
+check DENY 'git -C sub branch -D a; git -C sub push --force' 'a deny anywhere outranks an ask'
+check DENY 'git -C sub branch -D a; git -c a=b status' 'an ask does not end the inspection'
+check PASS 'git -C sub push'
+check PASS 'git -C sub push origin HEAD'
+check PASS 'git -C sub branch -a'
+check PASS 'git -C sub pushx --force' 'the rule word is matched whole'
+check PASS 'git -C sub log --force'
+check PASS 'npm publish x' 'a rule for another command is not read'
+# Without an option before the subcommand the rules match the command as
+# written, and Claude Code applies them itself.
+check PASS 'git push --force'
+# The reason names the rule, as written in the settings.
+check_reason 'git -C sub push --force' 'the deny rule Bash(git push --force*)' 'ask rule'
+check_reason 'git -C sub branch -D a' 'the ask rule Bash(git branch -D *)' 'deny rule'
+GUARD_PROJECT=
+check PASS 'git -C sub stash clear' 'no project, no project rules'
+GUARD_HOME=$TMP/bad-home
+check PASS 'git -C sub push --force' 'settings that are not JSON hold no rules'
+GUARD_PROJECT=$TMP/rules-proj
+check DENY 'git -C sub stash clear' "and take no other layer's rules with them"
+# The rules are read two lines to a rule; one holding a newline, as a cloned
+# repository's settings may, must not shift the later layers out of step.
+mkdir -p "$TMP/nl-proj/.claude"
+jq -n '{permissions: {deny: ["Bash(git x\ny*)", "Bash(git a\n*\nb)", "Bash(git stash clear*)"]}}' >"$TMP/nl-proj/.claude/settings.json"
+cp "$TMP/rules-proj/.claude/settings.local.json" "$TMP/nl-proj/.claude/settings.local.json"
+GUARD_PROJECT=$TMP/nl-proj
+check DENY 'git -C sub stash clear' 'a rule after one holding a newline'
+check ASK 'git -C sub tag -d v1' 'and the next layer after it'
+# Nor may its pieces become patterns: read two lines at a time, `git a\n*\nb`
+# leaves a bare `*`, which a repository could use to deny every git -C.
+check PASS 'git -C sub status' 'a rule holding a newline is no rule'
+GUARD_PROJECT=
+check DENY 'git -C sub -c a=b push' 'and the option check still runs'
+GUARD_HOME=$TMP/empty-home
+check PASS 'git -C sub push --force' 'no settings, no rules'
+
+echo "-- the settings this hook's silence relies on --"
+# git-guard leaves a `case` inside a quoted substitution to the normal flow,
+# skipping its option check and the deny and ask rules for a -C (the status 3
+# exit in git-guard.sh argues why). One condition of that is checked here: no
+# git allow rule puts a `*` before the subcommand, since such a rule matches an
+# option before it -- `git -c core.fsmonitor=<cmd> status` -- and would approve
+# a whole command this hook stayed silent on. /config writes to settings.json, so this is
+# checked against the file rather than trusted. Deny and ask rules are exempt: a
+# wildcard there widens only what is refused or asked about. The check sees only
+# this repository's settings.json, not settings.local.json or a project's, and
+# not a rule for a wrapper Claude Code strips (`Bash(timeout *)`): whether such a
+# rule is matched before or after the strip is not documented.
+#
+# A rule's literal text before its first `*` (a `:` before it dropped) is split
+# into words. It is safe only when, after the git word, the words are known-safe
+# global options -- the valueless ones git-guard allows, or `-C <literal>` --
+# and then reach a word not starting with `-`, the subcommand. Anything else
+# before the subcommand, `-c`, `--git-dir`, or a wildcard in its place, can let
+# an option of the caller's choosing in. A rule whose command word could be git
+# through a wildcard (`Bash`, `Bash(*)`, `Bash(g*)`) or a path (`/usr/bin/git`)
+# counts as a git rule too.
+# shellcheck disable=SC2016 # $t, $w, $p and $r are jq variables, not shell ones
+GIT_RULE_DEFS='
+  def inner: ltrimstr("Bash(") | rtrimstr(")");
+  def cmdword: inner | split(" ")[0] | split(":")[0];
+  def could_be_git:
+    . == "Bash" or (cmdword as $w
+      | ($w == "git") or ($w | endswith("/git"))
+      or (($w | contains("*")) and (($w | split("*")[0]) as $p
+            | ("git" | startswith($p)) or ($p | contains("/")))));
+  def gitrule: strings | select(startswith("Bash")) | select(could_be_git);
+  def safe_globals: ["-p", "--paginate", "-P", "--no-pager", "--no-replace-objects",
+    "--no-lazy-fetch", "--no-optional-locks", "--no-advice", "--literal-pathspecs",
+    "--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs"];
+  def reaches_subcommand($t; $i):
+    if $i >= ($t | length) then false
+    elif ($t[$i] | startswith("-") | not) then true
+    elif $t[$i] == "-C" then reaches_subcommand($t; $i + 2)
+    elif (safe_globals | index([$t[$i]])) != null then reaches_subcommand($t; $i + 1)
+    else false end;
+  def unsafe:
+    if . == "Bash" then true
+    else inner as $r
+      | ($r | contains("*")) and
+        (($r | split("*")[0] | rtrimstr(":") | split(" ") | map(select(. != ""))) as $t
+          | ($t | length) == 0 or (($t[0] == "git" or ($t[0] | endswith("/git")))
+              and reaches_subcommand($t; 1)) == false)
+    end;
+'
+UNSAFE_GIT_ALLOW="$GIT_RULE_DEFS"' .permissions.allow[]? | gitrule | select(unsafe) | inner'
+
+# The predicate first, on rules whose verdict is known, so a filter that
+# matches nothing cannot pass for a clean file.
+got=$(jq -r "$UNSAFE_GIT_ALLOW" <<<'{"permissions":{"allow":[
+  "Bash(git *)", "Bash(git:*)", "Bash(git*)", "Bash(git -c*)", "Bash(git --no-pager *)",
+  "Bash(git -C * status*)", "Bash(git -c:*)",
+  "Bash(git -C /x *)", "Bash(git -c a=b *)", "Bash(git -C . -c*)", "Bash(git --git-dir /x *)",
+  "Bash", "Bash(*)", "Bash(*git*)", "Bash(g*)", "Bash(/usr/bin/git *)", "Bash(/usr/bin/*)",
+  "Bash(git status*)", "Bash(git --no-pager log*)", "Bash(git push)", "Bash(git log:*)",
+  "Bash(git -C /x status*)", "Bash(git -C /x st*)", "Bash(gh pr view *)",
+  "Bash(gitk *)", "Bash(git-lfs *)", "Bash(ls*)", "Bash(/usr/bin/git status*)"
+]}}' | tr '\n' '|')
+want='git *|git:*|git*|git -c*|git --no-pager *|git -C * status*|git -c:*|'
+want+='git -C /x *|git -c a=b *|git -C . -c*|git --git-dir /x *|'
+want+='Bash|*|*git*|g*|/usr/bin/git *|/usr/bin/*|'
+if [[ "$got" == "$want" ]]; then
+  pass=$((pass + 1))
+  echo "  ok   the unsafe-rule check finds every unsafe shape and no safe one"
+else
+  fail=$((fail + 1))
+  printf '  FAIL the unsafe-rule check found: %s (want %s)\n' "$got" "$want"
+fi
+
+SETTINGS="$(dirname "$HOOK")/../settings.json"
+wild=$(jq -r "$UNSAFE_GIT_ALLOW" "$SETTINGS") && rc=0 || rc=$?
+if [[ $rc -eq 0 && -z "$wild" ]]; then
+  pass=$((pass + 1))
+  echo "  ok   no git allow rule puts a * before the subcommand"
+else
+  fail=$((fail + 1))
+  printf '  FAIL a git allow rule puts a * before the subcommand (rc=%s): %s\n' "$rc" "$wild"
+fi
+total_git_allow=$(jq "$GIT_RULE_DEFS"' [.permissions.allow[]? | gitrule] | length' "$SETTINGS")
+if ((total_git_allow > 10)); then
+  pass=$((pass + 1))
+  echo "  ok   and the check saw the git rules ($total_git_allow)"
+else
+  fail=$((fail + 1))
+  printf '  FAIL the check saw only %s git allow rules\n' "$total_git_allow"
+fi
+
+echo "-- this repository's settings refuse the options that run or write, past an allow rule --"
+# `git fetch*`, `git log*`, `git diff*` and `git show *` are allow rules, and
+# an option after the subcommand is past git-guard's option check. Each
+# spelling below was run against git 2.55: it ran the named program or wrote
+# the file. `--upload-pack` takes abbreviations down to `--upl`; `--output`
+# takes none, every shorter prefix being ambiguous. Checked through the -C
+# form, which this hook decides from the same rules Claude Code applies to the
+# form without it.
+mkdir -p "$TMP/repo-home/.claude"
+cp "$SETTINGS" "$TMP/repo-home/.claude/settings.json"
+GUARD_HOME=$TMP/repo-home
+check DENY 'git -C sub fetch --upload-pack=x .'
+check DENY 'git -C sub fetch --upload-pack x .'
+check DENY 'git -C sub fetch origin --upl=x'
+check DENY 'git -C sub log --output=x -1'
+check DENY 'git -C sub log -1 --output x'
+check DENY 'git -C sub diff --output=x'
+check DENY 'git -C sub show --output=x HEAD'
+# The allow rule `git --no-pager log*` would approve this as written; the
+# deny rule reaches it only through this hook.
+check DENY 'git --no-pager log --output=x'
+check PASS 'git -C sub fetch origin'
+check PASS 'git -C sub log --oneline -5'
+# The rules settings.json no longer copies as `git -C *` still reach -C.
+check DENY 'git -C sub push --force'
+check DENY 'git -C sub push origin main -f'
+check DENY 'git -C sub reset --hard HEAD'
+check DENY 'git -C sub checkout -- f'
+check ASK 'git -C sub branch -D topic'
+check ASK 'git -C sub switch main'
+GUARD_HOME=$TMP/empty-home
+
+# A git rule naming -C is either an allow rule of the shape the invariant above
+# refuses, or a copy of a deny or ask rule that this hook applies to -C already.
+dash_c=$(jq -r '[.permissions | (.allow, .deny, .ask)[]? | strings
+  | select(test("^Bash\\([^ ]*git .*-C"))] | join(", ")' "$SETTINGS")
+if [[ -z "$dash_c" ]]; then
+  pass=$((pass + 1))
+  echo "  ok   no git rule names -C"
+else
+  fail=$((fail + 1))
+  printf '  FAIL git rules naming -C: %s\n' "$dash_c"
+fi
+
+# `git grep -O<cmd>` runs <cmd>, and so does the bundled `-iO<cmd>` (git 2.55),
+# which no glob deny rule can tell from `-n TODO` without refusing that too.
+# So git grep has no allow rule at all.
+grep_allow=$(jq -r '[.permissions.allow[]? | strings | select(test("^Bash\\(git grep"))] | join(", ")' "$SETTINGS")
+if [[ -z "$grep_allow" ]]; then
+  pass=$((pass + 1))
+  echo "  ok   no allow rule for git grep"
+else
+  fail=$((fail + 1))
+  printf '  FAIL allow rules for git grep: %s\n' "$grep_allow"
+fi
+
+# A hook that fails or times out lets the call through by default. The deny
+# and ask rules for a git -C live only here, so a failure must block instead.
+registered=$(jq -r '[.hooks.PreToolUse[]?.hooks[]? | select(.command? | strings | endswith("/git-guard.sh"))]
+  | map(.onFailure // "continue") | join(",")' "$SETTINGS")
+if [[ "$registered" == block ]]; then
+  pass=$((pass + 1))
+  echo '  ok   git-guard is registered once, with onFailure "block"'
+else
+  fail=$((fail + 1))
+  printf '  FAIL git-guard registrations, by onFailure: "%s" (want "block")\n' "$registered"
+fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]

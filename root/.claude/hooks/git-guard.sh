@@ -3,23 +3,31 @@
 # appears before the subcommand and makes git run a program of the caller's
 # choosing.
 #
-# Why a hook instead of tightening the allow rules: Bash permission patterns
-# are literal text plus `*`, and `*` matches any text *including spaces*. The
-# grammar has no way to express "this wildcard is one argument", so a rule like
-# `Bash(git -C * add *)` necessarily also matches
-# `git -C "dir -c core.fsmonitor=<cmd>" add .`. Anthropic documents this and
-# names the vector: "In `Bash(git * main)` [the `*`] stands in for the
-# subcommand, so Claude Code matches every git subcommand and every option
-# before it. That includes `-c`, which makes git run a program you name."
-# The same page recommends a PreToolUse hook for argument constraints.
+# Why it exists: Bash permission patterns are literal text plus `*`, and `*`
+# matches any text *including spaces*, so a rule with a `*` before the
+# subcommand -- `Bash(git -C * add *)` -- also matches
+# `git -C "dir -c core.fsmonitor=<cmd>" add .`. Anthropic documents this:
+# "In `Bash(git * main)` [the `*`] stands in for the subcommand, so Claude Code
+# matches every git subcommand and every option before it. That includes `-c`,
+# which makes git run a program you name."
 # See: https://code.claude.com/docs/en/permissions.md (Wildcard patterns)
 #
-# Verified vectors (git 2.55.0), all reachable through the `git -C *` rules:
+# This hook was written when settings.json held 33 such `git -C *` allow
+# rules, and it was the only thing between them and those options. They are
+# gone: git-dash-c-allow.sh approves a git -C now, and every git allow rule
+# left is a literal prefix of its subcommand, which no option before the
+# subcommand can match. So this is a backstop, kept for two cases: a bug in an
+# allow hook, which git-guard's deny outranks (deny > ask > allow among
+# PreToolUse hooks), and a command no rule covers, which reaches the auto mode
+# classifier -- refused here first, it never has to judge the option. Adding a
+# `Bash(git * ...)` allow rule again would make it the only line once more.
+#
+# Verified vectors (git 2.55.0):
 #   git -c core.fsmonitor='<cmd>' status   -- runs on status/add/diff, no tty needed
 #   git -c core.hooksPath=<dir> commit     -- runs <dir>/pre-commit
 #   git -c diff.external='<cmd>' diff      -- runs the external differ
-# `--exec-path` is NOT a vector for the allow-listed subcommands: they are all
-# builtins, which git dispatches before consulting exec-path.
+# `--exec-path` is NOT a vector for the subcommands the allow rules name: they
+# are all builtins, which git dispatches before consulting exec-path.
 #
 # The check is a *positive* safelist of the tokens allowed before the
 # subcommand. git's global options are a small closed set (see `git --help`),
@@ -27,9 +35,34 @@
 # rather than waved through. This is the opposite of a blocklist and is why the
 # rule set does not need revisiting every git release.
 #
-# Scope: this hook only ever emits "deny". It never emits "allow", so it cannot
-# widen anything; the existing allow/deny/ask rules keep deciding every command
-# it stays silent on.
+# It also applies the settings' git deny and ask rules to a git with an option
+# before its subcommand -- `git -C x push --force` under `git push --force*` --
+# which Claude Code's own matcher, reading the command as written, does not.
+# settings.json keeps no `git -C *` copies of its rules for that reason; see
+# git-rules.lib.sh. So a failure of this hook -- a crash, a timeout, a missing
+# jq -- blocks the call (`onFailure: "block"` where it is registered) rather
+# than letting it through, as a failed hook does by default.
+#
+# Scope: this hook only ever emits "deny" or "ask". It never emits "allow", so
+# it cannot widen anything; the existing allow/deny/ask rules keep deciding
+# every command it stays silent on.
+#
+# That is also why its parser is correct in one direction only, and must not be
+# reused by a hook that allows. Every ambiguity is resolved toward "inspect it"
+# or "refuse it": after a wrapper the first git word is taken as the command,
+# an unsplittable command is refused whole if a word in it could be git (a
+# `case` in a quoted substitution aside: see the status 3 exit below), a quoted
+# newline becomes a space, and an input too large or unreadable is refused. A
+# hook that approved whatever this parser calls a clean `git -C . status` would
+# approve `timeout 5 rm -rf ~ git -C . status`; the allow hooks use
+# segment-scan.lib.sh instead.
+#
+# What "a git invocation" means here is bounded by what a `git ...` rule or an
+# allow hook could approve, since the threat is one waving the call through. So the
+# wrappers stripped are the ones Claude Code itself strips before matching, and
+# forms no `git ...` rule matches are left to the prompt: `env git`, `sudo git`,
+# `sh -c "git ..."`, `g''it`, `$(echo git) ...`. Which spellings of the git word
+# are inspected is decided in one place, beside the prefilter below.
 #
 # Registered without an `if:` filter, unlike curl-guard. A filter is itself a
 # Bash permission pattern and so inherits the same blind spot this hook exists
@@ -51,16 +84,18 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
 # parser, which decides what is really a git invocation from the command word.
 [[ "$COMMAND" == *git* ]] || exit 0
 
-deny() {
-  jq -n --arg reason "$1" '{
+# decide <deny|ask> <reason>: emit the decision and end the hook.
+decide() {
+  jq -n --arg decision "$1" --arg reason "$2" '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
-      permissionDecision: "deny",
+      permissionDecision: $decision,
       permissionDecisionReason: $reason
     }
   }'
   exit 0
 }
+deny() { decide deny "$1"; }
 
 # git's global options that cannot make git execute a program of our choosing.
 # -C is handled separately because it consumes the following token.
@@ -76,57 +111,196 @@ is_safe_global() {
   return 1
 }
 
-# Pull one whitespace-separated token off the front of $REST, honouring simple
-# quoting so that `-C "/path/with space"` is read as a single token. Only ever
-# applied to the region before the subcommand, which is options and paths --
-# never a commit message -- so this does not need to be a full shell parser.
+# Pull one shell word off the front of $REST into $TOKEN, with its quotes
+# removed. A word is unquoted runs and quoted runs up to unquoted whitespace, so
+# `-C "/path/with space"` and `FOO="a b"` are each one word -- reading only a
+# leading quote split the latter in two and took `b"` for the command word,
+# hiding the git after it. Applied to the words before a segment's command
+# word, to the arguments after a wrapper up to the first git word, and to git's
+# global options -- never past the git subcommand, so never a git commit
+# message. Outside quotes a backslash escapes the next byte, so `a\ b` is one
+# word as the shell reads it -- read as two, `git -C a\ b -c x status` took `b`
+# for the subcommand. Quoting it does not model is refused rather than guessed
+# at: a backslash inside double quotes, and ANSI-C `$'...'`. Guessing was a
+# bypass -- `\"` closed the run early, a later `'` re-synchronised the quotes,
+# and `-c` was read as part of a quoted subcommand that the shell ran as an
+# option. A word this reads differently from the shell must only ever make the
+# hook refuse more.
+#
+# A redirection is removed from argv, as the shell removes it: read as a word,
+# `git -C . 2>/dev/null -c x status` took `2>/dev/null` for the subcommand and
+# left `-c` unread, and `>/dev/null git ...` hid the command word. Only an
+# unquoted digit run before the operator is a file descriptor; `"2">x` passes
+# "2". The target is the rest of the word, or the next word when the operator
+# ends one. More than one redirection in a word, or MAX_REDIRECTS in a row, is
+# refused rather than modelled.
+#
+# An unquoted brace, glob or `$` is an expansion: the shell turns the word into
+# other argv, so it is not what git receives. TOKEN_EXPANDS reports it, and
+# TOKEN_VARIES a `$` inside double quotes -- one word, of unknown content. The
+# caller decides: scan_globals refuses either where git reads an option, since
+# `git -C . {-c,x} status` expands to one, and only an expansion as -C's path.
+# Before the git word neither flag is consulted and a word is judged as
+# written: an assignment is not expanded, and an expanding command word counts
+# as git only when its text already ends in /git (`$D/git -c x`), which can only
+# add inspection. `{}` alone is no brace expansion, so xargs' placeholder is
+# read as written.
+#
+# Returns 1 when $REST holds no further word, 2 when the word cannot be read: an
+# unterminated quote, quoting this does not model (a backslash inside double
+# quotes, `$'`), a redirection beyond the above, or more than MAX_WORD_RUNS runs,
+# since each run copies the rest of the string and a word built to have
+# thousands would outlast the timeout.
 REST=""
 TOKEN=""
+TOKEN_EXPANDS=0
+TOKEN_VARIES=0
+MAX_WORD_RUNS=64
+MAX_REDIRECTS=16
+EXPANDING='*[{*?[$]*'
 next_token() {
+  local rc redirects=0 word expands varies
+  while true; do
+    read_word && rc=0 || rc=$?
+    [[ $rc -eq 0 ]] || return $rc
+    if ((WORD_NEEDS_TARGET)); then
+      word=$TOKEN expands=$TOKEN_EXPANDS varies=$TOKEN_VARIES
+      read_word && rc=0 || rc=$?
+      # An operator with no target is unreadable, not the end of the command.
+      # The shell rejects it as a syntax error, but read as an end it would
+      # leave the region clean, and a misreading must only ever refuse more.
+      [[ $rc -eq 0 && $WORD_REDIRECTS -eq 0 ]] || return 2
+      TOKEN=$word TOKEN_EXPANDS=$expands TOKEN_VARIES=$varies WORD_REDIRECTS=1
+    fi
+    if ((WORD_REDIRECTS)) && [[ -z "$TOKEN" ]]; then
+      redirects=$((redirects + 1))
+      ((redirects < MAX_REDIRECTS)) || return 2
+      continue
+    fi
+    return 0
+  done
+}
+
+# One word for next_token, which handles a redirection's separate target and
+# words that are only a redirection. Sets TOKEN, TOKEN_EXPANDS, TOKEN_VARIES,
+# WORD_REDIRECTS (whether the word held a redirection) and WORD_NEEDS_TARGET
+# (whether its target is the next word); next_token saves and restores the
+# first three across that target. Returns as next_token does.
+WORD_REDIRECTS=0
+WORD_NEEDS_TARGET=0
+read_word() {
   REST="${REST#"${REST%%[![:space:]]*}"}"
   [[ -n "$REST" ]] || return 1
-  local q body
-  case "$REST" in
-    \'* | \"*)
-      q="${REST:0:1}"
-      body="${REST:1}"
-      # An unterminated quote in the option region is unparseable, not benign.
-      [[ "$body" == *"$q"* ]] || return 2
-      TOKEN="${body%%"$q"*}"
-      REST="${body#*"$q"}"
-      ;;
-    *)
-      TOKEN="${REST%%[[:space:]]*}"
-      if [[ "$TOKEN" == "$REST" ]]; then REST=""; else REST="${REST#"$TOKEN"}"; fi
-      ;;
-  esac
+  local q body chunk op runs=0 quoted=0 in_target=0 tail_amp=0
+  TOKEN="" TOKEN_EXPANDS=0 TOKEN_VARIES=0 WORD_REDIRECTS=0 WORD_NEEDS_TARGET=0
+  while [[ -n "$REST" && "$REST" != [[:space:]]* ]]; do
+    runs=$((runs + 1))
+    ((runs <= MAX_WORD_RUNS)) || return 2
+    case "$REST" in
+      \'* | \"*)
+        q="${REST:0:1}"
+        body="${REST:1}"
+        [[ "$body" == *"$q"* ]] || return 2
+        chunk="${body%%"$q"*}"
+        [[ "$q" == "'" || "$chunk" != *\\* ]] || return 2
+        # A redirection target is no argument of git's, so it marks nothing.
+        if ((in_target == 0)); then
+          if [[ "$q" == '"' && "$chunk" == *\$* ]]; then TOKEN_VARIES=1; fi
+          TOKEN+="$chunk"
+        fi
+        quoted=1 tail_amp=0
+        REST="${body#*"$q"}"
+        ;;
+      \\*)
+        ((in_target)) || TOKEN+="${REST:1:1}"
+        quoted=1 tail_amp=0
+        REST="${REST:2}"
+        ;;
+      [\<\>]*)
+        ((in_target == 0)) || return 2
+        op="${REST%%[!<>&|]*}"
+        REST="${REST#"$op"}"
+        in_target=1 WORD_REDIRECTS=1
+        # The unquoted `&` of `&>` belongs to the operator, even glued to a word
+        # (`git&>/dev/null` is `git` and a redirection), and so does an unquoted
+        # fd number before it.
+        if ((tail_amp)) && [[ "$op" == \>* ]]; then TOKEN="${TOKEN%&}"; fi
+        if ((quoted == 0)) && [[ "$TOKEN" != *[!0-9]* ]]; then TOKEN=""; fi
+        [[ -n "$REST" && "$REST" != [[:space:]]* ]] || WORD_NEEDS_TARGET=1
+        ;;
+      *)
+        chunk="${REST%%[[:space:]\'\"\\<>]*}"
+        # `$'` opens ANSI-C quoting, whose own escapes this does not model.
+        [[ "$chunk" != *\$ || "${REST:${#chunk}:1}" != "'" ]] || return 2
+        if ((in_target == 0)); then
+          # shellcheck disable=SC2053 # $EXPANDING is a pattern, deliberately unquoted
+          if [[ "$chunk" == $EXPANDING && "$chunk" != "{}" ]]; then TOKEN_EXPANDS=1; fi
+          TOKEN+="$chunk"
+        fi
+        if [[ -n "$chunk" ]]; then
+          if [[ "$chunk" == *\& ]]; then tail_amp=1; else tail_amp=0; fi
+        fi
+        REST="${REST#"$chunk"}"
+        ;;
+    esac
+  done
   return 0
 }
 
 # Walk the tokens after `git` up to the subcommand. Returns 0 when the region
-# is clean, 1 with $BAD set when it is not.
+# is clean, 1 with $BAD set when it is not. $EXPANDED says the cause is a word
+# the shell decides at run time rather than one written out, which takes a
+# reason of its own: it is not unreadable, and moving it after the subcommand
+# is no fix when it is the subcommand.
+#
+# On a clean region $SUBCOMMAND is the subcommand (empty for a bare `git`), $REST
+# the text after it, and $GLOBALS_SEEN whether any option came before it.
 BAD=""
+EXPANDED=0
+SUBCOMMAND=""
+GLOBALS_SEEN=0
 scan_globals() {
   local rc
+  SUBCOMMAND="" GLOBALS_SEEN=0
   while true; do
     next_token && rc=0 || rc=$?
     case $rc in
       1) return 0 ;; # bare `git`
       2)
-        BAD="unparseable quoting before the subcommand"
+        BAD="an unreadable word before the subcommand"
         return 1
         ;;
     esac
+    # Here a quoted parameter is refused too: one word, but an option of its
+    # content's choosing (`git "$X" status` with X=--exec-path=...).
+    if ((TOKEN_EXPANDS || TOKEN_VARIES)); then
+      BAD="where git reads an option or the subcommand" EXPANDED=1
+      return 1
+    fi
 
     # First non-option token is the subcommand: everything before it was clean.
-    [[ "$TOKEN" == -* ]] || return 0
+    if [[ "$TOKEN" != -* ]]; then
+      SUBCOMMAND=$TOKEN
+      return 0
+    fi
+    GLOBALS_SEEN=1
 
     if [[ "$TOKEN" == "-C" ]]; then
       next_token && rc=0 || rc=$?
-      [[ $rc -eq 0 ]] || {
-        BAD="-C with no path"
+      case $rc in
+        1)
+          BAD="-C with no path"
+          return 1
+          ;;
+        2)
+          BAD="an unreadable word after -C"
+          return 1
+          ;;
+      esac
+      if ((TOKEN_EXPANDS)); then
+        BAD="as the path after -C, where the shell may split it into more words" EXPANDED=1
         return 1
-      }
+      fi
       continue
     fi
 
@@ -137,45 +311,47 @@ scan_globals() {
   done
 }
 
-# Strip the wrappers Claude Code itself strips before matching Bash rules, so
-# `timeout 5 git -c ... status` is inspected rather than skipped. On success
-# $CMD_WORD holds the segment's command word and $REST its arguments.
-# See: permissions.md (Wrappers).
+# Find the word of a segment that git-guard treats as its command, skipping
+# assignments and keywords, and seeing through the wrappers Claude Code itself
+# strips before matching Bash rules, so `timeout 5 git -c ... status` is
+# inspected rather than skipped. See: permissions.md (Wrappers).
+#
+# On success $CMD_WORD holds that word and $REST the words after it. Without a
+# wrapper the word is the segment's command word; after one it is the first git
+# word, even where the shell would read it as an argument -- deliberately, see
+# below. Returns 1 when there is no such word (no command word, or no git word
+# after a wrapper), 2 when a word before it cannot be read -- which the caller
+# refuses, because skipping it would pass whatever git follows unread.
 CMD_WORD=""
 strip_wrappers() {
   local rc
   while true; do
-    local saved_rest=$REST
     next_token && rc=0 || rc=$?
-    [[ $rc -eq 0 ]] || {
-      REST=$saved_rest
-      return 1
-    }
+    [[ $rc -eq 0 ]] || return $rc
 
     case "$TOKEN" in
       # Leading environment assignment.
       [A-Za-z_]*=*) continue ;;
-      time | nohup | command | builtin | noglob | xargs) continue ;;
-      timeout | nice | stdbuf)
-        local w=$TOKEN
-        # Skip the wrapper's own flags, including the value `nice -n` takes.
+      # Shell syntax that precedes a command without being one. Unlike the
+      # wrappers below, Claude Code does not strip these, but the git after them
+      # runs all the same.
+      if | then | else | elif | while | until | do | '!' | '{') continue ;;
+      # After a wrapper, the first `git` word is taken as the command, with no
+      # attempt to parse the wrapper's flags. Parsing them was a bypass each
+      # time a form was missed -- `timeout -s KILL 5`, `stdbuf --output 0`,
+      # `time -f %e` -- because the flag's value was read as the command word
+      # and the git after it went unseen. The cost is refusing the rare wrapped
+      # non-git command with a git word among its arguments, bare or as a path
+      # (`timeout 5 echo git -c x`, `timeout 5 ls build/git -c x`).
+      timeout | nice | stdbuf | time | command | xargs | nohup | builtin | noglob)
         while true; do
-          saved_rest=$REST
           next_token && rc=0 || rc=$?
-          [[ $rc -eq 0 ]] || {
-            REST=$saved_rest
-            return 1
-          }
-          [[ "$TOKEN" == -* ]] || break
-          if [[ "$w" == "nice" && "$TOKEN" == "-n" ]]; then
-            next_token && rc=0 || rc=$?
-            [[ $rc -eq 0 ]] || return 1
+          [[ $rc -eq 0 ]] || return $rc
+          if is_git_word "$TOKEN"; then
+            CMD_WORD=$TOKEN
+            return 0
           fi
         done
-        # $TOKEN is now the first non-flag word: a duration for `timeout`,
-        # otherwise already the command, so put it back for the caller.
-        [[ "$w" == "timeout" ]] || REST="$TOKEN $REST"
-        continue
         ;;
       *)
         CMD_WORD=$TOKEN
@@ -185,50 +361,339 @@ strip_wrappers() {
   done
 }
 
-# A heredoc body is data, not commands. `git commit -F - <<'EOF'` is the normal
-# way to write a multi-line message here, and such a message routinely quotes
-# git command lines -- this hook's own commit message did, and was refused by an
-# earlier version of it. Drop those bodies before segmenting.
+# Split the command into the simple commands it runs, one per output line.
 #
-# A body that really is executed (`bash <<'EOF'`) is not a way around this: the
-# outer command is then `bash`, which has no allow rule of its own, so the
-# permission prompt decides it rather than any `git ...` rule.
-strip_heredoc_bodies() {
-  local line tag="" trimmed out=""
-  while IFS= read -r line; do
-    if [[ -n "$tag" ]]; then
-      trimmed="${line#"${line%%[![:space:]]*}"}"
-      [[ "$trimmed" == "$tag" ]] && tag=""
-      continue
-    fi
-    out+="$line"$'\n'
-    # `<<TAG`, `<<'TAG'`, `<<"TAG"`, `<<-TAG`. The `[A-Za-z_]` requirement means
-    # a here-string (`<<<`) is not mistaken for a heredoc opener.
-    if [[ "$line" =~ \<\<-?[[:space:]]*[\'\"]?([A-Za-z_][A-Za-z0-9_]*) ]]; then
-      tag="${BASH_REMATCH[1]}"
-    fi
-  done <<<"$1"
-  printf '%s' "$out"
+# A heredoc body is data, not commands, and is dropped. `git commit -F - <<'EOF'`
+# is the normal way to write a multi-line message here, and such a message
+# routinely quotes git command lines -- this hook's own commit message did, and
+# was refused by an earlier version of it. The opener is recognised in the same
+# walk that tracks quotes, because recognising it apart from that is a bypass:
+# a line-wise regex took `<<<EOF` and a quoted "<<EOF" for openers and dropped
+# every later line unread. A body with no terminator is kept, for the same
+# reason. A body that really is executed (`bash <<'EOF'`) is not a way around
+# any of this: the outer command is then `bash`, which no `git ...` rule matches.
+#
+# Split on every shell operator Claude Code recognises as a command separator,
+# but only outside quotes. Splitting inside them is not harmless: a quoted
+# argument that happens to contain `git -C` or `git -c` -- an rg alternation such
+# as "warn|git -C|hook" -- became a fragment of its own and was refused. A quoted
+# newline is likewise data and is flattened to a space, and a backslash-newline
+# joins two lines into one command, as the shell does.
+#
+# A command substitution or subshell runs a command of its own, so `(`, `)` and
+# a backtick split too -- `echo $(git -c ...)` and `(git -c ...)` otherwise
+# start with a word that is not git. Inside double quotes a substitution still
+# runs, so `$(` and a backtick there push the double quotes on a stack, the
+# substitution is walked as commands, and its closing `)` or backtick pops them
+# back. That is what lets `git commit -m "$(cat <<'EOF' ...)"` be split at all.
+#
+# Returns 1 when the command is unsplittable because its quoting or
+# substitutions do not balance or nest past MAX_SUBST_DEPTH, and 3 when a
+# quoted substitution holds a `case` (whose pattern `)` this does not model).
+# There is no cruder second splitter for either -- the split-everywhere sed that
+# used to be one was a bypass twice (`&>`, `a\;b`) -- so the caller refuses a 1
+# whole if any word in it could be git; a 3, see the status 3 exit below.
+#
+# The walk is awk, byte-wise under LC_ALL=C, over each line split once into an
+# array of bytes. Outside a substitution it prints as it goes; inside one it
+# holds the pieces until it closes (see emit). All of that is about the 5s timeout, past
+# which a hook lets the call through: anything that re-counts from the start of
+# the string per byte is quadratic, and three did -- a bash loop over `${s:i:1}`
+# (200k bytes: 25s), `out = out c` in awk (1.6s), and even awk's own
+# `substr(s, i, 1)` on macOS (700k bytes: 7.8s, against 0.4s for the array). A
+# heredoc tag is likewise read byte by byte and capped in length, so no opener
+# costs more than a constant. Every byte compared is ASCII, and no byte of a
+# multi-byte UTF-8 sequence is, so walking bytes splits exactly where walking
+# characters would. On exit 1 the partial output is discarded by the caller.
+#
+# SEPARATORS is every byte the walk splits at, and also the operator bytes that
+# bound a git word in GIT_WORD_RE below, which is built from it: a separator the
+# regex did not know would let `<it>git -c ...` in an unsplittable command go
+# unmatched, and pass. `(`, `)` and the backtick are tested before the generic
+# separator check, for the substitution stack. The multi-byte operators (`&&`,
+# `||`, `|&`) need no entry, since splitting at each byte only adds empty
+# segments, which are skipped.
+SEPARATORS=';&|()`'
+# How deep substitutions inside double quotes may nest before the command is
+# unsplittable. Each piece is copied once on the way out, so depth costs no
+# more than length; the cap bounds the stack, and no real command nests near it.
+MAX_SUBST_DEPTH=16
+split_segments() {
+  printf '%s' "$1" | LC_ALL=C awk -v seps="$SEPARATORS" -v max_depth="$MAX_SUBST_DEPTH" '
+    {
+      L[NR] = $0
+      # Index every line that could terminate a heredoc, so finding one is a
+      # pointer step rather than a scan: scanning per opener is quadratic, and
+      # 20000 unterminated openers took 60s -- past the timeout that lets the
+      # call through.
+      b = $0; sub(/^[ \t]+/, "", b)
+      if (b ~ /^[A-Za-z_][A-Za-z0-9_]*$/) pos[b, ++cnt[b]] = NR
+    }
+    # Output goes through emit. Outside any substitution it is printed at once;
+    # inside one it is held, one array cell per piece, and each substitution
+    # is appended to F as lines of its own when it closes, printed after the
+    # rest. The outer word keeps a placeholder `$_` in its place, so
+    # `git -C "$(pwd)" -c x status` still reads as `git -C "$_" -c x status`.
+    # The `$` matters: the reader marks the word as varying, as the output of
+    # a substitution does, so `git "$(echo --git-dir=x)" status` is refused
+    # where git reads an option; a bare `_` was read as a subcommand and
+    # passed it. Arrays, not string concatenation, keep it linear.
+    function emit(s) {
+      if (s == "") return
+      if (sp == 0) printf "%s", s
+      else B[sp, ++bl[sp]] = s
+    }
+    function push(kind) {
+      if (sp >= max_depth) exit 1
+      emit("$_")
+      sq[++sp] = q; sk[sp] = kind; sd[sp] = pd; bl[sp] = 0; q = ""
+    }
+    function pop(   k) {
+      F[++nf] = "\n"
+      for (k = 1; k <= bl[sp]; k++) F[++nf] = B[sp, k]
+      F[++nf] = "\n"
+      q = sq[sp--]
+    }
+    END {
+      # q: the open quote, if any. sp/sq/sk/sd: the substitution stack -- the
+      # quote to resume, the kind ("(" or a backtick), and for "(" the paren
+      # depth pd at which its ")" closes it.
+      q = ""; sp = 0; pd = 0; nf = 0
+      for (ln = 1; ln <= NR; ln++) {
+        n = split(L[ln], ch, ""); np = 0; joined = 0; lu = ""
+        for (i = 1; i <= n; i++) {
+          c = ch[i]
+          if (c == "\\" && i == n && q != "\047") { joined = 1; break }
+          if (q != "") {
+            if (c == q) q = ""
+            else if (q == "\"" && c == "$" && ch[i + 1] == "(") { push("("); i++; c = ""; lu = "" }
+            else if (q == "\"" && c == "`") { push("`"); c = ""; lu = "" }
+            else if (q == "\"" && c == "\\") { i++; c = c ch[i] }
+          } else if (c == "\047" || c == "\"") { q = c; lu = "" }
+          # Inside a quoted substitution the `)` of a case pattern would close
+          # it early and leave the git after it as data, and modelling case is
+          # past this walk: the command is unsplittable, with a status of its
+          # own (3), which the caller leaves to the normal flow. (No apostrophe
+          # in these comments: the program is single-quoted.)
+          # Only in a $( substitution, whose `)` is what a pattern would close:
+          # in a backtick one a `)` only splits, and the walk handles it.
+          else if (sp > 0 && sk[sp] == "(" && c == "c" && (lu == "" || lu == " " || lu == "\t") && \
+            ch[i + 1] == "a" && ch[i + 2] == "s" && ch[i + 3] == "e" && \
+            (ch[i + 4] == " " || ch[i + 4] == "\t" || ch[i + 4] == "")) exit 3
+          else if (c == "(") { pd++; c = "\n"; lu = "" }
+          else if (c == ")") {
+            if (sp > 0 && sk[sp] == "(" && pd == sd[sp]) { pop(); c = "" }
+            else { pd--; c = "\n" }
+            lu = ""
+          }
+          else if (c == "`") {
+            if (sp > 0 && sk[sp] == "`") { pop(); c = "" }
+            else c = "\n"
+            lu = ""
+          }
+          else if (c == "\\") { i++; c = c ch[i]; lu = "\\" }
+          else if (c == "<" && ch[i + 1] == "<" && ch[i + 2] == "<") { c = "<<<"; i += 2; lu = "" }
+          else if (c == "<" && ch[i + 1] == "<") {
+            # <<TAG, <<-TAG, << TAG, <<'\''TAG'\'', <<"TAG"; the quote, if any,
+            # is walked as an ordinary quote afterwards. A tag past 64 bytes is
+            # not taken as one, which keeps its body inspected.
+            j = i + 2
+            if (ch[j] == "-") j++
+            while (ch[j] == " " || ch[j] == "\t") j++
+            if (ch[j] == "\047" || ch[j] == "\"") j++
+            t = ""
+            if (ch[j] ~ /[A-Za-z_]/)
+              while (ch[j] ~ /[A-Za-z0-9_]/ && length(t) <= 64) t = t ch[j++]
+            if (t != "" && length(t) <= 64) tags[++np] = t
+            c = "<<"; i++; lu = ""
+          }
+          # The & of >&, <&, &> and the | of >| belong to a redirection, which
+          # the word reader removes; split there, `git >&2 -c x status` became
+          # a bare `git` and a command `2 -c x status`. lu is the previous
+          # unquoted byte, so a quoted ">" before & leaves it a separator.
+          else if (c == "&" && (lu == "<" || lu == ">" || ch[i + 1] == ">")) lu = c
+          else if (c == "|" && lu == ">") lu = c
+          else if (index(seps, c)) { c = "\n"; lu = "" }
+          else lu = c
+          emit(c)
+        }
+        if (joined) continue
+        if (q != "") { emit(" "); continue }
+        # Bodies follow the line in opener order, each through its terminator.
+        # Leading whitespace is ignored on the terminator, which can only end a
+        # body early -- more inspected, never less.
+        # ln only grows, so each tag pointer only moves forward.
+        for (k = 1; k <= np; k++) {
+          tg = tags[k]
+          while (ptr[tg] < cnt[tg] && pos[tg, ptr[tg] + 1] <= ln) ptr[tg]++
+          if (ptr[tg] < cnt[tg]) ln = pos[tg, ptr[tg] + 1]
+        }
+        emit("\n")
+      }
+      if (q != "" || sp > 0) exit 1
+      for (k = 1; k <= nf; k++) printf "%s", F[k]
+    }'
 }
-COMMAND=$(strip_heredoc_bodies "$COMMAND")
 
-# Split on every shell operator Claude Code recognises as a command separator.
-# A `&&` or `;` inside a quoted commit message splits into a fragment that does
-# not start with `git`, which is simply skipped -- no false deny.
-segments=$(printf '%s' "$COMMAND" | sed -E 's/(\|\||&&|\|&|[;|&])/\n/g')
+# The loop below costs ~0.2ms a segment and more as they multiply (100000 took
+# 56s), and a hook past its timeout lets the call through. So only segments
+# where some token could read as the git command word reach it, and this regex
+# is where the inspected spellings are decided: `git`, `/usr/bin/git`, `"git"`,
+# `'git'`, `\git`, bounded by whitespace, a quote, an operator byte or an end --
+# the operators so that a glued redirection (`git>/dev/null -c ...`) and, on
+# the raw text of an unsplittable command, `;git` still count. A spelling missing
+# here is never inspected, however next_token would read it -- which is
+# deliberate for those no `git ...` rule matches (`g''it`, `"g"it`, `g\it`), and
+# a bypass for any that a rule does.
+#
+# The regex sees the raw text; is_git_word sees a word with its quotes removed,
+# and is the one test both the segment head and the wrapper loop apply. A
+# spelling the regex lets through and is_git_word rejects is never inspected,
+# so the two change together.
+#
+# Past MAX_CANDIDATES the command is refused unread: a real one never has that
+# many git invocations, and refusing is the safe direction here.
+is_git_word() { [[ "$1" == git || "$1" == */git ]]; }
+GIT_WORD_RE="(^|[[:space:]/\"'\\\\${SEPARATORS}])git([\"'[:space:]${SEPARATORS}<>]|\$)"
+MAX_CANDIDATES=1000
+
+segments=$(split_segments "$COMMAND") && rc=0 || rc=$?
+
+# A `case` inside a quoted substitution (status 3) is left to the normal flow
+# rather than refused: it is an ordinary word -- `git commit -m "$(echo case
+# 1)"` -- and refusing every command holding one cost more than it bought. This
+# is the one place that judgement is argued; the other mentions point here.
+#
+# It skips everything below, so two things are given up for such a command:
+# the option check, and the deny and ask rules for a git with an option before
+# its subcommand -- `git -C x push --force "$(echo case)"` reaches a prompt or
+# the auto mode classifier, not a deny. That is safe only while nothing can
+# approve the command instead: no git allow rule has a `*` before the
+# subcommand (every one is a literal prefix of it, checked by the suite for
+# this repository's settings only), and the hooks that approve a git -C,
+# git-dash-c-allow.sh and approve-multiline-commands.sh, emit nothing for a
+# command holding a `$` or a backtick the shell expands -- unquoted or inside
+# double quotes, which a quoted substitution always is -- as segment-scan.lib.sh
+# gives up there (a `$` in single quotes or a quoted heredoc body it reads as
+# text). A `Bash(git * ...)` allow rule, or an allow hook reading past such an
+# expansion, would make this a bypass.
+[[ $rc -ne 3 ]] || exit 0
+
+# A here-string, not `printf | grep -q`: under pipefail grep -q exiting on its
+# match can SIGPIPE the writer, and a failed test here would pass the command.
+# Only grep's "no match" lets the command go; an error refuses it.
+if ((rc != 0)); then
+  grep -qE "$GIT_WORD_RE" <<<"$COMMAND" && rc=0 || rc=$?
+  [[ $rc -ne 1 ]] || exit 0
+  deny "git-guard: could not split the command into the commands it runs (quoting or substitutions that do not balance, or substitutions nested past ${MAX_SUBST_DEPTH}), and a word in it could be git, so it was refused rather than guessed at. Run the git part as a command of its own."
+fi
+
+candidates=$(printf '%s\n' "$segments" | grep -E "$GIT_WORD_RE") && rc=0 || rc=$?
+case $rc in
+  0) ;;
+  1) exit 0 ;; # no segment mentions git
+  *) deny "git-guard: could not filter the command for git invocations (grep exited $rc), so it was refused rather than passed unread." ;;
+esac
+n_candidates=$(grep -c '' <<<"$candidates")
+if ((n_candidates > MAX_CANDIDATES)); then
+  deny "git-guard: ${n_candidates} segments look like git invocations, more than the ${MAX_CANDIDATES} it inspects within its timeout. Split the command."
+fi
+
+# shellcheck source=root/.claude/hooks/git-rules.lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/git-rules.lib.sh"
+
+# Apply the deny and ask rules to `git $SUBCOMMAND $REST`, the segment with
+# its options before the subcommand set aside. A deny ends the hook; the first
+# ask is kept in ASK_RULE, since a later segment may still be denied.
+#
+# Two forms are matched, either one sufficing: the text as written, and the
+# text with every quote, backslash and `$` before a quote deleted, so that
+# `push "--force"` and `push $'--force'` read as git receives them. The
+# deletion is cruder than the shell's quote removal and can only join text the
+# shell keeps apart, which for a deny or an ask matches more, never less. The
+# word reader is deliberately not used: it gives up on quoting it does not
+# model, and giving up there took a quoted --force out of the rule's reach.
+# Either way a run of spaces counts as one.
+RULES_LOADED=0
+ASK_RULE=""
+check_rules() {
+  local -a written=() stripped=()
+  local rest=$REST
+  if ((RULES_LOADED == 0)); then
+    git_rules_load
+    RULES_LOADED=1
+  fi
+  ((${#GIT_RULE_P[@]})) || return 0
+
+  # Split on whitespace with globbing off, not `read -a <<<`: a here-string is
+  # a temporary file on bash 3.2, which across 1000 segments costs seconds.
+  set -f
+  # shellcheck disable=SC2206 # word splitting is the point; globbing is off
+  written=($rest)
+  set +f
+  # Only where there is a quote to delete. A short rest is done in bash; a
+  # long one by sed, since bash 3.2 rebuilds the string per replacement and
+  # 20000 quoted words outlasted the timeout, while a process per segment is
+  # what put 1000 short ones past it.
+  local forms=written
+  if [[ "$rest" == *[\'\"\\]* ]]; then
+    if ((${#rest} <= 1024)); then
+      rest=${rest//\$[\'\"]/}
+      rest=${rest//[\'\"\\]/}
+    else
+      rest=$(LC_ALL=C sed -e "s/\\\$['\"]//g" -e "s/['\"\\\\]//g" <<<"$rest")
+    fi
+    set -f
+    # shellcheck disable=SC2206 # as above
+    stripped=($rest)
+    set +f
+    forms="written stripped"
+  fi
+
+  local form
+  for form in $forms; do
+    local -a words=(git "$SUBCOMMAND")
+    if [[ $form == written ]]; then
+      words+=(${written[@]+"${written[@]}"})
+    else
+      words+=(${stripped[@]+"${stripped[@]}"})
+    fi
+    git_rule_match "${words[@]}" || continue
+    if [[ "$GIT_RULE_KIND" == deny ]]; then
+      deny "git-guard: the deny rule ${GIT_RULE_MATCHED} covers this git once the options before its subcommand (-C and the like) are set aside; settings.json keeps no git -C copies of its rules, so this hook applies them."
+    fi
+    ASK_RULE=${ASK_RULE:-$GIT_RULE_MATCHED}
+  done
+}
 
 while IFS= read -r segment; do
   segment="${segment#"${segment%%[![:space:]]*}"}"
   [[ -n "$segment" ]] || continue
 
   REST=$segment
-  strip_wrappers || continue
+  strip_wrappers && rc=0 || rc=$?
+  case $rc in
+    1) continue ;;
+    2) deny "git-guard: could not read the words before the command in a segment that may run git, so it was refused rather than passed unread." ;;
+  esac
 
-  [[ "$CMD_WORD" == "git" || "$CMD_WORD" == */git ]] || continue
+  is_git_word "$CMD_WORD" || continue
 
   if ! scan_globals; then
+    if ((EXPANDED)); then
+      deny "git-guard: refused a word decided only when the shell runs it (a substitution, parameter, brace or glob) ${BAD}. Its value could be an option that makes git execute a program (e.g. --exec-path=..., --config-env=core.fsmonitor=...), which no rule can see. Write that word out literally, or run it yourself."
+    fi
     deny "git-guard: refused '${BAD}' before the git subcommand. Options in that position can make git execute an arbitrary program (e.g. -c core.fsmonitor=..., -c core.hooksPath=..., --git-dir into a repo with hooks), and the Bash allow rules cannot express argument position. Put the option after the subcommand, or run it yourself."
   fi
-done <<<"$segments"
 
+  # With no option before the subcommand the rules match the command as
+  # written, and Claude Code applies them itself.
+  if ((GLOBALS_SEEN)) && [[ -n "$SUBCOMMAND" ]]; then
+    check_rules
+  fi
+done <<<"$candidates"
+
+if [[ -n "$ASK_RULE" ]]; then
+  decide ask "git-guard: the ask rule ${ASK_RULE} covers this git once the options before its subcommand (-C and the like) are set aside; settings.json keeps no git -C copies of its rules, so this hook applies them."
+fi
 exit 0

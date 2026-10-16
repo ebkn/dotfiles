@@ -139,9 +139,16 @@ by itself. Add a line when you add a suite.
   a helper that loses a FAIL makes every suite using it green; this pins the
   output contract and the verdict under `set -u` and `set -e`, on bash 3.2.
 
-- **Permission hooks** — `curl-guard`, `rm-guard`, `approve-multiline-commands`.
+- **Permission hooks** — `curl-guard`, `rm-guard`, `approve-multiline-commands`,
+  `git-dash-c-allow`, and `segment-scan.lib`, the scanner the last two share.
   These are the hooks that emit "allow", so a regression widens a permission
   boundary silently rather than breaking a feature: the command just runs.
+  This list is the one place that names them all.
+- **`git-guard`** — the hook that denies a git global option before the
+  subcommand, and applies the settings' git deny and ask rules to a `git -C`
+  (through `git-rules.lib`). It never allows, so its regression fails open the
+  other way: a dangerous `-c`, or a `git -C x push --force`, reaches the
+  normal flow unrefused.
 - **retrospective** `session-extract`, `session-review` — run against synthetic
   transcripts, needing only jq. The reporter test also runs `bash -n` on the
   script: it is one long single-quoted jq program, and an apostrophe in a jq
