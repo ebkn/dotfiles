@@ -19,6 +19,7 @@ carries in the other PR skill and `commit` (`skills`).
 | `no-pr-on-default-branch` | create-pr | the same request on main: no PR, no push, no branch made for one |
 | `ready-at-finish` | update-pr | a branch with a draft PR from an earlier session: no second PR, the body rewritten, ready at the end |
 | `no-update-without-commits` | update-pr | the same branch, asked a question: nothing committed, so neither skill starts and the PR is left alone |
+| `ready-without-pr` | update-pr | `/update-pr ready` on a finished branch whose PR was never opened: it hands over to create-pr, which pushes and opens it ready |
 
 Every case also grades the question this set out to remove, three ways: the
 `AskUserQuestion` tool, the closing message against the phrasings runs used

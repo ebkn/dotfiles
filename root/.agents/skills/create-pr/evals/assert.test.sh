@@ -318,6 +318,35 @@ expect_fail "ready-at-finish: nothing committed" "committed the work"
 expect_fail "ready-at-finish: and the section left in the tree" "left nothing uncommitted"
 
 # ============================================================
+# update-pr: ready-without-pr
+# ============================================================
+handover_run() {
+  new_run update-pr ready-without-pr || return 1
+  act "$1" "$2"
+  grade "$3"
+}
+handover_records='rec_skill update-pr; rec_bash "gh pr view --json number"; rec_skill create-pr; rec_bash "git push -u origin HEAD"; rec_bash "gh pr create --title t --body b"'
+handover_tree='git push -q -u origin HEAD; gh pr create --title "docs: add CONTRIBUTING" --body "The commit message rule."'
+
+handover_run "$handover_records" "$handover_tree" "$done_msg"
+expect_pass "ready-without-pr: a hand-over to create-pr passes"
+handover_run 'rec_skill update-pr; rec_bash "gh pr view --json number"' ':' "PR がないので更新できませんでした。/create-pr で作れます。"
+expect_fail "ready-without-pr: stopping at the missing PR" "handed over to create-pr after it"
+expect_fail "ready-without-pr: so nothing is pushed" "pushed every commit"
+expect_fail "ready-without-pr: and no PR opened" "opened the PR ready, since the work is finished"
+handover_run 'rec_skill create-pr; rec_bash "gh pr create --title t --body b"' "$handover_tree" "$done_msg"
+expect_fail "ready-without-pr: create-pr without update-pr" "started update-pr"
+handover_run "$handover_records" "${handover_tree//gh pr create/gh pr create --draft}" "$done_msg"
+expect_fail "ready-without-pr: opened as a draft" "opened the PR ready, since the work is finished"
+handover_run "$handover_records" "${handover_tree//docs: add CONTRIBUTING/Add CONTRIBUTING}" "$done_msg"
+expect_fail "ready-without-pr: a title that is not a Conventional Commit" "the PR title is a Conventional Commit"
+handover_run "$handover_records" "git commit -q --allow-empty -m extra; $handover_tree" "$done_msg"
+expect_fail "ready-without-pr: a commit the request never asked for" "left the branch's commits as they were"
+handover_run "$handover_records" "$handover_tree" "PR がなかったので作りました。ready にしますか？"
+expect_fail "ready-without-pr: asking about the PR" \
+  "the closing message asks nothing about pushing or a PR (known phrasings)"
+
+# ============================================================
 # update-pr: no-update-without-commits
 # ============================================================
 question_run() {

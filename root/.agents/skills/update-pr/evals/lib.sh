@@ -9,11 +9,11 @@
 # shellcheck source=../../create-pr/evals/lib.sh
 source "$SKILL_EVAL_REPO_ROOT/root/.agents/skills/create-pr/evals/lib.sh"
 
-# update_pr_eval_scaffold
-# docs/contributing, one commit ahead of main, pushed, with an open draft PR
-# describing that commit. Tagged `run-start`: eval-base is main's commit, and
-# a case asking what the run itself committed counts from here.
-update_pr_eval_scaffold() {
+# update_pr_eval_branch
+# docs/contributing, one commit ahead of main, not pushed and with no PR.
+# Tagged `run-start`: eval-base is main's commit, and a case asking what the
+# run itself committed counts from here.
+update_pr_eval_branch() {
   pr_eval_scaffold docs/contributing
   cat >CONTRIBUTING.md <<'EOF'
 # Contributing
@@ -25,6 +25,12 @@ EOF
   git add CONTRIBUTING.md
   git commit -q -m "docs: add CONTRIBUTING with the commit message rule"
   git tag run-start
+}
+
+# update_pr_eval_scaffold
+# That branch pushed, with an open draft PR describing its commit.
+update_pr_eval_scaffold() {
+  update_pr_eval_branch
   skill_eval_fake_pr "docs: add CONTRIBUTING" "$(
     cat <<'EOF'
 ## Summary
