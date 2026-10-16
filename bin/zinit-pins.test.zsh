@@ -71,10 +71,10 @@ zinit light a/one
 zinit ice wait lucid atload\"bindkey '^j' x\" ver'$B'
 zinit load b/two # trailing comment")"
 
-check 'reads indented lines' \
+check 'reads indented lines, and tabs between the words' \
   $'exit=0\nout='"zdharma-continuum/zinit $Z"$'\n'"a/one $A"$'\nerr=' \
-  "$(read_pins "  zinit ice ver\"$A\"
-  zinit light a/one")"
+  "$(read_pins "  zinit	ice ver\"$A\"
+  zinit	light a/one")"
 
 # --- What it refuses, printing no pins --------------------------------------
 
@@ -92,12 +92,21 @@ check 'refuses a ver one hex digit too long' \
   "$(read_pins "zinit ice ver\"${A}1\"
 zinit light a/one")"
 
+check 'refuses a ver whose quotes do not match' \
+  "$(refused '*a/one*')" \
+  "$(read_pins "zinit ice ver\"$A'
+zinit light a/one")"
+
 # An ice belongs to the next plugin only; a stray line in between ends it.
 check 'refuses an ice separated from its plugin by other code' \
   "$(refused '*a/one*')" \
   "$(read_pins "zinit ice ver\"$A\"
 true
 zinit light a/one")"
+
+check 'refuses an ice with no plugin after it' \
+  "$(refused '*ice*')" \
+  "$(read_pins "zinit ice ver\"$A\"")"
 
 check 'refuses a zinit form it cannot read, naming the line' \
   "$(refused '*zinit snippet OMZ::lib/git.zsh*')" \
@@ -106,6 +115,10 @@ check 'refuses a zinit form it cannot read, naming the line' \
 check 'refuses an inline ice' \
   "$(refused '*zinit wait light a/one*')" \
   "$(read_pins 'zinit wait light a/one')"
+
+check 'refuses zinit run from inside another command' \
+  "$(refused '*zinit light c/cond*')" \
+  "$(read_pins '[[ -n $X ]] && zinit light c/cond')"
 
 # The pins it could read are withheld too, and every problem is named, not
 # just the first: a caller fixes them all in one pass.

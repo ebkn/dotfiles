@@ -32,26 +32,34 @@ fi
 
 # A plugin's pin is the ver on the `zinit ice` line before its `zinit light`
 # or `zinit load`, with only comments and blank lines between them, as zinit
-# reads it. Any other zinit form is refused rather than read wrong.
+# reads it. Any other zinit form is refused rather than read wrong -- including
+# zinit run as part of another command (`[[ … ]] && zinit light …`), which a
+# check of the line's start alone would pass over. The SHA must close with the
+# quote it opened with; anything else is not what zinit would read.
+s='[[:space:]]##'
 ice=''
 for line in "${lines[@]}"; do
   line=${line##[[:space:]]#}
   [[ $line == (\#*|) ]] && continue
-  if [[ $line == zinit\ (light|load)\ * ]]; then
-    plugin=${${line#zinit (light|load) }%% *}
-    if [[ $ice == (#b)*ver[\"\'](${~sha})[\"\']* ]]; then
-      pins+=("$plugin $match[1]")
+  if [[ $line == (#b)zinit${~s}(light|load)${~s}([^[:space:]]##)* ]]; then
+    plugin=$match[2]
+    if [[ $ice == (#b)*ver(\"${~sha}\"|\'${~sha}\')* ]]; then
+      pins+=("$plugin ${match[1][2,-2]}")
     else
       errors+=("$plugin: no ver\"<40-hex sha>\" on the zinit ice before it")
     fi
     ice=''
-  elif [[ $line == zinit\ ice\ * ]]; then
+    continue
+  fi
+  [[ -n $ice ]] && errors+=("an ice with no zinit light|load after it: $ice")
+  ice=''
+  if [[ $line == zinit${~s}ice${~s}* ]]; then
     ice=$line
-  else
-    [[ $line == zinit\ * ]] && errors+=("cannot read: $line")
-    ice=''
+  elif [[ $line == (|*[[:space:]\;\&\|\(\{])zinit([[:space:]]*|) ]]; then
+    errors+=("cannot read: $line")
   fi
 done
+[[ -n $ice ]] && errors+=("an ice with no zinit light|load after it: $ice")
 
 if (( $#errors )); then
   print -u2 -l -- "zinit-pins: $file:" "  "${^errors}

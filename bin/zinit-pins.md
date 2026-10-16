@@ -23,9 +23,17 @@ renamed repository, the other keeps passing over them.
 
 ## It refuses rather than skips
 
-Every line of `plugin.zsh` that starts with `zinit` must be an ice or a
-`light`/`load`, and every plugin must carry a full SHA; otherwise the reader
-exits 1 and names each problem on stderr, printing nothing on stdout.
+Every line of `plugin.zsh` that runs `zinit` must be an ice or a
+`light`/`load` (words split by any whitespace), every plugin must carry a full
+SHA closed by the quote it opened with, and every ice must be followed by its
+plugin; otherwise the reader exits 1 and names each problem on stderr,
+printing nothing on stdout.
+
+"Runs `zinit`" includes zinit as part of another command —
+`[[ -n $X ]] && zinit light …` — which a check of the line's start alone
+would pass over; it is refused like any other form the reader cannot follow.
+Consecutive `zinit ice` lines, which zinit would merge, are not merged here:
+only the last is read, so a `ver` on an earlier one is refused, not lost.
 
 The alternative — listing the pins it understood — is the dangerous one. A
 caller that moves pins would leave a plugin it never saw where it is, and a
