@@ -80,7 +80,23 @@ pr="$here/gh-state/${branch//\//_}.json"
 title= body= body_set=0 draft=false json= jq_filter= undo=0 head= state=open
 parse() {
   while [ $# -gt 0 ]; do
+    # A boolean's `=value` is its value, not a positional: split like the
+    # others, `--draft=false` would set the flag and drop the "false".
     case "$1" in
+      --draft=true | --draft=false)
+        draft="${1#*=}"
+        shift
+        continue
+        ;;
+      --undo=true | --undo=false)
+        [ "${1#*=}" = true ] && undo=1 || undo=0
+        shift
+        continue
+        ;;
+      --draft=* | --undo=*)
+        printf 'gh (eval stub): %s takes true or false\n' "$1" >&2
+        exit 1
+        ;;
       --*=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ;;
     esac
     case "$1" in

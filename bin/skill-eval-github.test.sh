@@ -106,6 +106,11 @@ gh pr ready --undo >/dev/null
 assert_eq "gh pr ready --undo makes it a draft again, without counting" "true 1" \
   "$(fake_github_pr | jq -r '"\(.isDraft) \(.readied)"')"
 gh pr ready >/dev/null
+gh pr ready --undo=true >/dev/null
+assert_eq "a boolean's =true is its value" "true" "$(fake_github_pr | jq -r .isDraft)"
+gh pr ready --undo=false >/dev/null
+assert_eq "and =false too, not the flag set and the value dropped" "false" "$(fake_github_pr | jq -r .isDraft)"
+assert_status "a boolean given anything else fails" 1 gh pr ready --undo=maybe
 
 assert_status "a subcommand the stub does not know fails" 1 gh pr merge
 assert_contains "and names itself as the stub" "$(gh pr merge 2>&1 || true)" "is not stubbed"
@@ -117,6 +122,10 @@ git switch -q -c feat/no-pr
 assert_status "gh pr edit fails on a branch with no PR" 1 gh pr edit --title t
 assert_status "and so does gh pr ready" 1 gh pr ready
 assert_eq "and neither makes one" "" "$(fake_github_pr)"
+git push -q -u origin HEAD
+gh pr create --draft=false --title "docs: not a draft" --body b >/dev/null
+assert_eq "gh pr create --draft=false opens it ready" "false false" \
+  "$(fake_github_pr | jq -r '"\(.isDraft) \(.createdAsDraft)"')"
 
 git switch -q main
 git switch -q -c feat/seeded
