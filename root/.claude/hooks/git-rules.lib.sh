@@ -69,6 +69,10 @@ git_rules_load() {
 # git_rule_match <words...>: 0 when the words, joined by single spaces, match a
 # loaded rule. GIT_RULE_KIND and GIT_RULE_MATCHED then name it, a deny rule
 # ahead of any ask rule, since deny rules are loaded first.
+#
+# Before git_rules_load it matches nothing, and an allow hook reads that as "no
+# rule refuses this" -- an approval. So load before the first match, in the same
+# shell: a load inside `$(...)` is lost with the subshell.
 GIT_RULE_KIND=""
 GIT_RULE_MATCHED=""
 git_rule_match() {
