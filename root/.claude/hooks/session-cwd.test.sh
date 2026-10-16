@@ -86,8 +86,11 @@ hook cd '{"new_cwd":"/x"}'
 assert_eq 'no id writes nothing' "$before" "$(count)"
 hook cd 'not json'
 assert_eq 'a payload that is not JSON writes nothing' "$before" "$(count)"
+# Counted, not just looked up: this path still creates the temp file before jq
+# decides there is no record, and only the hook's own cleanup removes it. The
+# month-old sweep matches *.json, so a leftover *.json.tmp.* would stay forever.
 hook cd '{"session_id":"s3"}'
-assert_eq 'a payload naming no directory writes nothing' 'absent' "$(field s3 .cwd)"
+assert_eq 'a payload naming no directory writes nothing' "$before" "$(count)"
 
 # A hook must never get in the session's way, whatever happened.
 assert_status 'a bad payload still exits 0' 0 hook cd 'not json'
@@ -137,17 +140,21 @@ assert_eq 'an unchanged cwd is still published, to whichever pane runs it now' \
 # returned 0, and the hook then published an empty cwd read from a directory.
 mkdir -p "$DIR/p2.json"
 lines=$(wc -l <"$TMUXLOG" | tr -d ' ')
+before=$(count)
 hook cd '{"session_id":"p2","new_cwd":"/never-recorded"}'
 assert_eq 'a record that could not be written is not published' "$lines" "$(wc -l <"$TMUXLOG" | tr -d ' ')"
 assert_eq 'and nothing is moved into what is in its way' '' "$(ls -A "$DIR/p2.json")"
+assert_eq 'nor is its temp file left behind' "$before" "$(count)"
 rm -rf "$DIR/p2.json"
 PANE_ID=%7
 hook end '{"session_id":"p1"}'
 assert_eq 'end unsets it, so the popup falls back to the pane path' \
   '[set-option][-p][-u][-t][%7][@claude_cwd]' "$(tail -n 1 "$TMUXLOG")"
 lines=$(wc -l <"$TMUXLOG" | tr -d ' ')
+before=$(count)
 hook cd '{"session_id":"p1"}'
 assert_eq 'nothing is published when no record was written' "$lines" "$(wc -l <"$TMUXLOG" | tr -d ' ')"
+assert_eq 'and no file is left behind' "$before" "$(count)"
 unset PANE_TMUX PANE_ID
 
 test_summary
