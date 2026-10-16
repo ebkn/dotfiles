@@ -212,10 +212,10 @@ would not approve as written. It can under-approve — a prompt — but not over
 (`remote*` was wider than the plain `remote` rules), and a compound command that
 pairs a git -C with a non-git segment no longer pass silently; in auto mode they
 go to the classifier. And git-guard leaves one shape it cannot split — a `case`
-inside a quoted substitution — to that classifier rather than refusing it, which
-is safe only while no git allow rule has a `*` before the subcommand. That shape
-also skips the deny and ask rules for a `-C`: `git -C x branch -D "$(echo case)"`
-reaches the classifier rather than a prompt.
+inside a quoted substitution — to that classifier rather than refusing it. That
+shape also skips the deny and ask rules for a `-C`: `git -C x branch -D "$(echo
+case)"` reaches the classifier rather than a prompt. Why that is acceptable, and
+the conditions it rests on, are argued at the status 3 exit in `git-guard.sh`.
 
 Run `root/.claude/hooks/git-guard.test.sh`, `git-dash-c-allow.test.sh`,
 `approve-multiline-commands.test.sh` and `segment-scan.lib.test.sh` after

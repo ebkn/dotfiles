@@ -572,9 +572,11 @@ segments=$(split_segments "$COMMAND") && rc=0 || rc=$?
 # subcommand (every one is a literal prefix of it, checked by the suite for
 # this repository's settings only), and the hooks that approve a git -C,
 # git-dash-c-allow.sh and approve-multiline-commands.sh, emit nothing for a
-# command holding a `$`, as segment-scan.lib.sh gives up on it. A
-# `Bash(git * ...)` allow rule, or an allow hook reading past a `$`, would make
-# this a bypass.
+# command holding a `$` or a backtick the shell expands -- unquoted or inside
+# double quotes, which a quoted substitution always is -- as segment-scan.lib.sh
+# gives up there (a `$` in single quotes or a quoted heredoc body it reads as
+# text). A `Bash(git * ...)` allow rule, or an allow hook reading past such an
+# expansion, would make this a bypass.
 [[ $rc -ne 3 ]] || exit 0
 
 # A here-string, not `printf | grep -q`: under pipefail grep -q exiting on its
