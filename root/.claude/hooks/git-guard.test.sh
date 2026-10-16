@@ -428,13 +428,20 @@ check PASS "echo '\$(git -c a=b status)'"
   check DENY 'git "$(echo status)"'
   check PASS 'git -C "$(echo -c)" status'
   # A case pattern's `)` would close the substitution early, leaving the git
-  # after it as data; a `case` inside a quoted substitution is unsplittable.
-  check DENY 'echo "$(case x in x) git -c a=b status;; esac)"'
-  check DENY 'echo $(case x in x) git -c a=b status;; esac)'
+  # after it as data, so a `case` inside a quoted substitution cannot be split.
+  # Rather than refuse it -- it is an ordinary word, `git commit -m "$(echo
+  # case 1)"` -- the hook stays silent and the normal flow decides: no allow
+  # rule left can approve a git with an option before its subcommand, so it
+  # prompts or goes to the auto mode classifier.
+  check PASS 'echo "$(case x in x) git -c a=b status;; esac)"'
+  check PASS 'git commit -m "$(echo case 1)"'
+  check PASS 'echo "$(true;case x in x) y;; esac)"; git -c a=b status'
   # `case` is recognised after a separator too, not only first in the
-  # substitution.
-  check DENY 'echo "$(true;case x in x) git -c a=b status;; esac)"'
-  check DENY 'echo "$(true&&case x in x) git -c a=b status;; esac)"'
+  # substitution, and is silent there as well.
+  check PASS 'echo "$(true;case x in x) git -c a=b status;; esac)"'
+  check PASS 'echo "$(true&&case x in x) git -c a=b status;; esac)"'
+  # Unquoted, the `)` only splits, so the git after it is inspected as usual.
+  check DENY 'echo $(case x in x) git -c a=b status;; esac)'
 }
 # Unsplittable with no word that could be git: nothing to inspect, so it passes.
 check PASS "echo \"it's"
@@ -510,10 +517,8 @@ check_reason 'FOO="a\"b" git -c a=b status' "could not read the words before the
 check_reason 'git >&2 -c a=b status' "refused '-c'" "unreadable"
 check_reason 'echo "x; git >&2 -c a=b status' "could not split" "refused '-c'"
 check_reason 'echo "x; git status' "could not split" "refused '"
-# The other two causes of an unsplittable command reach the same refusal, not a
-# later branch's.
-# shellcheck disable=SC2016 # literal command text under test
-check_reason 'echo "$(case x in x) git -c a=b status;; esac)"' "could not split" "refused '"
+# Nesting too deep reaches the same refusal, not a later branch's. (A `case` in
+# a quoted substitution is the one unsplittable cause left to the normal flow.)
 # shellcheck disable=SC2016 # the openers are command text under test
 check_reason "$(printf 'echo "$(%.0s' $(seq 17))true$(printf ')"%.0s' $(seq 17)); git status" "could not split" "refused '"
 

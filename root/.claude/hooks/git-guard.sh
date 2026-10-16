@@ -3,23 +3,31 @@
 # appears before the subcommand and makes git run a program of the caller's
 # choosing.
 #
-# Why a hook instead of tightening the allow rules: Bash permission patterns
-# are literal text plus `*`, and `*` matches any text *including spaces*. The
-# grammar has no way to express "this wildcard is one argument", so a rule like
-# `Bash(git -C * add *)` necessarily also matches
-# `git -C "dir -c core.fsmonitor=<cmd>" add .`. Anthropic documents this and
-# names the vector: "In `Bash(git * main)` [the `*`] stands in for the
-# subcommand, so Claude Code matches every git subcommand and every option
-# before it. That includes `-c`, which makes git run a program you name."
-# The same page recommends a PreToolUse hook for argument constraints.
+# Why it exists: Bash permission patterns are literal text plus `*`, and `*`
+# matches any text *including spaces*, so a rule with a `*` before the
+# subcommand -- `Bash(git -C * add *)` -- also matches
+# `git -C "dir -c core.fsmonitor=<cmd>" add .`. Anthropic documents this:
+# "In `Bash(git * main)` [the `*`] stands in for the subcommand, so Claude Code
+# matches every git subcommand and every option before it. That includes `-c`,
+# which makes git run a program you name."
 # See: https://code.claude.com/docs/en/permissions.md (Wildcard patterns)
 #
-# Verified vectors (git 2.55.0), all reachable through the `git -C *` rules:
+# This hook was written when settings.json held 33 such `git -C *` allow
+# rules, and it was the only thing between them and those options. They are
+# gone: git-dash-c-allow.sh approves a git -C now, and every git allow rule
+# left is a literal prefix of its subcommand, which no option before the
+# subcommand can match. So this is a backstop, kept for two cases: a bug in an
+# allow hook, which git-guard's deny outranks (deny > ask > allow among
+# PreToolUse hooks), and a command no rule covers, which reaches the auto mode
+# classifier -- refused here first, it never has to judge the option. Adding a
+# `Bash(git * ...)` allow rule again would make it the only line once more.
+#
+# Verified vectors (git 2.55.0):
 #   git -c core.fsmonitor='<cmd>' status   -- runs on status/add/diff, no tty needed
 #   git -c core.hooksPath=<dir> commit     -- runs <dir>/pre-commit
 #   git -c diff.external='<cmd>' diff      -- runs the external differ
-# `--exec-path` is NOT a vector for the allow-listed subcommands: they are all
-# builtins, which git dispatches before consulting exec-path.
+# `--exec-path` is NOT a vector for the subcommands the allow rules name: they
+# are all builtins, which git dispatches before consulting exec-path.
 #
 # The check is a *positive* safelist of the tokens allowed before the
 # subcommand. git's global options are a small closed set (see `git --help`),
@@ -34,14 +42,15 @@
 # That is also why its parser is correct in one direction only, and must not be
 # reused by a hook that allows. Every ambiguity is resolved toward "inspect it"
 # or "refuse it": after a wrapper the first git word is taken as the command,
-# an unsplittable command is refused whole if a word in it could be git, a
-# quoted newline becomes a space, and an input too large or unreadable is
-# refused. A hook that approved
-# whatever this parser calls a clean `git -C . status` would approve
-# `timeout 5 rm -rf ~ git -C . status`.
+# an unsplittable command is refused whole if a word in it could be git (a
+# `case` in a quoted substitution aside, left to the normal flow), a quoted
+# newline becomes a space, and an input too large or unreadable is refused. A
+# hook that approved whatever this parser calls a clean `git -C . status` would
+# approve `timeout 5 rm -rf ~ git -C . status`; the allow hooks use
+# segment-scan.lib.sh instead.
 #
-# What "a git invocation" means here is bounded by what an allow rule could
-# approve, since the threat is a `git ...` rule waving the call through. So the
+# What "a git invocation" means here is bounded by what a `git ...` rule or an
+# allow hook could approve, since the threat is one waving the call through. So the
 # wrappers stripped are the ones Claude Code itself strips before matching, and
 # forms no `git ...` rule matches are left to the prompt: `env git`, `sudo git`,
 # `sh -c "git ..."`, `g''it`, `$(echo git) ...`. Which spellings of the git word
@@ -358,12 +367,12 @@ strip_wrappers() {
 # substitution is walked as commands, and its closing `)` or backtick pops them
 # back. That is what lets `git commit -m "$(cat <<'EOF' ...)"` be split at all.
 #
-# Returns 1 when the command is unsplittable: its quoting or substitutions do
-# not balance, a quoted substitution holds a `case` (whose pattern `)` this does
-# not model), or substitutions nest past MAX_SUBST_DEPTH. There is no cruder
-# second splitter for that case -- the split-everywhere sed that used to be one
-# was a bypass twice (`&>`, `a\;b`) -- so the caller refuses the command whole
-# if any word in it could be git.
+# Returns 1 when the command is unsplittable because its quoting or
+# substitutions do not balance or nest past MAX_SUBST_DEPTH, and 3 when a
+# quoted substitution holds a `case` (whose pattern `)` this does not model).
+# There is no cruder second splitter for either -- the split-everywhere sed that
+# used to be one was a bypass twice (`&>`, `a\;b`) -- so the caller refuses a 1
+# whole if any word in it could be git, and leaves a 3 to the normal flow.
 #
 # The walk is awk, byte-wise under LC_ALL=C, over each line split once into an
 # array of bytes. Outside a substitution it prints as it goes; inside one it
@@ -443,11 +452,12 @@ split_segments() {
           } else if (c == "\047" || c == "\"") { q = c; lu = "" }
           # Inside a quoted substitution the `)` of a case pattern would close
           # it early and leave the git after it as data, and modelling case is
-          # past this walk: the command is unsplittable instead. (No apostrophe
+          # past this walk: the command is unsplittable, with a status of its
+          # own (3), which the caller leaves to the normal flow. (No apostrophe
           # in these comments: the program is single-quoted.)
           else if (sp > 0 && c == "c" && (lu == "" || lu == " " || lu == "\t") && \
             ch[i + 1] == "a" && ch[i + 2] == "s" && ch[i + 3] == "e" && \
-            (ch[i + 4] == " " || ch[i + 4] == "\t" || ch[i + 4] == "")) exit 1
+            (ch[i + 4] == " " || ch[i + 4] == "\t" || ch[i + 4] == "")) exit 3
           else if (c == "(") { pd++; c = "\n"; lu = "" }
           else if (c == ")") {
             if (sp > 0 && sk[sp] == "(" && pd == sd[sp]) { pop(); c = "" }
@@ -525,13 +535,24 @@ is_git_word() { [[ "$1" == git || "$1" == */git ]]; }
 GIT_WORD_RE="(^|[[:space:]/\"'\\\\${SEPARATORS}])git([\"'[:space:]${SEPARATORS}<>]|\$)"
 MAX_CANDIDATES=1000
 
+segments=$(split_segments "$COMMAND") && rc=0 || rc=$?
+
+# A `case` inside a quoted substitution (status 3) is left to the normal flow
+# rather than refused: it is an ordinary word -- `git commit -m "$(echo case
+# 1)"` -- and refusing every command holding one cost more than it bought. That
+# is safe only while no allow rule can approve a git with an option before its
+# subcommand: every git allow rule is a literal prefix of the subcommand, so
+# such a command prompts or goes to the auto mode classifier. A `Bash(git *
+# ...)` allow rule would make this a bypass.
+[[ $rc -ne 3 ]] || exit 0
+
 # A here-string, not `printf | grep -q`: under pipefail grep -q exiting on its
 # match can SIGPIPE the writer, and a failed test here would pass the command.
 # Only grep's "no match" lets the command go; an error refuses it.
-if ! segments=$(split_segments "$COMMAND"); then
+if ((rc != 0)); then
   grep -qE "$GIT_WORD_RE" <<<"$COMMAND" && rc=0 || rc=$?
   [[ $rc -ne 1 ]] || exit 0
-  deny "git-guard: could not split the command into the commands it runs (quoting or substitutions that do not balance, a case inside a quoted substitution, or substitutions nested past ${MAX_SUBST_DEPTH}), and a word in it could be git, so it was refused rather than guessed at. Run the git part as a command of its own."
+  deny "git-guard: could not split the command into the commands it runs (quoting or substitutions that do not balance, or substitutions nested past ${MAX_SUBST_DEPTH}), and a word in it could be git, so it was refused rather than guessed at. Run the git part as a command of its own."
 fi
 
 candidates=$(printf '%s\n' "$segments" | grep -E "$GIT_WORD_RE") && rc=0 || rc=$?
