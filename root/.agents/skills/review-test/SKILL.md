@@ -46,7 +46,7 @@ Do not leave this condition to the caller's configuration alone (a `CLAUDE.md` o
 
 This skill changes no files while it runs, per the boundary above. Once it reports, the caller takes over. When the review ran forked, the report arrives as the skill's result, which the user does not necessarily see: **write it out to the user first**, then go on.
 
-1. **Fix the P1 and P2 findings, without asking first.** P1 means "deal with this before merging" and P2 decides how far the tests can be trusted; reporting and stopping discharges neither. Asking for permission to act on a review the caller already asked for is the failure mode this step exists to prevent.
+1. **Fix the P1 and P2 findings, without asking first.** P1 means "deal with this before merging" and P2 decides how far the tests can be trusted; reporting and stopping discharges neither. Asking for permission to act on a review the caller already asked for is the failure mode this step exists to prevent. The fixes are to the tests: a finding in the implementation is not P1–P3 and is not fixed here, because changing the code under test to suit its tests inverts which one is the specification. Report it; it is the user's call.
 2. **Review again** with this skill, in a fresh run, with a brief that says what this round fixed. A fix can break another part of the test or introduce a new P1, and this is where that surfaces.
 3. **Repeat 1–2 until a round reports no P1 and no P2.** There is no round cap.
 4. **Never auto-fix P3.** Report it; acting on it is the user's call.
