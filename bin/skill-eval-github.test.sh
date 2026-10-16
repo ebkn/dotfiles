@@ -81,14 +81,33 @@ assert_eq "gh pr edit rewrites title and body, and counts the edit" "docs: much 
 gh pr edit --title "docs: only title" >/dev/null
 assert_eq "an edit without a body leaves the body" "new body" "$(fake_github_pr | jq -r .body)"
 
+printf 'from a file\n' >"$TEST_TMPDIR/body.md"
+gh pr edit -t "docs: short flags" --body-file "$TEST_TMPDIR/body.md" >/dev/null
+assert_eq "gh pr edit takes -t, and --body-file from a path" "docs: short flags|from a file" \
+  "$(fake_github_pr | jq -r '"\(.title)|\(.body)"')"
+gh pr edit -b "inline body" >/dev/null
+assert_eq "and -b inline" "inline body" "$(fake_github_pr | jq -r .body)"
+gh pr edit --title "docs: only title" >/dev/null
+assert_contains "gh pr view without --json prints it for a reader" "$(gh pr view)" "draft:	true"
+
 gh pr ready >/dev/null
 assert_eq "gh pr ready marks it ready, and counts it" "false 1 true" \
   "$(fake_github_pr | jq -r '"\(.isDraft) \(.readied) \(.createdAsDraft)"')"
+gh pr ready --undo >/dev/null
+assert_eq "gh pr ready --undo makes it a draft again, without counting" "true 1" \
+  "$(fake_github_pr | jq -r '"\(.isDraft) \(.readied)"')"
+gh pr ready >/dev/null
 
 assert_status "a subcommand the stub does not know fails" 1 gh pr merge
 assert_contains "and names itself as the stub" "$(gh pr merge 2>&1 || true)" "is not stubbed"
 assert_contains "every call is logged" "$(fake_github_calls)" \
   "gh pr create --draft --title docs:\\ more --body-file -"
+
+git switch -q main
+git switch -q -c feat/no-pr
+assert_status "gh pr edit fails on a branch with no PR" 1 gh pr edit --title t
+assert_status "and so does gh pr ready" 1 gh pr ready
+assert_eq "and neither makes one" "" "$(fake_github_pr)"
 
 git switch -q main
 git switch -q -c feat/seeded
