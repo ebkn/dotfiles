@@ -25,6 +25,9 @@ check "changed the test file" \
   test -n "$(git diff --name-only eval-base -- lib/quantity.test.sh)"
 check "the tests still pass afterwards" \
   ./run-tests.sh
+# The first round has a P1 by construction, so a run that fixed it and stopped
+# without reviewing again skipped step 2 of "## After the review".
+review_test_check_loop
 check "committed the result" \
   test "$(git rev-list --count eval-base..HEAD)" -ge 1
 check_llm "the fixed tests exercise the failure behaviour" \

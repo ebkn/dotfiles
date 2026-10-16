@@ -25,4 +25,9 @@ check_eq "left the implementation untouched" "" "$(git diff --name-only eval-bas
 check "the tests still pass afterwards" \
   ./run-tests.sh
 
+# Tests that already cover the contract leave nothing to fix, so a second
+# round would re-read everything for nothing.
+check "did not re-run after a round with no P1 or P2" \
+  review_loop_reran_only_after_findings review-test
+
 skill_eval_finish

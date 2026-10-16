@@ -74,13 +74,14 @@ rec_edit() { rec_tool "$1" "$(jq -nc --arg p "$2" '{file_path: $p}')"; }
 # Set for one call:
 #   skill_inside  records the fork makes, in rec_* calls (default: one Read)
 #   skill_result  what the Skill hands back (default: a placeholder)
+#   skill_args    the brief it is started with (default: "brief")
 skill_seq=0
 rec_skill() {
   local id
   skill_seq=$((skill_seq + 1))
   id="toolu_skill_$skill_seq"
-  jq -nc --arg id "$id" \
-    '{type: "assistant", message: {content: [{type: "tool_use", id: $id, name: "Skill", input: {skill: "review-test", args: "brief"}}]}}'
+  jq -nc --arg id "$id" --arg args "${skill_args:-brief}" \
+    '{type: "assistant", message: {content: [{type: "tool_use", id: $id, name: "Skill", input: {skill: "review-test", args: $args}}]}}'
   jq -nc --arg id "$id" --rawfile body "$repo_root/root/.agents/skills/review-test/SKILL.md" \
     '{type: "user", parent_tool_use_id: $id, message: {content: [{type: "text", text: ("Base directory for this skill: .claude/skills/review-test\n\n" + $body)}]}}'
   eval "${skill_inside:-rec_edit Read lib/quantity.test.sh}" | jq -c --arg id "$id" '. + {parent_tool_use_id: $id}'
@@ -168,12 +169,14 @@ expect_fail() {
 # gaps-in-error-contract
 # ============================================================
 # A good run: the skill loads, reads, reports the untested refusals; the
-# caller then fixes the tests and commits.
+# caller fixes the tests, reviews again with a brief naming the fix, gets a
+# clean round, and commits. The first round hands back $report unless the
+# scenario sets skill_result.
 #   gaps_run <records before the report> <report> <records after> <tree change>
 gaps_run() {
   new_run gaps-in-error-contract || return 1
   {
-    rec_skill
+    skill_result="${skill_result-$report}" rec_skill
     rec_edit Read lib/quantity.test.sh
     eval "$1"
     [ -z "$2" ] || rec_text "$2"
@@ -181,7 +184,12 @@ gaps_run() {
   } >>"$art/transcript.jsonl"
   in_work "$4"
 }
-gaps_after='rec_edit Edit lib/quantity.test.sh; rec_bash ./run-tests.sh; rec_bash "git add lib/quantity.test.sh"; rec_bash "git commit -m test"'
+clean_report='## テストレビュー: lib/quantity.test.sh
+
+P1・P2 に該当する指摘はありません。'
+rerun_brief='前回の P1（拒否の未テスト）を直した。lib/quantity.test.sh を再レビューして。'
+gaps_rerun='skill_args="$rerun_brief" skill_result="$clean_report" rec_skill'
+gaps_after='rec_edit Edit lib/quantity.test.sh; rec_bash ./run-tests.sh; '"$gaps_rerun"'; rec_bash "git add lib/quantity.test.sh"; rec_bash "git commit -m test"'
 gaps_fix='review_test_write_thorough_test; git add -A; git commit -q -m "test: cover the refusals"'
 
 gaps_run '' "$report" "$gaps_after" "$gaps_fix"
@@ -268,6 +276,36 @@ grade "P1 を直してコミットしました。"
 expect_fail "gaps: the fixed-tests judge reads the test file" \
   "the fixed tests exercise the failure behaviour"
 
+# --- the loop ("## After the review", steps 2-3) ---
+gaps_commit='rec_bash "git add lib/quantity.test.sh"; rec_bash "git commit -m test"'
+gaps_fix_edit='rec_edit Edit lib/quantity.test.sh; rec_bash ./run-tests.sh'
+
+gaps_run '' "$report" "$gaps_fix_edit; $gaps_commit" "$gaps_fix"
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: fixing and stopping without a second review is caught" \
+  "reviewed again after fixing (two rounds or more)"
+
+# The re-run comes before the fix: the second round reviewed what the first did.
+gaps_run '' "$report" "$gaps_rerun; $gaps_fix_edit; $gaps_commit" "$gaps_fix"
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: a re-run with nothing fixed before it is caught" \
+  "fixed something before every re-run"
+
+gaps_run '' "$report" "$gaps_fix_edit; skill_args=\"\$rerun_brief\" skill_result=\"\$report\" rec_skill; $gaps_commit" "$gaps_fix"
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: stopping on a round that still reports P1 is caught" \
+  "the last round reports no P1 and no P2"
+
+gaps_run '' "$report" "$gaps_after; $gaps_rerun" "$gaps_fix"
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: a third round after a clean one is caught" \
+  "re-ran only after a round with P1 or P2"
+
+gaps_run '' "$report" "$gaps_fix_edit; skill_args=JUDGE_FAIL skill_result=\"\$clean_report\" rec_skill; $gaps_commit" "$gaps_fix"
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: the brief judge reads the re-run's brief" \
+  "each re-run's brief says what the last round fixed"
+
 # ============================================================
 # well-tested-no-false-p1
 # ============================================================
@@ -328,6 +366,12 @@ well_run '' "$well_report" "$break_a_test"
 grade "$well_report"
 expect_fail "well-tested: a broken suite is caught" \
   "the tests still pass afterwards"
+
+# The first round is clean, so starting it again is the waste being measured.
+well_run 'rec_skill' "$well_report" ''
+grade "$well_report"
+expect_fail "well-tested: a second start after a clean round is caught" \
+  "did not re-run after a round with no P1 or P2"
 
 well_run '' "$well_report" ''
 grade "JUDGE_FAIL"

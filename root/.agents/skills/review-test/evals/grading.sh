@@ -44,6 +44,32 @@ review_test_wrote_nothing_before() {
   return 0
 }
 
+# review_test_rerun_briefs
+# The briefs of every round after the first, as one text for a judge. SKILL.md
+# asks a later round's brief to say what the last one fixed; without it the
+# fresh context re-reviews from nothing and may ask for what was just undone.
+review_test_rerun_briefs() {
+  transcript_skill_rounds review-test | jq -sr '.[1:][] | .brief + "\n---"'
+}
+
+# The loop as "## After the review" states it, for a case whose first round
+# must find something: at least two rounds, a fix before each re-run, no re-run
+# after a clean round, and a clean last round. `check` lines, so a case sources
+# this file and calls it where the loop belongs in its grader.
+review_test_check_loop() {
+  check "reviewed again after fixing (two rounds or more)" \
+    test "$(transcript_skill_uses review-test)" -ge 2
+  check "fixed something before every re-run" \
+    review_loop_fixed_before_each_rerun review-test
+  check "re-ran only after a round with P1 or P2" \
+    review_loop_reran_only_after_findings review-test
+  check "the last round reports no P1 and no P2" \
+    review_loop_ended_clean review-test
+  check_llm "each re-run's brief says what the last round fixed" \
+    'The text holds the briefs passed to a test-review skill on its second and later runs, each ending in "---". It passes if every brief says what the previous round of review fixed or changed in the tests. It fails if any brief is empty, or only restates the original task without mentioning a fix.' \
+    "$(review_test_rerun_briefs)"
+}
+
 review_test_ran_no_git_before() {
   local first
   [ -n "$1" ] || return 1
