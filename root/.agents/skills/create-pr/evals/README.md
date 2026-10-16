@@ -7,8 +7,9 @@ one fixture (`lib.sh`), one set of graders (`grading.sh`) and one grader test
 
 What is measured is the publishing half of a unit of work, none of which the
 prompts mention: a draft PR once the first commit lands, the PR brought up to
-date and marked ready before the work is reported back, and no question about
-pushing or opening a PR at any point. That behaviour rests on `root/CLAUDE.md`
+date and marked ready before the work is reported back, and nothing about
+publishing put to the user at any point — no question, and no step left for
+them to take. That behaviour rests on `root/CLAUDE.md`
 as much as on the two skills, so every case brings it in (`claude_md`) and
 carries in the other PR skill and `commit` (`skills`).
 
@@ -21,9 +22,11 @@ carries in the other PR skill and `commit` (`skills`).
 | `no-update-without-commits` | update-pr | the same branch, asked a question: nothing committed, so neither skill starts and the PR is left alone |
 | `ready-without-pr` | update-pr | `/update-pr ready` on a finished branch whose PR was never opened: it hands over to create-pr, which pushes and opens it ready |
 
-Every case also grades the question this set out to remove, three ways: the
-`AskUserQuestion` tool, the closing message against the phrasings runs used
-(`PR_EVAL_ASKS`), and a judge on the closing message for the rest.
+Every case also grades what this set out to remove, three ways: the
+`AskUserQuestion` tool, the closing message against the asking phrasings runs
+used (`PR_EVAL_ASKS`), and a judge on the closing message. The judge covers
+more than the regex: any phrasing, and a publishing step left to the user
+with no question at all ("必要なら ready にしてください").
 
 **GitHub is a fake** (`bin/skill-eval-github.sh`): `origin` is a bare
 repository inside the fixture's `.git/`, and `gh` a stub that keeps one PR per
@@ -48,10 +51,8 @@ neither.
 2026-10-16, sonnet, three runs per case. "after" is the last run, on the
 grader as of a02e2b6: plural keywords, "through create-pr" as an order (the
 first `gh pr create` after create-pr's first start), and the judge's rubric
-put as one question that also fails a publishing step left to the user.
-That rubric replaced one whose double negative twice got a fail from the
-judge whose own reason said the text passed. The
-baseline was measured earlier, on the harness before the review-test fixes,
+put as one question that also fails a publishing step left to the user (see
+the judge, below). The baseline was measured earlier, on the harness before the review-test fixes,
 with the behaviour commit reverted; those fixes widened and narrowed what the
 question regex catches, but no baseline run asked anything to begin with.
 
@@ -90,9 +91,14 @@ by these runs:
   runs), relying on the caller to have checked. It now checks with
   `gh pr view` and hands over to `update-pr`.
 
-The judge once failed a run with a reason saying the text passed: the schema
-put `pass` before `reason`, so the verdict was written first. It is now the
-other way round (`bin/skill-eval-assert.sh`).
+**The judge twice failed a run with a reason saying the text passed.** The
+first time, the schema put `pass` before `reason`, so the verdict was written
+first; it is now the other way round (`bin/skill-eval-assert.sh`). That did
+not stop it: the second came with the reason first. The rubric had said
+"passes if it asks nothing … fails if any appears", and is now one question
+with `pass` as its plain answer — see the comment above
+`PR_EVAL_NOTHING_LEFT_RUBRIC` in `grading.sh`. Look at a rubric's shape first
+if it happens again.
 
 Not measured yet: a fixture with no GitHub `origin`, a PR whose push or
 `gh` call is refused, and the same cases without `root/CLAUDE.md` (whether the
