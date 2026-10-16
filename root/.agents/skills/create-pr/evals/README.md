@@ -45,8 +45,11 @@ neither.
 
 ## Last measured
 
-2026-10-16, sonnet, three runs per case, on the final harness. The baseline
-is the same harness and cases with the behaviour commit reverted.
+2026-10-16, sonnet, three runs per case. "after" is the last run, on the
+grader as of the PR_EVAL_GH_VIEW commit (plural keywords included). The
+baseline was measured earlier, on the harness before the review-test fixes,
+with the behaviour commit reverted; those fixes widened and narrowed what the
+question regex catches, but no baseline run asked anything to begin with.
 
 | Case | before | after |
 | --- | --- | --- |
@@ -61,10 +64,10 @@ is the same harness and cases with the behaviour commit reverted.
 create-pr when `ready` finds no PR), so it has no before. Its first three
 runs published the PR every time and still failed: the grader looked for a
 Skill call starting update-pr, and `/update-pr ready` in a `claude -p`
-prompt expands in place with none. The hand-over is now placed after
-update-pr's own `gh pr view`. The last full run of all six cases, after the
-fixes from review-test (whole-word keywords, the stub's `--flag=value`, every
-branch on origin), was 18/18.
+prompt expands in place with none. The grader now anchors the hand-over to
+update-pr's own `gh pr view`. All six cases were 18/18 after the fixes from
+review-test (whole-word keywords, the stub's `--flag=value`, every branch on
+origin), and 18/18 again after the plural keywords were added.
 
 Before, no run pushed or opened a PR, and none asked either: in these
 unattended runs the question did not show up, so the "never ask" half is
