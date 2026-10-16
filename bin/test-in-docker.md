@@ -73,7 +73,7 @@ Docker. It was confirmed red by removing one suite's guard line.
 ## Why the image looks the way it does
 
 Every difference from the runner is a failure the container invents
-(CLAUDE.md, Testing), so each line reproduces one runner property -- except
+(.claude/rules/testing.md), so each line reproduces one runner property -- except
 the architecture, the one difference chosen on purpose:
 
 - **tmux 3.7c, fzf 0.74.3 and pandoc 3.12, the workflow's versions.** The

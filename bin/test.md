@@ -124,7 +124,7 @@ overload first: it waits on a real supervisor's poll.
 ## What each suite gates
 
 Why each suite is worth running on every push — moved here from the per-suite
-steps the workflow used to carry. The suite's own doc (CLAUDE.md, Testing)
+steps the workflow used to carry. The suite's own doc (.claude/rules/testing.md)
 has the detail. **This list is kept by hand and nothing checks that it is
 complete**: a suite missing from it still runs, since `bin/test` finds suites
 by itself. Add a line when you add a suite.

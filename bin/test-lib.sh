@@ -30,7 +30,7 @@
 # with these instead. The same holds inside a case. The verdict never depends
 # on the trap: every check has reported by the time it runs.
 #
-# A sourced fragment (CLAUDE.md, Shell Script Conventions): bash 3.2, no
+# A sourced fragment (.claude/rules/shell-scripts.md): bash 3.2, no
 # shebang, no `set`, and named inline in bin/lint-shell. Pinned by
 # bin/test-lib.test.sh, which runs it under /bin/bash.
 

@@ -1,5 +1,5 @@
 # Suites a bare bin/test run leaves out, one per line: <path>|<reason>.
 # bin/test --list prints the reason; a suite named on the command line still
 # runs. An entry naming no tracked suite fails bin/test. See bin/test.md.
-root/.claude/hooks/git-guard.test.sh|not wired in yet (CLAUDE.md, Testing)
+root/.claude/hooks/git-guard.test.sh|not wired in yet (.claude/rules/testing.md)
 root/.codex/rules/default.rules.test.sh|needs the codex CLI, which CI does not have; run it by name after editing default.rules
