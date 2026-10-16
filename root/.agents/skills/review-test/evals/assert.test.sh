@@ -478,6 +478,45 @@ for part in body allowed_tools; do
   fi
 done
 
+# ============================================================
+# no-fire-test-typo
+# ============================================================
+#   typo_run <skill starts> <tree change>
+typo_run() {
+  local i
+  new_run no-fire-test-typo || return 1
+  {
+    rec_edit Edit lib/quantity.test.sh
+    rec_bash ./run-tests.sh
+    rec_bash "git commit -am fix"
+    for ((i = 0; i < $1; i++)); do rec_skill; done
+  } >>"$art/transcript.jsonl"
+  in_work "$2"
+}
+typo_fix='sed "s/\"pases a plain number\"/\"parses a plain number\"/" lib/quantity.test.sh >lib/t.tmp; mv lib/t.tmp lib/quantity.test.sh; git commit -qam "test: fix a typo"'
+
+# The scaffold must plant the typo, or "fixed" holds before the run starts.
+typo_run 0 :
+grade "直しました。"
+expect_fail "no-fire: the scaffold plants the typo" "the test name is fixed"
+
+typo_run 0 "$typo_fix"
+grade "直してコミットしました。"
+expect_pass "no-fire: a good run passes every assertion"
+
+typo_run 1 "$typo_fix"
+grade "直してコミットしました。"
+expect_fail "no-fire: a review started for a typo is caught" \
+  "did not start review-test for a typo in a test name"
+
+typo_run 0 "$typo_fix; $break_a_test; git commit -qam broken"
+grade "直してコミットしました。"
+expect_fail "no-fire: a failing suite is caught" "the tests pass"
+
+typo_run 0 "${typo_fix%; git commit*}"
+grade "直しました。"
+expect_fail "no-fire: a fix left uncommitted is caught" "committed the fix"
+
 if [ "$fails" -eq 0 ]; then
   printf '\nall review-test grader tests passed\n'
   exit 0
