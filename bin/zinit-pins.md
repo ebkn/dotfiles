@@ -31,9 +31,16 @@ printing nothing on stdout.
 
 "Runs `zinit`" includes zinit as part of another command —
 `[[ -n $X ]] && zinit light …` — which a check of the line's start alone
-would pass over; it is refused like any other form the reader cannot follow.
+would pass over. A plugin line is read only when it is the whole line:
+`zinit light <owner/repo>`, then nothing but an optional comment. So
+`zinit light a/one && zinit light b/two`, a `\` continuation and a quoted name
+are refused too — each once came out as a pin with the second plugin dropped
+or a name that was not a name. `_zinit_repo` and `_zinit_pin` must each appear
+once and hold only an `owner/repo` and a full SHA.
+
 Consecutive `zinit ice` lines, which zinit would merge, are not merged here:
-only the last is read, so a `ver` on an earlier one is refused, not lost.
+the first is an ice with no plugin after it, so the file is refused whichever
+of them holds the `ver`.
 
 The alternative — listing the pins it understood — is the dangerous one. A
 caller that moves pins would leave a plugin it never saw where it is, and a
@@ -49,8 +56,11 @@ moves (see the root CLAUDE.md on `bin/`).
 
 ## Tests
 
-`bin/zinit-pins.test.zsh`: the order and shape of the output, indented lines,
-either quote, and each refusal — a plugin without a pin, a short SHA, an ice
-cut off from its plugin by other code, an unreadable `zinit` form, a missing
-`_zinit_pin`, a missing file. The last case runs it through a symlink with no
-argument, so that finding its own checkout's `plugin.zsh` is pinned too.
+`bin/zinit-pins.test.zsh`: the order and shape of the output, indented and
+tab-separated lines, either quote, and each refusal listed above. Every
+refusal asserts the status is exactly 1 and stdout is empty — a reader that
+printed the pins it understood and then failed is the one this exists to rule
+out, and `*exit=1*` would also have matched 126 and 127. One case has several
+problems at once, to pin that all are named. The last runs it through a
+symlink with no argument, so that finding its own checkout's `plugin.zsh` is
+pinned too.

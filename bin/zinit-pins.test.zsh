@@ -120,6 +120,42 @@ check 'refuses zinit run from inside another command' \
   "$(refused '*zinit light c/cond*')" \
   "$(read_pins '[[ -n $X ]] && zinit light c/cond')"
 
+# The same, the other way round: a plugin line that goes on to run more.
+check 'refuses a plugin line followed by && and another zinit' \
+  "$(refused '*cannot read: zinit light a/one && zinit light b/two*')" \
+  "$(read_pins "zinit ice ver\"$A\"
+zinit light a/one && zinit light b/two")"
+
+check 'refuses a plugin line followed by ; and another zinit' \
+  "$(refused '*cannot read: zinit light a/one; zinit light b/two*')" \
+  "$(read_pins "zinit ice ver\"$A\"
+zinit light a/one; zinit light b/two")"
+
+check 'refuses a plugin continued onto the next line' \
+  "$(refused '*cannot read: zinit light \\*')" \
+  "$(read_pins "zinit ice ver\"$A\"
+zinit light \\
+  a/one")"
+
+check 'refuses a quoted plugin name' \
+  "$(refused '*cannot read: zinit light "a/one"*')" \
+  "$(read_pins "zinit ice ver\"$A\"
+zinit light \"a/one\"")"
+
+# zinit would merge two ices; the reader does not try to, and refuses the file
+# whichever of them holds the ver.
+check 'refuses two ices in a row, the ver on the first' \
+  "$(refused '*an ice with no zinit light?load after it*')" \
+  "$(read_pins "zinit ice ver\"$A\"
+zinit ice wait lucid
+zinit light a/one")"
+
+check 'refuses two ices in a row, the ver on the second' \
+  "$(refused '*an ice with no zinit light?load after it*')" \
+  "$(read_pins "zinit ice wait lucid
+zinit ice ver\"$A\"
+zinit light a/one")"
+
 # The pins it could read are withheld too, and every problem is named, not
 # just the first: a caller fixes them all in one pass.
 check 'names every problem, and prints none of the pins it did read' \
@@ -137,6 +173,21 @@ check 'refuses a file without _zinit_pin' \
 check 'refuses a file without _zinit_repo' \
   "$(refused '*_zinit_repo*')" \
   "$(read_file "_zinit_pin=$Z")"
+
+check 'refuses a _zinit_repo that is not owner/repo alone' \
+  "$(refused '*_zinit_repo*')" \
+  "$(read_file "_zinit_repo=zdharma-continuum/zinit # the fork
+_zinit_pin=$Z")"
+
+check 'refuses a second _zinit_repo' \
+  "$(refused '*_zinit_repo*')" \
+  "$(read_file "$HEADER
+_zinit_repo=other/zinit")"
+
+check 'refuses a second _zinit_pin' \
+  "$(refused '*_zinit_pin*')" \
+  "$(read_file "$HEADER
+_zinit_pin=$A")"
 
 check 'refuses a _zinit_pin that is not a full SHA' \
   "$(refused '*_zinit_pin*')" \

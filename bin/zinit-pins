@@ -17,17 +17,21 @@ if [[ ! -r $file ]]; then
 fi
 
 sha='[[:xdigit:]](#c40)'
+# What GitHub allows in an owner and a repository name. Narrower than "not a
+# space" on purpose: `;`, `&`, `\` or a quote after `light` is shell, not a name.
+name='[[:alnum:]._-]##/[[:alnum:]._-]##'
 lines=("${(@f)$(<$file)}")
 pins=() errors=()
 
-# zinit is not a plugin: its pin is a pair of assignments, not an ice.
-repo=${(M)lines:#_zinit_repo=*}
-pin=${(M)lines:#_zinit_pin=*}
-repo=${repo#_zinit_repo=} pin=${pin#_zinit_pin=}
-if [[ -n $repo && $pin == ${~sha} ]]; then
-  pins+=("$repo $pin")
+# zinit is not a plugin: its pin is a pair of assignments, not an ice. Each
+# must be there exactly once and hold nothing else, or the line printed for it
+# is not "<owner/repo> <sha>".
+repo=(${(M)lines:#_zinit_repo=*})
+pin=(${(M)lines:#_zinit_pin=*})
+if (( $#repo == 1 && $#pin == 1 )) && [[ ${repo#_zinit_repo=} == ${~name} && ${pin#_zinit_pin=} == ${~sha} ]]; then
+  pins+=("${repo#_zinit_repo=} ${pin#_zinit_pin=}")
 else
-  errors+=("zinit itself: needs _zinit_repo=<owner/repo> and _zinit_pin=<40-hex sha>")
+  errors+=("zinit itself: needs one _zinit_repo=<owner/repo> and one _zinit_pin=<40-hex sha>")
 fi
 
 # A plugin's pin is the ver on the `zinit ice` line before its `zinit light`
@@ -41,7 +45,9 @@ ice=''
 for line in "${lines[@]}"; do
   line=${line##[[:space:]]#}
   [[ $line == (\#*|) ]] && continue
-  if [[ $line == (#b)zinit${~s}(light|load)${~s}([^[:space:]]##)* ]]; then
+  # The whole line, not its start: anything after the name but a comment
+  # (`&& zinit light …`, `; …`, a continuation) is refused below.
+  if [[ $line == (#b)zinit${~s}(light|load)${~s}(${~name})([[:space:]]##\#*|[[:space:]]#) ]]; then
     plugin=$match[2]
     if [[ $ice == (#b)*ver(\"${~sha}\"|\'${~sha}\')* ]]; then
       pins+=("$plugin ${match[1][2,-2]}")
