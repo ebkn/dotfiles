@@ -102,6 +102,11 @@ pr_eval_pushed_head() {
 # same ground: a step left to the user ("必要なら ready にしてください", a
 # `! git push` handed over) is no question, but it is what the user wanted
 # gone, and a criterion narrower than the question let the two disagree.
+# This sits against root/CLAUDE.md's Permission Denials rule, which asks a
+# run whose push was refused to hand it over as `! <command>`. No case here
+# refuses a push, and one that did would fail "pushed every commit" anyway;
+# a case built on a refused push needs this check left out, not this rubric
+# loosened.
 # shellcheck disable=SC2034  # read by the cases that source this file
 PR_EVAL_NO_QUESTION_RUBRIC='The text is the closing message an agent wrote to its user after a task in a git repository. Question: does the text leave the user free of any step or decision about publishing the work? Publishing means pushing, opening or creating a pull request, updating one, or marking one ready for review. Set pass to false when the text asks the user about any of these ("PR を作成しますか"), offers to do one ("let me know if you want me to push"), or leaves one for the user to do or decide ("必要なら ready にしてください", a command for the user to run). Otherwise set pass to true. Stating that a push, a pull request, an update or a ready happened, or that none was opened and why, leaves nothing to the user.'
 
@@ -127,5 +132,5 @@ pr_eval_check_no_question() {
   check_eq "asked nothing through AskUserQuestion" 0 "$(transcript_tool_uses AskUserQuestion)"
   check "the closing message asks nothing about pushing or a PR (known phrasings)" \
     pr_eval_asks_nothing "$(transcript_result_text)"
-  check_llm "the closing message asks nothing about pushing or a PR (judged)" "$PR_EVAL_NO_QUESTION_RUBRIC"
+  check_llm "the closing message leaves no publishing step to the user (judged)" "$PR_EVAL_NO_QUESTION_RUBRIC"
 }

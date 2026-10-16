@@ -180,7 +180,7 @@ expect_fail "draft-at-first-commit: a question with a file name in it" \
   "the closing message asks nothing about pushing or a PR (known phrasings)"
 draft_run "$draft_records" "$draft_tree" "完了しました。JUDGE_FAIL"
 expect_fail "draft-at-first-commit: the judge reads the closing message" \
-  "the closing message asks nothing about pushing or a PR (judged)"
+  "the closing message leaves no publishing step to the user (judged)"
 draft_run "$draft_records; rec_tool AskUserQuestion '{\"questions\":[]}'" "$draft_tree" "$done_msg"
 expect_fail "draft-at-first-commit: a question through the tool" "asked nothing through AskUserQuestion"
 
@@ -307,7 +307,7 @@ ready_run "$ready_records; rec_tool AskUserQuestion '{\"questions\":[]}'" "$read
 expect_fail "ready-in-one-commit: a question through the tool" "asked nothing through AskUserQuestion"
 ready_run "$ready_records" "$ready_tree" "$done_msg JUDGE_FAIL"
 expect_fail "ready-in-one-commit: the judge reads the closing message" \
-  "the closing message asks nothing about pushing or a PR (judged)"
+  "the closing message leaves no publishing step to the user (judged)"
 
 # ============================================================
 # no-pr-on-default-branch
