@@ -56,6 +56,9 @@ jq -n '{permissions: {
   allow: ["Bash(git --no-pager branch*)", "Bash(git --no-pager log*)"],
   deny: ["Bash(git log *--output*)"], ask: ["Bash(git branch -D *)"]
 }}' >"$TMP/home-pager/.claude/settings.json"
+mkdir -p "$TMP/home-wide-pager/.claude"
+jq -n '{permissions: {allow: ["Bash(git --no-pager *)"], ask: ["Bash(git branch -D *)"]}}' \
+  >"$TMP/home-wide-pager/.claude/settings.json"
 
 # Settings that are not usable: not JSON, and an allow that is not a list.
 mkdir -p "$TMP/home-bad/.claude" "$TMP/home-odd/.claude"
@@ -164,6 +167,11 @@ check ALLOW 'an allow rule naming the option' 'git -C sub --no-pager log -1'
 check DEFER 'an ask rule past such an option' 'git -C sub --no-pager branch -D topic' "$PROJ" "$TMP/home-pager"
 check DEFER 'a deny rule past such an option' 'git -C sub --no-pager log --output=x' "$PROJ" "$TMP/home-pager"
 check ALLOW 'and the same allow rules alone' 'git -C sub --no-pager log -1' "$PROJ" "$TMP/home-pager"
+# A -C after such an option is one git_dash_c_in_project never resolves, and a
+# word-prefix rule (`git --no-pager *`) would carry it: it is refused, not read.
+check DEFER 'a -C after an option, out of the project' 'git -C sub --no-pager -C ../.. log -1' "$PROJ" "$TMP/home-wide-pager"
+check DEFER 'nor read past for the rules' 'git -C sub --no-pager -C sub branch -D topic' "$PROJ" "$TMP/home-wide-pager"
+check ALLOW 'which the wide rule otherwise allows' 'git -C sub --no-pager log -1' "$PROJ" "$TMP/home-wide-pager"
 
 echo "-- must DEFER: a segment that is not an approved git --"
 check DEFER 'a non-git segment' 'git -C sub status; rm -rf x'
