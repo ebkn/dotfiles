@@ -309,16 +309,20 @@ review_loop_ended_clean() {
 # review_loop_checks <skill name>
 # The predicates above as `check` lines. review_loop_rerun_checks asks what
 # every re-run owes: a finding before it and a fix before it. A check about
-# the rounds themselves -- a ceiling on how many, say -- belongs here, so it
-# reaches every case that lets the loop run. review_loop_checks adds the
-# stopping rule, a clean last round, for a case where one can be reached.
+# the rounds themselves -- a ceiling on how many, say -- belongs in
+# review_loop_rerun_checks, so it reaches every case listed below as calling
+# either bundle. review_loop_checks adds the stopping rule, a clean last round,
+# for a case where one can be reached.
 #
 # Who calls what: the proactive cases (and their -with-claude-md variants)
 # review_loop_checks; both *_check_loop in evals/grading.sh, for a case whose
 # first round must find something, review_loop_checks plus their own;
-# clean-unit-no-false-p1 review_loop_rerun_checks. well-tested-no-false-p1
-# runs neither: with nothing to find and no Write, it asks one thing under a
-# label of its own, so a new check here does not reach it unless added there.
+# clean-unit-no-false-p1 review_loop_rerun_checks. Two cases run neither, so a
+# new check here does not reach them unless added there:
+# - well-tested-no-false-p1: nothing to find and no Write; it asks one thing
+#   under a label of its own.
+# - intended-layer-asks: its finding crosses the range and stays open in a run
+#   nobody can answer, so it grades no loop at all -- although it can loop.
 review_loop_rerun_checks() {
   check "fixed something before every re-run" \
     review_loop_fixed_before_each_rerun "$1"

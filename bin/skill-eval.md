@@ -90,8 +90,8 @@ round, a caller write before every re-run, and a clean last round — and
 A case calls them bundled as `check` lines, not one by one:
 `review_loop_rerun_checks` and `review_loop_checks`, whose comment says what
 each asks and which case calls which. A check on the re-runs — a ceiling, say
-— goes in `review_loop_rerun_checks`, so it reaches every case that lets the
-loop run.
+— goes in `review_loop_rerun_checks`, so it reaches every case that calls
+either bundle; that comment names the two that call neither.
 A fix made through `Bash` instead of `Write`/`Edit` is invisible to them; the
 review cases open no command that writes.
 
@@ -101,8 +101,9 @@ Where they apply: a case whose first round **must** find something
 `next-change-scattered`) also requires two rounds and a brief fit for the
 re-run — naming the fix for `review-test`, carrying the last `Reviewed:` line
 for `review-design` (`*_check_loop` in each skill's `grading.sh`).
-`intended-layer-asks` is left out: its finding crosses the range, so in a run
-nobody can answer it stays open and no round can come back clean.
+`intended-layer-asks` runs no loop checks at all: its finding crosses the
+range, so in a run nobody can answer it stays open and no round can come back
+clean — though the case can still re-run, and nothing grades whether it does.
 The proactive cases, whose first round may or may not find something, run
 `review_loop_checks`. `clean-unit-no-false-p1` runs `review_loop_rerun_checks`
 only — a P2 may be raised and fixed there, but whether the loop ended clean is
