@@ -62,8 +62,7 @@ check "names the range it reviewed, from eval-base to a commit on the branch" na
 
 # --- the loop ("## After the review", step 6) ---
 # Whether the first round finds anything depends on the --kg this run wrote, so
-# two rounds are not required: only that every re-run had a finding and a fix
-# before it, and that the loop stopped on a clean round.
+# two rounds are not required: only the shared loop checks.
 review_loop_checks review-design
 
 skill_eval_finish

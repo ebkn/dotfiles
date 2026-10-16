@@ -80,9 +80,9 @@ review_design_reruns_carry_reviewed_line() {
 
 # review_design_check_loop
 # The loop of "## After the review", steps 1-6, as `check` lines, for a case
-# whose first round must find something local to fix: two rounds or more, a fix
-# before each re-run, a Reviewed line in each re-run's brief, no re-run after a
-# clean round, and a clean last round.
+# whose first round must find something local to fix: the shared loop checks
+# (review_loop_checks), plus two rounds or more and a Reviewed line in each
+# re-run's brief.
 review_design_check_loop() {
   check "reviewed again after fixing (two rounds or more)" \
     test "$(transcript_skill_uses review-design)" -ge 2

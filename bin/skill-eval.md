@@ -74,6 +74,7 @@ Functions available to `assert.sh`: `check`, `check_eq`, `check_match`,
 `transcript_skill_rounds <skill>`, `transcript_caller_writes_between <from> <to>`,
 `review_loop_reran_only_after_findings <skill>`,
 `review_loop_fixed_before_each_rerun <skill>`, `review_loop_ended_clean <skill>`,
+`review_loop_rerun_checks <skill>`, `review_loop_checks <skill>`,
 `check_llm <label> <rubric> [<text>]`.
 
 **The review loop is graded per round, not by a count.** `review-test` and
@@ -86,6 +87,10 @@ how many P1/P2 items that report lists, and how many tool calls the fork made.
 The three `review_loop_*` predicates are built on it — no re-run after a clean
 round, a caller write before every re-run, and a clean last round — and
 `bin/skill-eval.test.sh` pins each against a two-round fixture transcript.
+A case calls them bundled as `check` lines, not one by one:
+`review_loop_rerun_checks` and `review_loop_checks`, whose comment says what
+each asks and which case calls which. A new check on the loop goes there, so
+it reaches every case at once.
 A fix made through `Bash` instead of `Write`/`Edit` is invisible to them; the
 review cases open no command that writes.
 
@@ -97,12 +102,11 @@ re-run — naming the fix for `review-test`, carrying the last `Reviewed:` line
 for `review-design` (`*_check_loop` in each skill's `grading.sh`).
 `intended-layer-asks` is left out: its finding crosses the range, so in a run
 nobody can answer it stays open and no round can come back clean.
-The two proactive cases, whose first round may or may not find something, run
-`review_loop_checks`: every re-run had a finding and a fix before it, and the
-last round was clean. `clean-unit-no-false-p1` runs only the first two — a P2
-may be raised and fixed there, but whether the loop ended clean is not asked.
-`well-tested-no-false-p1`, with nothing to find, asks only that the review was
-not started again. The loop needs a second forked review, so the cases that
+The proactive cases, whose first round may or may not find something, run
+`review_loop_checks`. `clean-unit-no-false-p1` runs `review_loop_rerun_checks`
+only — a P2 may be raised and fixed there, but whether the loop ended clean is
+not asked. `well-tested-no-false-p1`, with nothing to find, asks only that the
+review was not started again, and runs neither. The loop needs a second forked review, so the cases that
 require one raise `max_turns` / `budget_usd` in their frontmatter, each with a
 comment saying why. **None of this has been measured on real runs yet.**
 

@@ -30,8 +30,7 @@ check_llm "reaches a conclusion about P1 and P2" \
   'The text is the final answer to a request to write tests. It passes if it says one of these about the P1 *and* P2 findings of the test review: that there were none, that they were fixed, or which ones are left and why. It fails if it addresses only P1 and never P2, if it only reports that tests were written, or if it asks the reader whether to fix the findings instead of having fixed them.' \
   "$result"
 # Whether the first round finds anything depends on the tests this run wrote,
-# so two rounds are not required -- only that every re-run had a reason and a
-# fix before it, and that the loop stopped on a clean round.
+# so two rounds are not required -- only the shared loop checks.
 review_loop_checks review-test
 # The step the review loop ends on. A fix left in the working tree is
 # indistinguishable from a review that was never acted on, which is why the

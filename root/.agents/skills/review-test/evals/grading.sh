@@ -53,9 +53,10 @@ review_test_rerun_briefs() {
 }
 
 # The loop as "## After the review" states it, for a case whose first round
-# must find something: at least two rounds, a fix before each re-run, no re-run
-# after a clean round, and a clean last round. `check` lines, so a case sources
-# this file and calls it where the loop belongs in its grader.
+# must find something: the shared loop checks (review_loop_checks), plus at
+# least two rounds and a judge on the re-run briefs -- the one check here that
+# spends model usage. `check` lines, so a case sources this file and calls it
+# where the loop belongs in its grader.
 review_test_check_loop() {
   check "reviewed again after fixing (two rounds or more)" \
     test "$(transcript_skill_uses review-test)" -ge 2
