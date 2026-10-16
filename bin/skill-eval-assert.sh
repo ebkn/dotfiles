@@ -205,14 +205,16 @@ transcript_skill_uses() {
 # `open` counts list items under a heading naming P1 or P2 ("### P1 (Critical)",
 # "### P2"), skipping an item that says there is nothing ("なし", "None"). Both
 # skills drop an empty priority section, so a clean round has no such heading
-# at all; the skip is for a run that kept the heading anyway.
+# at all; the skip is for a run that kept the heading anyway. Only an item that
+# is nothing else is skipped: "テストなし" ("no test for ...") is how a P1 gap
+# is naturally written, and skipping it would grade an open P1 as clean.
 transcript_skill_rounds() {
   jq -sc --arg name "$1" '
     def open_findings:
       [ foreach split("\n")[] as $l ({sec: false, n: 0};
           if ($l | test("^#+")) then .sec = ($l | test("^#+\\s*P[12]([^0-9]|$)"))
           elif .sec and ($l | test("^\\s*([-*]|[0-9]+\\.)\\s+"))
-            and ($l | test("なし|ありません|[Nn]one|[Nn]o findings|N/A") | not) then .n += 1
+            and ($l | test("^\\s*([-*]|[0-9]+\\.)\\s+(\\[ \\]\\s+)?(なし|該当なし|ありません|指摘なし|[Nn]one|[Nn]o findings|N/A)[。.]?\\s*$") | not) then .n += 1
           else . end;
           .n) ] | last // 0;
     . as $all
@@ -300,10 +302,12 @@ review_loop_fixed_before_each_rerun() {
 
 # review_loop_ended_clean <skill name>
 # The loop's stopping rule: the last round reported no P1 and no P2. False when
-# the skill never ran, so a case must decide on its own whether it should have.
+# the skill never ran, so a case must decide on its own whether it should have,
+# and false when the last round's result never came back: a run cut off by its
+# turn or budget limit mid-review has an empty report, which is not a clean one.
 review_loop_ended_clean() {
   transcript_skill_rounds "$1" |
-    jq -se 'length > 0 and (last.open == 0)' >/dev/null
+    jq -se 'length > 0 and last.result_index != null and last.open == 0' >/dev/null
 }
 
 # --- grading with an LLM ---

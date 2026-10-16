@@ -197,6 +197,8 @@ if [ -n "${STUB_CLAUDE_ACTION:-}" ]; then
 fi
 printf '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"git status"}}]}}\n'
 printf '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Skill","input":{"skill":"stub-skill"}}]}}\n'
+# A transcript the round reader cannot parse, such as one cut off mid-record.
+[ -z "${STUB_CLAUDE_GARBAGE:-}" ] || printf 'not json\n'
 printf '{"type":"result","subtype":"success","result":"done","total_cost_usd":0.25,"duration_ms":1500,"permission_denials":[]}\n'
 if [ -n "${STUB_CLAUDE_EXIT:-}" ]; then
   exit "$STUB_CLAUDE_EXIT"
@@ -457,6 +459,14 @@ contains "each run prints its rounds, with '-' for what was not recorded" "round
 # Per run, never averaged: a case that usually takes 2 rounds and once took 6
 # is the finding, and a mean would hide it.
 contains "the summary lists the rounds of every run" "1,1" "$output"
+
+# A round reader that fails is "?", not 0 rounds: under-reporting the rounds of
+# a run nobody could read is how a run that looped forever would read as one
+# that never started.
+rm -rf "$STUB_CLAUDE_OUT" "$SKILL_EVAL_OUT_DIR"
+output="$(STUB_CLAUDE_GARBAGE=1 $RUN "$skill" case-b 2>&1 || true)"
+contains "an unreadable transcript is ? in the summary" "?" "$(tail -n 2 <<<"$output" | head -n 1)"
+absent "and prints no round line" "round: open=" "$output"
 
 rm -rf "$STUB_CLAUDE_OUT" "$SKILL_EVAL_OUT_DIR"
 output="$($RUN "$skill")"
@@ -868,6 +878,21 @@ sed 's/- the refusal is untested/- なし/; s/- \[ \] stderr unchecked/- None/' 
 t "loop: a re-run after a clean round is caught" "no" "$(loop review_loop_reran_only_after_findings "$DIR/rounds-clean-first.jsonl")"
 sed 's/### P2 (Important)\\n- なし/### P2 (Important)\\n- still open/' "$DIR/rounds.jsonl" >"$DIR/rounds-dirty-last.jsonl"
 t "loop: a last round with a P2 left is caught" "no" "$(loop review_loop_ended_clean "$DIR/rounds-dirty-last.jsonl")"
+# A finding whose own words say "no test" (テストなし, None of ...) is still a
+# finding. A filter that skipped any item containing those words would read a
+# P1 stated in the most natural Japanese as nothing, and grade the loop clean.
+sed 's/- the refusal is untested/- 数量 0 の拒否のテストなし/; s/- \[ \] stderr unchecked/- None of the error paths are asserted/' \
+  "$DIR/rounds.jsonl" >"$DIR/rounds-words.jsonl"
+t "skill_rounds: a finding that contains なし or None still counts" "2" \
+  "$(SKILL_EVAL_TRANSCRIPT="$DIR/rounds-words.jsonl" bash -c '. bin/skill-eval-assert.sh; transcript_skill_rounds review-test' | jq -s '.[0].open')"
+# A run cut off before the last round reported (turn limit, budget) has
+# nothing to say about its last round, so it cannot have ended clean.
+sed '9d' "$DIR/rounds.jsonl" >"$DIR/rounds-cut.jsonl"
+t "loop: a last round whose result never came back is not a clean end" "no" "$(loop review_loop_ended_clean "$DIR/rounds-cut.jsonl")"
+sed '5d' "$DIR/rounds.jsonl" >"$DIR/rounds-cut-first.jsonl"
+t "loop: a re-run after a round with no result is caught" "no yes" \
+  "$(loop review_loop_reran_only_after_findings "$DIR/rounds-cut-first.jsonl") $(loop review_loop_ended_clean "$DIR/rounds-cut-first.jsonl")"
+t "loop: and so is the missing fix line it implies" "no" "$(loop review_loop_fixed_before_each_rerun "$DIR/rounds-cut-first.jsonl")"
 head -n 1 "$DIR/rounds.jsonl" >"$DIR/rounds-none.jsonl"
 t "loop: no round at all is not a clean end" "no" "$(loop review_loop_ended_clean "$DIR/rounds-none.jsonl")"
 t "loop: but re-ran nothing, so the other two hold" "yes yes" \
