@@ -12,19 +12,32 @@ HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/git-guard.sh"
 pass=0
 fail=0
 
+# The hook reads no settings of the machine running the suite: HOME is a
+# fixture, and the project unset, unless a case sets GUARD_HOME/GUARD_PROJECT.
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+mkdir -p "$TMP/empty-home"
+GUARD_HOME=$TMP/empty-home
+GUARD_PROJECT=
+
 # PASS means exactly "exit 0, nothing on stdout" -- the hook staying out of the
-# way. Anything else that is not a deny is ERROR, so a hook that crashes on an
-# input cannot be mistaken for one that let it through on purpose.
+# way. ASK is an "ask" decision. Anything else is ERROR, so a hook that crashes
+# on an input cannot be mistaken for one that let it through on purpose.
 # The command goes to jq on stdin, not as --arg: Linux caps a single argument at
 # 128KB, and the timing cases below are larger than that.
+run_guard() {
+  HOME=$GUARD_HOME CLAUDE_PROJECT_DIR=$GUARD_PROJECT "$HOOK" 2>/dev/null
+}
 run_hook() {
-  printf '%s' "$1" | jq -Rs '{tool_name:"Bash", tool_input:{command:.}}' | "$HOOK" 2>/dev/null
+  printf '%s' "$1" | jq -Rs '{tool_name:"Bash", tool_input:{command:.}}' | run_guard
 }
 verdict() {
   local cmd=$1 out rc
   out=$(run_hook "$cmd") && rc=0 || rc=$?
   if [[ $rc -eq 0 ]] && printf '%s' "$out" | grep -q '"permissionDecision": *"deny"'; then
     echo DENY
+  elif [[ $rc -eq 0 ]] && printf '%s' "$out" | grep -q '"permissionDecision": *"ask"'; then
+    echo ASK
   elif [[ $rc -eq 0 && -z "$out" ]]; then
     echo PASS
   else
@@ -484,7 +497,7 @@ check DENY 'git -c"a=b" status'
 echo "-- must PASS: input with nothing to inspect --"
 check_input() {
   local label=$1 json=$2 out rc
-  out=$(printf '%s' "$json" | "$HOOK" 2>/dev/null) && rc=0 || rc=$?
+  out=$(printf '%s' "$json" | run_guard) && rc=0 || rc=$?
   if [[ $rc -eq 0 && -z "$out" ]]; then
     pass=$((pass + 1))
     printf '  ok   PASS %s\n' "$label"
