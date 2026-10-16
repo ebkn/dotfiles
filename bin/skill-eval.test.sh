@@ -885,6 +885,18 @@ sed 's/- the refusal is untested/- 数量 0 の拒否のテストなし/; s/- \[
   "$DIR/rounds.jsonl" >"$DIR/rounds-words.jsonl"
 t "skill_rounds: a finding that contains なし or None still counts" "2" \
   "$(SKILL_EVAL_TRANSCRIPT="$DIR/rounds-words.jsonl" bash -c '. bin/skill-eval-assert.sh; transcript_skill_rounds review-test' | jq -s '.[0].open')"
+# A section that opens by saying there is nothing, then lists what the last
+# round's fixes resolved, has no open finding. A real clean round wrote exactly
+# that ("なし。前回指摘した次の4点は、すべて解消されていました。" and a list)
+# and was graded as still open (2026-10-16).
+sed 's/### P2 (Important)\\n- なし/### P2 (Important)\\nなし。前回の指摘は解消されていました。\\n- 境界値のテスト\\n- 拒否経路のテスト/' \
+  "$DIR/rounds.jsonl" >"$DIR/rounds-resolved.jsonl"
+t "skill_rounds: a section opening with なし lists resolved items, not findings" "0" \
+  "$(SKILL_EVAL_TRANSCRIPT="$DIR/rounds-resolved.jsonl" bash -c '. bin/skill-eval-assert.sh; transcript_skill_rounds review-test' | jq -s '.[1].open')"
+sed 's/### P2 (Important)\\n- なし/### P2 (Important)\\nNone. The last round'"'"'s findings are resolved:\\n- boundary tests/' \
+  "$DIR/rounds.jsonl" >"$DIR/rounds-resolved-en.jsonl"
+t "skill_rounds: and so does one opening with None." "0" \
+  "$(SKILL_EVAL_TRANSCRIPT="$DIR/rounds-resolved-en.jsonl" bash -c '. bin/skill-eval-assert.sh; transcript_skill_rounds review-test' | jq -s '.[1].open')"
 # A run cut off before the last round reported (turn limit, budget) has
 # nothing to say about its last round, so it cannot have ended clean.
 sed '9d' "$DIR/rounds.jsonl" >"$DIR/rounds-cut.jsonl"

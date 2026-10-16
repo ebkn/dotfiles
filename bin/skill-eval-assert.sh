@@ -206,11 +206,18 @@ transcript_skill_uses() {
 transcript_skill_rounds() {
   jq -sc --arg name "$1" '
     def open_findings:
-      [ foreach split("\n")[] as $l ({sec: false, n: 0};
-          if ($l | test("^#+")) then .sec = ($l | test("^#+\\s*P[12]([^0-9]|$)"))
+      [ foreach split("\n")[] as $l ({sec: false, first: false, n: 0};
+          if ($l | test("^#+")) then
+            .sec = ($l | test("^#+\\s*P[12]([^0-9]|$)")) | .first = .sec
+          elif ($l | test("^\\s*$")) then .
+          # A section that opens by saying there is nothing has nothing open,
+          # whatever it lists after -- a clean round lists what was resolved.
+          elif .first and ($l | test("^\\s*([-*]\\s+)?(なし|該当なし|ありません|指摘なし|[Nn]one|[Nn]o findings|N/A)([。.:：、,]|\\s*$)")) then
+            .sec = false | .first = false
           elif .sec and ($l | test("^\\s*([-*]|[0-9]+\\.)\\s+"))
-            and ($l | test("^\\s*([-*]|[0-9]+\\.)\\s+(\\[ \\]\\s+)?(なし|該当なし|ありません|指摘なし|[Nn]one|[Nn]o findings|N/A)[。.]?\\s*$") | not) then .n += 1
-          else . end;
+            and ($l | test("^\\s*([-*]|[0-9]+\\.)\\s+(\\[ \\]\\s+)?(なし|該当なし|ありません|指摘なし|[Nn]one|[Nn]o findings|N/A)[。.]?\\s*$") | not) then
+            .n += 1 | .first = false
+          else .first = false end;
           .n) ] | last // 0;
     . as $all
     | [ to_entries[]
