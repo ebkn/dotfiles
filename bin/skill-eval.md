@@ -346,7 +346,9 @@ it, so the documented snippet is executed rather than trusted.
 
 `review-test/evals/assert.test.sh` does the same for that skill's cases (`proactive-with-claude-md` runs
 `proactive-after-writing-tests`'s scaffold and grader, so it is pinned through
-that one), and `review-design/evals/assert.test.sh` for all eight of its. A case there is graded on the transcript as much as on the tree, so it
+that one), `review-design/evals/assert.test.sh` for all eight of its, and
+`create-pr/evals/assert.test.sh` for `create-pr`'s and `update-pr`'s, which
+share their graders. A case there is graded on the transcript as much as on the tree, so it
 writes synthetic transcripts, and two things about them are worth copying:
 
 - **A synthetic transcript carries the loaded SKILL.md.** The Skill tool puts

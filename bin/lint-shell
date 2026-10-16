@@ -102,6 +102,8 @@ sh_targets+=(root/.claude/hooks/segment-scan.lib.sh root/.claude/hooks/git-workd
 sh_targets+=(root/.agents/skills/review-test/evals/lib.sh root/.agents/skills/review-test/evals/grading.sh)
 sh_targets+=(root/.agents/skills/review-design/evals/lib.sh root/.agents/skills/review-design/evals/grading.sh)
 sh_targets+=(root/.agents/skills/init-project/evals/lib.sh)
+sh_targets+=(root/.agents/skills/create-pr/evals/lib.sh root/.agents/skills/create-pr/evals/grading.sh)
+sh_targets+=(root/.agents/skills/update-pr/evals/lib.sh)
 
 # -x follows `. "${SCRIPT_DIR}/common.sh"` into the sourced fragment instead of
 # reporting SC1091, so the init scripts are checked against the definitions they
