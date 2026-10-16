@@ -72,6 +72,18 @@ hook cd '{"session_id":"s1","new_cwd":"/repo"}'
 assert_status 'moving restamps it' 0 jq -e '.since > 5' "$DIR/s1.json"
 
 # SessionEnd: the record goes with the session.
+# The previous record is read only to keep `since`, so one that is unreadable
+# must be replaced, not trusted: if jq failed on it, the hook would write
+# nothing on every later cd, and the session would stay unreachable for its
+# worktree until SessionEnd -- the bug this hook exists to fix, silently back.
+for old in 'garbage' '[]' '{"cwd":"/z","since":"x"}'; do
+  printf '%s' "$old" >"$DIR/sx.json"
+  hook cd '{"session_id":"sx","new_cwd":"/z"}'
+  assert_eq "an unreadable previous record ($old) is replaced" '/z number' \
+    "$(field sx .cwd) $(field sx '.since | type')"
+done
+rm -f "$DIR/sx.json"
+
 hook end '{"session_id":"s1","hook_event_name":"SessionEnd","reason":"exit"}'
 assert_eq 'end removes the record' 'absent' "$(field s1 .cwd)"
 assert_eq 'and only that one' '/only-cwd' "$(field s2 .cwd)"
