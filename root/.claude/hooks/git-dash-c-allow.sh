@@ -27,11 +27,14 @@
 #      the words git receives are those of a command the rule approves.
 #
 # Silent on anything else, so a bug degrades to "you get asked". That includes
-# a `git <rest>` a deny or ask rule of any settings layer covers: Claude Code
-# applies those rules after an "allow", but to the command as written, so
-# `Bash(git branch -D *)` never sees `git -C x branch -D y`. git-guard.sh
-# applies them to the -C form; staying silent here as well means the result
-# does not hang on how the two hooks' decisions combine (git-rules.lib.sh).
+# a git whose `git <subcommand> ...` -- options between -C and the subcommand
+# set aside, as git-guard.sh sets them aside -- a deny or ask rule of any
+# settings layer covers: Claude Code applies those rules after an "allow", but
+# to the command as written, so `Bash(git branch -D *)` never sees
+# `git -C x branch -D y`. git-guard.sh applies them to the -C form; staying
+# silent here as well means the result does not hang on how the two hooks'
+# decisions combine (git-rules.lib.sh). And a -C after another option, which
+# git_dash_c_in_project never resolves.
 #
 # Docs: https://code.claude.com/docs/en/hooks
 

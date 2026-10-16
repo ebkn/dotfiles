@@ -27,6 +27,9 @@ the approval into a hook turns that around — this hook failing means a prompt.
   inside `$CLAUDE_PROJECT_DIR` (`git-workdir.lib.sh`, shared with
   `approve-multiline-commands.sh`), so a symlink pointing out of the project does
   not count;
+- no `-C` follows another option before the subcommand (`git -C a --no-pager -C
+  b log`): `git_dash_c_in_project` resolves only the leading `-C` pairs, so that
+  directory would go unchecked, and a rule like `git --no-pager *` approve it;
 - `git <rest>` matches a rule from **`~/.claude/settings.json` only**. Project
   settings are not used by Claude Code until its trust dialog is accepted; read
   here, a cloned repository could approve its own commands;
@@ -34,8 +37,11 @@ the approval into a hook turns that around — this hook failing means a prompt.
   (word prefix, also matching bare `git log`), `git status*` (string prefix of the
   last word), and exact rules. Matching is per argv word, so the words git
   receives are those of a command the rule approves;
-- `git <rest>` matches no deny or ask rule, from any settings layer
-  (`git-rules.lib.sh`). Claude Code evaluates those rules after an `allow`, but
+- `git <subcommand> ...` — the rest from the subcommand on, with any option
+  between `-C` and the subcommand set aside as `git-guard.sh` sets it aside —
+  matches no deny or ask rule, from any settings layer (`git-rules.lib.sh`).
+  Matched with the options kept, `git -C x --no-pager branch -D y` slipped past
+  `Bash(git branch -D *)`. Claude Code evaluates those rules after an `allow`, but
   against the command as written, so `Bash(git branch -D *)` never sees
   `git -C x branch -D y`. `git-guard.sh` applies them to the `-C` form too;
   staying silent here keeps the outcome from depending on how the two hooks'
