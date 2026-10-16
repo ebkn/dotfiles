@@ -751,6 +751,31 @@ else
   printf '  FAIL the check saw only %s git allow rules\n' "$total_git_allow"
 fi
 
+echo "-- this repository's settings refuse the options that run or write, past an allow rule --"
+# `git fetch*`, `git log*`, `git diff*` and `git show *` are allow rules, and
+# an option after the subcommand is past git-guard's option check. Each
+# spelling below was run against git 2.55: it ran the named program or wrote
+# the file. `--upload-pack` takes abbreviations down to `--upl`; `--output`
+# takes none, every shorter prefix being ambiguous. Checked through the -C
+# form, which this hook decides from the same rules Claude Code applies to the
+# form without it.
+mkdir -p "$TMP/repo-home/.claude"
+cp "$SETTINGS" "$TMP/repo-home/.claude/settings.json"
+GUARD_HOME=$TMP/repo-home
+check DENY 'git -C sub fetch --upload-pack=x .'
+check DENY 'git -C sub fetch --upload-pack x .'
+check DENY 'git -C sub fetch origin --upl=x'
+check DENY 'git -C sub log --output=x -1'
+check DENY 'git -C sub log -1 --output x'
+check DENY 'git -C sub diff --output=x'
+check DENY 'git -C sub show --output=x HEAD'
+# The allow rule `git --no-pager log*` would approve this as written; the
+# deny rule reaches it only through this hook.
+check DENY 'git --no-pager log --output=x'
+check PASS 'git -C sub fetch origin'
+check PASS 'git -C sub log --oneline -5'
+GUARD_HOME=$TMP/empty-home
+
 # A hook that fails or times out lets the call through by default. The deny
 # and ask rules for a git -C live only here, so a failure must block instead.
 registered=$(jq -r '[.hooks.PreToolUse[]?.hooks[]? | select(.command? | strings | endswith("/git-guard.sh"))]

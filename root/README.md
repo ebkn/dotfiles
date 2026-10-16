@@ -192,6 +192,14 @@ Three hooks now cover git, with different jobs:
   the call through. The price is that a broken git-guard — a syntax error, no
   `jq`, a missing link — blocks **every** Bash call until it is fixed.
 
+**An allow rule's trailing `*` lets every option after the subcommand in,** and
+some of those run or write: `git fetch --upload-pack=<cmd>` runs `<cmd>`, and
+`--output=<file>` on log, diff and show writes anywhere. Each is a deny rule,
+written for the spellings git accepts — `--upload-pack` abbreviates down to
+`--upl`, `--output` not at all (every shorter prefix is ambiguous). Verified
+against git 2.55 and pinned in `git-guard.test.sh`; recheck them when an allow
+rule for another subcommand is added.
+
 **This reverses the rm section's "not worth reimplementing the matcher"**, for a
 narrower matcher: only rules whose single `*` is trailing are used, compared word
 by word against the argv, so a rule approves nothing through the hook that it
