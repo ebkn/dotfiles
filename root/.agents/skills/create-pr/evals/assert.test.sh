@@ -169,16 +169,22 @@ expect_fail "draft-at-first-commit: a question through the tool" "asked nothing 
 # One case per sentence end the split promises; each would match as a whole.
 draft_run "$draft_records" "$draft_tree" "PR を ready にしました。ほかに何か直しますか？"
 expect_pass "draft-at-first-commit: a PR reported, then an unrelated question, passes (split at 。)"
+# Each of these has no sentence end but the one it is named for, so dropping
+# that one from the split fails it alone.
 draft_run "$draft_records" "$draft_tree" "PR は ready です！ほかに直しますか？"
-expect_pass "draft-at-first-commit: split at ！"
-draft_run "$draft_records" "$draft_tree" "PR は ready ですか？と聞かれたら はい。直しますか？"
-expect_pass "draft-at-first-commit: split at ？"
-draft_run "$draft_records" "$draft_tree" "$(printf 'PR を ready にしました\nほかに直しますか')"
-expect_pass "draft-at-first-commit: split at a line break"
+expect_pass "draft-at-first-commit: a PR reported, then an unrelated question, passes (split at ！)"
+draft_run "$draft_records" "$draft_tree" "PR は ready です!ほかに直しますか"
+expect_pass "draft-at-first-commit: a PR reported, then an unrelated question, passes (split at !)"
+draft_run "$draft_records" "$draft_tree" "なぜ PR を ready にしたか？ほかに直しますか"
+expect_pass "draft-at-first-commit: a PR reported, then an unrelated question, passes (split at ？)"
 # English: the asking phrase comes first, so only the split at ? keeps it from
 # reaching "PR" in the next sentence.
 draft_run "$draft_records" "$draft_tree" "Should I tidy the notes too? The PR is ready."
-expect_pass "draft-at-first-commit: split at ?"
+expect_pass "draft-at-first-commit: a PR reported, then an unrelated question, passes (split at ?)"
+# `read` splits lines whatever the awk does; this pins the contract for an
+# implementation that matches the text in one piece.
+draft_run "$draft_records" "$draft_tree" "$(printf 'PR を ready にしました\nほかに直しますか')"
+expect_pass "draft-at-first-commit: a PR reported, then an unrelated question, passes (split at a line break)"
 
 # The checks on the request itself, each provoked once, after a good run.
 draft_run "$draft_records" "$draft_tree; printf '# tally\n' >README.md; git commit -qam x; git push -q" "$done_msg"
