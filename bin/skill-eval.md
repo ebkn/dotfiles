@@ -69,7 +69,8 @@ Functions available to `assert.sh`: `check`, `check_eq`, `check_match`,
 `check_not_match`, `transcript_denials`, `transcript_commands`,
 `transcript_result_text`, `transcript_tool_uses <tool>`,
 `transcript_skill_uses <skill>`, `transcript_first_tool_index <tool>`,
-`transcript_first_command_index <regex>`, `transcript_first_text_index <regex>`,
+`transcript_first_command_index <regex>`, `transcript_command_indexes <regex>`,
+`transcript_first_text_index <regex>`,
 `transcript_tool_uses_precede <tool> <index>`,
 `transcript_skill_rounds <skill>`, `transcript_caller_writes_between <from> <to>`,
 `review_loop_reran_only_after_findings <skill>`,
@@ -285,7 +286,14 @@ not something the skill under evaluation did.
   that needs stubs is `init-project`'s Swift path, and what it needs is an Xcode
   toolchain nothing else will ever ask for, so the stubs sit in that skill's own
   `evals/lib.sh` (see above). Move them up only when a second skill wants the
-  same binary.
+  same binary — which `gh` did: `create-pr` and `update-pr` both push and call
+  `gh pr`, so `bin/skill-eval-github.sh` gives a fixture an `origin` (a bare
+  repository inside its `.git/`) and a `gh` that keeps one PR per branch as
+  JSON in `bin/gh-state/`. It refuses what the real `gh` refuses where the
+  skills' flow depends on it — a PR for an unpushed branch, a second PR for a
+  branch, one from the default branch — and fails on any subcommand it does
+  not know, so a run cannot believe in a PR nothing opened.
+  `bin/skill-eval-github.test.sh` pins each of those.
 - **The cases do not assert `transcript_denials` is 0.** `review-test` here has
   no `Bash` in `allowed-tools` at all (see its SKILL.md for why), so a refused
   `Bash` call is the expected behaviour, not a violation.

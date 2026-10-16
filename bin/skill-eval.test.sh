@@ -833,6 +833,7 @@ tail -1 "$DIR/transcript.jsonl" >"$DIR/result.json"
 reader() {
   (
     SKILL_EVAL_TRANSCRIPT="$DIR/transcript.jsonl"
+    # shellcheck disable=SC2030  # local to the subshell on purpose, as said above
     SKILL_EVAL_RESULT_FILE="$DIR/result.json"
     # shellcheck source=bin/skill-eval-assert.sh
     . bin/skill-eval-assert.sh
@@ -850,6 +851,9 @@ t "first_text_index: a heading inside a tool's input or result is not the report
 t "first_text_index: empty when no text matches" "" "$(reader transcript_first_text_index 'no such heading')"
 t "first_command_index: the first Bash call whose command matches" "7" "$(reader transcript_first_command_index 'git commit')"
 t "first_command_index: another tool's input is not a command" "" "$(reader transcript_first_command_index 'notes\.md')"
+t "command_indexes: every matching Bash call, in order" "5 7" \
+  "$(reader transcript_command_indexes '^git (status|commit)' | tr '\n' ' ' | sed 's/ $//')"
+t "command_indexes: another tool's input is not a command" "" "$(reader transcript_command_indexes 'notes\.md')"
 t "tool_uses_precede: a call before the index" "yes" "$(precedes Write 6)"
 t "tool_uses_precede: a call at the index counts as preceding" "yes" "$(precedes Write 4)"
 t "tool_uses_precede: a call only after the index" "no" "$(precedes Edit 6)"

@@ -153,6 +153,21 @@ transcript_first_command_index() {
   ' "$SKILL_EVAL_TRANSCRIPT"
 }
 
+# transcript_command_indexes <regex>
+# Every record index whose Bash call matches, one per line, in order. For a
+# case that places something between two commits -- create-pr after the first
+# and before the last -- where the first match alone cannot say.
+transcript_command_indexes() {
+  jq -s -r --arg re "$1" '
+    to_entries[]
+    | select(.value.type == "assistant")
+    | select([ .value.message.content[]?
+               | select(.type == "tool_use" and .name == "Bash")
+               | .input.command | test($re) ] | any)
+    | .key
+  ' "$SKILL_EVAL_TRANSCRIPT"
+}
+
 # transcript_tool_uses_precede <tool name> <index>
 # True when that tool was called at or before <index>. Written as a predicate
 # so a case can pass it to `check` with the sense it wants.
@@ -361,11 +376,11 @@ check_llm() {
     text="$(transcript_result_text)"
   fi
   local claude_bin="${SKILL_EVAL_CLAUDE_BIN:-claude}"
-  local model="${SKILL_EVAL_JUDGE_MODEL:-haiku}"
+  local judge_model="${SKILL_EVAL_JUDGE_MODEL:-haiku}"
   local verdict pass reason cost
   verdict="$(printf 'Criterion:\n%s\n\n--- text under review ---\n%s\n' "$rubric" "$text" |
     "$claude_bin" -p \
-      --model "$model" \
+      --model "$judge_model" \
       --output-format json \
       --tools "" \
       --setting-sources "" \
