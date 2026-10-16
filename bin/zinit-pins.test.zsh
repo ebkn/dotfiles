@@ -162,6 +162,31 @@ check 'refuses an ice line followed by && and another zinit' \
   "$(read_pins "zinit ice ver\"$A\" && zinit light b/two
 zinit light a/one")"
 
+# The operator alone is enough, with no second zinit on the line: `| cat`
+# runs the ice in a subshell, so it never reaches a/one.
+check 'refuses an ice line piped into another command' \
+  "$(refused '*cannot read: zinit ice ver"'"$A"'" ? cat*')" \
+  "$(read_pins "zinit ice ver\"$A\" | cat
+zinit light a/one")"
+
+check 'refuses an ice line followed by ; and a command other than zinit' \
+  "$(refused '*cannot read: zinit ice ver"'"$A"'"; true*')" \
+  "$(read_pins "zinit ice ver\"$A\"; true
+zinit light a/one")"
+
+# What the shell words leave alone: text inside a quoted string. plugin.zsh
+# has such a line itself, and an ice value may hold shell code.
+check 'reads past zinit inside a quoted string' \
+  $'exit=0\nout='"zdharma-continuum/zinit $Z"$'\n'"a/one $A"$'\nerr=' \
+  "$(read_pins "print -u2 -- \"plugin.zsh: cannot check out zinit's pin\"
+zinit ice ver\"$A\"
+zinit light a/one")"
+
+check 'reads an ice whose value holds an operator' \
+  $'exit=0\nout='"zdharma-continuum/zinit $Z"$'\n'"a/one $A"$'\nerr=' \
+  "$(read_pins "zinit ice atload\"a; b && c\" ver\"$A\"
+zinit light a/one")"
+
 # Ways of writing the command name that still run zinit.
 check 'refuses \zinit' \
   "$(refused '*cannot read: \\zinit light b/two*')" \
@@ -170,6 +195,14 @@ check 'refuses \zinit' \
 check 'refuses a quoted zinit' \
   "$(refused "*cannot read: 'zinit' light b/two*")" \
   "$(read_pins "'zinit' light b/two")"
+
+check 'refuses a double-quoted zinit' \
+  "$(refused '*cannot read: "zinit" light b/two*')" \
+  "$(read_pins '"zinit" light b/two')"
+
+check 'refuses zinit run inside $(…)' \
+  "$(refused '*cannot read: x=$?zinit light c/cond?*')" \
+  "$(read_pins 'x=$(zinit light c/cond)')"
 
 check 'refuses zinit run inside backquotes' \
   "$(refused '*cannot read: x=`zinit light c/cond`*')" \
