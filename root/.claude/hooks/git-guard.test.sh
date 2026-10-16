@@ -806,11 +806,24 @@ check PASS 'git -C sub fetch origin'
 check PASS 'git -C sub log --oneline -5'
 # The rules settings.json no longer copies as `git -C *` still reach -C.
 check DENY 'git -C sub push --force'
+check DENY 'git -C sub push origin main --force'
 check DENY 'git -C sub push origin main -f'
 check DENY 'git -C sub reset --hard HEAD'
-check DENY 'git -C sub checkout -- f'
 check ASK 'git -C sub branch -D topic'
 check ASK 'git -C sub switch main'
+# A lease refuses to overwrite a remote that moved since the last fetch, so a
+# rebased feature branch can be pushed after a prompt; a bare --force stays out.
+check ASK 'git -C sub push --force-with-lease'
+check ASK 'git -C sub push origin HEAD --force-with-lease=topic:abc123'
+# Discarding worktree changes asks rather than refuses: refusing only drove the
+# undo of a model's own temporary edit to a hand-written sed. Every spelling
+# that discards asks, or the prompt is one synonym away.
+check ASK 'git -C sub checkout -- f'
+check ASK 'git -C sub restore f'
+check ASK 'git -C sub restore --worktree f'
+check ASK 'git -C sub stash drop'
+check ASK 'git -C sub stash clear'
+check PASS 'git -C sub stash list'
 GUARD_HOME=$TMP/empty-home
 
 # A git rule naming -C is either an allow rule of the shape the invariant above

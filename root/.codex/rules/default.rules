@@ -368,10 +368,14 @@ prefix_rule(
     not_match = ["sudo ls"],
 )
 
+# `prompt`, not `forbidden`: a lease refuses to overwrite a remote that moved
+# since the last fetch, so pushing a rebased feature branch is a reviewable
+# step rather than a catastrophe. Forbidding it left the user typing every such
+# push by hand, and the model re-issuing it in other spellings first.
 prefix_rule(
     pattern = [["git", "/opt/homebrew/bin/git"], "push", "--force-with-lease"],
-    decision = "forbidden",
-    justification = "Block force push.",
+    decision = "prompt",
+    justification = "Prompt for a lease-guarded force push.",
     match = [
         "git push --force-with-lease origin main",
         "/opt/homebrew/bin/git push --force-with-lease",
@@ -421,21 +425,26 @@ prefix_rule(
     not_match = ["git clean -n"],
 )
 
+# Discarding worktree changes prompts rather than being forbidden: forbidding it
+# only drove the undo of the model's own temporary edit to a hand-written sed,
+# which leaves the edit in place when it misses. `git checkout -- <path>` is
+# covered by the `git checkout` prompt rule below. Every discarding spelling
+# prompts, or the prompt is one synonym away: `git restore <path>` restores the
+# worktree by default, and a stash drop loses what was stashed.
 prefix_rule(
-    pattern = [["git", "/opt/homebrew/bin/git"], "checkout", "--"],
-    decision = "forbidden",
-    justification = "Block destructive checkout to overwrite worktree paths.",
-    match = ["git checkout -- src/main.rs"],
-    # Branch switching stays on the `git checkout` prompt rule below.
-    not_match = ["git checkout main"],
+    pattern = [["git", "/opt/homebrew/bin/git"], "restore"],
+    decision = "prompt",
+    justification = "Prompt for `git restore`, which discards worktree changes.",
+    match = ["git restore src", "git restore --worktree src"],
+    not_match = ["git status"],
 )
 
 prefix_rule(
-    pattern = [["git", "/opt/homebrew/bin/git"], "restore", "--worktree"],
-    decision = "forbidden",
-    justification = "Block destructive restore to overwrite worktree paths.",
-    match = ["git restore --worktree src"],
-    not_match = ["git restore --staged src"],
+    pattern = [["git", "/opt/homebrew/bin/git"], "stash", ["drop", "clear"]],
+    decision = "prompt",
+    justification = "Prompt for dropping stashed changes.",
+    match = ["git stash drop", "git stash clear"],
+    not_match = ["git stash list", "git stash push"],
 )
 
 prefix_rule(

@@ -228,6 +228,37 @@ Run `root/.claude/hooks/git-guard.test.sh`, `git-dash-c-allow.test.sh`,
 `approve-multiline-commands.test.sh` and `segment-scan.lib.test.sh` after
 touching any of them, or `git-rules.lib.sh`.
 
+### Force push and discarded changes ask; they are not denied
+
+`git push --force-with-lease`, `git checkout -- <path>`, `git restore` and
+`git stash drop`/`clear` are `ask` rules (Codex: `prompt`). A bare `--force`
+and `-f` stay `deny`. Both were `deny` until transcripts showed what refusing
+them did:
+
+- **A refused undo became a hand-written `sed`.** About 25 `git checkout --`
+  refusals in 90 days, most of them the model restoring its *own* temporary
+  edit — a mutation to prove a test fails. Refused, it rewrote the line back
+  with `sed -i`, which leaves the mutation in place when the pattern misses. A
+  path rule cannot tell that edit from the user's uncommitted work, so the gate
+  is a prompt, where the user can.
+- **A refused lease push was re-issued in other spellings**, `2>&1 | tail`
+  dropped one piece at a time, and once not reported at all: a PR was opened
+  from the unrebased remote branch. A lease refuses to overwrite a remote that
+  moved since the last fetch, so on a feature branch it is a reviewable step.
+- **Every discarding spelling has to ask, or the prompt is one synonym away.**
+  `git restore <path>` restores the worktree by default and `git stash*` is an
+  allow rule, so both were open while `git checkout --` was denied. An `ask`
+  outranks an `allow`, which is what makes `git stash drop` prompt.
+
+The deny rules spell `--force` as a whole word (`git push --force` and
+`git push --force *`), because `--force*` also matches `--force-with-lease`.
+A refspec with a leading `+` (`git push origin +topic`) also forces and matches
+no rule; that gap is older than this change.
+
+**A project's own settings can still deny these**, and a deny in any layer
+wins: a work repository that keeps `Bash(git push --force*)` in its
+`.claude/settings.json` refuses the lease push there regardless.
+
 ## Codex prefix rules
 
 `root/.codex/rules/default.rules` is linked to `~/.codex/rules` and is the Codex
