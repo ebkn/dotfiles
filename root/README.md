@@ -187,6 +187,10 @@ Three hooks now cover git, with different jobs:
   **deny and ask** rules to a git with an option before its subcommand —
   `git -C x push --force` under `Bash(git push --force*)` — which Claude Code's
   matcher, reading the command as written, does not (`git-rules.lib.sh`).
+  Because those rules now live nowhere else, it is registered with
+  `"onFailure": "block"` (Claude Code ≥ 2.1.295): a failed hook otherwise lets
+  the call through. The price is that a broken git-guard — a syntax error, no
+  `jq`, a missing link — blocks **every** Bash call until it is fixed.
 
 **This reverses the rm section's "not worth reimplementing the matcher"**, for a
 narrower matcher: only rules whose single `*` is trailing are used, compared word

@@ -751,5 +751,17 @@ else
   printf '  FAIL the check saw only %s git allow rules\n' "$total_git_allow"
 fi
 
+# A hook that fails or times out lets the call through by default. The deny
+# and ask rules for a git -C live only here, so a failure must block instead.
+registered=$(jq -r '[.hooks.PreToolUse[]?.hooks[]? | select(.command? | strings | endswith("/git-guard.sh"))]
+  | map(.onFailure // "continue") | join(",")' "$SETTINGS")
+if [[ "$registered" == block ]]; then
+  pass=$((pass + 1))
+  echo '  ok   git-guard is registered once, with onFailure "block"'
+else
+  fail=$((fail + 1))
+  printf '  FAIL git-guard registrations, by onFailure: "%s" (want "block")\n' "$registered"
+fi
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]

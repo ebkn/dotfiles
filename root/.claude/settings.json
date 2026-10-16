@@ -449,7 +449,8 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/git-guard.sh",
-            "timeout": 5
+            "timeout": 5,
+            "onFailure": "block"
           }
         ]
       },

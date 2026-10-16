@@ -39,7 +39,9 @@
 # before its subcommand -- `git -C x push --force` under `git push --force*` --
 # which Claude Code's own matcher, reading the command as written, does not.
 # settings.json keeps no `git -C *` copies of its rules for that reason; see
-# git-rules.lib.sh.
+# git-rules.lib.sh. So a failure of this hook -- a crash, a timeout, a missing
+# jq -- blocks the call (`onFailure: "block"` where it is registered) rather
+# than letting it through, as a failed hook does by default.
 #
 # Scope: this hook only ever emits "deny" or "ask". It never emits "allow", so
 # it cannot widen anything; the existing allow/deny/ask rules keep deciding
