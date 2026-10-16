@@ -495,7 +495,10 @@ clean_result='## 設計レビュー: def5678..0123abc
 指摘なし。
 
 Reviewed: def5678..0123abc'
+# Read only by the record string below, once a scenario evals it.
+# shellcheck disable=SC2034
 rerun_brief='前回の P1 を直した。Reviewed: abc1234..def5678'
+# shellcheck disable=SC2016  # expanded when eval'd, not here
 design_rerun='skill_args="$rerun_brief" skill_result="$clean_result" rec_skill'
 after_fix='rec_edit Edit README.md; rec_bash ./run-tests.sh; rec_bash "git add -A"; rec_bash "git commit -m fix"'
 after_default="$after_fix; $design_rerun"

@@ -184,10 +184,14 @@ gaps_run() {
   } >>"$art/transcript.jsonl"
   in_work "$4"
 }
+# The two are read only by the record string below, once gaps_run evals it.
+# shellcheck disable=SC2034
 clean_report='## テストレビュー: lib/quantity.test.sh
 
 P1・P2 に該当する指摘はありません。'
+# shellcheck disable=SC2034
 rerun_brief='前回の P1（拒否の未テスト）を直した。lib/quantity.test.sh を再レビューして。'
+# shellcheck disable=SC2016  # expanded when eval'd, not here
 gaps_rerun='skill_args="$rerun_brief" skill_result="$clean_report" rec_skill'
 gaps_after='rec_edit Edit lib/quantity.test.sh; rec_bash ./run-tests.sh; '"$gaps_rerun"'; rec_bash "git add lib/quantity.test.sh"; rec_bash "git commit -m test"'
 gaps_fix='review_test_write_thorough_test; git add -A; git commit -q -m "test: cover the refusals"'
