@@ -195,23 +195,28 @@ expect_pass "draft-at-first-commit: a PR reported, then an unrelated question, p
 # A keyword inside another word is not the keyword.
 draft_run "$draft_records" "$draft_tree" "Should I also fix the typo that is already in the docs?"
 expect_pass "draft-at-first-commit: \"already\" is not \"ready\""
-draft_run "$draft_records" "$draft_tree" "PRを ready にしますか？"
-expect_fail "draft-at-first-commit: a keyword against a Japanese character still counts" \
-  "the closing message asks nothing about pushing or a PR (known phrasings)"
 draft_run "$draft_records" "$draft_tree" "PR を作成してもよろしいですか？"
 expect_fail "draft-at-first-commit: よろしいですか" \
   "the closing message asks nothing about pushing or a PR (known phrasings)"
 draft_run "$draft_records" "$draft_tree" "Should I push the branch now?"
 expect_fail "draft-at-first-commit: Should I ... push" \
   "the closing message asks nothing about pushing or a PR (known phrasings)"
-# The word boundary must not cost the plurals: each of these matched before
-# it was added.
-# Each holds one keyword only, so it pins that keyword's plural alone.
-for asks in "Should I open PRs for these?" "Would you like me to open pull requests for both?" \
-  "PRs を作成しますか？" "Shall I discard the drafts?" "Do you want me to do the pushes now?"; do
-  draft_run "$draft_records" "$draft_tree" "$asks"
-  expect_fail "draft-at-first-commit: a plural still asks ($asks)" \
-    "the closing message asks nothing about pushing or a PR (known phrasings)"
+# Every keyword, singular and plural, through each branch of the regex that
+# lists it: a Japanese question and an English one, each holding that keyword
+# alone, so dropping a form from either branch fails its own case. Covering
+# them one branch at a time left a gap twice. The Japanese one puts a Japanese
+# character right after the keyword, as "PRを" does: in some locales that is a
+# letter, which a [:alpha:] boundary would refuse.
+for kw in PR PRs push pushes draft drafts ready "pull request" "pull requests"; do
+  case "$kw" in
+    pull*) phrasings=("Should I look at the $kw now?") ;; # the English branch's alone
+    *) phrasings=("${kw}を確認しますか？" "Should I look at the $kw now?") ;;
+  esac
+  for asks in "${phrasings[@]}"; do
+    draft_run "$draft_records" "$draft_tree" "$asks"
+    expect_fail "draft-at-first-commit: a question about \"$kw\" is caught ($asks)" \
+      "the closing message asks nothing about pushing or a PR (known phrasings)"
+  done
 done
 # The boundary on each side, in each branch of the regex: a keyword that only
 # begins or ends a longer word is not the keyword.
