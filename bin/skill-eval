@@ -170,16 +170,19 @@ frontmatter_value() {
 # straight out of the frontmatter rather than restating it here: a copy would
 # drift, and it would drift towards being more permissive than the skill.
 #
-# allowed_tools_of <SKILL.md>
-# Its allowed-tools, one per line; nothing when it declares none.
-allowed_tools_of() {
+# frontmatter_list <file> <key>
+# A list value of the frontmatter, one item per line; nothing when the key is
+# absent. SKILL.md's allowed-tools and prompt.md's allowed_tools and skills
+# are all written `a, b`: one rule, kept here, since a key split differently
+# would pass its tools on as one string.
+frontmatter_list() {
   local line
-  line="$(frontmatter_value "$1" allowed-tools)"
+  line="$(frontmatter_value "$1" "$2")"
   [ -n "$line" ] || return 0
   printf '%s\n' "${line//, /$'\n'}"
 }
 skill_allowed_tools=()
-allowed_lines="$(allowed_tools_of "$skill_dir/SKILL.md")"
+allowed_lines="$(frontmatter_list "$skill_dir/SKILL.md" allowed-tools)"
 while IFS= read -r tool; do
   [ -n "$tool" ] && skill_allowed_tools+=("$tool")
 done <<<"$allowed_lines"
@@ -235,19 +238,17 @@ case_settings() {
   # follow a unit from its first commit to its finished PR, which takes
   # update-pr and commit too. Refused when missing, like claude_md: a run
   # without the skill would measure the model improvising its job.
-  local extra_line name
+  local names name
   case_skills=()
-  extra_line="$(frontmatter_value "$meta" skills)"
-  if [ -n "$extra_line" ]; then
-    while IFS= read -r name; do
-      [ -n "$name" ] || continue
-      if [ ! -f "$skills_dir/$name/SKILL.md" ]; then
-        printf 'case %s: skill not found: %s\n' "$1" "$name" >&2
-        return 1
-      fi
-      case_skills+=("$name")
-    done <<<"${extra_line//, /$'\n'}"
-  fi
+  names="$(frontmatter_list "$meta" skills)"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    if [ ! -f "$skills_dir/$name/SKILL.md" ]; then
+      printf 'case %s: skill not found: %s\n' "$1" "$name" >&2
+      return 1
+    fi
+    case_skills+=("$name")
+  done <<<"$names"
 }
 
 # Every case is checked before the first one runs. Checked one at a time inside
@@ -298,18 +299,16 @@ for case_name in "${cases[@]}"; do
   # allowed_tools and are added on top. The skill's own boundary is never
   # widened here -- only the scenario around it.
   case_allowed_tools=("${skill_allowed_tools[@]}")
-  extra_allowed_line="$(frontmatter_value "$case_dir/prompt.md" allowed_tools)"
-  if [ -n "$extra_allowed_line" ]; then
-    while IFS= read -r tool; do
-      [ -n "$tool" ] && case_allowed_tools+=("$tool")
-    done <<<"${extra_allowed_line//, /$'\n'}"
-  fi
+  allowed_lines="$(frontmatter_list "$case_dir/prompt.md" allowed_tools)"
+  while IFS= read -r tool; do
+    [ -n "$tool" ] && case_allowed_tools+=("$tool")
+  done <<<"$allowed_lines"
 
   case_settings "$case_name"
   # A skill carried in runs under its own allowed-tools, as the one under
   # evaluation does.
   for name in ${case_skills[@]+"${case_skills[@]}"}; do
-    allowed_lines="$(allowed_tools_of "$skills_dir/$name/SKILL.md")"
+    allowed_lines="$(frontmatter_list "$skills_dir/$name/SKILL.md" allowed-tools)"
     while IFS= read -r tool; do
       [ -n "$tool" ] && case_allowed_tools+=("$tool")
     done <<<"$allowed_lines"
