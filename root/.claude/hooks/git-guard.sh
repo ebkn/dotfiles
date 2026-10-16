@@ -595,19 +595,21 @@ fi
 # its options before the subcommand set aside. A deny ends the hook; the first
 # ask is kept in ASK_RULE, since a later segment may still be denied.
 #
-# Two forms are matched, either one sufficing: the words as written, and the
-# words with their quotes removed (`push "--force"` is `push --force` to git),
-# the second only where this reader can read them, and below
-# MAX_RULE_TEXT bytes, past which reading word by word outlasts the timeout.
+# Two forms are matched, either one sufficing: the text as written, and the
+# text with every quote, backslash and `$` before a quote deleted, so that
+# `push "--force"` and `push $'--force'` read as git receives them. The
+# deletion is cruder than the shell's quote removal and can only join text the
+# shell keeps apart, which for a deny or an ask matches more, never less. The
+# word reader is deliberately not used: it gives up on quoting it does not
+# model, and giving up there took a quoted --force out of the rule's reach.
 # Either way a run of spaces counts as one.
-MAX_RULE_TEXT=4096
 RULES_LOADED=0
 DENY_PATTERNS=""
 ASK_PATTERNS=""
 ASK_RULE=""
 check_rules() {
-  local -a written=() unquoted=()
-  local rest=$REST rc ok=1
+  local -a written=() stripped=()
+  local rest=$REST
   if ((RULES_LOADED == 0)); then
     DENY_PATTERNS=$(git_rule_patterns deny)
     ASK_PATTERNS=$(git_rule_patterns ask)
@@ -616,30 +618,18 @@ check_rules() {
   [[ -n "$DENY_PATTERNS$ASK_PATTERNS" ]] || return 0
 
   read -r -a written <<<"$rest"
-  if ((${#rest} <= MAX_RULE_TEXT)); then
-    while true; do
-      next_token && rc=0 || rc=$?
-      case $rc in
-        0) unquoted+=("$TOKEN") ;;
-        1) break ;;
-        *)
-          ok=0
-          break
-          ;;
-      esac
-    done
-  else
-    ok=0
-  fi
+  # sed, not ${rest//[\'\"]/}: bash 3.2 rebuilds the string per replacement,
+  # and 20000 quoted words outlasted the timeout.
+  rest=$(LC_ALL=C sed -e "s/\\\$['\"]//g" -e "s/['\"\\\\]//g" <<<"$rest")
+  read -r -a stripped <<<"$rest"
 
   local form
-  for form in written unquoted; do
-    [[ $form == written || $ok -eq 1 ]] || continue
+  for form in written stripped; do
     local -a words=(git "$SUBCOMMAND")
     if [[ $form == written ]]; then
       words+=(${written[@]+"${written[@]}"})
     else
-      words+=(${unquoted[@]+"${unquoted[@]}"})
+      words+=(${stripped[@]+"${stripped[@]}"})
     fi
     if git_rule_match "$DENY_PATTERNS" "${words[@]}"; then
       deny "git-guard: the deny rule ${GIT_RULE_MATCHED} covers this git once the options before its subcommand (-C and the like) are set aside; settings.json keeps no git -C copies of its rules, so this hook applies them."

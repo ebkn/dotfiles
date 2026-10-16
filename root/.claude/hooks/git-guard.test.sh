@@ -632,6 +632,18 @@ check DENY 'timeout 5 git -C sub push --force'
 check DENY 'git -C sub   push   --force' 'runs of spaces count as one'
 check DENY 'git -C sub push "--force"' 'quotes removed, as the shell removes them'
 check DENY 'git --no-pager -C sub push --force' 'any option before the subcommand is set aside'
+# Quotes are removed from the text however the word reader would fare with it:
+# a word it cannot read (a backslash inside double quotes, `$'...'`) or a long
+# rest must not take the quoted --force out of the rule's reach.
+check DENY 'git -C sub push --force "a\"b"' 'an unreadable word after a written --force'
+check DENY 'git -C sub push "--force" "a\"b"' 'a quoted --force beside an unreadable word'
+check DENY "git -C sub push \"--force\" \$'x'" "a quoted --force beside \$'...'"
+check DENY "git -C sub push \$'--force'" "--force in \$'...'"
+check DENY "git -C sub push '--force' $(printf 'y%.0s' $(seq 4100))" 'a quoted --force before 4100 bytes'
+# The quote deletion runs over the whole rest of the segment, a commit message
+# included, and must stay inside the timeout like every other pass.
+check_fast "rules over a 100k-byte quoted rest" "git -C sub push --force \"$filler\""
+check_fast "rules over 20000 quoted words" "git -C sub push --force $(printf '"a" %.0s' $(seq 20000))"
 check DENY 'git -C sub log [a]' 'a rule glob character compares literally'
 check PASS 'git -C sub log a' 'and matches only itself'
 check ASK 'git -C sub branch -D topic'
