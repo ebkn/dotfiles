@@ -9,9 +9,14 @@ source "$SKILL_EVAL_LIB_DIR/skill-eval-github.sh"
 source "$SKILL_EVAL_REPO_ROOT/root/.agents/skills/create-pr/evals/grading.sh"
 
 # --- the hand-over ---
-check "started update-pr" test -n "$(pr_eval_skill_index update-pr)"
-check "handed over to create-pr after it" \
-  pr_eval_after "$(pr_eval_skill_index create-pr)" "$(pr_eval_skill_index update-pr)"
+# The prompt is `/update-pr ready`, which a `claude -p` run expands in place:
+# no Skill call marks where update-pr starts (all three first runs showed
+# none). Its own step 2, `gh pr view`, finding no PR is the point the hand-over
+# follows.
+first_view="$(transcript_first_command_index '(^|[[:space:]])gh[[:space:]]+pr[[:space:]]+view([[:space:]]|$)')"
+check "update-pr looked for the PR" test -n "$first_view"
+check "handed over to create-pr after finding none" \
+  pr_eval_after "$(pr_eval_skill_index create-pr)" "$first_view"
 
 # --- and the work published ---
 check "pushed every commit" pr_eval_pushed_head

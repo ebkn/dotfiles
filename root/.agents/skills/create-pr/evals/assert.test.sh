@@ -325,17 +325,17 @@ handover_run() {
   act "$1" "$2"
   grade "$3"
 }
-handover_records='rec_skill update-pr; rec_bash "gh pr view --json number"; rec_skill create-pr; rec_bash "git push -u origin HEAD"; rec_bash "gh pr create --title t --body b"'
+handover_records='rec_bash "gh pr view --json number"; rec_skill create-pr; rec_bash "git push -u origin HEAD"; rec_bash "gh pr create --title t --body b"'
 handover_tree='git push -q -u origin HEAD; gh pr create --title "docs: add CONTRIBUTING" --body "The commit message rule."'
 
 handover_run "$handover_records" "$handover_tree" "$done_msg"
 expect_pass "ready-without-pr: a hand-over to create-pr passes"
-handover_run 'rec_skill update-pr; rec_bash "gh pr view --json number"' ':' "PR がないので更新できませんでした。/create-pr で作れます。"
-expect_fail "ready-without-pr: stopping at the missing PR" "handed over to create-pr after it"
+handover_run 'rec_bash "gh pr view --json number"' ':' "PR がないので更新できませんでした。/create-pr で作れます。"
+expect_fail "ready-without-pr: stopping at the missing PR" "handed over to create-pr after finding none"
 expect_fail "ready-without-pr: so nothing is pushed" "pushed every commit"
 expect_fail "ready-without-pr: and no PR opened" "opened the PR ready, since the work is finished"
 handover_run 'rec_skill create-pr; rec_bash "gh pr create --title t --body b"' "$handover_tree" "$done_msg"
-expect_fail "ready-without-pr: create-pr without update-pr" "started update-pr"
+expect_fail "ready-without-pr: create-pr without looking for the PR" "update-pr looked for the PR"
 handover_run "$handover_records" "${handover_tree//gh pr create/gh pr create --draft}" "$done_msg"
 expect_fail "ready-without-pr: opened as a draft" "opened the PR ready, since the work is finished"
 handover_run "$handover_records" "${handover_tree//docs: add CONTRIBUTING/Add CONTRIBUTING}" "$done_msg"
