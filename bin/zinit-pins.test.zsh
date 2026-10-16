@@ -217,6 +217,14 @@ check 'refuses zinit run through eval' \
   "$(refused '*cannot read: eval "zinit light c/x"*')" \
   "$(read_pins 'eval "zinit light c/x"')"
 
+# ...but an eval that does not mention zinit is ordinary shell, and must not
+# stop a caller reading the pins.
+check 'reads past an eval line that does not mention zinit' \
+  $'exit=0\nout='"zdharma-continuum/zinit $Z"$'\n'"a/one $A"$'\nerr=' \
+  "$(read_pins "eval \"\$(direnv hook zsh)\"
+zinit ice ver\"$A\"
+zinit light a/one")"
+
 check 'refuses zinit run inside backquotes' \
   "$(refused '*cannot read: x=`zinit light c/cond`*')" \
   "$(read_pins 'x=`zinit light c/cond`')"
