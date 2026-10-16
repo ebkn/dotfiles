@@ -46,10 +46,7 @@ check "ran no git that writes before the review was reported" \
   review_design_ran_no_writing_git_before "$report_at"
 
 # A P2 may be found and fixed here, so a second round is allowed -- but only
-# after one that found something, with the fix before it.
-check "re-ran only after a round with P1 or P2" \
-  review_loop_reran_only_after_findings review-design
-check "fixed something before every re-run" \
-  review_loop_fixed_before_each_rerun review-design
+# with what every re-run owes (review_loop_rerun_checks).
+review_loop_rerun_checks review-design
 
 skill_eval_finish
