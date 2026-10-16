@@ -157,6 +157,16 @@ expect_fail "draft-at-first-commit: a closing question about the PR" \
 draft_run "$draft_records" "$draft_tree" "Done. Would you like me to push the branch and open a pull request?"
 expect_fail "draft-at-first-commit: the same question in English" \
   "the closing message asks nothing about pushing or a PR (known phrasings)"
+# Every sentence is checked, not the last: a question is often followed by
+# one more line.
+draft_run "$draft_records" "$draft_tree" "PR を ready にしますか？ほかにあれば教えてください。"
+expect_fail "draft-at-first-commit: a question that is not the last sentence" \
+  "the closing message asks nothing about pushing or a PR (known phrasings)"
+# "." does not end a sentence: split there, a file name would cut the question
+# in two and both halves would pass.
+draft_run "$draft_records" "$draft_tree" "Would you like me to update README.md in the PR?"
+expect_fail "draft-at-first-commit: a question with a file name in it" \
+  "the closing message asks nothing about pushing or a PR (known phrasings)"
 draft_run "$draft_records" "$draft_tree" "完了しました。JUDGE_FAIL"
 expect_fail "draft-at-first-commit: the judge reads the closing message" \
   "the closing message asks nothing about pushing or a PR (judged)"
@@ -169,8 +179,9 @@ expect_fail "draft-at-first-commit: a question through the tool" "asked nothing 
 # One case per sentence end the split promises; each would match as a whole.
 draft_run "$draft_records" "$draft_tree" "PR を ready にしました。ほかに何か直しますか？"
 expect_pass "draft-at-first-commit: a PR reported, then an unrelated question, passes (split at 。)"
-# Each of these has no sentence end but the one it is named for, so dropping
-# that one from the split fails it alone.
+# Each of these has no sentence end but the one it is named for (a closing ？
+# ends the text and splits nothing), so dropping that one from the split fails
+# it alone.
 draft_run "$draft_records" "$draft_tree" "PR は ready です！ほかに直しますか？"
 expect_pass "draft-at-first-commit: a PR reported, then an unrelated question, passes (split at ！)"
 draft_run "$draft_records" "$draft_tree" "PR は ready です!ほかに直しますか"
