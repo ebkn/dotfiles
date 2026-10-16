@@ -220,6 +220,13 @@ for phrase in "Shall I" "Should I" "Would you like to" "Would you like me to" \
   "Do you want to" "Do you want me to" "Want me to"; do
   expect_asks "the English asking phrase \"$phrase\"" "$phrase push the branch now?"
 done
+# The gap within a sentence is bounded: a keyword at one end of a long
+# sentence and an unrelated question at the other are not a question about the
+# PR. Both gaps are well past the bound counted in characters or in bytes.
+draft_run "$draft_records" "$draft_tree" "PR #1 のレビューで見つかった細かい表記ゆれや誤字脱字、それから古くなったリンクや手順の説明なども、このあと続けて全部まとめて直しますか？"
+expect_pass "draft-at-first-commit: a keyword far from the asking phrase is not a question about it (Japanese)"
+draft_run "$draft_records" "$draft_tree" "Should I also rewrite the long paragraphs in the README and the install notes so they read like the PR description?"
+expect_pass "draft-at-first-commit: a keyword far from the asking phrase is not a question about it (English)"
 # The boundary on each side, in each branch of the regex: a keyword that only
 # begins or ends a longer word is not the keyword.
 draft_run "$draft_records" "$draft_tree" "Should I fix the PRNG seed?"
