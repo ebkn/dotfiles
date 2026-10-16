@@ -40,12 +40,16 @@ refused: `zinit ice ver"…"; zinit light b/two` hands the ice to `b/two`, and
 the plugin on the next line loads unpinned.
 
 `eval` runs a string, which the split keeps as one word, so on a line with
-`eval` any mention of zinit counts as running it. The escaped and quoted names
-are caught inside `$(…)` and backquotes too.
+`eval` any mention of zinit counts as running it. A substitution — `$(…)`,
+backquotes, `<(…)`, `>(…)`, `=(…)` — is one word too, and what runs inside it
+(`$(true; zinit light …)`, `$(eval "zinit …")`) is out of reach of the checks on
+the line's words, so a substitution mentioning zinit anywhere counts the same
+way.
 
 **The limit:** this is a static reader. zinit reached through an alias, a
-wrapper function, a sourced file or a variable holding its name
-(`z=zinit; $z light …`) is not seen, and such a plugin is silently left out.
+wrapper function, a sourced file, a variable holding its name
+(`z=zinit; $z light …`) or a name escaped mid-word (`zi\nit`) is not seen, and
+such a plugin is silently left out.
 `plugin.zsh` uses none of these, and should not start to; the reader cannot
 be taught them without running the file.
 

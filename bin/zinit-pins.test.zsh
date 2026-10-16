@@ -219,6 +219,20 @@ check 'refuses a quoted zinit inside $(…)' \
   "$(refused '*cannot read: x=$?"zinit" light c/x?*')" \
   "$(read_pins 'x=$("zinit" light c/x)')"
 
+# A substitution is one word to the split, so zinit anywhere inside one runs,
+# not only at its start.
+check 'refuses zinit later inside $(…)' \
+  "$(refused '*cannot read: x=$?true; zinit light c/x?*')" \
+  "$(read_pins 'x=$(true; zinit light c/x)')"
+
+check 'refuses zinit run through eval inside $(…)' \
+  "$(refused '*cannot read: x=$?eval "zinit light c/x"?*')" \
+  "$(read_pins 'x=$(eval "zinit light c/x")')"
+
+check 'refuses zinit inside a process substitution' \
+  "$(refused '*cannot read: cat <?zinit light c/x?*')" \
+  "$(read_pins 'cat <(zinit light c/x)')"
+
 # eval runs a string, so the zinit inside it is one quoted word to the split.
 check 'refuses zinit run through eval' \
   "$(refused '*cannot read: eval "zinit light c/x"*')" \

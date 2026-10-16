@@ -77,7 +77,10 @@ for line in "${lines[@]}"; do
   words=(${(Z+C+)line})
   runs=0 ops=0
   for w in $words; do
-    [[ $w == (\\|)${~zname} || $w == *(\`|\$\()[[:space:]]#(\\|)${~zname}([[:space:]\)\`]*|) ]] && (( runs++ ))
+    # A substitution stays one word, so what runs inside it (`; zinit …`,
+    # `eval "zinit …"`) is out of reach of the checks on this line's words:
+    # any zinit inside one counts.
+    [[ $w == (\\|)${~zname} || $w == *(\`|[\$\<\>=]\()*zinit* ]] && (( runs++ ))
     [[ $w == (\;|\&|\&\&|\||\|\||\|\&) ]] && (( ops++ ))
   done
   (( ${words[(I)eval]} && ${words[(I)*zinit*]} && ! runs )) && runs=1
