@@ -96,4 +96,5 @@ Default to the fastest correct execution shape. These are defaults, not mandates
 - **Delegate read-heavy fan-out to subagents.** When answering requires sweeping many files, directories, or naming conventions and only the conclusion matters, spawn one subagent per independent area — launched in a single message — instead of pulling everything into the main context.
 - **Keep writes serial and in the main context.** Do not fan out subagents to edit files. Concurrent edits break "small, reversible steps", blur commit boundaries, and create conflicts that cost more than the parallelism saves.
 - **Keep spawn counts low.** If one subagent can complete the task, use one rather than several.
+- **Match the model to the task when parallelizing.** Choose the model that fits each subagent's work, not the most expensive one by default.
 - State the split briefly when it is non-obvious, then execute. Do not ask for permission to parallelize.
