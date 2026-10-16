@@ -13,7 +13,7 @@ source "$SKILL_EVAL_REPO_ROOT/root/.agents/skills/create-pr/evals/grading.sh"
 # no Skill call marks where update-pr starts (all three first runs showed
 # none). Its own step 2, `gh pr view`, finding no PR is the point the hand-over
 # follows.
-first_view="$(transcript_first_command_index '(^|[[:space:]])gh[[:space:]]+pr[[:space:]]+view([[:space:]]|$)')"
+first_view="$(transcript_first_command_index "$PR_EVAL_GH_VIEW")"
 check "update-pr looked for the PR" test -n "$first_view"
 check "handed over to create-pr after finding none" \
   pr_eval_after "$(pr_eval_skill_index create-pr)" "$first_view"
