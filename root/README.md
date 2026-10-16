@@ -154,9 +154,52 @@ segment too; every segment must therefore be a verifiable `rm` on its own.
 Measured over 30 days of transcripts (39,282 Bash calls, 253 leading `rm`), that
 covers **72 calls — 28%** of them, the rest being compound. Recovering more would
 mean reimplementing the allow-list matcher inside the hook, where being looser
-than Claude Code's own matcher means over-approving; not worth it.
+than Claude Code's own matcher means over-approving; not worth it. (For `git -C`
+that judgement was reversed, for a narrower matcher — see below.)
 
 Run `root/.claude/hooks/rm-guard.test.sh` after touching it.
+
+## git permissions
+
+**No git allow rule may put a `*` before the subcommand.** `Bash(git -C * status*)`
+also matched `git -C . -c core.fsmonitor=<cmd> status`, and `-c` makes git run a
+program of the caller's choosing; Claude Code warns about the shape at startup
+("has a wildcard before the rest of the command"). The 33 `git -C *` allow rules
+were removed for that, and because their path reached any repository on the
+machine — whose own `.git/config` runs a program on `git status` just as well.
+The `git -C *` **deny and ask** rules stay: a wildcard there only widens what is
+refused or asked about.
+
+Three hooks now cover git, with different jobs:
+
+- **`git-dash-c-allow.sh`** approves `git -C <dir> <rest>` when the `-C` lands
+  physically inside `$CLAUDE_PROJECT_DIR` and `git <rest>` matches a git allow
+  rule from **`~/.claude/settings.json` only** — never project settings, which
+  Claude Code ignores until its trust dialog is accepted, and which a cloned repo
+  could otherwise use to approve itself. See
+  [git-dash-c-allow.md](.claude/hooks/git-dash-c-allow.md).
+- **`approve-multiline-commands.sh`** accepts a `-C` on the same terms, through
+  the same `git_dash_c_in_project` (`git-workdir.lib.sh`).
+- **`git-guard.sh`** denies a dangerous option before the subcommand. A
+  PreToolUse `deny` outranks another hook's `allow`, so it is the backstop for a
+  bug in either allow hook, and it refuses such a command before the auto mode
+  classifier has to judge it.
+
+**This reverses the rm section's "not worth reimplementing the matcher"**, for a
+narrower matcher: only rules whose single `*` is trailing are used, compared word
+by word against the argv, so a rule approves nothing through the hook that it
+would not approve as written. It can under-approve — a prompt — but not over.
+
+**Know what it costs.** A git -C outside the project, `git -C x remote add`
+(`remote*` was wider than the plain `remote` rules), and a compound command that
+pairs a git -C with a non-git segment no longer pass silently; in auto mode they
+go to the classifier. And git-guard leaves one shape it cannot split — a `case`
+inside a quoted substitution — to that classifier rather than refusing it, which
+is safe only while no git allow rule has a `*` before the subcommand.
+
+Run `root/.claude/hooks/git-guard.test.sh`, `git-dash-c-allow.test.sh`,
+`approve-multiline-commands.test.sh` and `segment-scan.lib.test.sh` after
+touching any of them.
 
 ## Codex prefix rules
 
