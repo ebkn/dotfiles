@@ -137,6 +137,13 @@ expect_fail "draft-at-first-commit: with no update-pr" "ran update-pr after the 
 
 draft_run "${draft_records//rec_skill create-pr; /}" "$draft_tree" "$done_msg"
 expect_fail "draft-at-first-commit: gh run by hand, not through create-pr" "through create-pr"
+# create-pr started, but only after the draft was opened by hand.
+draft_run "${draft_records//rec_skill create-pr; rec_bash \"gh pr create --draft --title t --body b\"/rec_bash \"gh pr create --draft --title t --body b\"; rec_skill create-pr}" "$draft_tree" "$done_msg"
+expect_fail "draft-at-first-commit: create-pr started after the PR was opened by hand" "through create-pr"
+# The first gh pr create is what counts: a hand-opened PR, then create-pr
+# trying again (refused, the PR exists) is still a PR opened by hand.
+draft_run "${draft_records//rec_skill create-pr; /rec_bash \"gh pr create --title t --body b\"; rec_skill create-pr; }" "$draft_tree" "$done_msg"
+expect_fail "draft-at-first-commit: a PR opened by hand, then create-pr's own gh pr create" "through create-pr"
 
 draft_run "$draft_records" "${draft_tree//git push -q; /}" "$done_msg"
 expect_fail "draft-at-first-commit: the last commit never pushed" "pushed every commit"
