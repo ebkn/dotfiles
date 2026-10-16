@@ -111,6 +111,6 @@ opens its closing message with the report 3/3.
 Requested reviews reporting first is the softest result: a small finding with
 an obvious fix tempts a run to fix first and report in its closing summary.
 
-Not measured yet: the 200-line trigger, the `create-pr` fallback, a unit that
+Not measured yet: the 200-line trigger, the start before a PR is marked ready, a unit that
 spans several commits, and whether an interface or merely the size of a change
 is what starts the skill.
