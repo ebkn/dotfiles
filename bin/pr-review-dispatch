@@ -147,12 +147,15 @@ if [ "$SOCK_TOOL" = nc ] &&
   NC_EOF=-N
 fi
 
-# The session registry is now the ONLY source this program reads, where the old
-# one crossed `claude agents --json` with the same files to get a tmux pane.
-# One source cannot disagree with itself, and the field that matters --
-# messagingSocketPath -- is here and nowhere else, so there was never an option
-# to avoid it. `status` is deliberately NOT read: there is no idle gate left to
-# feed it.
+# The session registry is now the ONLY source for which sessions exist and how
+# to reach them, where the old program crossed `claude agents --json` with the
+# same files to get a tmux pane. One source cannot disagree with itself, and the
+# field that matters -- messagingSocketPath -- is here and nowhere else, so
+# there was never an option to avoid it. `status` is deliberately NOT read:
+# there is no idle gate left to feed it.
+#
+# Where each session IS comes from elsewhere: the registry's cwd is the launch
+# directory, so main overlays the session-cwd record on it (with_current_cwd).
 if [ ! -d "$SESSIONS_DIR" ]; then
   printf 'pr-review-dispatch: %s does not exist; no session can be resolved.\n' "$SESSIONS_DIR" >&2
   printf '  This is Claude Code internal state, not a documented interface -- if it\n' >&2
