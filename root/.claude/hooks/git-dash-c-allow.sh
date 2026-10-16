@@ -73,10 +73,7 @@ rules=$(jq -r '
 # shellcheck source=root/.claude/hooks/git-rules.lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/git-rules.lib.sh"
 
-REFUSING=$(
-  git_rule_patterns deny
-  git_rule_patterns ask
-)
+git_rules_load
 
 # $@: an argv. Returns 0 when some rule approves it.
 rule_approves() {
@@ -131,7 +128,7 @@ segment_ok() {
     i=$((i + 1))
   done
   rule_approves git "${argv[@]:GIT_DASH_C_NEXT}" || return 1
-  ! git_rule_match "$REFUSING" git "${argv[@]:i}"
+  ! git_rule_match git "${argv[@]:i}"
 }
 
 scan_command "$COMMAND" segment_ok || exit 0

@@ -644,6 +644,9 @@ check DENY "git -C sub push '--force' $(printf 'y%.0s' $(seq 4100))" 'a quoted -
 # included, and must stay inside the timeout like every other pass.
 check_fast "rules over a 100k-byte quoted rest" "git -C sub push --force \"$filler\""
 check_fast "rules over 20000 quoted words" "git -C sub push --force $(printf '"a" %.0s' $(seq 20000))"
+# And per segment, up to the candidate cap: a process or a here-string for each
+# of them put this at 5s, which with onFailure "block" refuses the command.
+check_fast "rules over 999 quoted git -C segments" "$(printf "git -C sub status 'a';%.0s" $(seq 999)) git -C sub push --force"
 check DENY 'git -C sub log [a]' 'a rule glob character compares literally'
 check PASS 'git -C sub log a' 'and matches only itself'
 check ASK 'git -C sub branch -D topic'

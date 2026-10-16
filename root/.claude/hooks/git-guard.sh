@@ -613,39 +613,54 @@ fi
 # model, and giving up there took a quoted --force out of the rule's reach.
 # Either way a run of spaces counts as one.
 RULES_LOADED=0
-DENY_PATTERNS=""
-ASK_PATTERNS=""
 ASK_RULE=""
 check_rules() {
   local -a written=() stripped=()
   local rest=$REST
   if ((RULES_LOADED == 0)); then
-    DENY_PATTERNS=$(git_rule_patterns deny)
-    ASK_PATTERNS=$(git_rule_patterns ask)
+    git_rules_load
     RULES_LOADED=1
   fi
-  [[ -n "$DENY_PATTERNS$ASK_PATTERNS" ]] || return 0
+  ((${#GIT_RULE_P[@]})) || return 0
 
-  read -r -a written <<<"$rest"
-  # sed, not ${rest//[\'\"]/}: bash 3.2 rebuilds the string per replacement,
-  # and 20000 quoted words outlasted the timeout.
-  rest=$(LC_ALL=C sed -e "s/\\\$['\"]//g" -e "s/['\"\\\\]//g" <<<"$rest")
-  read -r -a stripped <<<"$rest"
+  # Split on whitespace with globbing off, not `read -a <<<`: a here-string is
+  # a temporary file on bash 3.2, which across 1000 segments costs seconds.
+  set -f
+  # shellcheck disable=SC2206 # word splitting is the point; globbing is off
+  written=($rest)
+  set +f
+  # Only where there is a quote to delete. A short rest is done in bash; a
+  # long one by sed, since bash 3.2 rebuilds the string per replacement and
+  # 20000 quoted words outlasted the timeout, while a process per segment is
+  # what put 1000 short ones past it.
+  local forms=written
+  if [[ "$rest" == *[\'\"\\]* ]]; then
+    if ((${#rest} <= 1024)); then
+      rest=${rest//\$[\'\"]/}
+      rest=${rest//[\'\"\\]/}
+    else
+      rest=$(LC_ALL=C sed -e "s/\\\$['\"]//g" -e "s/['\"\\\\]//g" <<<"$rest")
+    fi
+    set -f
+    # shellcheck disable=SC2206 # as above
+    stripped=($rest)
+    set +f
+    forms="written stripped"
+  fi
 
   local form
-  for form in written stripped; do
+  for form in $forms; do
     local -a words=(git "$SUBCOMMAND")
     if [[ $form == written ]]; then
       words+=(${written[@]+"${written[@]}"})
     else
       words+=(${stripped[@]+"${stripped[@]}"})
     fi
-    if git_rule_match "$DENY_PATTERNS" "${words[@]}"; then
+    git_rule_match "${words[@]}" || continue
+    if [[ "$GIT_RULE_KIND" == deny ]]; then
       deny "git-guard: the deny rule ${GIT_RULE_MATCHED} covers this git once the options before its subcommand (-C and the like) are set aside; settings.json keeps no git -C copies of its rules, so this hook applies them."
     fi
-    if [[ -z "$ASK_RULE" ]] && git_rule_match "$ASK_PATTERNS" "${words[@]}"; then
-      ASK_RULE=$GIT_RULE_MATCHED
-    fi
+    ASK_RULE=${ASK_RULE:-$GIT_RULE_MATCHED}
   done
 }
 

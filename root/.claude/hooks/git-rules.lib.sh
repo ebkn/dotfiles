@@ -45,21 +45,42 @@ git_rule_patterns() {
   done
 }
 
-# git_rule_match <patterns> <words...>: 0 when the words, joined by single
-# spaces, match a pattern from git_rule_patterns; GIT_RULE_MATCHED is then the
-# rule as written.
+# git_rules_load: read the deny rules, then the ask rules, into the parallel
+# arrays GIT_RULE_P (pattern), GIT_RULE_R (rule as written) and GIT_RULE_K
+# (deny or ask), once per hook run. Arrays rather than the text, because a hook
+# matches for each of up to 1000 segments: walking the text per call, by
+# slicing or by `read <<<` (a temporary file on bash 3.2), spent seconds of the
+# timeout there.
+GIT_RULE_P=()
+GIT_RULE_R=()
+GIT_RULE_K=()
+git_rules_load() {
+  local kind text p rule
+  GIT_RULE_P=() GIT_RULE_R=() GIT_RULE_K=()
+  for kind in deny ask; do
+    text=$(git_rule_patterns "$kind")
+    [[ -n "$text" ]] || continue
+    while IFS= read -r p && IFS= read -r rule; do
+      GIT_RULE_P+=("$p") GIT_RULE_R+=("$rule") GIT_RULE_K+=("$kind")
+    done <<<"$text"
+  done
+}
+
+# git_rule_match <words...>: 0 when the words, joined by single spaces, match a
+# loaded rule. GIT_RULE_KIND and GIT_RULE_MATCHED then name it, a deny rule
+# ahead of any ask rule, since deny rules are loaded first.
+GIT_RULE_KIND=""
 GIT_RULE_MATCHED=""
 git_rule_match() {
-  local patterns=$1 p rule
-  shift
-  local line="$*"
-  while IFS= read -r p && IFS= read -r rule; do
-    # shellcheck disable=SC2053 # $p is a pattern, deliberately unquoted
-    if [[ "$line" == $p ]]; then
-      # shellcheck disable=SC2034 # an output, read by the sourcing hook
-      GIT_RULE_MATCHED=$rule
+  local line="$*" i=0 n=${#GIT_RULE_P[@]}
+  while ((i < n)); do
+    # shellcheck disable=SC2053 # the pattern is one, deliberately unquoted
+    if [[ "$line" == ${GIT_RULE_P[i]} ]]; then
+      # shellcheck disable=SC2034 # outputs, read by the sourcing hook
+      GIT_RULE_KIND=${GIT_RULE_K[i]} GIT_RULE_MATCHED=${GIT_RULE_R[i]}
       return 0
     fi
-  done <<<"$patterns"
+    i=$((i + 1))
+  done
   return 1
 }
