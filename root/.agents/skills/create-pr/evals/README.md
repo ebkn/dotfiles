@@ -55,6 +55,16 @@ is the same harness and cases with the behaviour commit reverted.
 | `ready-at-finish` | 0/3 | 3/3 |
 | `no-pr-on-default-branch` | 3/3 | 3/3 |
 | `no-update-without-commits` | 3/3 | 3/3 |
+| `ready-without-pr` | — | 3/3 |
+
+`ready-without-pr` came with the hand-over itself (update-pr starting
+create-pr when `ready` finds no PR), so it has no before. Its first three
+runs published the PR every time and still failed: the grader looked for a
+Skill call starting update-pr, and `/update-pr ready` in a `claude -p`
+prompt expands in place with none. The hand-over is now placed after
+update-pr's own `gh pr view`. The last full run of all six cases, after the
+fixes from review-test (whole-word keywords, the stub's `--flag=value`, every
+branch on origin), was 18/18.
 
 Before, no run pushed or opened a PR, and none asked either: in these
 unattended runs the question did not show up, so the "never ask" half is
