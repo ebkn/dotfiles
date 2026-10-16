@@ -828,8 +828,12 @@ check ASK 'git -C sub push origin HEAD --force-with-lease=topic:abc123'
 # undo of a model's own temporary edit to a hand-written sed. Every spelling
 # that discards asks, or the prompt is one synonym away.
 check ASK 'git -C sub checkout -- f'
+check ASK 'git -C sub checkout f'
+check ASK 'git -C sub checkout .'
+check ASK 'git -C sub checkout HEAD -- f'
 check ASK 'git -C sub restore f'
 check ASK 'git -C sub restore --worktree f'
+check ASK 'git -C sub restore --source=HEAD f'
 check ASK 'git -C sub stash drop'
 check ASK 'git -C sub stash clear'
 check PASS 'git -C sub stash list'
