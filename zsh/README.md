@@ -253,9 +253,10 @@ not run at all — the cost guarded is a fork, and worse a network call, on ever
 shell. The bumped cases add a commit after the clone was made, so that the
 fetch, and its failure offline, are actually reached.
 
-The static checks fail on any `zinit` line they cannot read (`snippet`, `for`,
-inline ices) rather than pass it unchecked, and on `depth` on any line that is
-not a comment.
+Reading the pins is left to [bin/zinit-pins](../bin/zinit-pins.md), which
+refuses any `zinit` line it cannot read (`snippet`, `for`, inline ices); this
+suite holds it to the real file and checks it returned one pin per plugin plus
+zinit's. `depth` fails on any line that is not a comment.
 
 Confirmed red against the unpinned `plugin.zsh` and `update.zsh`, against a
 start that skips the HEAD comparison (git is run while pinned), and against one

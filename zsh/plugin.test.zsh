@@ -40,42 +40,23 @@ check() {
 
 # --- Static: what plugin.zsh and update.zsh say -----------------------------
 
-# Every `zinit light|load` must follow a `zinit ice` carrying a full commit
-# `ver`. Comments and blank lines between them are skipped, as zinit does.
-# Any other way of naming a plugin (`zinit snippet`, `zinit for`, ices written
-# inline) is one this check cannot read, so it fails rather than pass unread.
-unpinned=() unreadable=()
-ice=''
-for line in "${(@f)$(<$PLUGIN)}"; do
-  line=${line##[[:space:]]#}
-  [[ $line == (\#*|) ]] && continue
-  if [[ $line == zinit\ (light|load)\ * ]]; then
-    [[ $ice == *ver[\"\'][[:xdigit:]](#c40)[\"\']* ]] || unpinned+=("${${line#zinit (light|load) }%% *}")
-    ice=''
-  elif [[ $line == zinit\ ice\ * ]]; then
-    ice=$line
-  else
-    [[ $line == zinit\ * ]] && unreadable+=("$line")
-    ice=''
-  fi
-done
-check 'every plugin is pinned to a full commit SHA by its ver ice' \
-  '' \
-  "${unpinned[*]}"
-check 'plugins are named only as `zinit ice` + `zinit light|load`' \
-  '' \
-  "${(F)unreadable}"
+# How a pin is written is bin/zinit-pins' to know (see bin/zinit-pins.md); it
+# fails on a plugin without a full SHA and on any zinit form it cannot read.
+# Here it is held to the real file: every pin read, and one per plugin plus
+# zinit's own, so none was skipped.
+pins=$($HERE/../bin/zinit-pins $PLUGIN 2>&1)
+check 'bin/zinit-pins reads plugin.zsh without refusing anything' \
+  'exit=0 *' \
+  "exit=$? $pins"
+check 'every plugin is pinned, and zinit too' \
+  "$(( $(grep -c '^[[:space:]]*zinit \(light\|load\) ' $PLUGIN) + 1 ))" \
+  "${#${(f)pins}}"
 
 # Anywhere but a comment: an ice can be inline or continued onto a next line.
 # update.zsh is included so that an ice written before `zinit update` is caught.
 check 'depth appears in neither plugin.zsh nor update.zsh' \
   '' \
   "$(grep -n 'depth' $PLUGIN $HERE/update.zsh | grep -v ':[[:space:]]*#')"
-
-zinit_pin=$(sed -n 's/^_zinit_pin=\([[:xdigit:]]\{40\}\)$/\1/p' $PLUGIN)
-check 'zinit itself is pinned to a full commit SHA' \
-  '[[:xdigit:]](#c40)' \
-  "$zinit_pin"
 
 # --- zinit's own pin, run for real ------------------------------------------
 
