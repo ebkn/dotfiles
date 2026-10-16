@@ -54,8 +54,8 @@ drop the job. Idempotence comes from the job's own `seen` id set instead.
 (`--help`: "for scripting; does not require a TTY"), reporting `cwd`,
 `sessionId` and a `status` of `idle`/`busy`/`waiting` (plus `waitingFor`).
 
-PR → branch → worktree → `cwd` needs no registry of its own, with one caveat:
-**that `cwd` is where the session was launched**, and a Bash-tool `cd` (`gw`)
+PR → branch → worktree → `cwd` comes from `git worktree list --porcelain` and
+that JSON, but **that `cwd` is where the session was launched**, and a Bash-tool `cd` (`gw`)
 never updates it. So the JSON is overlaid with the session-cwd hook's record
 before matching (`with_current_cwd`, see
 [pr-review-common.md](pr-review-common.md#a-session-that-moved-after-it-started));

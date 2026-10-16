@@ -209,7 +209,7 @@ new feedback and is meant to be picked up.
 so the instruction would be an order to answer comments that do not exist;
 `pr-review-dispatch.test.sh` pins that the conflict prompt does not inherit it.
 
-## The session registry is the only source this program reads
+## The session registry is the only source of which sessions exist and how to reach them
 
 The old version crossed `claude agents --json` with the same files to get a pane.
 One source cannot disagree with itself, and `messagingSocketPath` exists nowhere
