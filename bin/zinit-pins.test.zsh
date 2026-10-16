@@ -187,6 +187,13 @@ check 'reads an ice whose value holds an operator' \
   "$(read_pins "zinit ice atload\"a; b && c\" ver\"$A\"
 zinit light a/one")"
 
+# No operator, but a second zinit as a word of the ice line: b/two is loaded
+# from inside the substitution and would be missing from the list.
+check 'refuses an ice line that runs zinit again in a substitution' \
+  "$(refused '*cannot read: zinit ice ver"'"$A"'" $?zinit light b/two?*')" \
+  "$(read_pins "zinit ice ver\"$A\" \$(zinit light b/two)
+zinit light a/one")"
+
 # Ways of writing the command name that still run zinit.
 check 'refuses \zinit' \
   "$(refused '*cannot read: \\zinit light b/two*')" \
