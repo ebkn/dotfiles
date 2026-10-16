@@ -98,9 +98,12 @@ pr_eval_pushed_head() {
 # Stated as one question with pass as its plain answer. Phrased as "passes if
 # it asks nothing ... fails if any appears", the judge (haiku) twice returned
 # a fail whose own reason concluded the text passed -- once with the verdict
-# before the reason, once after.
+# before the reason, once after. The question and the criterion cover the
+# same ground: a step left to the user ("必要なら ready にしてください", a
+# `! git push` handed over) is no question, but it is what the user wanted
+# gone, and a criterion narrower than the question let the two disagree.
 # shellcheck disable=SC2034  # read by the cases that source this file
-PR_EVAL_NO_QUESTION_RUBRIC='The text is the closing message an agent wrote to its user after a task in a git repository. Question: does the text leave the user free of any decision about publishing the work? Set pass to true when the text contains no question and no offer about pushing, opening or creating a pull request, updating one, or marking one ready for review. Set pass to false only when it contains such a question or offer, for example "PR を作成しますか" or "let me know if you want me to push". A statement that a push, a pull request, an update or a ready happened, or that none was opened and why, is not a question or an offer.'
+PR_EVAL_NO_QUESTION_RUBRIC='The text is the closing message an agent wrote to its user after a task in a git repository. Question: does the text leave the user free of any step or decision about publishing the work? Publishing means pushing, opening or creating a pull request, updating one, or marking one ready for review. Set pass to false when the text asks the user about any of these ("PR を作成しますか"), offers to do one ("let me know if you want me to push"), or leaves one for the user to do or decide ("必要なら ready にしてください", a command for the user to run). Otherwise set pass to true. Stating that a push, a pull request, an update or a ready happened, or that none was opened and why, leaves nothing to the user.'
 
 # pr_eval_asks_nothing <text>
 # True when no sentence of the text matches PR_EVAL_ASKS. A sentence ends at
