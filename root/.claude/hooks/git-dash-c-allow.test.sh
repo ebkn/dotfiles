@@ -145,6 +145,7 @@ echo "-- must DEFER: the rest matches an allow rule, but a deny or ask rule too 
 # than depend on how the two hooks' decisions combine.
 check ALLOW 'the allow rule alone' 'git -C sub branch -a'
 check DEFER 'an ask rule' 'git -C sub branch -D topic'
+check ALLOW 'the stash allow rule alone' 'git -C sub stash list'
 check DEFER 'a deny rule' 'git -C sub stash clear'
 check DEFER "a deny rule in the project's settings" 'git -C sub diff --output=x'
 check ALLOW 'which reaches nothing else' 'git -C sub diff --stat'
