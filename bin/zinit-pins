@@ -1,0 +1,60 @@
+#!/usr/bin/env zsh
+# zinit-pins [plugin.zsh] — list the commit pins in zsh/plugin.zsh, one
+# "<owner/repo> <sha>" per line: zinit first, then each plugin in file order.
+#
+# The one place that knows how a pin is written. It exits 1, naming what it
+# could not read, rather than list fewer pins than there are: a caller that
+# moves pins would leave a skipped one where it is, and "not updated" looks the
+# same as "up to date". See bin/zinit-pins.md.
+
+emulate -L zsh
+setopt extendedglob
+
+file=${1:-${0:A:h}/../zsh/plugin.zsh}
+if [[ ! -r $file ]]; then
+  print -u2 -- "zinit-pins: cannot read $file"
+  exit 1
+fi
+
+sha='[[:xdigit:]](#c40)'
+lines=("${(@f)$(<$file)}")
+pins=() errors=()
+
+# zinit is not a plugin: its pin is a pair of assignments, not an ice.
+repo=${(M)lines:#_zinit_repo=*}
+pin=${(M)lines:#_zinit_pin=*}
+repo=${repo#_zinit_repo=} pin=${pin#_zinit_pin=}
+if [[ -n $repo && $pin == ${~sha} ]]; then
+  pins+=("$repo $pin")
+else
+  errors+=("zinit itself: needs _zinit_repo=<owner/repo> and _zinit_pin=<40-hex sha>")
+fi
+
+# A plugin's pin is the ver on the `zinit ice` line before its `zinit light`
+# or `zinit load`, with only comments and blank lines between them, as zinit
+# reads it. Any other zinit form is refused rather than read wrong.
+ice=''
+for line in "${lines[@]}"; do
+  line=${line##[[:space:]]#}
+  [[ $line == (\#*|) ]] && continue
+  if [[ $line == zinit\ (light|load)\ * ]]; then
+    plugin=${${line#zinit (light|load) }%% *}
+    if [[ $ice == (#b)*ver[\"\'](${~sha})[\"\']* ]]; then
+      pins+=("$plugin $match[1]")
+    else
+      errors+=("$plugin: no ver\"<40-hex sha>\" on the zinit ice before it")
+    fi
+    ice=''
+  elif [[ $line == zinit\ ice\ * ]]; then
+    ice=$line
+  else
+    [[ $line == zinit\ * ]] && errors+=("cannot read: $line")
+    ice=''
+  fi
+done
+
+if (( $#errors )); then
+  print -u2 -l -- "zinit-pins: $file:" "  "${^errors}
+  exit 1
+fi
+print -l -- $pins
