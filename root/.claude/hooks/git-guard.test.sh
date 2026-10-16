@@ -678,10 +678,11 @@ check PASS 'git -C sub push --force' 'no settings, no rules'
 
 echo "-- the settings this hook's silence relies on --"
 # git-guard leaves a `case` inside a quoted substitution to the normal flow,
-# which is safe only while no git allow rule puts a `*` before the subcommand
-# (root/README.md, git permissions): such a rule matches an option before the
-# subcommand -- `git -c core.fsmonitor=<cmd> status` -- and would approve a whole
-# command this hook stayed silent on. /config writes to settings.json, so this is
+# skipping its option check and the deny and ask rules for a -C (the status 3
+# exit in git-guard.sh argues why). One condition of that is checked here: no
+# git allow rule puts a `*` before the subcommand, since such a rule matches an
+# option before it -- `git -c core.fsmonitor=<cmd> status` -- and would approve
+# a whole command this hook stayed silent on. /config writes to settings.json, so this is
 # checked against the file rather than trusted. Deny and ask rules are exempt: a
 # wildcard there widens only what is refused or asked about. The check sees only
 # this repository's settings.json, not settings.local.json or a project's, and

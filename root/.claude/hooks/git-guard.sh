@@ -51,7 +51,7 @@
 # reused by a hook that allows. Every ambiguity is resolved toward "inspect it"
 # or "refuse it": after a wrapper the first git word is taken as the command,
 # an unsplittable command is refused whole if a word in it could be git (a
-# `case` in a quoted substitution aside, left to the normal flow), a quoted
+# `case` in a quoted substitution aside: see the status 3 exit below), a quoted
 # newline becomes a space, and an input too large or unreadable is refused. A
 # hook that approved whatever this parser calls a clean `git -C . status` would
 # approve `timeout 5 rm -rf ~ git -C . status`; the allow hooks use
@@ -392,7 +392,7 @@ strip_wrappers() {
 # quoted substitution holds a `case` (whose pattern `)` this does not model).
 # There is no cruder second splitter for either -- the split-everywhere sed that
 # used to be one was a bypass twice (`&>`, `a\;b`) -- so the caller refuses a 1
-# whole if any word in it could be git, and leaves a 3 to the normal flow.
+# whole if any word in it could be git; a 3, see the status 3 exit below.
 #
 # The walk is awk, byte-wise under LC_ALL=C, over each line split once into an
 # array of bytes. Outside a substitution it prints as it goes; inside one it
@@ -561,11 +561,20 @@ segments=$(split_segments "$COMMAND") && rc=0 || rc=$?
 
 # A `case` inside a quoted substitution (status 3) is left to the normal flow
 # rather than refused: it is an ordinary word -- `git commit -m "$(echo case
-# 1)"` -- and refusing every command holding one cost more than it bought. That
-# is safe only while no allow rule can approve a git with an option before its
-# subcommand: every git allow rule is a literal prefix of the subcommand, so
-# such a command prompts or goes to the auto mode classifier. A `Bash(git *
-# ...)` allow rule would make this a bypass.
+# 1)"` -- and refusing every command holding one cost more than it bought. This
+# is the one place that judgement is argued; the other mentions point here.
+#
+# It skips everything below, so two things are given up for such a command:
+# the option check, and the deny and ask rules for a git with an option before
+# its subcommand -- `git -C x push --force "$(echo case)"` reaches a prompt or
+# the auto mode classifier, not a deny. That is safe only while nothing can
+# approve the command instead: no git allow rule has a `*` before the
+# subcommand (every one is a literal prefix of it, checked by the suite for
+# this repository's settings only), and the hooks that approve a git -C,
+# git-dash-c-allow.sh and approve-multiline-commands.sh, emit nothing for a
+# command holding a `$`, as segment-scan.lib.sh gives up on it. A
+# `Bash(git * ...)` allow rule, or an allow hook reading past a `$`, would make
+# this a bypass.
 [[ $rc -ne 3 ]] || exit 0
 
 # A here-string, not `printf | grep -q`: under pipefail grep -q exiting on its
