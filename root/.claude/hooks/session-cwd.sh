@@ -101,9 +101,17 @@ printf '%s' "$json" | jq -c --arg old "$old" '
              then $o.since else (now * 1000 | floor) end)}' >"$tmp" 2>/dev/null
 # Renamed into place so the reader never sees a half-written record, and only
 # when jq produced one: an empty file would read as a record that says nothing.
-if [ -s "$tmp" ]; then
-  mv -f "$tmp" "$file" 2>/dev/null
-  pane_set "$(jq -r .cwd "$file" 2>/dev/null)"
+#
+# The pane is told only once the rename has landed, and what it is told comes
+# from the record just written: publishing after a failed rename would point
+# the popups at a cwd the record does not hold. A directory in the record's
+# place is refused outright, because `mv` does not fail there -- it moves the
+# file INTO it and returns 0.
+if [ -s "$tmp" ] && [ ! -d "$file" ]; then
+  cwd=$(jq -r .cwd "$tmp" 2>/dev/null)
+  if mv -f "$tmp" "$file" 2>/dev/null; then
+    pane_set "$cwd"
+  fi
 fi
 rm -f "$tmp" 2>/dev/null
 exit 0

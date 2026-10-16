@@ -125,6 +125,23 @@ assert_eq 'a path with a space stays one argument' \
 # A trailing ";" on argv is a command separator to tmux; `\;` is its escape.
 hook cd '{"session_id":"p1","new_cwd":"/odd;"}'
 assert_eq 'a trailing semicolon is escaped' '[set-option][-p][-t][%7][@claude_cwd][/odd\;]' "$(tail -n 1 "$TMUXLOG")"
+# Publishing is not skipped when the directory is unchanged: `claude --resume`
+# can reopen the same session id in a NEW pane, which has no @claude_cwd yet,
+# and SessionStart there carries the same cwd the record already holds.
+PANE_ID=%8
+hook start '{"session_id":"p1","cwd":"/odd;"}'
+assert_eq 'an unchanged cwd is still published, to whichever pane runs it now' \
+  '[set-option][-p][-t][%8][@claude_cwd][/odd\;]' "$(tail -n 1 "$TMUXLOG")"
+# The option must describe the record that was actually written. A directory
+# where the record belongs is the case that bit: `mv` moved the record INTO it,
+# returned 0, and the hook then published an empty cwd read from a directory.
+mkdir -p "$DIR/p2.json"
+lines=$(wc -l <"$TMUXLOG" | tr -d ' ')
+hook cd '{"session_id":"p2","new_cwd":"/never-recorded"}'
+assert_eq 'a record that could not be written is not published' "$lines" "$(wc -l <"$TMUXLOG" | tr -d ' ')"
+assert_eq 'and nothing is moved into what is in its way' '' "$(ls -A "$DIR/p2.json")"
+rm -rf "$DIR/p2.json"
+PANE_ID=%7
 hook end '{"session_id":"p1"}'
 assert_eq 'end unsets it, so the popup falls back to the pane path' \
   '[set-option][-p][-u][-t][%7][@claude_cwd]' "$(tail -n 1 "$TMUXLOG")"
