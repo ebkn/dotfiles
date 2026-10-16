@@ -89,8 +89,9 @@ round, a caller write before every re-run, and a clean last round — and
 `bin/skill-eval.test.sh` pins each against a two-round fixture transcript.
 A case calls them bundled as `check` lines, not one by one:
 `review_loop_rerun_checks` and `review_loop_checks`, whose comment says what
-each asks and which case calls which. A new check on the loop goes there, so
-it reaches every case at once.
+each asks and which case calls which. A check on the re-runs — a ceiling, say
+— goes in `review_loop_rerun_checks`, so it reaches every case that lets the
+loop run.
 A fix made through `Bash` instead of `Write`/`Edit` is invisible to them; the
 review cases open no command that writes.
 
