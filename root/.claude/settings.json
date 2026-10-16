@@ -182,6 +182,7 @@
       "Bash(gh pr edit*)",
       "Bash(gh pr diff *)",
       "Bash(gh pr list *)",
+      "Bash(gh pr ready*)",
       "Bash(gh pr status *)",
       "Bash(gh pr view *)",
       "Bash(gh release list *)",
@@ -267,6 +268,7 @@
       "mcp__plugin_sentry_sentry__search_sentry_tools",
       "mcp__plugin_sentry_sentry__find_projects",
       "Skill(commit)",
+      "Skill(create-pr)",
       "Skill(update-pr)"
     ],
     "deny": [
