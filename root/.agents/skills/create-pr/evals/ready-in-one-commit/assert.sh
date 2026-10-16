@@ -20,7 +20,7 @@ check_eq "stayed on the branch it was given" "docs/install" "$(git rev-parse --a
 
 # --- the PR ---
 check "opened the PR after committing" pr_eval_after "$first_create" "$first_commit"
-check "through create-pr" test -n "$(pr_eval_skill_index create-pr)"
+check "through create-pr" pr_eval_opened_through_create_pr
 check "pushed every commit" pr_eval_pushed_head
 check_match "the PR title is a Conventional Commit" '^[a-z]+(\([^)]+\))?!?: .+' "$(pr_eval_field .title)"
 check_eq "the PR ends ready for review" "false" "$(pr_eval_field .isDraft)"

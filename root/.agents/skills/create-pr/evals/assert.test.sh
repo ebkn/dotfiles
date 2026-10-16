@@ -287,6 +287,9 @@ ready_run "$ready_records" "$ready_tree; git switch -qc elsewhere" "$done_msg"
 expect_fail "ready-in-one-commit: ended on another branch" "stayed on the branch it was given"
 ready_run "${ready_records//rec_skill create-pr; /}" "$ready_tree" "$done_msg"
 expect_fail "ready-in-one-commit: gh run by hand, not through create-pr" "through create-pr"
+# create-pr started, but only after the PR was opened by hand.
+ready_run 'rec_bash "git commit -qam a"; rec_bash "gh pr create --title t --body b"; rec_skill create-pr' "$ready_tree" "$done_msg"
+expect_fail "ready-in-one-commit: create-pr started after the PR was opened by hand" "through create-pr"
 ready_run "$ready_records" "${ready_tree//--title \"docs: install steps\"/--title \"Install steps\"}" "$done_msg"
 expect_fail "ready-in-one-commit: a title that is not a Conventional Commit" "the PR title is a Conventional Commit"
 ready_run "$ready_records; rec_tool AskUserQuestion '{\"questions\":[]}'" "$ready_tree" "$done_msg"
@@ -395,6 +398,12 @@ handover_run "$handover_records" "${handover_tree//docs: add CONTRIBUTING/Add CO
 expect_fail "ready-without-pr: a title that is not a Conventional Commit" "the PR title is a Conventional Commit"
 handover_run "$handover_records" "git commit -q --allow-empty -m extra; $handover_tree" "$done_msg"
 expect_fail "ready-without-pr: a commit the request never asked for" "left the branch's commits as they were"
+# The PR opened by hand after update-pr looked, and create-pr started only
+# afterwards: every other check holds.
+handover_run 'rec_bash "gh pr view --json number"; rec_bash "gh pr create --title t --body b"; rec_skill create-pr' "$handover_tree" "$done_msg"
+expect_fail "ready-without-pr: the PR opened by hand, create-pr started after" "through create-pr"
+handover_run "$handover_records" "git switch -qc docs/elsewhere; $handover_tree" "$done_msg"
+expect_fail "ready-without-pr: published from a new branch" "stayed on the branch it was given"
 handover_run "$handover_records" "$handover_tree" "PR がなかったので作りました。ready にしますか？"
 expect_fail "ready-without-pr: asking about the PR" \
   "the closing message asks nothing about pushing or a PR (known phrasings)"
@@ -419,6 +428,8 @@ expect_fail "no-update-without-commits: and the PR touched" "left the PR as it w
 question_run ':' 'echo x >>README.md; git commit -qam x; git push -q' "$answer"
 expect_fail "no-update-without-commits: a commit made" "committed nothing"
 expect_fail "no-update-without-commits: and pushed" "pushed nothing"
+question_run ':' 'git push -q origin HEAD:docs/other' "$answer"
+expect_fail "no-update-without-commits: a push to another branch, docs/contributing untouched" "pushed nothing"
 question_run ':' ':' "Usage 節を確認しました。"
 expect_fail "no-update-without-commits: no answer" "answered with the command the README gives"
 question_run ':' ':' "$answer PR を ready にしますか？"

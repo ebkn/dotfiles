@@ -30,7 +30,7 @@ check_eq "stayed on the branch it was given" "docs/install-and-contributing" \
 check "opened the PR after the first commit and before the last" \
   pr_eval_between "$first_create" "$first_commit" "$last_commit"
 check_eq "opened it as a draft" "true" "$(pr_eval_field .createdAsDraft)"
-check "through create-pr" test -n "$(pr_eval_skill_index create-pr)"
+check "through create-pr" pr_eval_opened_through_create_pr
 
 # --- update-pr before reporting back ---
 # shellcheck disable=SC2329  # called by name through check

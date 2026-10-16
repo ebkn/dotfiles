@@ -26,8 +26,13 @@ PR_EVAL_GH_CREATE='(^|[;&|(]|[[:space:]])gh[[:space:]]+pr[[:space:]]+create([[:s
 # Matched one sentence at a time (pr_eval_asks_nothing), so a report of the
 # PR and an unrelated question in the next sentence do not join up: "PR を
 # ready にしました。ほかに何か直しますか？" once matched as a whole. Within a
-# sentence the gap is still bounded; whether `.` counts characters or bytes
-# follows the locale, which only moves where a long sentence stops matching.
+# sentence the gap is still bounded, and `.` counts characters or bytes as the
+# locale says. Under LC_ALL=C a Japanese character is three bytes, so the 40
+# leaves about 13 characters, and an ordinary question such as "PR
+# の説明文とタイトルを書き直して更新しますか？" slips past this regex. That is
+# left to the judge on purpose: the runs execute on a developer's UTF-8
+# machine, and pinning a UTF-8 locale here would need a name that differs
+# between macOS and Linux.
 # The ASCII keywords stand as words ([^A-Za-z] on both sides), or "ready" in
 # "already" would turn any question into one about the PR. Not [:alpha:]: in
 # some locales a Japanese character is a letter, and "PRを" must still count.
@@ -62,6 +67,14 @@ pr_eval_between() {
 # pr_eval_after <index> <after>
 pr_eval_after() {
   [ -n "$1" ] && [ -n "$2" ] && [ "$1" -gt "$2" ]
+}
+
+# pr_eval_opened_through_create_pr
+# True when the first `gh pr create` came after create-pr started: the skill
+# opened the PR. That create-pr started at all is not enough -- a run can open
+# the PR by hand and start the skill afterwards.
+pr_eval_opened_through_create_pr() {
+  pr_eval_after "$(transcript_first_command_index "$PR_EVAL_GH_CREATE")" "$(pr_eval_skill_index create-pr)"
 }
 
 # pr_eval_field <jq path>

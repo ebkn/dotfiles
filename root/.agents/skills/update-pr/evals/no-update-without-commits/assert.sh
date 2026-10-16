@@ -17,7 +17,10 @@ check_eq "started neither PR skill" "0 0" \
   "$(transcript_skill_uses update-pr) $(transcript_skill_uses create-pr)"
 check_eq "left the PR as it was" "0 0 true" \
   "$(pr_eval_field '"\(.edits) \(.readied) \(.isDraft)"')"
-check_eq "pushed nothing" "$(git rev-parse run-start)" "$(fake_github_remote_head docs/contributing)"
+# Every branch on origin, as no-pr-on-default-branch reads it: a push to a
+# new branch leaves docs/contributing as the scaffold pushed it.
+check_eq "pushed nothing" "docs/contributing $(git rev-parse run-start)
+main $(git rev-parse eval-base)" "$(fake_github_remote_refs)"
 
 pr_eval_check_no_question
 
