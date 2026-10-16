@@ -50,12 +50,13 @@ check "opens the closing message with the review report" opens_with_the_report
 # commits made the unit is not visible from here.
 # shellcheck disable=SC2329
 names_a_range_on_the_branch() {
-  local line base head
-  line="$(grep -oE 'Reviewed: [0-9a-f]{7,40}\.\.[0-9a-f]{7,40}' <<<"$closing" | head -n 1)"
-  [ -n "$line" ] || return 1
-  base="${line#Reviewed: }"
-  head="${base#*..}"
-  base="${base%%..*}"
+  local range base head
+  # The Reviewed line, or the heading's range when it was dropped (see
+  # review_design_range_in).
+  range="$(review_design_range_in "$closing")"
+  [ -n "$range" ] || return 1
+  base="${range%% *}"
+  head="${range#* }"
   case "$(git rev-parse eval-base)" in "$base"*) ;; *) return 1 ;; esac
   git merge-base --is-ancestor eval-base "$head" || return 1
   git merge-base --is-ancestor "$head" HEAD || return 1

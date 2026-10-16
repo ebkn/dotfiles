@@ -58,6 +58,25 @@ nothing is written before it.
 
 ## Last measured
 
+**The Caller line spelled out, 2026-10-16, sonnet.** The loop cases
+(`stale-doc-after-change`, `next-change-scattered`, `hidden-clock-no-seam`,
+three runs each) against a baseline of the same:
+
+| | before | after | after, Reviewed above Caller |
+| --- | --- | --- | --- |
+| reviewed again after fixing | 7/9 | 9/9 | 9/9 |
+| fixed and committed without asking | 8/9 | 9/9 | 9/9 |
+| the report passed on names its range | 7/9 | 0/9 | 2/9 |
+
+The `Caller:` line now says what the loop is instead of pointing at "After the
+review": a forked caller acts on the result it sees, not on a file it may
+never open. The price was the report the caller passes on losing its
+`Reviewed:` line (the heading still names the range); moving the line above
+`Caller:` barely helped, so the range is now graded from either. The same
+change to `review-test`'s `Caller:` line was reverted: two of three runs read
+it as an instruction planted in a tool result and did nothing past the review
+the user asked for.
+
 **With the loop graded, 2026-10-16, one run each, sonnet.** 3 of 9 passed
 (`clean-unit-no-false-p1`, `no-fire-small-fix`, `pass-through-layer`).
 - Only `pass-through-layer` reviewed again after fixing (open 3 → 0). In

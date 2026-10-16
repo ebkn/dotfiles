@@ -44,14 +44,32 @@ review_design_report_text() {
 # right hashes, not the shape of a range. Compared as prefixes, because the
 # line carries abbreviated hashes.
 review_design_names_range() {
-  local line base head
-  line="$(grep -oE 'Reviewed: [0-9a-f]{7,40}\.\.[0-9a-f]{7,40}' <<<"$1" | head -n 1)"
-  [ -n "$line" ] || return 1
-  base="${line#Reviewed: }"
-  head="${base#*..}"
-  base="${base%%..*}"
+  local range base head
+  range="$(review_design_range_in "$1")"
+  [ -n "$range" ] || return 1
+  base="${range%% *}"
+  head="${range#* }"
   case "$(git rev-parse "$2")" in "$base"*) ;; *) return 1 ;; esac
   case "$(git rev-parse "$3")" in "$head"*) ;; *) return 1 ;; esac
+}
+
+# review_design_range_in <text>
+# The range a report names, as "<base> <head>": from its Reviewed line, or
+# failing that from its heading. A caller passing the report on drops the
+# Reviewed line it treats as addressed to itself -- 9 of 9 runs once the
+# Caller line grew (2026-10-16) -- while the heading, which names the same
+# range, stays. What the next round reads is graded on its brief instead
+# (review_design_reruns_carry_reviewed_line). Empty when neither names one.
+review_design_range_in() {
+  local line
+  line="$(grep -oE 'Reviewed: [0-9a-f]{7,40}\.\.[0-9a-f]{7,40}' <<<"$1" | head -n 1)"
+  line="${line#Reviewed: }"
+  if [ -z "$line" ]; then
+    line="$(grep -oE '(設計レビュー|[Dd]esign [Rr]eview)[^:：]*[:：] *[0-9a-f]{7,40}\.\.[0-9a-f]{7,40}' <<<"$1" | head -n 1 |
+      grep -oE '[0-9a-f]{7,40}\.\.[0-9a-f]{7,40}$')"
+  fi
+  [ -n "$line" ] || return 0
+  printf '%s %s\n' "${line%%..*}" "${line#*..}"
 }
 
 # review_design_wrote_nothing_before <index>

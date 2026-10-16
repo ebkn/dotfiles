@@ -600,6 +600,18 @@ while read -r c fix; do
   expect_fail "$c: a Reviewed line starting at the wrong commit is caught" \
     "names the range it reviewed: eval-base..unit-done"
 
+  # The range in the heading is enough: a caller passing the report on drops
+  # the Reviewed line it treats as addressed to itself (9 of 9 runs, once the
+  # Caller line grew). What the next round reads is graded on its brief.
+  design_run "$c" "${good_report%%Reviewed:*}" "$before_default" "$after_default" "$fix"
+  grade "直してコミットしました。"
+  expect_pass "$c: the heading's range counts when the Reviewed line was dropped"
+
+  design_run "$c" "$(printf '## 設計レビュー: BASE..BASE\n\n### P1\n- 指摘\n')" "$before_default" "$after_default" "$fix"
+  grade "直してコミットしました。"
+  expect_fail "$c: a heading naming the wrong range is caught" \
+    "names the range it reviewed: eval-base..unit-done"
+
   design_run "$c" "$good_report" "$before_default"'; rec_edit Edit README.md' "$after_default" "$fix"
   grade "直してコミットしました。"
   expect_fail "$c: an Edit before the report is caught" \
@@ -985,6 +997,10 @@ Reviewed: BASE..HEAD' fix_kg
 grade "$proactive_closing"
 expect_fail "proactive: a report buried below the summary is caught" \
   "opens the closing message with the review report"
+
+proactive_run "$work_records" "$(grep -v '^Reviewed:' <<<"$closing_ok")" fix_kg
+grade "$proactive_closing"
+expect_pass "proactive: the heading's range counts when the Reviewed line was dropped"
 
 proactive_run "$work_records" "${closing_ok//..HEAD/..BASE}" fix_kg
 grade "$proactive_closing"
