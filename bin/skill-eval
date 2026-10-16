@@ -283,6 +283,9 @@ for case_name in "${cases[@]}"; do
   case_passed=0
   case_cost_file="$(mktemp "$tmp_root/skill-eval.XXXXXX")"
   case_duration_ms=0
+  # Rounds per run, comma-separated in run order: a distribution, not a mean,
+  # since "usually 2, once 6" is the finding a mean of 2.7 would hide.
+  case_rounds=
 
   for ((i = 1; i <= runs; i++)); do
     artifacts="$out_root/$skill/$case_name/$timestamp/run-$i"
@@ -398,6 +401,24 @@ for case_name in "${cases[@]}"; do
       assert_exit=1
     fi
 
+    # What each call of the skill cost, recorded rather than graded: how heavy a
+    # review round should be has no threshold yet, and one set now would be a
+    # guess. The report text is left out; it is in the transcript.
+    rounds_ok=0
+    if (
+      SKILL_EVAL_TRANSCRIPT="$artifacts/transcript.jsonl"
+      # shellcheck source=bin/skill-eval-assert.sh
+      . "$lib_dir/skill-eval-assert.sh"
+      transcript_skill_rounds "$skill" | jq -c 'del(.report)'
+    ) >"$artifacts/rounds.jsonl" 2>/dev/null; then
+      rounds_ok=1
+    fi
+    if [ "$rounds_ok" -eq 1 ]; then
+      run_rounds="$(jq -s 'length' "$artifacts/rounds.jsonl")"
+    else
+      run_rounds="?"
+    fi
+
     if [ "$assert_exit" -eq 0 ]; then
       case_passed=$((case_passed + 1))
       status="PASS"
@@ -409,6 +430,13 @@ for case_name in "${cases[@]}"; do
     if [ "$assert_exit" -ne 0 ]; then
       grep '^FAIL' "$artifacts/assert.log" | sed 's/^/    /' || true
     fi
+    # One line per round: P1/P2 left open, tool calls inside the fork, and
+    # time and tokens where the transcript records them ("-" where it does not).
+    if [ "$rounds_ok" -eq 1 ] && [ "$run_rounds" -gt 0 ]; then
+      jq -r '"    round: open=\(.open) calls=\(.tool_calls) ms=\(.duration_ms // "-") tokens=\(.tokens // "-")"' \
+        "$artifacts/rounds.jsonl"
+    fi
+    case_rounds="${case_rounds:+$case_rounds,}$run_rounds"
 
     jq -r '.total_cost_usd // 0' "$artifacts/result.json" >>"$case_cost_file"
     cat "$artifacts/judge-cost.txt" >>"$case_cost_file"
@@ -426,13 +454,13 @@ for case_name in "${cases[@]}"; do
   case_cost="$(jq -s 'add // 0' "$case_cost_file")"
   rm -f "$case_cost_file"
   case_cost_file=
-  printf '%s\t%d/%d\t%.3f\t%d\n' "$case_name" "$case_passed" "$runs" "$case_cost" "$((case_duration_ms / 1000))" >>"$summary_file"
+  printf '%s\t%d/%d\t%.3f\t%d\t%s\n' "$case_name" "$case_passed" "$runs" "$case_cost" "$((case_duration_ms / 1000))" "$case_rounds" >>"$summary_file"
 done
 
 printf '\nskill: %s  model: %s  runs: %s\n' "$skill" "$model" "$runs"
-printf '%-32s %-8s %-10s %s\n' "case" "passed" "cost(USD)" "time(s)"
-while IFS=$'\t' read -r name passed cost secs; do
-  printf '%-32s %-8s %-10s %s\n' "$name" "$passed" "$cost" "$secs"
+printf '%-32s %-8s %-10s %-8s %s\n' "case" "passed" "cost(USD)" "time(s)" "rounds"
+while IFS=$'\t' read -r name passed cost secs rounds; do
+  printf '%-32s %-8s %-10s %-8s %s\n' "$name" "$passed" "$cost" "$secs" "$rounds"
 done <"$summary_file"
 printf 'artifacts: %s/%s/<case>/%s/\n' "$out_root" "$skill" "$timestamp"
 

@@ -399,7 +399,7 @@ rm -rf "$STUB_CLAUDE_OUT" "$SKILL_EVAL_OUT_DIR"
 STUB_CLAUDE_ACTION='echo more >tracked.txt && git commit -qam "fix: by the skill"' \
   $RUN "$skill" case-a >/dev/null
 run_dir="$(find "$SKILL_EVAL_OUT_DIR/$skill/case-a" -type d -name 'run-1')"
-for artifact in transcript.jsonl result.json assert.log git-log.txt git-status.txt; do
+for artifact in transcript.jsonl result.json assert.log git-log.txt git-status.txt rounds.jsonl; do
   if [ -f "$run_dir/$artifact" ]; then
     printf 'ok   artifact %s is kept\n' "$artifact"
   else
@@ -410,6 +410,11 @@ done
 contains "the grading log holds the PASS lines" "PASS  denials" "$(cat "$run_dir/assert.log")"
 contains "git-log.txt holds the skill's own commit" "fix: by the skill" "$(cat "$run_dir/git-log.txt")"
 absent "and not the scaffold's commit before eval-base" "chore: initial" "$(cat "$run_dir/git-log.txt")"
+# The stub calls the skill once, with no result: one round, nothing recorded
+# for time or tokens -- null, not 0, so "not measured" never reads as "free".
+t "rounds.jsonl holds one round per call of the skill under evaluation" '[{"open":0,"tool_calls":0,"duration_ms":null,"tokens":null}]' \
+  "$(jq -sc 'map({open, tool_calls, duration_ms, tokens})' "$run_dir/rounds.jsonl")"
+absent "and leaves the report text in the transcript" '"report"' "$(cat "$run_dir/rounds.jsonl")"
 
 # --- --keep leaves the working directory for inspection ---
 rm -rf "$STUB_CLAUDE_OUT"
@@ -448,6 +453,10 @@ contains "the named case runs twice" "[PASS] $skill/case-b run-2" "$output"
 absent "a case that was not named does not run" "case-a" "$output"
 contains "the summary counts 2/2" "2/2" "$output"
 contains "cost is summed over the runs" "0.500" "$output"
+contains "each run prints its rounds, with '-' for what was not recorded" "round: open=0 calls=0 ms=- tokens=-" "$output"
+# Per run, never averaged: a case that usually takes 2 rounds and once took 6
+# is the finding, and a mean would hide it.
+contains "the summary lists the rounds of every run" "1,1" "$output"
 
 rm -rf "$STUB_CLAUDE_OUT" "$SKILL_EVAL_OUT_DIR"
 output="$($RUN "$skill")"

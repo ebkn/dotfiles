@@ -35,7 +35,19 @@ measured on that estimate) is the only cap. The default model is sonnet
 (`--model`); the `check_llm` judge is haiku (`SKILL_EVAL_JUDGE_MODEL`).
 Artifacts land in `tmp/skill-eval/<skill>/<case>/<timestamp>/run-N/`
 (`transcript.jsonl`, `result.json`, `assert.log`, `git-log.txt`,
-`git-status.txt`), which is gitignored.
+`git-status.txt`, `rounds.jsonl`), which is gitignored.
+
+**How heavy each call of the skill was is recorded, not graded.** For every
+run the runner writes `rounds.jsonl` — per call of the skill, the P1/P2 items
+it left open, the tool calls made inside the fork, and the time and tokens
+where the transcript carries them (`null` where it does not) — prints one
+`round:` line each, and lists the rounds of every run in the summary's
+`rounds` column (`2,2,5`, never a mean). There is no threshold on any of
+it yet: a ceiling picked before a few runs show the spread would be either
+flaky or meaningless. Whether a forked Skill's `tool_result` record carries
+`totalDurationMs` / `totalTokens` at all is unverified; if every run prints
+`ms=-`, the fork's tool calls are the only per-round measure there is, and the
+run's own `duration_ms` the only time.
 
 A single green run means little. The output wobbles, so raise `--runs` before
 concluding that an edit helped.
