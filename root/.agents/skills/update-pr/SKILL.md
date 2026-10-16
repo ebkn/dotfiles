@@ -45,9 +45,7 @@ Update the existing pull request for the current branch. Follow this flow:
 6. **No approval gate**: Do not ask the user to confirm the title/body — proceed directly to push and update (mirrors create-pr, which creates without confirmation). Report the final title/body in your reply after the update lands.
 
 7. **Push and update**:
-   - Check for an upstream with `git rev-parse --abbrev-ref --symbolic-full-name @{upstream}`.
-   - If it fails (no upstream), push unconditionally with `git push -u origin HEAD`.
-   - If an upstream exists, push only when `git log @{upstream}..HEAD` shows unpushed commits.
+   - Run `git push -u origin HEAD`, whether or not the branch has an upstream yet: it sets one when missing and says "Everything up-to-date" when nothing is left. Do not check first with `@{upstream}` — Claude Code reads the braces as brace expansion and asks for approval even where `git log` is allowed, which stops an unattended run (every run of the `ready-at-finish` eval stopped there).
    - Update the PR, passing the body via a **quoted** heredoc into `--body-file -` (stdin) so backticks, `$`, and quotes in the body stay literal — no escaping, no temp file, and no `$()` subshell:
 
      ```sh

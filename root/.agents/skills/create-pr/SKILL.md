@@ -43,9 +43,7 @@ Create a pull request. Follow this flow:
    - Do **not** append the Claude session URL (`https://claude.ai/code/…`) to the PR body.
 
 5. **Push and create**: Do not ask the user to confirm the title/body — create directly. Push before creating:
-   - Check for an upstream with `git rev-parse --abbrev-ref --symbolic-full-name @{upstream}`.
-   - If it fails (no upstream — the common new-branch case), push unconditionally with `git push -u origin HEAD`.
-   - If an upstream exists, push only when `git log @{upstream}..HEAD` shows unpushed commits.
+   - Run `git push -u origin HEAD`, whether or not the branch has an upstream yet: it sets one when missing and says "Everything up-to-date" when nothing is left. Do not check first with `@{upstream}` — Claude Code reads the braces as brace expansion and asks for approval even where `git log` is allowed, which stops an unattended run.
 
    Then create the PR, passing the body via a **quoted** heredoc into `--body-file -` (stdin) so backticks, `$`, and quotes in the body stay literal — no escaping, no temp file, and no `$()` subshell:
 
