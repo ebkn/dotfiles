@@ -37,11 +37,14 @@ JUDGE
 chmod +x "$judge"
 
 # --- transcript records, in the stream-json shape the readers take ---
-rec_text() { jq -nc --arg t "$1" '{type: "assistant", message: {content: [{type: "text", text: $t}]}}'; }
+# The scenarios call these through eval, in act.
+# shellcheck disable=SC2329
 rec_tool() { jq -nc --arg n "$1" --argjson i "$2" '{type: "assistant", message: {content: [{type: "tool_use", name: $n, input: $i}]}}'; }
+# shellcheck disable=SC2329
 rec_bash() { rec_tool Bash "$(jq -nc --arg c "$1" '{command: $c}')"; }
 # rec_skill <name>: a skill that runs inline, as create-pr, update-pr and
 # commit do -- the call, then its result; its commands follow as the caller's.
+# shellcheck disable=SC2329
 rec_skill() {
   rec_tool Skill "$(jq -nc --arg s "$1" '{skill: $s}')"
   jq -nc --arg s "$1" '{type: "user", message: {content: [{type: "tool_result", content: ("Launching skill: " + $s)}]}}'
@@ -248,6 +251,7 @@ question_run() {
   act "$1" "$2"
   grade "$3"
 }
+# shellcheck disable=SC2016  # markdown backticks, not a command
 answer='Usage 節には `./tally.sh FILE...` と書かれています。'
 
 question_run 'rec_tool Read "{\"file_path\":\"README.md\"}"' ":" "$answer"

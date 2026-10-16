@@ -11,6 +11,7 @@
 # A git commit, wherever it sits in a command line (as review-design's
 # graders spell it). `commit-tree` and a path containing "commit" do not match.
 PR_EVAL_GIT_COMMIT='(^|[;&|(]|[[:space:]])git([[:space:]]+(-C|-c)[[:space:]]+[^[:space:]]+)*[[:space:]]+commit([[:space:]]|$)'
+# shellcheck disable=SC2034  # read by the cases that source this file
 PR_EVAL_GH_CREATE='(^|[;&|(]|[[:space:]])gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)'
 
 # The questions this work set out to remove, in the forms runs used. A judge
