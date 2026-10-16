@@ -244,10 +244,19 @@ make the suite depend on the network, and what fails is a line in
 repository whose `zinit.zsh` defines a logging stub, with the copy of
 `plugin.zsh` changed only in its pin.
 
-The already-pinned case points the remote at a path that does not exist, so a
-start that fetched when it had no need to would fail it — the cost being
-guarded is a network call on every shell. The bumped cases add a commit after
-the clone was made, because a pin the clone already has is checked out
-without the fetch, which would leave the offline path untested.
+Whether a start ran git, and whether it fetched, is read from a `git` first on
+`PATH` that logs each call and hands over to the real one. Neither shows any
+other way: the fetch's failure is silenced, and a checkout of a commit already
+in the clone succeeds with or without it. An unreachable remote was tried first
+and proved nothing for that reason. The already-pinned case asserts that git is
+not run at all — the cost guarded is a fork, and worse a network call, on every
+shell. The bumped cases add a commit after the clone was made, so that the
+fetch, and its failure offline, are actually reached.
 
-Confirmed red against the unpinned `plugin.zsh` and `update.zsh`.
+The static checks fail on any `zinit` line they cannot read (`snippet`, `for`,
+inline ices) rather than pass it unchecked, and on `depth` on any line that is
+not a comment.
+
+Confirmed red against the unpinned `plugin.zsh` and `update.zsh`, against a
+start that skips the HEAD comparison (git is run while pinned), and against one
+that always fetches.
