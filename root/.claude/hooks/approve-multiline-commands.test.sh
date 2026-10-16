@@ -24,14 +24,18 @@ mkdir -p "$PROJ/wt" "$PROJ/~" "$TMP/outside"
 ln -s "$TMP/outside" "$PROJ/link-out"
 
 # check <expect> <label> <command> [cwd] [project]
+# DEFER means exactly "exit 0, nothing on stdout": a hook that crashes on its
+# new inputs (cwd, CLAUDE_PROJECT_DIR, a sourced lib) is an ERROR, not a pass.
 check() {
-  local expect=$1 label=$2 cmd=$3 cwd=${4-$PROJ} project=${5-$PROJ} out got
+  local expect=$1 label=$2 cmd=$3 cwd=${4-$PROJ} project=${5-$PROJ} out rc got
   out=$(printf '%s' "$cmd" | jq -Rs --arg d "$cwd" '{tool_name:"Bash", tool_input:{command:.}, cwd:$d}' |
-    CLAUDE_PROJECT_DIR=$project "$HOOK" 2>/dev/null)
-  if printf '%s' "$out" | grep -q '"permissionDecision": *"allow"'; then
+    CLAUDE_PROJECT_DIR=$project "$HOOK" 2>/dev/null) && rc=0 || rc=$?
+  if [[ $rc -eq 0 ]] && printf '%s' "$out" | grep -q '"permissionDecision": *"allow"'; then
     got=ALLOW
-  else
+  elif [[ $rc -eq 0 && -z "$out" ]]; then
     got=DEFER
+  else
+    got="ERROR(rc=$rc)"
   fi
   if [[ "$got" == "$expect" ]]; then
     pass=$((pass + 1))
@@ -207,7 +211,11 @@ check DEFER '-C to a missing directory' "git -C missing $CDMSG"
 # A directory named `~` is inside the project as read, but the shell runs git in
 # $HOME: an expanding -C value is refused, though `git add *.sh` is not.
 check DEFER '-C a tilde the project ships' "git -C ~ $CDMSG"
-check ALLOW 'a glob outside -C is still fine' "git add *.sh && git $CDMSG"
+# Unlike git-dash-c-allow.sh, which refuses any expansion in the segment, this
+# refuses only an expanding -C value: a pathspec glob beside a good -C is fine.
+check ALLOW 'a glob beside a -C into the project' "git -C wt add *.sh && git -C wt $CDMSG"
+# The subcommand is read after the -C pairs, so an option there is still one.
+check DEFER 'a dangerous option after -C' "git -C wt -c core.fsmonitor=x $CDMSG"
 check DEFER 'no project to compare against' "git -C wt $CDMSG" "$PROJ" ''
 check DEFER 'no cwd to resolve against' "git -C wt $CDMSG" '' "$PROJ"
 

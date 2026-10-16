@@ -175,13 +175,17 @@ echo "-- git_dash_c_in_project called outside a scanner predicate --"
 # Its expansion marks exist only while a predicate runs; read anywhere else,
 # an absent mark must count as expanding, not as literal, or `git -C ~` would be
 # resolved as written.
+# The same call with marks present must pass, or a failed source or an
+# undefined function would look like a refusal.
 lib_rc=$(
   # shellcheck source=root/.claude/hooks/git-workdir.lib.sh
   . "$(dirname "$HOOK")/git-workdir.lib.sh"
+  SCAN_ARGV_EXPANDS=(0 0 0 0)
+  git_dash_c_in_project "$PROJ" "$PROJ" git -C sub status && printf 0 || printf 1
   SCAN_ARGV_EXPANDS=()
-  git_dash_c_in_project "$PROJ" "$PROJ" git -C sub status && echo 0 || echo 1
+  git_dash_c_in_project "$PROJ" "$PROJ" git -C sub status && printf 0 || printf 1
 )
-if [[ "$lib_rc" == 1 ]]; then
+if [[ "$lib_rc" == 01 ]]; then
   pass=$((pass + 1))
   echo "  ok   with no marks, a -C value is refused"
 else
