@@ -455,7 +455,9 @@ split_segments() {
           # past this walk: the command is unsplittable, with a status of its
           # own (3), which the caller leaves to the normal flow. (No apostrophe
           # in these comments: the program is single-quoted.)
-          else if (sp > 0 && c == "c" && (lu == "" || lu == " " || lu == "\t") && \
+          # Only in a $( substitution, whose `)` is what a pattern would close:
+          # in a backtick one a `)` only splits, and the walk handles it.
+          else if (sp > 0 && sk[sp] == "(" && c == "c" && (lu == "" || lu == " " || lu == "\t") && \
             ch[i + 1] == "a" && ch[i + 2] == "s" && ch[i + 3] == "e" && \
             (ch[i + 4] == " " || ch[i + 4] == "\t" || ch[i + 4] == "")) exit 3
           else if (c == "(") { pd++; c = "\n"; lu = "" }
@@ -469,7 +471,7 @@ split_segments() {
             else c = "\n"
             lu = ""
           }
-          else if (c == "\\") { i++; c = c ch[i]; lu = "" }
+          else if (c == "\\") { i++; c = c ch[i]; lu = "\\" }
           else if (c == "<" && ch[i + 1] == "<" && ch[i + 2] == "<") { c = "<<<"; i += 2; lu = "" }
           else if (c == "<" && ch[i + 1] == "<") {
             # <<TAG, <<-TAG, << TAG, <<'\''TAG'\'', <<"TAG"; the quote, if any,

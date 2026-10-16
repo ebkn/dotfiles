@@ -442,6 +442,16 @@ check PASS "echo '\$(git -c a=b status)'"
   check PASS 'echo "$(true&&case x in x) git -c a=b status;; esac)"'
   # Unquoted, the `)` only splits, so the git after it is inspected as usual.
   check DENY 'echo $(case x in x) git -c a=b status;; esac)'
+  # Silence is the whole command's, so `case` must mean the keyword and no
+  # more: a wider match lifts the guard from any command that adds the word.
+  check DENY 'echo "$(echo showcase)"; git -c a=b status'
+  check DENY 'echo "$(echo cases x)"; git -c a=b status'
+  check DENY "echo \"\$(echo 'a case b')\"; git -c a=b status"
+  # An escaped space joins words, so `a\ case` is one word, not the keyword.
+  check DENY 'echo "$(echo a\ case b)"; git -c a=b status'
+  # In a backtick substitution a `)` does not close it, so a case there is
+  # walked like any other text.
+  check DENY 'echo "`echo case x`"; git -c a=b status'
 }
 # Unsplittable with no word that could be git: nothing to inspect, so it passes.
 check PASS "echo \"it's"
@@ -584,6 +594,31 @@ check DENY "echo x; 'git' -c a=b status"
 check DENY 'echo x; "/usr/bin/git" -c a=b status'
 check DENY $'echo x;\tgit\t-c a=b status'
 check DENY 'echo x; \git -c a=b status'
+
+echo "-- the settings this hook's silence relies on --"
+# git-guard leaves a `case` inside a quoted substitution to the normal flow,
+# which is safe only while no git allow rule has a `*` with more of the rule
+# after it: such a rule matches options before the subcommand, and would approve
+# a whole command this hook stayed silent on. /config writes to settings.json,
+# so this is checked against the file rather than trusted. Deny and ask rules
+# are exempt: a wildcard there widens only what is refused or asked about.
+SETTINGS="$(dirname "$HOOK")/../settings.json"
+wild=$(jq -r '.permissions.allow[]? | strings | select(test("^Bash\\(git [^*]*\\*.+\\)$"))' "$SETTINGS") && rc=0 || rc=$?
+if [[ $rc -eq 0 && -z "$wild" ]]; then
+  pass=$((pass + 1))
+  echo "  ok   no git allow rule has a * before the rest of the rule"
+else
+  fail=$((fail + 1))
+  printf '  FAIL a git allow rule has a * before the rest of it (rc=%s): %s\n' "$rc" "$wild"
+fi
+total_git_allow=$(jq '[.permissions.allow[]? | strings | select(startswith("Bash(git "))] | length' "$SETTINGS")
+if ((total_git_allow > 10)); then
+  pass=$((pass + 1))
+  echo "  ok   and the check saw the git rules ($total_git_allow)"
+else
+  fail=$((fail + 1))
+  printf '  FAIL the check saw only %s git allow rules\n' "$total_git_allow"
+fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]
