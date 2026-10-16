@@ -107,6 +107,7 @@ check DEFER 'escape through a chain' 'git -C sub -C ../.. status'
 check DEFER 'a sibling sharing the prefix' "git -C ${PROJ}x status"
 check DEFER 'nonexistent directory' 'git -C missing status'
 check DEFER '-C with no value' 'git -C'
+check DEFER '-C and no subcommand' 'git -C sub'
 check DEFER '-C glued to its value, which git does not accept' 'git -Csub status'
 check ALLOW 'an empty -C, from inside the project' 'git -C "" status'
 check DEFER 'an empty -C, from outside it' 'git -C "" status' "$TMP/outside"

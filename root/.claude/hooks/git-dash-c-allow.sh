@@ -97,24 +97,16 @@ SAW_DASH_C=0
 # a path ending in /git may be any executable of that name.
 segment_ok() {
   [[ "${1:-}" == git ]] || return 1
-  local argv=("$@") n=$# i=1 dirs=() e
-  # A word the shell expands is not the word read here: `git -C ~ status`
-  # resolved literally finds a directory named `~` inside a project that ships
-  # one, while the shell runs git in $HOME. Refused anywhere in the segment, as
+  local argv=("$@") e
+  # A word the shell expands is not the word read here. git_dash_c_in_project
+  # refuses one as a -C path; here it is refused anywhere in the segment, as
   # the rule match compares words literally too.
   for e in "${SCAN_ARGV_EXPANDS[@]}"; do
     ((e == 0)) || return 1
   done
-  while ((i < n)) && [[ "${argv[i]}" == "-C" ]]; do
-    ((i + 1 < n)) || return 1
-    dirs[${#dirs[@]}]=${argv[i + 1]}
-    i=$((i + 2))
-  done
-  if ((${#dirs[@]})); then
-    SAW_DASH_C=1
-    git_workdir_in_project "$CWD" "$PROJECT" "${dirs[@]}" || return 1
-  fi
-  rule_approves git "${argv[@]:i}"
+  git_dash_c_in_project "$CWD" "$PROJECT" "$@" || return 1
+  ((GIT_DASH_C_SEEN == 0)) || SAW_DASH_C=1
+  rule_approves git "${argv[@]:GIT_DASH_C_NEXT}"
 }
 
 scan_command "$COMMAND" segment_ok || exit 0
