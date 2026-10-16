@@ -227,10 +227,28 @@ eq 'and moves nobody' 'mover' "$(sid "$(with_current_cwd "$moved")" "$REPO" "$WT
 # A truncated record must cost that one session its overlay, not the whole list:
 # an empty list holds every job as "no live session", the failure the registry
 # reader in pr-review-dispatch is shaped to avoid.
+two=$(jq -n --arg r "$REPO" '[
+  {kind:"interactive", pid:8,  sessionId:"mover", startedAt:10, status:"idle", cwd:$r},
+  {kind:"interactive", pid:11, sessionId:"other", startedAt:11, status:"idle", cwd:$r}
+]')
 printf '{"cwd":"/trunc' >"$CLAUDE_SESSION_CWD_DIR/mover.json"
-eq 'a corrupt record is skipped, not fatal' 'mover' \
-  "$(sid "$(with_current_cwd "$moved")" "$REPO" "$WTS2")"
+record_cwd other "$REPO/git-worktrees/b" 50
+cur=$(with_current_cwd "$two")
+eq 'a corrupt record costs its own session the overlay' 'mover' "$(sid "$cur" "$REPO" "$WTS2")"
+eq 'and no other session' 'other' "$(sid "$cur" "$REPO/git-worktrees/b" "$WTS2")"
 /bin/rm -f "$CLAUDE_SESSION_CWD_DIR"/*
+
+# The id becomes part of a file path. One that could leave the directory must
+# not reach a record placed outside it, and a session with no id is kept as is.
+mkdir -p "$TMP/outside"
+jq -n --arg cwd "$REPO/git-worktrees/a" '{cwd:$cwd, since:50}' >"$TMP/outside/x.json"
+odd=$(jq -n --arg r "$REPO" '[
+  {kind:"interactive", pid:12, sessionId:"../outside/x", startedAt:12, status:"idle", cwd:$r},
+  {kind:"interactive", pid:13, startedAt:13, status:"idle", cwd:($r + "/git-worktrees/b")}
+]')
+cur=$(with_current_cwd "$odd")
+eq 'an id that is not a plain name reads no record' "$REPO" "$(printf '%s' "$cur" | jq -r '.[0].cwd')"
+eq 'a session with no id keeps its cwd' "$REPO/git-worktrees/b" "$(printf '%s' "$cur" | jq -r '.[1].cwd')"
 
 echo
 echo "== session_in_worktree: newest ARRIVAL wins, not newest launch =="
