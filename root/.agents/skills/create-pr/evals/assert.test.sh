@@ -144,6 +144,10 @@ expect_fail "draft-at-first-commit: create-pr started after the PR was opened by
 # trying again (refused, the PR exists) is still a PR opened by hand.
 draft_run "${draft_records//rec_skill create-pr; /rec_bash \"gh pr create --title t --body b\"; rec_skill create-pr; }" "$draft_tree" "$done_msg"
 expect_fail "draft-at-first-commit: a PR opened by hand, then create-pr's own gh pr create" "through create-pr"
+# create-pr's first start is the one that counts: started again at the end
+# (it finds the PR and hands over), the PR was still opened through it.
+draft_run "${draft_records//rec_skill update-pr/rec_skill create-pr; rec_skill update-pr}" "$draft_tree" "$done_msg"
+expect_pass "draft-at-first-commit: create-pr started again at the end still passes"
 
 draft_run "$draft_records" "${draft_tree//git push -q; /}" "$done_msg"
 expect_fail "draft-at-first-commit: the last commit never pushed" "pushed every commit"
