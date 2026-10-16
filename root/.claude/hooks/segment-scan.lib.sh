@@ -17,6 +17,13 @@
 # git-guard.sh has a parser of its own on purpose, resolved the other way, and
 # neither may be swapped for the other.
 #
+# The predicate runs inside the scanner's own functions, and bash scope is
+# dynamic: a predicate variable not declared `local` writes into whatever the
+# scanner has of that name. Undeclared `line` in git-dash-c-allow.sh replaced
+# the line being scanned, dropped `; rm -rf x` unread, and the command was
+# approved. So every scanner name is prefixed (_sl_, _sc_, SCAN_), and
+# segment-scan.lib.test.sh drives a predicate that clobbers the common ones.
+#
 # Written for bash 3.2 (/bin/bash on macOS): no mapfile, no empty-array
 # expansion under `set -u`.
 
@@ -61,46 +68,46 @@ scan_end_segment() {
 # Scan one physical line. Returns 1 for anything unparseable or expandable, or
 # a segment the predicate rejected.
 scan_line() {
-  local line=$1
-  local n=${#line}
-  local i=0
-  local c seg pre
+  local _sl_line=$1
+  local _sl_n=${#_sl_line}
+  local _sl_i=0
+  local _sl_c _sl_seg _sl_pre
 
-  while ((i < n)); do
-    seg=${line:i}
+  while ((_sl_i < _sl_n)); do
+    _sl_seg=${_sl_line:_sl_i}
 
     # Single quotes: everything is literal, including $ and `, so the run ends
     # only at the closing quote.
     if [[ "$SCAN_QSTATE" == "'" ]]; then
-      pre=${seg%%\'*}
-      if [[ "$pre" == "$seg" ]]; then
-        scan_push_run "$seg"
+      _sl_pre=${_sl_seg%%\'*}
+      if [[ "$_sl_pre" == "$_sl_seg" ]]; then
+        scan_push_run "$_sl_seg"
         return 0
       fi
-      scan_push_run "$pre"
+      scan_push_run "$_sl_pre"
       SCAN_QSTATE=''
-      i=$((i + ${#pre} + 1))
+      _sl_i=$((_sl_i + ${#_sl_pre} + 1))
       continue
     fi
 
     if [[ "$SCAN_QSTATE" == '"' ]]; then
-      pre=${seg%%[\"\\\$\`]*}
-      if [[ "$pre" == "$seg" ]]; then
-        scan_push_run "$seg"
+      _sl_pre=${_sl_seg%%[\"\\\$\`]*}
+      if [[ "$_sl_pre" == "$_sl_seg" ]]; then
+        scan_push_run "$_sl_seg"
         return 0
       fi
-      scan_push_run "$pre"
-      i=$((i + ${#pre}))
-      case "${line:i:1}" in
+      scan_push_run "$_sl_pre"
+      _sl_i=$((_sl_i + ${#_sl_pre}))
+      case "${_sl_line:_sl_i:1}" in
         '"')
           SCAN_QSTATE=''
-          i=$((i + 1))
+          _sl_i=$((_sl_i + 1))
           ;;
-        '$' | '`') return 1 ;;      # the shell would expand it; argv unknown
-        *)                          # backslash
-          ((i + 1 < n)) || return 1 # line continuation: not worth parsing
-          scan_push_run "${line:i+1:1}"
-          i=$((i + 2))
+        '$' | '`') return 1 ;;              # the shell would expand it; argv unknown
+        *)                                  # backslash
+          ((_sl_i + 1 < _sl_n)) || return 1 # line continuation: not worth parsing
+          scan_push_run "${_sl_line:_sl_i+1:1}"
+          _sl_i=$((_sl_i + 2))
           ;;
       esac
       continue
@@ -109,16 +116,16 @@ scan_line() {
     # Unquoted on purpose: SCAN_UNQ_SPECIAL *is* the bracket pattern. Quoting
     # it, as SC2295 suggests, would look for that literal text instead.
     # shellcheck disable=SC2295
-    pre=${seg%%$SCAN_UNQ_SPECIAL*}
-    if [[ "$pre" == "$seg" ]]; then
-      scan_push_run "$seg"
+    _sl_pre=${_sl_seg%%$SCAN_UNQ_SPECIAL*}
+    if [[ "$_sl_pre" == "$_sl_seg" ]]; then
+      scan_push_run "$_sl_seg"
       return 0
     fi
-    scan_push_run "$pre"
-    i=$((i + ${#pre}))
-    c=${line:i:1}
+    scan_push_run "$_sl_pre"
+    _sl_i=$((_sl_i + ${#_sl_pre}))
+    _sl_c=${_sl_line:_sl_i:1}
 
-    case "$c" in
+    case "$_sl_c" in
       "'")
         SCAN_QSTATE="'"
         SCAN_HAVE_CUR=1
@@ -128,9 +135,9 @@ scan_line() {
         SCAN_HAVE_CUR=1
         ;;
       \\)
-        ((i + 1 < n)) || return 1
-        i=$((i + 1))
-        scan_push_run "${line:i:1}"
+        ((_sl_i + 1 < _sl_n)) || return 1
+        _sl_i=$((_sl_i + 1))
+        scan_push_run "${_sl_line:_sl_i:1}"
         ;;
       # Expansion and subshells make the real argv unknowable here.
       '$' | '`' | '(' | ')') return 1 ;;
@@ -140,39 +147,39 @@ scan_line() {
         # A comment is the vector that defeated the first version of
         # approve-multiline-commands.sh, and no command these hooks approve
         # needs one outside quoted data.
-        if ((SCAN_HAVE_CUR)); then scan_push_run "$c"; else return 1; fi
+        if ((SCAN_HAVE_CUR)); then scan_push_run "$_sl_c"; else return 1; fi
         ;;
       '<')
-        [[ "${line:i+1:1}" == '<' ]] || return 1 # plain input redirect
-        local j=$((i + 2))
-        [[ "${line:j:1}" == '<' ]] && return 1     # here-string
-        [[ "${line:j:1}" == '-' ]] && j=$((j + 1)) # <<- (tab-stripped)
-        while [[ "${line:j:1}" == ' ' || "${line:j:1}" == $'\t' ]]; do
-          j=$((j + 1))
+        [[ "${_sl_line:_sl_i+1:1}" == '<' ]] || return 1 # plain input redirect
+        local _sl_j=$((_sl_i + 2))
+        [[ "${_sl_line:_sl_j:1}" == '<' ]] && return 1             # here-string
+        [[ "${_sl_line:_sl_j:1}" == '-' ]] && _sl_j=$((_sl_j + 1)) # <<- (tab-stripped)
+        while [[ "${_sl_line:_sl_j:1}" == ' ' || "${_sl_line:_sl_j:1}" == $'\t' ]]; do
+          _sl_j=$((_sl_j + 1))
         done
-        local q=${line:j:1}
+        local _sl_q=${_sl_line:_sl_j:1}
         # The tag must be quoted. An unquoted tag makes the shell expand the
         # body, so a `$(...)` inside a commit message would execute.
-        [[ "$q" == "'" || "$q" == '"' ]] || return 1
-        j=$((j + 1))
-        local tag=''
-        while ((j < n)) && [[ "${line:j:1}" != "$q" ]]; do
-          tag="$tag${line:j:1}"
-          j=$((j + 1))
+        [[ "$_sl_q" == "'" || "$_sl_q" == '"' ]] || return 1
+        _sl_j=$((_sl_j + 1))
+        local _sl_tag=''
+        while ((_sl_j < _sl_n)) && [[ "${_sl_line:_sl_j:1}" != "$_sl_q" ]]; do
+          _sl_tag="$_sl_tag${_sl_line:_sl_j:1}"
+          _sl_j=$((_sl_j + 1))
         done
-        [[ "${line:j:1}" == "$q" ]] || return 1
-        [[ -n "$tag" ]] || return 1
+        [[ "${_sl_line:_sl_j:1}" == "$_sl_q" ]] || return 1
+        [[ -n "$_sl_tag" ]] || return 1
         scan_end_token
-        SCAN_PENDING_TAGS[${#SCAN_PENDING_TAGS[@]}]=$tag
-        i=$j
+        SCAN_PENDING_TAGS[${#SCAN_PENDING_TAGS[@]}]=$_sl_tag
+        _sl_i=$_sl_j
         ;;
       ';') scan_end_segment || return 1 ;;
       '&')
-        [[ "${line:i+1:1}" == '&' ]] && i=$((i + 1))
+        [[ "${_sl_line:_sl_i+1:1}" == '&' ]] && _sl_i=$((_sl_i + 1))
         scan_end_segment || return 1
         ;;
       '|')
-        [[ "${line:i+1:1}" == '|' ]] && i=$((i + 1))
+        [[ "${_sl_line:_sl_i+1:1}" == '|' ]] && _sl_i=$((_sl_i + 1))
         scan_end_segment || return 1
         ;;
       ' ' | $'\t') scan_end_token ;;
@@ -181,7 +188,7 @@ scan_line() {
       # drift, defer rather than treat an unhandled metacharacter as literal.
       *) return 1 ;;
     esac
-    i=$((i + 1))
+    _sl_i=$((_sl_i + 1))
   done
   return 0
 }
@@ -192,16 +199,16 @@ scan_command() {
   SCAN_TOKENS=()
   SCAN_PENDING_TAGS=()
 
-  local lines=() line total li tag body found
-  while IFS= read -r line; do
-    lines[${#lines[@]}]=$line
+  local _sc_lines=() _sc_line _sc_total _sc_li _sc_tag _sc_body _sc_found
+  while IFS= read -r _sc_line; do
+    _sc_lines[${#_sc_lines[@]}]=$_sc_line
   done <<<"$1"
 
-  total=${#lines[@]}
-  li=0
-  while ((li < total)); do
-    scan_line "${lines[li]}" || return 1
-    li=$((li + 1))
+  _sc_total=${#_sc_lines[@]}
+  _sc_li=0
+  while ((_sc_li < _sc_total)); do
+    scan_line "${_sc_lines[_sc_li]}" || return 1
+    _sc_li=$((_sc_li + 1))
 
     # A newline inside a quoted argument is part of that argument -- the
     # `-m "subject<newline><newline>body"` case.
@@ -216,20 +223,20 @@ scan_command() {
     # Heredoc bodies belong to the line that opened them and are data, not
     # commands: `git commit -F - <<'EOF'` is the commit skill's documented form.
     if ((${#SCAN_PENDING_TAGS[@]})); then
-      for tag in "${SCAN_PENDING_TAGS[@]}"; do
-        found=0
-        while ((li < total)); do
-          body=${lines[li]}
-          li=$((li + 1))
+      for _sc_tag in "${SCAN_PENDING_TAGS[@]}"; do
+        _sc_found=0
+        while ((_sc_li < _sc_total)); do
+          _sc_body=${_sc_lines[_sc_li]}
+          _sc_li=$((_sc_li + 1))
           # Accepting a leading-whitespace terminator is looser than bash (which
           # requires an exact match unless `<<-`). That errs towards ending the
           # body early, so a real command is never mistaken for message text.
-          if [[ "${body#"${body%%[![:space:]]*}"}" == "$tag" ]]; then
-            found=1
+          if [[ "${_sc_body#"${_sc_body%%[![:space:]]*}"}" == "$_sc_tag" ]]; then
+            _sc_found=1
             break
           fi
         done
-        ((found)) || return 1 # unterminated heredoc: unparseable
+        ((_sc_found)) || return 1 # unterminated heredoc: unparseable
       done
       SCAN_PENDING_TAGS=()
       # shellcheck disable=SC2034 # an output, read by the sourcing hook
