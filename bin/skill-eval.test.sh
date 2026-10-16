@@ -803,6 +803,17 @@ EOF
 cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-i/scaffold.sh"
 cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-i/assert.sh"
 
+# The skill under evaluation named again would be copied into its own
+# directory, nested, with evals/ left in: the model could read its grader.
+# The same name twice nests the same way.
+for pair in "case-j $skill" "case-k helper-skill, helper-skill"; do
+  read -r bad_case names <<<"$pair"
+  mkdir -p "$skills_dir/$skill/evals/$bad_case"
+  printf -- '---\nname: %s\nskills: %s\n---\ndo it\n' "$bad_case" "$names" >"$skills_dir/$skill/evals/$bad_case/prompt.md"
+  cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/$bad_case/scaffold.sh"
+  cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/$bad_case/assert.sh"
+done
+
 # "Before spending anything" means before any case runs, not before this one:
 # run as a whole skill, a bad case further down the list would otherwise be
 # reached only after the ones before it were paid for. One check per key, since
@@ -812,7 +823,9 @@ cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-i/
 for row in "$bad case-d max_turns takes an integer" \
   "$bad case-e budget_usd takes a number" \
   "$skill case-g claude_md not found" \
-  "$skill case-i skill not found"; do
+  "$skill case-i skill not found" \
+  "$skill case-j skills names $skill twice" \
+  "$skill case-k skills names helper-skill twice"; do
   read -r owner bad_case reason <<<"$row"
   rm -rf "$STUB_CLAUDE_OUT"
   check_fails "a bad $bad_case is refused for the right reason" \

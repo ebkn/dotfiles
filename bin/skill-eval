@@ -247,6 +247,15 @@ case_settings() {
       printf 'case %s: skill not found: %s\n' "$1" "$name" >&2
       return 1
     fi
+    # A name already carried in would be copied again, into the existing
+    # directory -- .claude/skills/<name>/<name>/ -- whose evals/ the removal
+    # never reaches, handing the model its own grader.
+    case " $skill ${case_skills[*]+${case_skills[*]}} " in
+      *" $name "*)
+        printf 'case %s: skills names %s twice (the skill under evaluation is always carried in)\n' "$1" "$name" >&2
+        return 1
+        ;;
+    esac
     case_skills+=("$name")
   done <<<"$names"
 }
