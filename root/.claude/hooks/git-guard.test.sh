@@ -671,6 +671,17 @@ GUARD_HOME=$TMP/bad-home
 check PASS 'git -C sub push --force' 'settings that are not JSON hold no rules'
 GUARD_PROJECT=$TMP/rules-proj
 check DENY 'git -C sub stash clear' "and take no other layer's rules with them"
+# The rules are read two lines to a rule; one holding a newline, as a cloned
+# repository's settings may, must not shift the later layers out of step.
+mkdir -p "$TMP/nl-proj/.claude"
+jq -n '{permissions: {deny: ["Bash(git x\ny*)", "Bash(git a\n*\nb)", "Bash(git stash clear*)"]}}' >"$TMP/nl-proj/.claude/settings.json"
+cp "$TMP/rules-proj/.claude/settings.local.json" "$TMP/nl-proj/.claude/settings.local.json"
+GUARD_PROJECT=$TMP/nl-proj
+check DENY 'git -C sub stash clear' 'a rule after one holding a newline'
+check ASK 'git -C sub tag -d v1' 'and the next layer after it'
+# Nor may its pieces become patterns: read two lines at a time, `git a\n*\nb`
+# leaves a bare `*`, which a repository could use to deny every git -C.
+check PASS 'git -C sub status' 'a rule holding a newline is no rule'
 GUARD_PROJECT=
 check DENY 'git -C sub -c a=b push' 'and the option check still runs'
 GUARD_HOME=$TMP/empty-home

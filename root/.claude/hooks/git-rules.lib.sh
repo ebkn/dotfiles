@@ -32,6 +32,9 @@ git_rule_patterns() {
     jq -r --arg k "$1" '
       .permissions[$k]? | arrays | .[] | strings
       | select(test("^Bash\\(git([ :*]|\\))"))
+      # Two lines to a rule: a newline in one would make patterns of its
+      # pieces -- a bare `*` among them -- so such a rule is not read.
+      | select(contains("\n") | not)
       | . as $rule
       | ltrimstr("Bash(") | rtrimstr(")")
       | if endswith(":*") then rtrimstr(":*") + " *" else . end
