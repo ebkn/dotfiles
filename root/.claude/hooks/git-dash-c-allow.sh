@@ -13,9 +13,12 @@
 #
 #   1. Every segment of the command must be approved, as in
 #      approve-multiline-commands.sh: "allow" approves the whole command.
-#   2. The argv is the one segment-scan.lib.sh reads, which gives up on any
-#      expansion, redirection, subshell or unterminated quote, so the argv
-#      checked is the argv that runs.
+#   2. The argv is the one segment-scan.lib.sh reads. It gives up where the
+#      argv cannot be known (`$`, a backtick, a redirection, a subshell, an
+#      unterminated quote), and marks a word the shell would still rewrite (`~`,
+#      a glob, a brace) in SCAN_ARGV_EXPANDS, which this hook refuses -- so the
+#      argv checked is the argv that runs. Dropping that refusal because "the
+#      scanner gives up on expansions" would approve `git -C ~ status`.
 #   3. The rules are read from the user's settings only. Project settings are
 #      not used by Claude Code until its trust dialog is accepted; read here,
 #      a cloned repository could approve its own commands.

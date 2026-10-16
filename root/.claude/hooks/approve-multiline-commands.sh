@@ -7,9 +7,9 @@
 # See: https://github.com/anthropics/claude-code/issues/11932
 # Docs: https://docs.claude.com/en/hooks
 #
-# This hook is the only one here that emits "allow", so it is the only one whose
-# bug widens permissions rather than narrowing them. Three rules keep that
-# bounded, and all three exist because the first version had none of them:
+# This hook emits "allow", so its bug widens permissions rather than narrowing
+# them (bin/test.md lists every hook that does). Three rules keep that bounded,
+# and all three exist because the first version had none of them:
 #
 #   1. The command is parsed into segments and *every* segment must be an
 #      approved git/gh invocation. The first version tested the whole command
@@ -164,8 +164,8 @@ segment_is_approved() {
 }
 
 # The scanner splits the command into segments the way the shell would, so the
-# argv verified above is the argv that would run. It is shared with
-# git-dash-c-allow.sh, the other hook that allows.
+# argv verified above is the argv that would run. git-dash-c-allow.sh needs
+# the same argv and sources it too.
 # shellcheck source=root/.claude/hooks/segment-scan.lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/segment-scan.lib.sh"
 

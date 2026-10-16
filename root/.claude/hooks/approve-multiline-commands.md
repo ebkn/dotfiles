@@ -1,8 +1,7 @@
 # approve-multiline-commands.sh
 
-The one hook here that emits `allow`. The rest only ever `deny` or stay silent,
-so this is the only one whose bug *widens* a permission boundary — and it does so
-silently: the command simply runs.
+A hook that emits `allow`, so its bug *widens* a permission boundary — and does
+so silently: the command simply runs. `bin/test.md` lists every hook that does.
 
 ## Why it exists
 
@@ -51,7 +50,7 @@ runs of ordinary text with `${seg%%$SCAN_UNQ_SPECIAL*}` rather than `${line:i:1}
 in a loop.
 
 The scanner lives in `segment-scan.lib.sh`, sourced, because
-`git-dash-c-allow.sh` -- the other hook that allows -- needs the same argv.
+`git-dash-c-allow.sh` needs the same argv.
 It is **not** git-guard's parser, and must not become it: git-guard resolves
 every ambiguity toward "inspect / refuse", which is correct for a hook that
 denies and exactly wrong for one that allows.

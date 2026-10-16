@@ -1,5 +1,5 @@
 #!/bin/bash
-# Exercises approve-multiline-commands.sh, the one hook here that emits "allow".
+# Exercises approve-multiline-commands.sh, a hook that emits "allow".
 # ALLOW = hook approves the command outright. DEFER = hook stays silent, so the
 # normal permission flow (allow/ask/deny rules, then the auto-mode classifier)
 # decides it.

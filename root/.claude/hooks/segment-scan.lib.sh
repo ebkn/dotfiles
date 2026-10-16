@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Shell segment scanner for the hooks that emit "allow". Sourced, so it sets no
+# Shell segment scanner for a hook that emits "allow". Sourced, so it sets no
 # shell options and has no shebang (bin/lint-shell names it explicitly).
 #
 #   scan_command <command> <predicate>
@@ -108,8 +108,10 @@ scan_end_segment() {
   SCAN_ARGV_EXPANDS=()
 }
 
-# Scan one physical line. Returns 1 for anything unparseable or expandable, or
-# a segment the predicate rejected.
+# Scan one physical line. Returns 1 for anything unparseable, an expansion that
+# leaves the argv unknown (`$`, a backtick), or a segment the predicate
+# rejected. An expansion the argv still shows (`~`, a glob, a brace) is only
+# marked, in SCAN_ARGV_EXPANDS; refusing it is the predicate's call.
 scan_line() {
   local _sl_line=$1
   local _sl_n=${#_sl_line}
