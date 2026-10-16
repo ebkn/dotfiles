@@ -38,6 +38,13 @@ are refused too — each once came out as a pin with the second plugin dropped
 or a name that was not a name. `_zinit_repo` and `_zinit_pin` must each appear
 once and hold only an `owner/repo` and a full SHA.
 
+The ice is read the same way, as words: the shell's own split of the line,
+comments dropped. A plugin is pinned only when exactly one word is
+`ver"<sha>"` or `ver'<sha>'`. Matching the text `ver"…"` anywhere on the line
+took a `ver` in a comment (`zinit ice wait # was ver"…"`) or inside another
+ice's value as the pin, while zinit loaded the plugin unpinned; and with two
+`ver`s, a caller moving the pin could not tell which zinit uses.
+
 Consecutive `zinit ice` lines, which zinit would merge, are not merged here:
 the first is an ice with no plugin after it, so the file is refused whichever
 of them holds the `ver`.

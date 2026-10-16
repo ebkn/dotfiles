@@ -97,6 +97,29 @@ check 'refuses a ver whose quotes do not match' \
   "$(read_pins "zinit ice ver\"$A'
 zinit light a/one")"
 
+# The pin is a ver word of the ice, as zinit reads the line -- not the text
+# "ver" anywhere on it. In the first two zinit loads the plugin unpinned.
+check 'refuses a ver that is only in a comment on the ice' \
+  "$(refused '*a/one*')" \
+  "$(read_pins "zinit ice wait lucid # was ver\"$A\"
+zinit light a/one")"
+
+check 'refuses a ver that is inside another ice'"'"'s value' \
+  "$(refused '*a/one*')" \
+  "$(read_pins "zinit ice atload\"echo ver'$A'\"
+zinit light a/one")"
+
+check 'refuses a ver that is the tail of another ice name' \
+  "$(refused '*a/one*')" \
+  "$(read_pins "zinit ice nover\"$A\"
+zinit light a/one")"
+
+# Which of two would a caller moving the pin rewrite?
+check 'refuses two vers on one ice' \
+  "$(refused '*a/one*')" \
+  "$(read_pins "zinit ice ver\"$A\" ver\"$B\"
+zinit light a/one")"
+
 # An ice belongs to the next plugin only; a stray line in between ends it.
 check 'refuses an ice separated from its plugin by other code' \
   "$(refused '*a/one*')" \
@@ -119,6 +142,10 @@ check 'refuses an inline ice' \
 check 'refuses zinit run from inside another command' \
   "$(refused '*zinit light c/cond*')" \
   "$(read_pins '[[ -n $X ]] && zinit light c/cond')"
+
+check 'refuses zinit run inside backquotes' \
+  "$(refused '*cannot read: x=`zinit light c/cond`*')" \
+  "$(read_pins 'x=`zinit light c/cond`')"
 
 # The same, the other way round: a plugin line that goes on to run more.
 check 'refuses a plugin line followed by && and another zinit' \
