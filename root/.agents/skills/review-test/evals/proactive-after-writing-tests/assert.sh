@@ -46,7 +46,9 @@ check "committed the result" \
 # shellcheck disable=SC2329
 started_after_the_commit() {
   local first_skill first_commit
-  first_skill="$(transcript_first_tool_index Skill)"
+  # The first call of review-test, not of any skill: a real run called
+  # `commit` before committing, and that is not the review starting early.
+  first_skill="$(transcript_skill_rounds review-test | jq -s '.[0].index // empty')"
   first_commit="$(transcript_first_command_index '(^|[;&|(]|[[:space:]])git([[:space:]]+(-C|-c)[[:space:]]+[^[:space:]]+)*[[:space:]]+commit([[:space:]]|$)')"
   [ -n "$first_skill" ] && [ -n "$first_commit" ] && [ "$first_skill" -gt "$first_commit" ]
 }

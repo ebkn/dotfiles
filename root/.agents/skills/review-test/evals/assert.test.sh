@@ -266,10 +266,16 @@ grade "P1 を直してコミットしました。"
 expect_fail "gaps: a changed implementation is caught" \
   "left the implementation untouched"
 
+skill_result="$report
+JUDGE_FAIL" gaps_run '' "$report" "$gaps_after" "$gaps_fix"
+grade "P1 を直してコミットしました。"
+expect_fail "gaps: the P1 judge reads the first round's report" \
+  "P1 names the untested error contract"
+
+# ... and not the final response, which a looping run ends on a clean round.
 gaps_run '' "$report" "$gaps_after" "$gaps_fix"
 grade "JUDGE_FAIL"
-expect_fail "gaps: the P1 judge reads the final response" \
-  "P1 names the untested error contract"
+expect_pass "gaps: the P1 judge does not read the final response"
 
 gaps_run '' "$report" "$gaps_after" "$gaps_fix"'; printf "# JUDGE_FAIL\n" >>lib/quantity.test.sh; git add -A; git commit -q -m mark'
 grade "P1 を直してコミットしました。"
@@ -436,6 +442,12 @@ proactive_run '' "$well_report" 'review_test_write_thorough_test'
 grade "$proactive_final"
 expect_fail "proactive: tests left uncommitted are caught" \
   "committed the result"
+
+# Another skill before the commit -- a real run called `commit`, which
+# root/CLAUDE.md names -- is not review-test starting early.
+proactive_run 'rec_tool Skill "{\"skill\":\"commit\"}"' "$well_report" "$proactive_write"
+grade "$proactive_final"
+expect_pass "proactive: another skill before the commit does not count as an early start"
 
 # The loop checks this grader carries: a second start after a clean round, and
 # a round that still reports a P1 left as the last.

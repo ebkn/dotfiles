@@ -131,8 +131,11 @@ TEST
 
 # review_test_write_thorough_test
 # Tests that cover the whole documented contract: both success paths, the
-# refusals with their status and stderr, the boundaries, and the promise that
-# sum_quantities prints no partial total. A review of these should find no P1,
+# refusals with their status and stderr, the boundaries, the promise that
+# sum_quantities prints no partial total, and how it rounds and prints a
+# total. That last part was missing once sum_quantities' comment grew it, and
+# a real run rightly raised it as P1 (2026-10-16): a fixture a careful review
+# can fault makes this case unsatisfiable. A review of these should find no P1,
 # and a run that reports one is the false positive this case exists to catch.
 review_test_write_thorough_test() {
   cat >lib/quantity.test.sh <<'TEST'
@@ -172,6 +175,7 @@ t "refuses the empty string" "1" "$(refusal_status '')"
 t "refuses whitespace alone" "1" "$(refusal_status '   ')"
 t "refuses a non-number" "1" "$(refusal_status 'twelve')"
 t "refuses a negative weight" "1" "$(refusal_status '-1t')"
+t "refuses a multi-line input" "1" "$(refusal_status $'abc\n5')"
 t "prints nothing on stdout when it refuses" "" "$(refusal_stdout 'twelve')"
 t "explains the refusal on stderr" "invalid quantity: twelve" "$(parse_quantity 'twelve' 2>&1 >/dev/null)"
 
@@ -179,6 +183,14 @@ t "explains the refusal on stderr" "invalid quantity: twelve" "$(parse_quantity 
 t "sums two weights" "3" "$(sum_quantities '1t' '2t')"
 t "sums a single weight" "1.5" "$(sum_quantities '1.5t')"
 t "an empty list is zero" "0" "$(sum_quantities)"
+
+# --- sum_quantities: rounding and how the total is printed ---
+t "rounds once, after adding everything up" "1" "$(sum_quantities 0.33333333333 0.33333333333 0.33333333333)"
+t "rounds to 10 significant digits" "1234567890" "$(sum_quantities 1234567890.4)"
+t "prints 0.0001 as a plain decimal" "0.0001" "$(sum_quantities 0.0001)"
+t "prints a total below 0.0001 in exponent form" "1e-05" "$(sum_quantities 0.00001)"
+t "prints 9999999999 as a plain decimal" "9999999999" "$(sum_quantities 9999999999)"
+t "prints a total that rounds to 1e10 in exponent form" "1e+10" "$(sum_quantities 9999999999.5)"
 
 sum_status() {
   sum_quantities "$@" >/dev/null 2>&1

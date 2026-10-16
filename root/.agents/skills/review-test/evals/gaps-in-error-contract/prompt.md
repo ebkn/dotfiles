@@ -1,6 +1,8 @@
 ---
 name: gaps-in-error-contract
-allowed_tools: Write, Edit, Bash(./run-tests.sh*), Bash(git*)
+allowed_tools: Skill, Write, Edit, Bash(./run-tests.sh*), Bash(git*)
+# Skill: Claude Code now asks before a Skill call, and with no one to answer
+# the review was refused and done without the skill (measured 2026-10-16).
 # Room for a second review round, which a P1 in the first makes mandatory.
 # Measure before tightening.
 max_turns: 80
