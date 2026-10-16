@@ -17,8 +17,22 @@ HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/session-cwd.sh"
 test_tmpdir
 DIR="$TEST_TMPDIR/records"
 
+# tmux is stubbed: it records its argv and nothing else. TMUX and TMUX_PANE are
+# emptied for every case that does not set them, because this suite is usually
+# run from inside tmux and the real hook would otherwise set options on the
+# pane running the tests.
+mkdir -p "$TEST_TMPDIR/stub"
+cat >"$TEST_TMPDIR/stub/tmux" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >>"$TMUXLOG"
+EOF
+chmod +x "$TEST_TMPDIR/stub/tmux"
+TMUXLOG="$TEST_TMPDIR/tmux.log"
+export TMUXLOG
+
 hook() { # hook <mode> <payload-json>
-  printf '%s' "$2" | CLAUDE_SESSION_CWD_DIR="$DIR" "$HOOK" "$1"
+  printf '%s' "$2" | PATH="$TEST_TMPDIR/stub:$PATH" TMUX="${PANE_TMUX:-}" TMUX_PANE="${PANE_ID:-}" \
+    CLAUDE_SESSION_CWD_DIR="$DIR" "$HOOK" "$1"
 }
 field() { jq -r "$2" "$DIR/$1.json" 2>/dev/null || printf 'absent'; }
 count() {
@@ -88,5 +102,27 @@ touch -t 200001010000 "$DIR/old.json"
 hook start '{"session_id":"s6","cwd":"/y"}'
 assert_eq 'start sweeps a month-old record' 'absent' "$(field old .cwd)"
 assert_eq 'and keeps a current one' '/only-cwd' "$(field s2 .cwd)"
+
+# The same cwd goes onto the session's tmux pane as @claude_cwd, which the
+# prefix + p / t bindings read in display-popup's -d: a session that ran `gw`
+# should open its popups in the worktree, while #{pane_current_path} is the
+# claude process's own directory, which a Bash-tool cd never moves.
+assert_eq 'outside tmux, tmux is never called' 'absent' "$(cat "$TMUXLOG" 2>/dev/null || echo absent)"
+PANE_TMUX=/tmp/tmux-1/default,1,0 PANE_ID=%7
+hook cd '{"session_id":"p1","new_cwd":"/repo/git-worktrees/x"}'
+assert_eq 'cd publishes the cwd on its pane' \
+  'set-option -p -t %7 @claude_cwd /repo/git-worktrees/x' "$(tail -n 1 "$TMUXLOG")"
+hook start '{"session_id":"p1","cwd":"/repo"}'
+assert_eq 'start publishes it too' 'set-option -p -t %7 @claude_cwd /repo' "$(tail -n 1 "$TMUXLOG")"
+# A trailing ";" on argv is a command separator to tmux; `\;` is its escape.
+hook cd '{"session_id":"p1","new_cwd":"/odd;"}'
+assert_eq 'a trailing semicolon is escaped' 'set-option -p -t %7 @claude_cwd /odd\;' "$(tail -n 1 "$TMUXLOG")"
+hook end '{"session_id":"p1"}'
+assert_eq 'end unsets it, so the popup falls back to the pane path' \
+  'set-option -p -u -t %7 @claude_cwd' "$(tail -n 1 "$TMUXLOG")"
+lines=$(wc -l <"$TMUXLOG" | tr -d ' ')
+hook cd '{"session_id":"p1"}'
+assert_eq 'nothing is published when no record was written' "$lines" "$(wc -l <"$TMUXLOG" | tr -d ' ')"
+unset PANE_TMUX PANE_ID
 
 test_summary

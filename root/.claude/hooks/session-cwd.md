@@ -66,6 +66,22 @@ ${CLAUDE_SESSION_CWD_DIR:-${XDG_STATE_HOME:-~/.local/state}/claude-session-cwd}/
   reader looks records up by the ids of *live* sessions and never globs, so a
   dead id is never read. The sweep exists only so the directory does not grow.
 
+## The tmux pane option `@claude_cwd`
+
+The same cwd is set as the pane option `@claude_cwd` on `$TMUX_PANE`, which
+hooks inherit from the shell that launched claude (as
+[agent-state.sh](agent-state.md) relies on). `.tmux.conf`'s `@popup_dir` reads
+it so that `prefix + p` / `t` open where the session is, not in
+`#{pane_current_path}`, which a Bash-tool `cd` never moves — see
+[bin/tmux-popup.md](../../../bin/tmux-popup.md#where-p-and-t-open-popup_dir).
+
+A pane option rather than the file, because `display-popup -d` is a format and
+a format can read an option but not a file. It is set only after a record was
+written, so the two never disagree; SessionEnd unsets it so the popups fall back
+to the pane path. A session that crashes leaves it set until the next session
+in that pane starts. Outside tmux nothing is called. A trailing `;` is escaped as
+`\;`, the same tmux argv trap `agent-state.sh` documents.
+
 ## The trade-off it brings
 
 Any `cd` counts as moving, including one made only to look at another worktree.
