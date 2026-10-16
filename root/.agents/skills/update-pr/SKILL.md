@@ -2,7 +2,7 @@
 name: update-pr
 description: Update an existing GitHub pull request after adding commits by revising title/body, preserving template format, and pushing pending branch changes; marks a draft ready when called with `ready`.
 effort: low
-allowed-tools: Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git rev-parse *), Bash(git push *), Bash(git ls-files *), Bash(gh repo view *), Bash(gh pr view *), Bash(gh pr edit *), Bash(gh pr ready*), Read, Glob, Grep, AskUserQuestion
+allowed-tools: Bash(git status *), Bash(git diff *), Bash(git log *), Bash(git rev-parse *), Bash(git push *), Bash(git ls-files *), Bash(gh repo view *), Bash(gh pr view *), Bash(gh pr edit *), Bash(gh pr ready*), Skill(create-pr), Read, Glob, Grep, AskUserQuestion
 ---
 
 ## Pre-fetched context
@@ -19,7 +19,7 @@ Update the existing pull request for the current branch. Follow this flow:
 
 1. **Gather context**: Get the default branch locally via `git rev-parse --abbrev-ref origin/HEAD` (strip the `origin/` prefix); only if that fails (origin/HEAD unset) fall back to `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`. Then read the commits **with full messages** via `git log <base>..HEAD` (bodies included — the commit skill records the *why* there) plus `git diff --stat <base>..HEAD` for the file-level shape. Pull the full `git diff <base>..HEAD` only when the messages and stat don't sufficiently explain the changes (thin or missing commit bodies) — the commits added since the last PR revision are the main material for the update, so focus there.
 
-2. **Missing PR check**: Run `gh pr view --json number,url,title,body,baseRefName,headRefName,isDraft`. If it fails, there is nothing to update — report that no open PR exists for this branch and that `/create-pr` would create one, then stop. (This is a terminal condition, not a blocking question.)
+2. **Missing PR check**: Run `gh pr view --json number,url,title,body,baseRefName,headRefName,isDraft`. If it fails, there is no PR to update. With `ready` in the arguments, hand over to the `create-pr` skill (without `draft`) instead of stopping: the caller is reporting finished work, and a run whose first-commit `create-pr` was skipped or failed would otherwise report it unpublished. `create-pr` pushes and opens the PR ready; nothing is left for this skill to do. Without `ready`, report that no open PR exists for this branch and that `/create-pr` would create one, then stop. (Neither is a blocking question.)
 
 3. **Uncommitted changes**: Don't block. Update the PR from the pushed/committed state and note in your reply that any uncommitted changes were left out.
 
