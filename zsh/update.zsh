@@ -42,7 +42,8 @@ _uptime_reboot_warning() {
 update-all() {
   brew upgrade
   brew upgrade --cask
-  zinit ice proto=ssh depth=1
+  # Moves a plugin only as far as its ver pin in zsh/plugin.zsh, and leaves the
+  # pinned zinit where it is.
   zinit update --all
   nvim --headless +'CocUpdate' +qa
   nvim --headless +'TSUpdate' +qa
