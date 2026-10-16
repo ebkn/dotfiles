@@ -528,6 +528,22 @@
             "type": "command",
             "command": "~/.claude/hooks/agent-state.sh start",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/session-cwd.sh start",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "CwdChanged": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/session-cwd.sh cd",
+            "timeout": 5
           }
         ]
       }
@@ -538,6 +554,11 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/agent-state.sh clear",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/session-cwd.sh end",
             "timeout": 5
           }
         ]
