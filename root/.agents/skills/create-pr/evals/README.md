@@ -26,7 +26,16 @@ Every case also grades the question this set out to remove, three ways: the
 
 **GitHub is a fake** (`bin/skill-eval-github.sh`): `origin` is a bare
 repository inside the fixture's `.git/`, and `gh` a stub that keeps one PR per
-branch as JSON. A run opens nothing anywhere.
+branch as JSON. A run opens nothing anywhere. Two things the first runs
+taught about it:
+
+- **origin's URL has to be a GitHub one.** With a local path there, a run read
+  `git remote -v`, concluded there was no GitHub origin, and — following the
+  rule — published nothing. git now reaches `git@github.com:example/fixture.git`
+  through an ssh stub (`core.sshCommand`) that serves the bare repository.
+- **The cases allow `gh pr list` and `gh pr view`**, as the user's own
+  settings do. A run checking for an open PR before `update-pr` was refused
+  `gh pr list`, took the refusal to cover every `gh` and push, and stopped.
 
 **The requests are documentation changes on purpose.** With `root/CLAUDE.md`
 in, a change to tests or an interface would also start `review-test` and

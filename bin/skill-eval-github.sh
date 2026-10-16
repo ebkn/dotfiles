@@ -20,18 +20,41 @@
 # shellcheck shell=bash
 
 SKILL_EVAL_FAKE_ORIGIN=.git/fake-origin.git
+SKILL_EVAL_FAKE_ORIGIN_URL=git@github.com:example/fixture.git
 SKILL_EVAL_FAKE_PR_URL=https://github.com/example/fixture/pull/1
 
 # skill_eval_fake_github
 # Give the fixture an `origin` holding main, with origin/HEAD set as a clone's
 # is (create-pr reads the default branch from it), and put the gh stub in
 # bin/. The bare repository sits inside .git/, where git status never looks.
+#
+# The remote's URL is a GitHub one, because root/CLAUDE.md opens a PR only
+# with a GitHub origin: a local path as the URL, which `git remote -v` shows
+# even through url.insteadOf, made a run conclude there was no GitHub and
+# publish nothing -- correctly. git reaches it over SSH, so core.sshCommand
+# points at a stub that serves the bare repository instead of dialling out.
 skill_eval_fake_github() {
+  local origin="$PWD/$SKILL_EVAL_FAKE_ORIGIN"
   git init -q --bare -b main "$SKILL_EVAL_FAKE_ORIGIN"
-  git remote add origin "$PWD/$SKILL_EVAL_FAKE_ORIGIN"
+  mkdir -p bin/gh-state
+  cat >bin/ssh <<SSH_STUB
+#!/bin/bash
+# The ssh git runs for the fixture's origin; see bin/skill-eval-github.sh in
+# dotfiles. The last argument is the remote command, such as
+# git-receive-pack 'example/fixture.git'; it is run against the bare
+# repository instead.
+set -eo pipefail
+remote_command="\${*: -1}"
+case "\$remote_command" in
+  git-receive-pack* | git-upload-pack*) exec "\${remote_command%% *}" "$origin" ;;
+  *) echo "ssh (eval stub): refusing: \$remote_command" >&2 && exit 1 ;;
+esac
+SSH_STUB
+  chmod +x bin/ssh
+  git config core.sshCommand "$PWD/bin/ssh"
+  git remote add origin "$SKILL_EVAL_FAKE_ORIGIN_URL"
   git push -q -u origin main
   git remote set-head origin main >/dev/null
-  mkdir -p bin/gh-state
   cat >bin/gh <<'GH_STUB'
 #!/bin/bash
 # The gh of an eval fixture; see bin/skill-eval-github.sh in dotfiles.
@@ -49,7 +72,7 @@ pr="$here/gh-state/${branch//\//_}.json"
 
 # Flags shared by the subcommands below; positional arguments (a PR number or
 # URL) are accepted and ignored, since a fixture has one PR per branch.
-title= body= body_set=0 draft=false json= jq_filter= undo=0
+title= body= body_set=0 draft=false json= jq_filter= undo=0 head= state=open
 parse() {
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -63,7 +86,9 @@ parse() {
       --json) json="$2" && shift ;;
       -q | --jq) jq_filter="$2" && shift ;;
       --undo) undo=1 ;;
-      -B | --base | -H | --head | -R | --repo | -a | --assignee | -l | --label | -r | --reviewer) shift ;;
+      -H | --head) head="$2" && shift ;;
+      -s | --state) state="$2" && shift ;;
+      -B | --base | -R | --repo | -a | --assignee | -l | --label | -r | --reviewer | -L | --limit) shift ;;
       *) ;;
     esac
     shift
@@ -114,6 +139,18 @@ case "${1:-} ${2:-}" in
       emit <"$pr"
     else
       jq -r '"title:\t\(.title)\nstate:\t\(.state)\ndraft:\t\(.isDraft)\nurl:\t\(.url)\n--\n\(.body)"' "$pr"
+    fi
+    ;;
+  "pr list")
+    shift 2
+    parse "$@"
+    # Every PR is open, so --state closed or merged lists none.
+    all="$(cat "$here"/gh-state/*.json 2>/dev/null | jq -s --arg head "$head" --arg state "$state" '
+      [ .[] | select(($head == "" or .headRefName == $head) and ($state == "open" or $state == "all")) ]')"
+    if [ -n "$json" ]; then
+      emit <<<"$all"
+    else
+      jq -r '.[] | "\(.number)\t\(.title)\t\(.headRefName)\t\(if .isDraft then "DRAFT" else "OPEN" end)"' <<<"$all"
     fi
     ;;
   "pr edit")

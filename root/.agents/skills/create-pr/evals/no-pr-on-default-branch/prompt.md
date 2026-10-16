@@ -1,6 +1,6 @@
 ---
 name: no-pr-on-default-branch
-allowed_tools: Skill, Write, Edit, Bash(git*)
+allowed_tools: Skill, Write, Edit, Bash(git*), Bash(gh pr list*), Bash(gh pr view*)
 claude_md: root/CLAUDE.md
 skills: update-pr, commit
 max_turns: 60

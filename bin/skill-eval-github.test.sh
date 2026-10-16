@@ -29,6 +29,13 @@ assert_eq "origin/HEAD names main, as a clone's does" "origin/main" \
 assert_eq "gh repo view answers the default branch through --jq" "main" \
   "$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)"
 assert_eq "the fake origin stays out of git status" "" "$(git status --porcelain)"
+# A local path here read as "no GitHub origin", and a run rightly published
+# nothing.
+assert_eq "origin's URL is a GitHub one, as git remote shows it" \
+  "origin	git@github.com:example/fixture.git (push)" "$(git remote -v | tail -n 1)"
+assert_eq "and git reaches it through the ssh stub" "$(git rev-parse main)" \
+  "$(git ls-remote origin refs/heads/main | cut -f 1)"
+assert_status "the ssh stub runs nothing but git's own transfer commands" 1 bin/ssh git@github.com "rm -rf /"
 
 assert_status "gh pr view fails while the branch has no PR" 1 gh pr view --json number
 assert_contains "and says so as gh does" "$(gh pr view 2>&1 || true)" "no pull requests found"
@@ -61,6 +68,11 @@ assert_eq "and is a draft" "true true" "$(jq -r '"\(.isDraft) \(.createdAsDraft)
 assert_eq "fake_github_pr reads it by branch name too" "feat/x" "$(fake_github_pr feat/x | jq -r .headRefName)"
 assert_status "a second PR for the same branch is refused" 1 gh pr create --title t --body b
 assert_eq "gh pr view --json answers isDraft" "true" "$(gh pr view --json isDraft -q .isDraft)"
+assert_eq "gh pr list --head finds it, as a run checking for an open PR asks" "1" \
+  "$(gh pr list --head feat/x --json number -q '.[].number')"
+assert_eq "and lists nothing for another head" "[]" "$(gh pr list --head other --json number)"
+assert_eq "or for closed PRs" "[]" "$(gh pr list --state closed --json number)"
+assert_contains "without --json it prints a row" "$(gh pr list)" "feat/x	DRAFT"
 
 gh pr edit --title "docs: much more" --body-file - <<<"new body" >/dev/null
 pr="$(fake_github_pr)"
