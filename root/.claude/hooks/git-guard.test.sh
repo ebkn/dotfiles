@@ -597,21 +597,50 @@ check DENY 'echo x; \git -c a=b status'
 
 echo "-- the settings this hook's silence relies on --"
 # git-guard leaves a `case` inside a quoted substitution to the normal flow,
-# which is safe only while no git allow rule has a `*` with more of the rule
-# after it: such a rule matches options before the subcommand, and would approve
-# a whole command this hook stayed silent on. /config writes to settings.json,
-# so this is checked against the file rather than trusted. Deny and ask rules
-# are exempt: a wildcard there widens only what is refused or asked about.
-SETTINGS="$(dirname "$HOOK")/../settings.json"
-wild=$(jq -r '.permissions.allow[]? | strings | select(test("^Bash\\(git [^*]*\\*.+\\)$"))' "$SETTINGS") && rc=0 || rc=$?
-if [[ $rc -eq 0 && -z "$wild" ]]; then
+# which is safe only while no git allow rule puts a `*` before the subcommand
+# (root/README.md, git permissions): such a rule matches an option before the
+# subcommand -- `git -c core.fsmonitor=<cmd> status` -- and would approve a whole
+# command this hook stayed silent on. /config writes to settings.json, so this is
+# checked against the file rather than trusted. Deny and ask rules are exempt: a
+# wildcard there widens only what is refused or asked about. The check sees only
+# this repository's settings.json, not settings.local.json or a project's.
+#
+# A rule is safe when the literal text before its first `*` (a `:` before it
+# dropped) reaches into a word after `git` that does not start with `-`: the
+# subcommand, so an option can only precede it if the rule spells it out.
+UNSAFE_GIT_ALLOW='.permissions.allow[]? | strings
+  | select(test("^Bash\\(git([ :*)]|$)"))
+  | ltrimstr("Bash(") | rtrimstr(")")
+  | select(contains("*"))
+  | select(split("*")[0] | rtrimstr(":") | test("^git( +-[^ ]*)* +[^- ]") | not)'
+
+# The predicate first, on rules whose verdict is known, so a filter that
+# matches nothing cannot pass for a clean file.
+got=$(jq -r "$UNSAFE_GIT_ALLOW" <<<'{"permissions":{"allow":[
+  "Bash(git *)", "Bash(git:*)", "Bash(git*)", "Bash(git -c*)", "Bash(git --no-pager *)",
+  "Bash(git -C * status*)", "Bash(git -c:*)",
+  "Bash(git status*)", "Bash(git --no-pager log*)", "Bash(git push)", "Bash(git log:*)",
+  "Bash(git -C /x status*)", "Bash(gh pr view *)"
+]}}' | tr '\n' '|')
+want='git *|git:*|git*|git -c*|git --no-pager *|git -C * status*|git -c:*|'
+if [[ "$got" == "$want" ]]; then
   pass=$((pass + 1))
-  echo "  ok   no git allow rule has a * before the rest of the rule"
+  echo "  ok   the unsafe-rule check finds every unsafe shape and no safe one"
 else
   fail=$((fail + 1))
-  printf '  FAIL a git allow rule has a * before the rest of it (rc=%s): %s\n' "$rc" "$wild"
+  printf '  FAIL the unsafe-rule check found: %s (want %s)\n' "$got" "$want"
 fi
-total_git_allow=$(jq '[.permissions.allow[]? | strings | select(startswith("Bash(git "))] | length' "$SETTINGS")
+
+SETTINGS="$(dirname "$HOOK")/../settings.json"
+wild=$(jq -r "$UNSAFE_GIT_ALLOW" "$SETTINGS") && rc=0 || rc=$?
+if [[ $rc -eq 0 && -z "$wild" ]]; then
+  pass=$((pass + 1))
+  echo "  ok   no git allow rule puts a * before the subcommand"
+else
+  fail=$((fail + 1))
+  printf '  FAIL a git allow rule puts a * before the subcommand (rc=%s): %s\n' "$rc" "$wild"
+fi
+total_git_allow=$(jq '[.permissions.allow[]? | strings | select(test("^Bash\\(git([ :*)]|$)"))] | length' "$SETTINGS")
 if ((total_git_allow > 10)); then
   pass=$((pass + 1))
   echo "  ok   and the check saw the git rules ($total_git_allow)"
