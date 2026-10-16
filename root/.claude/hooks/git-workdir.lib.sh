@@ -1,7 +1,8 @@
 # shellcheck shell=bash
-# The one answer to "may an allow hook approve git's -C here", shared by
-# git-dash-c-allow.sh and approve-multiline-commands.sh so the two cannot
-# disagree. Sourced: no shebang, no shell options.
+# The one answer to "may an allow hook approve git's -C here", so that hooks
+# approving a git -C cannot disagree; git-dash-c-allow.sh sources it. Sourced:
+# no shebang, no shell options. The caller must also refuse a -C value the shell
+# expands (see SCAN_ARGV_EXPANDS): this resolves the text it is given.
 #
 #   git_workdir_in_project <cwd> <project> [<-C value>...]
 #

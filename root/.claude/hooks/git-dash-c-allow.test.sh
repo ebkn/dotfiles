@@ -24,6 +24,11 @@ PROJ="$TMP/proj"
 mkdir -p "$PROJ/sub" "$PROJ/a b" "$TMP/outside" "$PROJ/.claude"
 ln -s "$TMP/outside" "$PROJ/link-out"
 ln -s "$PROJ/sub" "$PROJ/link-in"
+# Directories named as the shell would expand them, as a cloned repository can
+# ship: read literally they are inside the project, while the shell runs git in
+# $HOME, in what `b` points at, or in the parent.
+mkdir -p "$PROJ/~" "$PROJ/[b]" "$PROJ/{..,}"
+ln -s "$TMP/outside" "$PROJ/b"
 
 # User-level settings: the only rules the hook may read.
 mkdir -p "$TMP/home/.claude"
@@ -37,10 +42,17 @@ jq -n '{permissions: {allow: [
 # here must never be honoured.
 jq -n '{permissions: {allow: ["Bash(git reset *)"]}}' >"$PROJ/.claude/settings.json"
 
-# A user whose only -C rule is the wildcard kind this hook exists to replace.
+# A user whose only -C rule is the wildcard kind this hook exists to replace,
+# plus rules whose words hold glob characters, which must compare literally.
 mkdir -p "$TMP/home-wild/.claude"
-jq -n '{permissions: {allow: ["Bash(git -C * status*)", "Bash(git * status*)"]}}' \
-  >"$TMP/home-wild/.claude/settings.json"
+jq -n '{permissions: {allow: [
+  "Bash(git -C * status*)", "Bash(git * status*)", "Bash(git log [a]*)", "Bash(git l?g *)"
+]}}' >"$TMP/home-wild/.claude/settings.json"
+
+# Settings that are not usable: not JSON, and an allow that is not a list.
+mkdir -p "$TMP/home-bad/.claude" "$TMP/home-odd/.claude"
+printf 'not json' >"$TMP/home-bad/.claude/settings.json"
+jq -n '{permissions: {allow: "Bash(git status*)"}}' >"$TMP/home-odd/.claude/settings.json"
 
 # run <cwd> <command> [home] [project]
 run() {
@@ -95,7 +107,18 @@ check DEFER 'escape through a chain' 'git -C sub -C ../.. status'
 check DEFER 'a sibling sharing the prefix' "git -C ${PROJ}x status"
 check DEFER 'nonexistent directory' 'git -C missing status'
 check DEFER '-C with no value' 'git -C'
-check DEFER 'tilde is not expanded here' 'git -C ~ status'
+check DEFER '-C glued to its value, which git does not accept' 'git -Csub status'
+check ALLOW 'an empty -C, from inside the project' 'git -C "" status'
+check DEFER 'an empty -C, from outside it' 'git -C "" status' "$TMP/outside"
+
+echo "-- must DEFER: a word the shell expands, even when read literally it is inside --"
+check DEFER 'a tilde' 'git -C ~ status'
+check DEFER 'a glob' 'git -C [b] status'
+check DEFER 'a brace expansion' 'git -C {..,} status'
+check DEFER 'a glob anywhere in the segment' 'git -C sub add *.sh'
+# Not expansions: a tilde past the start, braces with no comma or `..`.
+check ALLOW 'HEAD~1' 'git -C sub diff HEAD~1'
+check ALLOW 'a reflog brace' 'git -C sub log HEAD@{1}'
 
 echo "-- must DEFER: the rest matches no usable rule --"
 check DEFER 'no rule for the subcommand' 'git -C sub reset --hard'
@@ -103,12 +126,19 @@ check DEFER 'exact rule, extra words' 'git -C sub push --force'
 check DEFER 'a dangerous global option after -C' 'git -C sub -c core.fsmonitor=x status'
 check DEFER 'project settings are not read' 'git -C sub reset --hard HEAD'
 check DEFER 'wildcard -C rules are not honoured' 'git -C sub status' "$PROJ" "$TMP/home-wild"
+# With only wildcard rules on offer, the options they let through stay out.
+check DEFER 'a wildcard rule does not let --exec-path in' 'git -C sub --exec-path=/x status' "$PROJ" "$TMP/home-wild"
+check DEFER 'nor -c' 'git -C sub -c core.fsmonitor=x status' "$PROJ" "$TMP/home-wild"
+check DEFER 'a rule word with [ ] compares literally' 'git -C sub log ab' "$PROJ" "$TMP/home-wild"
+check DEFER 'a rule word with ? compares literally' 'git -C sub log x' "$PROJ" "$TMP/home-wild"
 check DEFER 'a quoted subcommand containing a space' 'git -C sub "log --output=x"'
 
 echo "-- must DEFER: a segment that is not an approved git --"
 check DEFER 'a non-git segment' 'git -C sub status; rm -rf x'
 check DEFER 'a non-git segment, even an allowed one' 'git -C sub status && npm test'
 check DEFER 'a wrapper' 'timeout 5 git -C sub status'
+check DEFER 'an assignment that redirects git' 'GIT_DIR=/x git -C . status'
+check DEFER 'an assignment that configures git' "GIT_CONFIG_PARAMETERS=\"'core.fsmonitor=x'\" git -C sub status"
 check DEFER 'a path-qualified git' '/usr/bin/git -C sub status'
 check DEFER 'one segment outside the project' 'git -C sub status && git -C .. status'
 
@@ -124,6 +154,17 @@ check DEFER 'an unterminated quote' 'git -C "sub status'
 echo "-- must DEFER: no project to compare against --"
 check DEFER 'CLAUDE_PROJECT_DIR unset' 'git -C sub status' "$PROJ" "$TMP/home" ''
 check DEFER 'no user settings file' 'git -C sub status' "$PROJ" "$TMP/nohome"
+check DEFER 'settings that are not JSON' 'git -C sub status' "$PROJ" "$TMP/home-bad"
+check DEFER 'an allow that is not a list' 'git -C sub status' "$PROJ" "$TMP/home-odd"
+no_cwd=$(jq -n '{tool_name:"Bash", tool_input:{command:"git -C sub status"}}' |
+  HOME=$TMP/home CLAUDE_PROJECT_DIR=$PROJ "$HOOK" 2>/dev/null) && rc=0 || rc=$?
+if [[ $rc -eq 0 && -z "$no_cwd" ]]; then
+  pass=$((pass + 1))
+  echo "  ok   DEFER no cwd in the input"
+else
+  fail=$((fail + 1))
+  printf '  FAIL want=DEFER got rc=%s out=%s  no cwd in the input\n' "$rc" "$no_cwd"
+fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]

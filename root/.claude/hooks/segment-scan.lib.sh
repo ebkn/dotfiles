@@ -17,6 +17,13 @@
 # git-guard.sh has a parser of its own on purpose, resolved the other way, and
 # neither may be swapped for the other.
 #
+# While the predicate runs, SCAN_ARGV_EXPANDS[k] is 1 when its argument k held
+# unquoted text the shell expands -- a leading `~`, a glob character, a brace
+# with a comma or `..` -- so the word it receives is not the word read here.
+# The scanner does not refuse those itself: `git add *.sh` is fine for one
+# caller, and `git -C ~ status` would let another approve a command run in
+# $HOME because the project holds a directory named `~`. The predicate decides.
+#
 # The predicate runs inside the scanner's own functions, and bash scope is
 # dynamic: a predicate variable not declared `local` writes into whatever the
 # scanner has of that name. Undeclared `line` in git-dash-c-allow.sh replaced
@@ -35,6 +42,20 @@ SCAN_PENDING_TAGS=() # heredoc tags whose bodies start after this line
 SCAN_DATA_NEWLINE=0
 SCAN_SEGMENTS=0
 SCAN_PREDICATE=''
+SCAN_CUR_EXPANDS=0
+SCAN_EXPANDS_LIST=()
+SCAN_ARGV_EXPANDS=()
+
+# Called with an unquoted run before it is pushed, while SCAN_HAVE_CUR still
+# says whether it starts the token.
+scan_mark_unquoted() {
+  case "$1" in
+    *[*?[]*) SCAN_CUR_EXPANDS=1 ;;
+    *'{'*,* | *'{'*..*) SCAN_CUR_EXPANDS=1 ;;
+  esac
+  if ((SCAN_HAVE_CUR == 0)) && [[ "$1" == "~"* ]]; then SCAN_CUR_EXPANDS=1; fi
+  return 0
+}
 
 scan_push_run() {
   [[ -n "$1" ]] || return 0
@@ -51,18 +72,24 @@ SCAN_UNQ_SPECIAL='[[:space:]'\''"\\$`()<>#;&|]'
 scan_end_token() {
   if ((SCAN_HAVE_CUR)); then
     SCAN_TOKENS[${#SCAN_TOKENS[@]}]=$SCAN_CUR
+    SCAN_EXPANDS_LIST[${#SCAN_EXPANDS_LIST[@]}]=$SCAN_CUR_EXPANDS
     SCAN_CUR=''
     SCAN_HAVE_CUR=0
   fi
+  SCAN_CUR_EXPANDS=0
 }
 
 scan_end_segment() {
   scan_end_token
   if ((${#SCAN_TOKENS[@]})); then
+    SCAN_ARGV_EXPANDS=("${SCAN_EXPANDS_LIST[@]}")
     "$SCAN_PREDICATE" "${SCAN_TOKENS[@]}" || return 1
     SCAN_SEGMENTS=$((SCAN_SEGMENTS + 1))
   fi
   SCAN_TOKENS=()
+  SCAN_EXPANDS_LIST=()
+  # shellcheck disable=SC2034 # read by the predicate, set for it above
+  SCAN_ARGV_EXPANDS=()
 }
 
 # Scan one physical line. Returns 1 for anything unparseable or expandable, or
@@ -118,9 +145,11 @@ scan_line() {
     # shellcheck disable=SC2295
     _sl_pre=${_sl_seg%%$SCAN_UNQ_SPECIAL*}
     if [[ "$_sl_pre" == "$_sl_seg" ]]; then
+      scan_mark_unquoted "$_sl_seg"
       scan_push_run "$_sl_seg"
       return 0
     fi
+    scan_mark_unquoted "$_sl_pre"
     scan_push_run "$_sl_pre"
     _sl_i=$((_sl_i + ${#_sl_pre}))
     _sl_c=${_sl_line:_sl_i:1}
@@ -196,7 +225,9 @@ scan_line() {
 scan_command() {
   SCAN_PREDICATE=$2
   SCAN_QSTATE='' SCAN_CUR='' SCAN_HAVE_CUR=0 SCAN_DATA_NEWLINE=0 SCAN_SEGMENTS=0
+  SCAN_CUR_EXPANDS=0
   SCAN_TOKENS=()
+  SCAN_EXPANDS_LIST=()
   SCAN_PENDING_TAGS=()
 
   local _sc_lines=() _sc_line _sc_total _sc_li _sc_tag _sc_body _sc_found

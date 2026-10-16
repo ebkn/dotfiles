@@ -56,5 +56,18 @@ ok "after && too" "$rc" 1
 scan_command $'git status\nrm -rf x' reject_rm && rc=0 || rc=$?
 ok "after a newline too" "$rc" 1
 
+# SCAN_ARGV_EXPANDS is index-aligned with the predicate's argv, and marks only
+# unquoted text the shell would expand.
+EXP=''
+record_expands() {
+  EXP="${SCAN_ARGV_EXPANDS[*]}"
+  return 0
+}
+# shellcheck disable=SC2016 # literal command text under test
+scan_command "git -C ~ log '*' HEAD~1 {a,b} \"~\" x{y} *.sh a\\*" record_expands
+ok "expansion marks line up with argv" "$EXP" "0 0 1 0 0 0 1 0 0 1 0"
+scan_command 'git status; ls ~' record_expands
+ok "and are reset per segment" "$EXP" "0 1"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]
