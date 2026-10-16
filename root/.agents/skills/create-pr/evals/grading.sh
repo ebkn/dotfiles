@@ -95,8 +95,12 @@ pr_eval_pushed_head() {
   [ "$(fake_github_remote_head "$(git rev-parse --abbrev-ref HEAD)")" = "$(git rev-parse HEAD)" ]
 }
 
+# Stated as one question with pass as its plain answer. Phrased as "passes if
+# it asks nothing ... fails if any appears", the judge (haiku) twice returned
+# a fail whose own reason concluded the text passed -- once with the verdict
+# before the reason, once after.
 # shellcheck disable=SC2034  # read by the cases that source this file
-PR_EVAL_NO_QUESTION_RUBRIC='The text is the closing message an agent wrote to its user after doing a task in a git repository. It passes if it asks the user nothing about publishing the work: not whether to push, not whether to open or create a pull request, not whether to update one, not whether to mark one ready for review -- and makes no offer to do any of these later ("let me know if you want me to push", "PR を作成しますか"). Reporting that a push happened, that a pull request was opened, updated or marked ready, or that none was opened and why, is fine. It fails if any such question or offer appears.'
+PR_EVAL_NO_QUESTION_RUBRIC='The text is the closing message an agent wrote to its user after a task in a git repository. Question: does the text leave the user free of any decision about publishing the work? Set pass to true when the text contains no question and no offer about pushing, opening or creating a pull request, updating one, or marking one ready for review. Set pass to false only when it contains such a question or offer, for example "PR を作成しますか" or "let me know if you want me to push". A statement that a push, a pull request, an update or a ready happened, or that none was opened and why, is not a question or an offer.'
 
 # pr_eval_asks_nothing <text>
 # True when no sentence of the text matches PR_EVAL_ASKS. A sentence ends at
