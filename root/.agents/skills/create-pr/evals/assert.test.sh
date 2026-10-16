@@ -166,10 +166,19 @@ expect_fail "draft-at-first-commit: a question through the tool" "asked nothing 
 # The pass side of PR_EVAL_ASKS: a report of the PR followed by a question
 # about something else is not the question this removes. The regex once let
 # "ready" in one sentence and "直しますか" in the next join up.
+# One case per sentence end the split promises; each would match as a whole.
 draft_run "$draft_records" "$draft_tree" "PR を ready にしました。ほかに何か直しますか？"
-expect_pass "draft-at-first-commit: a PR reported, then an unrelated question, passes"
-draft_run "$draft_records" "$draft_tree" "I pushed the branch and marked the PR ready. Should I also tidy the Makefile notes?"
-expect_pass "draft-at-first-commit: and so does the same in English"
+expect_pass "draft-at-first-commit: a PR reported, then an unrelated question, passes (split at 。)"
+draft_run "$draft_records" "$draft_tree" "PR は ready です！ほかに直しますか？"
+expect_pass "draft-at-first-commit: split at ！"
+draft_run "$draft_records" "$draft_tree" "PR は ready ですか？と聞かれたら はい。直しますか？"
+expect_pass "draft-at-first-commit: split at ？"
+draft_run "$draft_records" "$draft_tree" "$(printf 'PR を ready にしました\nほかに直しますか')"
+expect_pass "draft-at-first-commit: split at a line break"
+# English: the asking phrase comes first, so only the split at ? keeps it from
+# reaching "PR" in the next sentence.
+draft_run "$draft_records" "$draft_tree" "Should I tidy the notes too? The PR is ready."
+expect_pass "draft-at-first-commit: split at ?"
 
 # The checks on the request itself, each provoked once, after a good run.
 draft_run "$draft_records" "$draft_tree; printf '# tally\n' >README.md; git commit -qam x; git push -q" "$done_msg"
