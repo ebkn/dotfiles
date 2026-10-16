@@ -651,14 +651,14 @@ got=$(jq -r "$UNSAFE_GIT_ALLOW" <<<'{"permissions":{"allow":[
   "Bash(git *)", "Bash(git:*)", "Bash(git*)", "Bash(git -c*)", "Bash(git --no-pager *)",
   "Bash(git -C * status*)", "Bash(git -c:*)",
   "Bash(git -C /x *)", "Bash(git -c a=b *)", "Bash(git -C . -c*)", "Bash(git --git-dir /x *)",
-  "Bash", "Bash(*)", "Bash(*git*)", "Bash(g*)", "Bash(/usr/bin/git *)",
+  "Bash", "Bash(*)", "Bash(*git*)", "Bash(g*)", "Bash(/usr/bin/git *)", "Bash(/usr/bin/*)",
   "Bash(git status*)", "Bash(git --no-pager log*)", "Bash(git push)", "Bash(git log:*)",
   "Bash(git -C /x status*)", "Bash(git -C /x st*)", "Bash(gh pr view *)",
   "Bash(gitk *)", "Bash(git-lfs *)", "Bash(ls*)", "Bash(/usr/bin/git status*)"
 ]}}' | tr '\n' '|')
 want='git *|git:*|git*|git -c*|git --no-pager *|git -C * status*|git -c:*|'
 want+='git -C /x *|git -c a=b *|git -C . -c*|git --git-dir /x *|'
-want+='Bash|*|*git*|g*|/usr/bin/git *|'
+want+='Bash|*|*git*|g*|/usr/bin/git *|/usr/bin/*|'
 if [[ "$got" == "$want" ]]; then
   pass=$((pass + 1))
   echo "  ok   the unsafe-rule check finds every unsafe shape and no safe one"
