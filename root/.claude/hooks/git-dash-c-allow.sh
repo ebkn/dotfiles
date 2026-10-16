@@ -117,7 +117,14 @@ segment_ok() {
   git_dash_c_in_project "$CWD" "$PROJECT" "$@" || return 1
   ((GIT_DASH_C_SEEN == 0)) || SAW_DASH_C=1
   rule_approves git "${argv[@]:GIT_DASH_C_NEXT}" || return 1
-  ! git_rule_match "$REFUSING" git "${argv[@]:GIT_DASH_C_NEXT}"
+  # The deny and ask rules are matched from the subcommand on, as git-guard.sh
+  # matches them: an option such as --no-pager between -C and the subcommand
+  # would otherwise keep `git branch -D *` from seeing the rest.
+  local i=$GIT_DASH_C_NEXT
+  while ((i < ${#argv[@]})) && [[ "${argv[i]}" == -* ]]; do
+    i=$((i + 1))
+  done
+  ! git_rule_match "$REFUSING" git "${argv[@]:i}"
 }
 
 scan_command "$COMMAND" segment_ok || exit 0

@@ -49,6 +49,14 @@ jq -n '{permissions: {allow: [
   "Bash(git -C * status*)", "Bash(git * status*)", "Bash(git log [a]*)", "Bash(git l?g *)"
 ]}}' >"$TMP/home-wild/.claude/settings.json"
 
+# Allow rules that name an option before the subcommand, beside deny and ask
+# rules written for the subcommand alone.
+mkdir -p "$TMP/home-pager/.claude"
+jq -n '{permissions: {
+  allow: ["Bash(git --no-pager branch*)", "Bash(git --no-pager log*)"],
+  deny: ["Bash(git log *--output*)"], ask: ["Bash(git branch -D *)"]
+}}' >"$TMP/home-pager/.claude/settings.json"
+
 # Settings that are not usable: not JSON, and an allow that is not a list.
 mkdir -p "$TMP/home-bad/.claude" "$TMP/home-odd/.claude"
 printf 'not json' >"$TMP/home-bad/.claude/settings.json"
@@ -150,6 +158,12 @@ check DEFER 'a deny rule' 'git -C sub stash clear'
 check DEFER "a deny rule in the project's settings" 'git -C sub diff --output=x'
 check ALLOW 'which reaches nothing else' 'git -C sub diff --stat'
 check DEFER 'in any segment' 'git -C sub status && git -C sub branch -D topic'
+# An option between -C and the subcommand stands outside the rule's text, as
+# it does in git-guard: the rules are matched from the subcommand on.
+check ALLOW 'an allow rule naming the option' 'git -C sub --no-pager log -1'
+check DEFER 'an ask rule past such an option' 'git -C sub --no-pager branch -D topic' "$PROJ" "$TMP/home-pager"
+check DEFER 'a deny rule past such an option' 'git -C sub --no-pager log --output=x' "$PROJ" "$TMP/home-pager"
+check ALLOW 'and the same allow rules alone' 'git -C sub --no-pager log -1' "$PROJ" "$TMP/home-pager"
 
 echo "-- must DEFER: a segment that is not an approved git --"
 check DEFER 'a non-git segment' 'git -C sub status; rm -rf x'
