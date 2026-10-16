@@ -204,6 +204,19 @@ check 'refuses zinit run inside $(…)' \
   "$(refused '*cannot read: x=$?zinit light c/cond?*')" \
   "$(read_pins 'x=$(zinit light c/cond)')"
 
+check 'refuses an escaped zinit inside $(…)' \
+  "$(refused '*cannot read: x=$?\\zinit light c/x?*')" \
+  "$(read_pins 'x=$(\zinit light c/x)')"
+
+check 'refuses a quoted zinit inside $(…)' \
+  "$(refused '*cannot read: x=$?"zinit" light c/x?*')" \
+  "$(read_pins 'x=$("zinit" light c/x)')"
+
+# eval runs a string, so the zinit inside it is one quoted word to the split.
+check 'refuses zinit run through eval' \
+  "$(refused '*cannot read: eval "zinit light c/x"*')" \
+  "$(read_pins 'eval "zinit light c/x"')"
+
 check 'refuses zinit run inside backquotes' \
   "$(refused '*cannot read: x=`zinit light c/cond`*')" \
   "$(read_pins 'x=`zinit light c/cond`')"

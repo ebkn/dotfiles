@@ -41,6 +41,10 @@ fi
 # check of the line's start alone would pass over. The SHA must close with the
 # quote it opened with; anything else is not what zinit would read.
 s='[[:space:]]##'
+# zinit's name as a word that runs it: bare or quoted; the patterns below add
+# the escaped form (`\zinit`) themselves, because a backslash carried in this
+# variable stops matching once ${~zname} is embedded in a longer pattern.
+zname="(zinit|'zinit'|\"zinit\")"
 ice=''
 for line in "${lines[@]}"; do
   line=${line##[[:space:]]#}
@@ -67,13 +71,16 @@ for line in "${lines[@]}"; do
   # Split as the shell would, comments dropped. Text in a quoted string
   # ("… zinit's pin …") is one word and runs nothing; a word that is zinit's
   # name, however escaped or quoted, or that starts a command substitution
-  # with it, does.
+  # with it, does. eval runs a string, so on a line with eval any mention of
+  # zinit counts. Further indirection -- an alias, a wrapper function -- is
+  # beyond a static reader; see bin/zinit-pins.md.
   words=(${(Z+C+)line})
   runs=0 ops=0
   for w in $words; do
-    [[ $w == (\\|)(zinit|\'zinit\'|\"zinit\") || $w == *(\`|\$\()[[:space:]]#zinit([[:space:]]*|) ]] && (( runs++ ))
+    [[ $w == (\\|)${~zname} || $w == *(\`|\$\()[[:space:]]#(\\|)${~zname}([[:space:]\)\`]*|) ]] && (( runs++ ))
     [[ $w == (\;|\&|\&\&|\||\|\||\|\&) ]] && (( ops++ ))
   done
+  (( ${words[(I)eval]} && ${words[(I)*zinit*]} && ! runs )) && runs=1
   # An ice line that goes on to run something else (`; zinit light b/two`)
   # hands its ice to that, not to the plugin on the next line.
   if [[ $line == zinit${~s}ice${~s}* ]] && (( runs == 1 && ops == 0 )); then

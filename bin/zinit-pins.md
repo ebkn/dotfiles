@@ -39,6 +39,16 @@ nothing. An ice line holding a control operator (`;`, `&&`, `|`, …) is
 refused: `zinit ice ver"…"; zinit light b/two` hands the ice to `b/two`, and
 the plugin on the next line loads unpinned.
 
+`eval` runs a string, which the split keeps as one word, so on a line with
+`eval` any mention of zinit counts as running it. The escaped and quoted names
+are caught inside `$(…)` and backquotes too.
+
+**The limit:** this is a static reader. zinit reached through an alias, a
+wrapper function, a sourced file or a variable holding its name
+(`z=zinit; $z light …`) is not seen, and such a plugin is silently left out.
+`plugin.zsh` uses none of these, and should not start to; the reader cannot
+be taught them without running the file.
+
 A plugin line is read only when it is the whole line:
 `zinit light <owner/repo>`, then nothing but an optional comment. So
 `zinit light a/one && zinit light b/two`, a `\` continuation and a quoted name
