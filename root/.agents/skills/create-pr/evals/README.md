@@ -46,7 +46,11 @@ neither.
 ## Last measured
 
 2026-10-16, sonnet, three runs per case. "after" is the last run, on the
-grader as of the PR_EVAL_GH_VIEW commit (plural keywords included). The
+grader as of a02e2b6: plural keywords, "through create-pr" as an order (the
+first `gh pr create` after create-pr's first start), and the judge's rubric
+put as one question that also fails a publishing step left to the user.
+That rubric replaced one whose double negative twice got a fail from the
+judge whose own reason said the text passed. The
 baseline was measured earlier, on the harness before the review-test fixes,
 with the behaviour commit reverted; those fixes widened and narrowed what the
 question regex catches, but no baseline run asked anything to begin with.
