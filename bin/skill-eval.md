@@ -97,11 +97,14 @@ re-run — naming the fix for `review-test`, carrying the last `Reviewed:` line
 for `review-design` (`*_check_loop` in each skill's `grading.sh`).
 `intended-layer-asks` is left out: its finding crosses the range, so in a run
 nobody can answer it stays open and no round can come back clean.
-A case whose first round may or may not find something asks only that every
-re-run had a finding and a fix before it and that the last round was clean; a
-case with nothing to find asks only that the review was not started twice.
-The loop needs a second forked review, so `gaps-in-error-contract` was given
-80 turns and 3 USD, and the four `review-design` cases 90 turns and 4 USD.
+The two proactive cases, whose first round may or may not find something, run
+`review_loop_checks`: every re-run had a finding and a fix before it, and the
+last round was clean. `clean-unit-no-false-p1` runs only the first two — a P2
+may be raised and fixed there, but whether the loop ended clean is not asked.
+`well-tested-no-false-p1`, with nothing to find, asks only that the review was
+not started again. The loop needs a second forked review, so the cases that
+require one raise `max_turns` / `budget_usd` in their frontmatter, each with a
+comment saying why. **None of this has been measured on real runs yet.**
 
 **Starting too often has cases of its own.** `review-test`'s
 `no-fire-test-typo` (a committed change to a test file that changes nothing it
@@ -109,8 +112,9 @@ asserts) runs with `root/CLAUDE.md`, because that is where `review-test`'s
 auto-start rests and without it the case would pass by never starting
 anything. `review-design`'s `no-fire-small-fix` runs without it, which is
 meaningful only because `review-design` starts on its description alone (9/9,
-measured before `context: fork`, in its `evals/README.md`); it has no CLAUDE.md variant yet. `proactive-at-breakpoint-with-claude-md`
-is `review-design`'s counterpart of `proactive-with-claude-md`. **None of this has been measured on real runs yet.**
+measured before `context: fork`, in its `evals/README.md`); it has no
+CLAUDE.md variant yet. `proactive-at-breakpoint-with-claude-md` is
+`review-design`'s counterpart of `proactive-with-claude-md`.
 
 The four index functions exist for **ordering** assertions, which is what is
 left once a skill's caller acts on its report in the same run: "never wrote" is
