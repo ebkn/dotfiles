@@ -71,6 +71,13 @@ zinit light a/one
 zinit ice wait lucid atload\"bindkey '^j' x\" ver'$B'
 zinit load b/two # trailing comment")"
 
+# No plugins is a valid configuration: zinit's own pin is still listed. A
+# plugin line the reader did not recognise is refused by the cases below, so
+# an empty plugin list here does mean there are none.
+check 'with no plugins, lists zinit alone' \
+  $'exit=0\nout='"zdharma-continuum/zinit $Z"$'\nerr=' \
+  "$(read_pins '# nothing else')"
+
 check 'reads indented lines, and tabs between the words' \
   $'exit=0\nout='"zdharma-continuum/zinit $Z"$'\n'"a/one $A"$'\nerr=' \
   "$(read_pins "  zinit	ice ver\"$A\"
@@ -142,6 +149,27 @@ check 'refuses an inline ice' \
 check 'refuses zinit run from inside another command' \
   "$(refused '*zinit light c/cond*')" \
   "$(read_pins '[[ -n $X ]] && zinit light c/cond')"
+
+# An ice line that goes on to run more: zinit applies the ice to b/two, and
+# a/one, on the next line, loads unpinned.
+check 'refuses an ice line followed by ; and another zinit' \
+  "$(refused '*cannot read: zinit ice ver"'"$A"'"; zinit light b/two*')" \
+  "$(read_pins "zinit ice ver\"$A\"; zinit light b/two
+zinit light a/one")"
+
+check 'refuses an ice line followed by && and another zinit' \
+  "$(refused '*cannot read: zinit ice ver"'"$A"'" && zinit light b/two*')" \
+  "$(read_pins "zinit ice ver\"$A\" && zinit light b/two
+zinit light a/one")"
+
+# Ways of writing the command name that still run zinit.
+check 'refuses \zinit' \
+  "$(refused '*cannot read: \\zinit light b/two*')" \
+  "$(read_pins '\zinit light b/two')"
+
+check 'refuses a quoted zinit' \
+  "$(refused "*cannot read: 'zinit' light b/two*")" \
+  "$(read_pins "'zinit' light b/two")"
 
 check 'refuses zinit run inside backquotes' \
   "$(refused '*cannot read: x=`zinit light c/cond`*')" \

@@ -29,9 +29,17 @@ SHA closed by the quote it opened with, and every ice must be followed by its
 plugin; otherwise the reader exits 1 and names each problem on stderr,
 printing nothing on stdout.
 
-"Runs `zinit`" includes zinit as part of another command —
-`[[ -n $X ]] && zinit light …` — which a check of the line's start alone
-would pass over. A plugin line is read only when it is the whole line:
+"Runs `zinit`" is judged on the line's shell words, comments dropped: a word
+that is zinit's name — bare, `\zinit`, `'zinit'`, `"zinit"` — or that opens a
+command substitution with it (`` `zinit … ` ``, `$(zinit …)`). So zinit as part
+of another command (`[[ -n $X ]] && zinit light …`) is caught, which a check of
+the line's start alone passed over, while `zinit` inside a quoted string
+(`print "… zinit's pin …"`, in `plugin.zsh` itself) is one word that runs
+nothing. An ice line holding a control operator (`;`, `&&`, `|`, …) is
+refused: `zinit ice ver"…"; zinit light b/two` hands the ice to `b/two`, and
+the plugin on the next line loads unpinned.
+
+A plugin line is read only when it is the whole line:
 `zinit light <owner/repo>`, then nothing but an optional comment. So
 `zinit light a/one && zinit light b/two`, a `\` continuation and a quoted name
 are refused too — each once came out as a pin with the second plugin dropped

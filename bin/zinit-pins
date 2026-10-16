@@ -64,16 +64,29 @@ for line in "${lines[@]}"; do
   fi
   [[ -n $ice ]] && errors+=("an ice with no zinit light|load after it: $ice")
   ice=''
-  if [[ $line == zinit${~s}ice${~s}* ]]; then
+  # Split as the shell would, comments dropped. Text in a quoted string
+  # ("… zinit's pin …") is one word and runs nothing; a word that is zinit's
+  # name, however escaped or quoted, or that starts a command substitution
+  # with it, does.
+  words=(${(Z+C+)line})
+  runs=0 ops=0
+  for w in $words; do
+    [[ $w == (\\|)(zinit|\'zinit\'|\"zinit\") || $w == *(\`|\$\()[[:space:]]#zinit([[:space:]]*|) ]] && (( runs++ ))
+    [[ $w == (\;|\&|\&\&|\||\|\||\|\&) ]] && (( ops++ ))
+  done
+  # An ice line that goes on to run something else (`; zinit light b/two`)
+  # hands its ice to that, not to the plugin on the next line.
+  if [[ $line == zinit${~s}ice${~s}* ]] && (( runs == 1 && ops == 0 )); then
     ice=$line
-  elif [[ $line == (|*[[:space:]\;\&\|\(\{\`])zinit([[:space:]]*|) ]]; then
+  elif (( runs )); then
     errors+=("cannot read: $line")
   fi
 done
 [[ -n $ice ]] && errors+=("an ice with no zinit light|load after it: $ice")
 
 if (( $#errors )); then
-  print -u2 -l -- "zinit-pins: $file:" "  "${^errors}
+  # -r: the lines quoted back are shell, and `\zinit` must not lose its `\`.
+  print -u2 -rl -- "zinit-pins: $file:" "  "${^errors}
   exit 1
 fi
 print -l -- $pins
