@@ -42,6 +42,40 @@ in, a change to tests or an interface would also start `review-test` and
 `review-design`, which the fixture does not carry; a doc change starts
 neither.
 
+## Last measured
+
+2026-10-16, sonnet, three runs per case, on the final harness. The baseline
+is the same harness and cases with the behaviour commit reverted.
+
+| Case | before | after |
+| --- | --- | --- |
+| `draft-at-first-commit` | 0/3 | 3/3 |
+| `ready-in-one-commit` | 0/3 | 3/3 |
+| `ready-at-finish` | 0/3 | 3/3 |
+| `no-pr-on-default-branch` | 3/3 | 3/3 |
+| `no-update-without-commits` | 3/3 | 3/3 |
+
+Before, no run pushed or opened a PR, and none asked either: in these
+unattended runs the question did not show up, so the "never ask" half is
+held, not shown to have changed. Three things on the way there were found
+by these runs:
+
+- **`git log @{upstream}..HEAD` stopped every `ready-at-finish` run.** Claude
+  Code reads the braces as brace expansion and asks for approval even where
+  `git log` is allowed. Both skills now push with `git push -u origin HEAD`
+  and no check.
+- **"Once the first commit lands" was read as "once the request is
+  committed"**: two of three runs committed both requests, then opened one
+  ready PR. `root/CLAUDE.md` now says right after the first commit, before
+  going on.
+- **`create-pr` was started on a branch that already had a PR** (two of three
+  runs), relying on the caller to have checked. It now checks with
+  `gh pr view` and hands over to `update-pr`.
+
+The judge once failed a run with a reason saying the text passed: the schema
+put `pass` before `reason`, so the verdict was written first. It is now the
+other way round (`bin/skill-eval-assert.sh`).
+
 Not measured yet: a fixture with no GitHub `origin`, a PR whose push or
 `gh` call is refused, and the same cases without `root/CLAUDE.md` (whether the
 skills' descriptions alone start them).
