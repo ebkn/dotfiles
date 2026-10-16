@@ -41,8 +41,8 @@
 #
 # A case overrides both in prompt.md's frontmatter (max_turns / budget_usd),
 # because a long scenario is a property of the case, not of the machine running
-# it. The same frontmatter adds tools (allowed_tools) and brings in a CLAUDE.md
-# (claude_md); see bin/skill-eval.md.
+# it. The same frontmatter adds tools (allowed_tools), brings in a CLAUDE.md
+# (claude_md) and carries in other skills (skills); see bin/skill-eval.md.
 
 set -eo pipefail
 
@@ -228,6 +228,24 @@ case_settings() {
     printf 'case %s: claude_md not found: %s\n' "$1" "$case_claude_md" >&2
     return 1
   fi
+
+  # Skills a scenario needs beside the one under evaluation: create-pr's cases
+  # follow a unit from its first commit to its finished PR, which takes
+  # update-pr and commit too. Refused when missing, like claude_md: a run
+  # without the skill would measure the model improvising its job.
+  local extra_line name
+  case_skills=()
+  extra_line="$(frontmatter_value "$meta" skills)"
+  if [ -n "$extra_line" ]; then
+    while IFS= read -r name; do
+      [ -n "$name" ] || continue
+      if [ ! -f "$skills_dir/$name/SKILL.md" ]; then
+        printf 'case %s: skill not found: %s\n' "$1" "$name" >&2
+        return 1
+      fi
+      case_skills+=("$name")
+    done <<<"${extra_line//, /$'\n'}"
+  fi
 }
 
 # Every case is checked before the first one runs. Checked one at a time inside
@@ -286,6 +304,14 @@ for case_name in "${cases[@]}"; do
   fi
 
   case_settings "$case_name"
+  # A skill carried in runs under its own allowed-tools, as the one under
+  # evaluation does.
+  for name in ${case_skills[@]+"${case_skills[@]}"}; do
+    allowed_lines="$(allowed_tools_of "$skills_dir/$name/SKILL.md")"
+    while IFS= read -r tool; do
+      [ -n "$tool" ] && case_allowed_tools+=("$tool")
+    done <<<"$allowed_lines"
+  done
 
   case_passed=0
   case_cost_file="$(mktemp "$tmp_root/skill-eval.XXXXXX")"
@@ -302,8 +328,10 @@ for case_name in "${cases[@]}"; do
     # Carry in the skill but not its evals/: with evals/ present the model can
     # read the grader while answering the prompt.
     mkdir -p "$work/.claude/skills"
-    cp -R "$skill_dir" "$work/.claude/skills/$skill"
-    rm -rf "$work/.claude/skills/$skill/evals"
+    for name in "$skill" ${case_skills[@]+"${case_skills[@]}"}; do
+      cp -R "$skills_dir/$name" "$work/.claude/skills/$name"
+      rm -rf "$work/.claude/skills/$name/evals"
+    done
 
     # A broken scaffold is the harness failing, not the skill, so it stops the
     # run rather than being graded -- but by name. The trap removes the

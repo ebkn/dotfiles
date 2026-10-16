@@ -186,6 +186,7 @@ else
   echo missing >"$STUB_CLAUDE_OUT/skill"
 fi
 find .claude -name evals >"$STUB_CLAUDE_OUT/evals_anywhere" 2>/dev/null || true
+ls .claude/skills >"$STUB_CLAUDE_OUT/skills" 2>/dev/null || true
 cp bin/repo_root "$STUB_CLAUDE_OUT/repo_root" 2>/dev/null || echo none >"$STUB_CLAUDE_OUT/repo_root"
 if [ -f CLAUDE.md ]; then
   head -n 1 CLAUDE.md >"$STUB_CLAUDE_OUT/claude_md"
@@ -742,6 +743,52 @@ cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-g/
 check_fails "a claude_md that does not exist says why, before spending anything" \
   "case case-g: claude_md not found: no/such/CLAUDE.md" $RUN "$skill" case-g
 
+# --- skills: a scenario that needs another skill carries it in ---
+# create-pr's cases follow a unit to its finished PR, which takes update-pr and
+# commit as well. The skill carried in must arrive the way the one under
+# evaluation does: without its evals/, and under its own allowed-tools.
+mkdir -p "$skills_dir/helper-skill/evals/its-case" "$skills_dir/$skill/evals/case-h" "$skills_dir/$skill/evals/case-i"
+cat >"$skills_dir/helper-skill/SKILL.md" <<'EOF'
+---
+name: helper-skill
+description: test
+allowed-tools: Bash(gh pr view *)
+---
+
+body
+EOF
+cat >"$skills_dir/$skill/evals/case-h/prompt.md" <<'EOF'
+---
+name: case-h
+skills: helper-skill
+---
+do it
+EOF
+cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-h/scaffold.sh"
+cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-h/assert.sh"
+rm -rf "$STUB_CLAUDE_OUT"
+$RUN "$skill" case-h >/dev/null
+t "a skill named in skills is carried in beside the one under evaluation" "helper-skill $skill" \
+  "$(tr '\n' ' ' <"$STUB_CLAUDE_OUT/skills" | sed 's/ $//')"
+t "without its evals/" "" "$(cat "$STUB_CLAUDE_OUT/evals_anywhere")"
+contains "its allowed-tools are passed" "Bash(gh pr view *)" "$(cat "$STUB_CLAUDE_OUT/args")"
+contains "beside the evaluated skill's own" "Bash(git status *)" "$(cat "$STUB_CLAUDE_OUT/args")"
+absent "the skills line stays out of the prompt" "skills:" "$(cat "$STUB_CLAUDE_OUT/args")"
+rm -rf "$STUB_CLAUDE_OUT"
+$RUN "$skill" case-a >/dev/null
+t "a case without skills carries in only the one under evaluation" "$skill" \
+  "$(cat "$STUB_CLAUDE_OUT/skills")"
+
+cat >"$skills_dir/$skill/evals/case-i/prompt.md" <<'EOF'
+---
+name: case-i
+skills: no-such-skill
+---
+do it
+EOF
+cp "$skills_dir/$skill/evals/case-a/scaffold.sh" "$skills_dir/$skill/evals/case-i/scaffold.sh"
+cp "$skills_dir/$skill/evals/case-a/assert.sh" "$skills_dir/$skill/evals/case-i/assert.sh"
+
 # "Before spending anything" means before any case runs, not before this one:
 # run as a whole skill, a bad case further down the list would otherwise be
 # reached only after the ones before it were paid for. One check per key, since
@@ -750,7 +797,8 @@ check_fails "a claude_md that does not exist says why, before spending anything"
 # which is how two of these three once passed while pinning nothing.
 for row in "$bad case-d max_turns takes an integer" \
   "$bad case-e budget_usd takes a number" \
-  "$skill case-g claude_md not found"; do
+  "$skill case-g claude_md not found" \
+  "$skill case-i skill not found"; do
   read -r owner bad_case reason <<<"$row"
   rm -rf "$STUB_CLAUDE_OUT"
   check_fails "a bad $bad_case is refused for the right reason" \

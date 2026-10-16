@@ -58,7 +58,7 @@ Three files in `root/.agents/skills/<skill>/evals/<case>/`:
 
 | File | Role |
 | --- | --- |
-| `prompt.md` | the prompt for `claude -p`. Leading YAML frontmatter is stripped before it is passed, and carries the case's own `allowed_tools` / `max_turns` / `budget_usd` / `claude_md` (see [What the eval can and cannot see](#what-the-eval-can-and-cannot-see)) |
+| `prompt.md` | the prompt for `claude -p`. Leading YAML frontmatter is stripped before it is passed, and carries the case's own `allowed_tools` / `max_turns` / `budget_usd` / `claude_md` / `skills` (see [What the eval can and cannot see](#what-the-eval-can-and-cannot-see)) |
 | `scaffold.sh` | builds the fixture; cwd is an empty temp dir. Source `$SKILL_EVAL_LIB_DIR/skill-eval-scaffold.sh` and call `skill_eval_init_repo`, which tags the starting state `eval-base`. A non-zero exit stops the whole run as `case <name>: scaffold.sh exited N` — a broken harness is not graded as a failing skill. With `--keep` the half-built working directory is kept and named |
 | `assert.sh` | grades; cwd is the working directory after the run. Source `$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh`, emit one `check` per assertion, end with `skill_eval_finish`. Any `FAIL` line in its output fails the run even if the script exits 0, so a grader that forgets `skill_eval_finish` cannot report `[PASS]` |
 
@@ -171,6 +171,13 @@ allowed_tools: Skill, Write, Edit, Bash(./run-tests.sh*)
 They are added to the skill's `allowed-tools`, never substituted for them. **Do
 not widen the skill's own frontmatter to make a case pass** — that changes the
 thing being measured.
+
+A scenario that needs **another skill** names it the same way, comma-separated
+(`skills: update-pr, commit`). `create-pr`'s cases follow a unit from its first
+commit to a finished PR, which is three skills' work. Each one is carried in
+the way the skill under evaluation is — without its `evals/`, under its own
+`allowed-tools` — and a name with no `SKILL.md` is refused before any case
+runs, since a run without the skill would grade the model improvising it.
 
 ### A case that needs more room than the defaults
 
