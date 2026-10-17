@@ -14,8 +14,11 @@ How they are read: [bin/zinit-pins.md](zinit-pins.md).
 For each `<owner/repo> <sha>` that `bin/zinit-pins` lists:
 
 1. **Candidates** are release tags, newest first — published GitHub Releases,
-   drafts and pre-releases left out. A repository without releases offers its
-   tags, highest version first (`0.10.0` above `0.9.0`).
+   drafts and pre-releases left out. Only a repository with no releases at all
+   offers its tags instead, highest version first (`0.10.0` above `0.9.0`): one
+   that publishes releases has said which tags are versions, so when none is
+   published (all drafts or pre-releases) it holds rather than take a bare
+   tag, which may well be the pre-release's.
 2. **The gate**: a candidate passes when its commit is contained in the
    default branch's tip as of the cutoff. That tip is the `after` of the
    newest push GitHub's activity log records at or before the cutoff. The
@@ -32,7 +35,8 @@ Each line is one of:
 | `up to date (<tag>)` | the pin is the eligible commit |
 | `stays: <tag> (<sha>) is behind the pin …` | eligible, but moving there would go back |
 | `stays: no release tag was on <branch> N days ago` | every candidate fails the gate |
-| `stays: no tags` | nothing to choose from |
+| `stays: no published release` | releases exist, but only drafts or pre-releases |
+| `stays: no tags` | no releases and no tags: nothing to choose from |
 | `stays: no push to <branch> older than N days on record` | the gate cannot be computed |
 | `error: …` | a call failed or the rewrite was unsafe; that repo is untouched |
 
@@ -75,6 +79,10 @@ Every way of not knowing ends in `stays` or `error`, never in a move:
 - the old SHA appears on more than one line of `plugin.zsh` (a comment that
   quotes it, say): the rewrite is a plain substitution and would change both.
 
+The rewrite keeps the file byte for byte apart from the SHA — trailing blank
+lines included, which `$(<file)` would have dropped — and replaces it with
+`mv`, so a write that fails leaves the old file whole.
+
 Moving a pin **back** is never done here, either. Going back is sometimes
 right — a pin taken without the gate — but it is a decision for a person,
 made by editing `plugin.zsh`.
@@ -88,7 +96,10 @@ made by editing `plugin.zsh`.
 
 `bin/zinit-cooldown.test.zsh` serves every `gh api` call from files a case
 writes, through a `gh` first on `PATH`; an endpoint a case did not serve fails
-like a 404, so a forgotten one cannot pass as "nothing there". Timestamps are
+like a 404, so a forgotten one cannot pass as "nothing there". Each repo's
+verdict is checked on its own report line: a pattern over the whole report
+let one repo's `error` stand in for another's. Every error path is a case,
+each a failure that must not read as a hold or a move. Timestamps are
 written relative to the real clock, so the tool needs no way to be told the
 time. The tool is run as `zsh -f`: through its `env zsh` shebang it would read
 `~/.zshenv`, which rebuilds `PATH` with the real `gh` first — the suite's

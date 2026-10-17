@@ -41,18 +41,25 @@ status() { api "repos/$1/compare/$2...$3" | jq -er .status; }
 
 # candidates <repo> — release tags newest first; without releases, every tag
 # by version, highest first (0.10 after 0.9).
-# A failed call fails the repo: falling back to tags because releases could not
-# be read would change which commits count without anyone deciding it. An
-# empty list is not a failure (`jq -r`, not `-e`, which treats no output as one).
+# Tags stand in for releases only in a repository that has none at all: one
+# that publishes releases has said which tags are versions, and a draft or a
+# pre-release is not one -- so with none published, there is nothing to take.
+# A failed call fails the repo for the same reason: falling back to tags
+# because releases could not be read would change which commits count without
+# anyone deciding it. An empty list is not a failure (`jq -r`, not `-e`, which
+# treats no output as one).
+# Status: 0 with the candidates (possibly none), 1 releases unreadable,
+# 2 tags unreadable, 3 releases exist but none is published.
 candidates() {
-  local rel
-  rel=$(api "repos/$1/releases?per_page=20" | jq -r '.[] | select(.draft | not) | select(.prerelease | not) | .tag_name') || return 1
+  local json rel names
+  json=$(api "repos/$1/releases?per_page=20") || return 1
+  rel=$(jq -r '.[] | select(.draft | not) | select(.prerelease | not) | .tag_name' <<<$json) || return 1
   if [[ -n $rel ]]; then
     print -r -- $rel
-    return
+    return 0
   fi
-  local names
-  names=$(api "repos/$1/tags?per_page=100" | jq -r '.[].name') || return 1
+  [[ $(jq -r length <<<$json) == 0 ]] || return 3
+  names=$(api "repos/$1/tags?per_page=100" | jq -r '.[].name') || return 2
   print -rl -- ${(On)${(f)names}}
 }
 
@@ -76,7 +83,12 @@ for line in ${(f)pins}; do
       continue
     fi
 
-    tagged=$(candidates $repo) || { report "error: cannot list the tags"; failed=1; continue; }
+    tagged=$(candidates $repo)
+    case $? in
+      1) report "error: cannot list the releases"; failed=1; continue ;;
+      2) report "error: cannot list the tags"; failed=1; continue ;;
+      3) report "stays: no published release"; continue ;;
+    esac
     if [[ -z $tagged ]]; then
       report "stays: no tags"
       continue
@@ -108,14 +120,22 @@ for line in ${(f)pins}; do
     fi
 
     # The rewrite is a plain substitution, so the SHA must name one line.
-    content=$(<$file)
+    # `read -d ''` keeps the file byte for byte, trailing newlines included,
+    # which $(<file) would strip; the new file replaces the old with mv, so a
+    # failure part-way leaves the old one whole.
+    IFS= read -rd '' content < $file
     count=${(M)#${(f)content}:#*$pin*}
     if (( count != 1 )); then
       report "error: $pin appears $count times in ${file:t}, not once"
       failed=1
       continue
     fi
-    print -r -- "${content/$pin/$esha}" > $file
+    if ! { print -rn -- "${content/$pin/$esha}" > $file.cooldown && command mv -f $file.cooldown $file; }; then
+      command rm -f $file.cooldown
+      report "error: cannot write ${file:t}"
+      failed=1
+      continue
+    fi
     report "moved ${pin[1,7]}..${esha[1,7]} ($eligible) https://github.com/$repo/compare/$pin...$esha"
   } always {
     unfunction report

@@ -9,7 +9,9 @@
 #
 # Most expectations are about what did NOT move: a pin the gate holds back is
 # the whole point, and "unchanged" is also what a tool that never ran leaves.
-# So every case checks the tool's report as well as the file.
+# So every case checks the tool's status and the repository's own report line
+# as well as the file. Lines are matched one at a time: a pattern over the
+# whole report would let one repo's verdict stand in for another's.
 #
 # Run: zsh bin/zinit-cooldown.test.zsh   (exit 0 = pass)
 
@@ -55,17 +57,20 @@ T=5555555555555555555555555555555555555555 # the branch tip a week ago
 ago() { TZ=UTC strftime '%Y-%m-%dT%H:%M:%SZ' $(( EPOCHSECONDS - $1 * 86400 )); }
 
 # fresh_case — a new fixture set and a plugin.zsh pinning zinit at Z and
-# a/one at P.
+# a/one at P. It ends in a blank line and carries a comment, so a rewrite that
+# touched more than the SHA shows in the whole-file comparison.
+typeset -i n=0
 fresh_case() {
   export GH_FIXTURES=$TMP/case$(( ++n ))
   mkdir -p $GH_FIXTURES
   PLUGIN=$GH_FIXTURES/plugin.zsh
   print -r -- "_zinit_repo=z/zinit
 _zinit_pin=$Z
-zinit ice ver\"$P\"
-zinit light a/one" > $PLUGIN
+# the one plugin
+zinit ice wait lucid ver\"$P\"
+zinit light a/one
+" > $PLUGIN
 }
-typeset -i n=0
 
 # serve <endpoint> <json>
 serve() { print -r -- "$2" > $GH_FIXTURES/${${1//[\/?&=]/_}}; }
@@ -100,18 +105,17 @@ zinit_still() {
   serve "repos/z/zinit/tags?per_page=100" '[]'
 }
 
-# run_tool [args...] — prints exit=<status>, the report, then the plugin.zsh pins.
-# zsh -f, because through its `env zsh` shebang the tool would read ~/.zshenv,
-# which rebuilds PATH and puts the real gh ahead of the stub: the first run of
-# this suite asked GitHub about repos/z/zinit.
-run_tool() {
-  local out
+# run [args...] — run the tool on the case's plugin.zsh; sets $st (status) and
+# $out (the report). zsh -f, because through its `env zsh` shebang the tool
+# would read ~/.zshenv, which rebuilds PATH and puts the real gh ahead of the
+# stub: the first run of this suite asked GitHub about repos/z/zinit.
+run() {
   out=$(PATH=$TMP/bin:$PATH zsh -f $TOOL "$@" $PLUGIN 2>&1)
-  print -r -- "exit=$?"
-  print -r -- "$out"
-  print -r -- "--- pins"
-  grep -o '[[:xdigit:]]\{40\}' $PLUGIN
+  st=$?
 }
+
+# said <owner/repo> — the report's line for that repository, without the name.
+said() { local l=${(M)${(f)out}:#$1: *}; print -r -- "${l#$1: }"; }
 
 pins_now() { grep -o '[[:xdigit:]]\{40\}' $PLUGIN | tr '\n' ' '; }
 
@@ -122,10 +126,12 @@ releases a/one v2
 tag_at a/one v2 $N
 compare a/one $N $T ahead   # in the branch as it was a week ago
 compare a/one $P $N ahead   # and past the pin
-got=$(run_tool)
+before=$(<$PLUGIN; print x)
+run
 check 'moves a pin to a release tag that was on the branch a week ago' \
-  "exit=0*a/one*moved*v2*https://github.com/a/one/compare/$P...$N*" "$got"
-check '  ... and rewrites that SHA in plugin.zsh' "$Z $N " "$(pins_now)"
+  "0 moved 1111111..2222222 \(v2\) https://github.com/a/one/compare/$P...$N" "$st $(said a/one)"
+check '  ... rewriting that SHA and nothing else in plugin.zsh' \
+  "${(b)${before//$P/$N}}" "$(<$PLUGIN; print x)"
 
 # The newest tag fails the gate (tagged after the cutoff, or moved onto a
 # commit main did not have), so the next one is taken.
@@ -136,9 +142,9 @@ compare a/one $M $T diverged
 tag_at a/one v2 $N
 compare a/one $N $T ahead
 compare a/one $P $N ahead
-got=$(run_tool)
+run
 check 'skips a tag whose commit was not on the branch a week ago' \
-  '*a/one*moved*v2*' "$got"
+  '0 moved *\(v2\)*' "$st $(said a/one)"
 check '  ... landing on the newest tag that passes' "$Z $N " "$(pins_now)"
 
 fresh_case; zinit_still; repo_basics a/one
@@ -146,8 +152,9 @@ releases a/one v2
 tag_at a/one v2 $N
 compare a/one $N $T identical # the tag IS the tip of a week ago
 compare a/one $P $N ahead
+run
 check 'a tag at exactly the branch tip of a week ago passes' \
-  "$Z $N " "$(run_tool >/dev/null; pins_now)"
+  '0 moved *\(v2\)*' "$st $(said a/one)"
 
 # Without releases, tags are taken newest version first: 0.10 after 0.9.
 fresh_case; zinit_still; repo_basics a/one
@@ -156,8 +163,9 @@ serve "repos/a/one/tags?per_page=100" '[{"name":"0.9.0"},{"name":"0.10.0"},{"nam
 tag_at a/one 0.10.0 $N
 compare a/one $N $T ahead
 compare a/one $P $N ahead
-got=$(run_tool)
-check 'without releases, takes the highest version tag' '*a/one*moved*0.10.0*' "$got"
+run
+check 'without releases, takes the highest version tag' \
+  '0 moved *\(0.10.0\)*' "$st $(said a/one)"
 
 # Drafts and pre-releases are not releases.
 fresh_case; zinit_still; repo_basics a/one
@@ -168,8 +176,8 @@ serve "repos/a/one/releases?per_page=20" '[
 tag_at a/one v2 $N
 compare a/one $N $T ahead
 compare a/one $P $N ahead
-got=$(run_tool)
-check 'passes over drafts and pre-releases' '*a/one*moved*v2*' "$got"
+run
+check 'passes over drafts and pre-releases' '0 moved *\(v2\)*' "$st $(said a/one)"
 
 # zinit's own pin is a plain assignment, and moves the same way.
 fresh_case; repo_basics z/zinit; repo_basics a/one
@@ -180,8 +188,8 @@ compare z/zinit $Z $M ahead
 releases a/one v2
 tag_at a/one v2 $P # already there
 compare a/one $P $T ahead
-got=$(run_tool)
-check 'moves zinit'"'"'s own pin' '*z/zinit*moved*v9*' "$got"
+run
+check 'moves zinit'"'"'s own pin' '0 moved *\(v9\)*' "$st $(said z/zinit)"
 check '  ... rewriting _zinit_pin' "$M $P " "$(pins_now)"
 
 # --- Holding -------------------------------------------------------------
@@ -191,9 +199,9 @@ fresh_case; zinit_still; repo_basics a/one
 releases a/one v2
 tag_at a/one v2 $P
 compare a/one $P $T ahead
-got=$(run_tool)
+run
 check 'a pin at the newest eligible tag is reported up to date' \
-  'exit=0*a/one*up to date*v2*' "$got"
+  '0 up to date \(v2\)' "$st $(said a/one)"
 check '  ... and left alone' "$Z $P " "$(pins_now)"
 
 # Forward only: a tag behind the pin is reported, never moved back to.
@@ -202,9 +210,9 @@ releases a/one v1
 tag_at a/one v1 $O
 compare a/one $O $T ahead
 compare a/one $P $O behind
-got=$(run_tool)
+run
 check 'never moves a pin back to an older tag, but names it' \
-  "exit=0*a/one*stays*v1*$O*behind*" "$got"
+  "0 stays: v1 \($O\) is behind the pin*" "$st $(said a/one)"
 check '  ... and leaves it' "$Z $P " "$(pins_now)"
 
 fresh_case; zinit_still; repo_basics a/one
@@ -212,22 +220,38 @@ releases a/one v2
 tag_at a/one v2 $N
 compare a/one $N $T ahead
 compare a/one $P $N diverged
+run
 check 'never moves to a tag that is not a descendant of the pin' \
-  "$Z $P " "$(run_tool >/dev/null; pins_now)"
+  "0 stays: v2 \($N\) is diverged*" "$st $(said a/one)"
+check '  ... and leaves it' "$Z $P " "$(pins_now)"
 
 fresh_case; zinit_still; repo_basics a/one
 releases a/one v2
 tag_at a/one v2 $N
 compare a/one $N $T diverged
-got=$(run_tool)
-check 'holds a repo when no tag passes the gate' "exit=0*a/one*stays*no release tag*7 days*" "$got"
+run
+check 'holds a repo when no tag passes the gate' \
+  '0 stays: no release tag was on main 7 days ago' "$st $(said a/one)"
 check '  ... and leaves it' "$Z $P " "$(pins_now)"
 
 fresh_case; zinit_still; repo_basics a/one
 serve "repos/a/one/releases?per_page=20" '[]'
 serve "repos/a/one/tags?per_page=100" '[]'
-got=$(run_tool)
-check 'holds a repo with no tags at all, saying so' "exit=0*a/one*stays*no tags*" "$got"
+run
+check 'holds a repo with no tags at all, saying so' '0 stays: no tags' "$st $(said a/one)"
+check '  ... and leaves it' "$Z $P " "$(pins_now)"
+
+# Releases exist but none is published: the repo publishes its versions as
+# releases, so its bare tags (here a pre-release's) are not taken instead.
+fresh_case; zinit_still; repo_basics a/one
+serve "repos/a/one/releases?per_page=20" '[{"tag_name":"v3-rc1","draft":false,"prerelease":true}]'
+serve "repos/a/one/tags?per_page=100" '[{"name":"v3-rc1"}]'
+tag_at a/one v3-rc1 $N
+compare a/one $N $T ahead
+compare a/one $P $N ahead
+run
+check 'holds a repo whose releases are all drafts or pre-releases' \
+  '0 stays: no published release' "$st $(said a/one)"
 check '  ... and leaves it' "$Z $P " "$(pins_now)"
 
 # Every push GitHub reports is newer than the cutoff: what the branch held a
@@ -237,9 +261,9 @@ serve repos/a/one '{"default_branch":"main"}'
 serve "repos/a/one/activity?ref=refs/heads/main&per_page=100" '[{"timestamp":"'$(ago 2)'","after":"'$N'"}]'
 releases a/one v2
 tag_at a/one v2 $N
-got=$(run_tool)
+run
 check 'holds a repo whose push history does not reach back a week' \
-  "exit=0*a/one*stays*no push*" "$got"
+  '0 stays: no push to main older than 7 days on record' "$st $(said a/one)"
 check '  ... and leaves it' "$Z $P " "$(pins_now)"
 
 # --days moves the cutoff: the 2-day-old push is the gate's tip at --days 1.
@@ -249,11 +273,12 @@ tag_at a/one v2 $N
 compare a/one $N 9999999999999999999999999999999999999999 ahead
 compare a/one $N $T diverged
 compare a/one $P $N ahead
-check '--days sets the cutoff' "*a/one*moved*v2*" "$(run_tool --days 1)"
+run --days 1
+check '--days sets the cutoff' '0 moved *\(v2\)*' "$st $(said a/one)"
 
 # --- Failing -------------------------------------------------------------
 
-# One repo's API failure stops that repo only, and the run reports failure.
+# One repo's failure stops that repo only, and the run reports failure.
 fresh_case; repo_basics a/one
 print -r -- "zinit ice ver\"$O\"
 zinit light b/two" >> $PLUGIN
@@ -261,10 +286,45 @@ releases a/one v2
 tag_at a/one v2 $N
 compare a/one $N $T ahead
 compare a/one $P $N ahead
-# z/zinit and b/two: nothing served, every call 404s.
-got=$(run_tool)
-check 'an API failure fails the run, naming the repo' "exit=1*z/zinit*error*" "$got"
-check '  ... and the other repos are still processed' "$Z $N $O " "$(pins_now)"
+releases b/two v1 # b/two: releases served, the repository itself is not
+# z/zinit: nothing served, every call 404s.
+run
+check 'an API failure fails the run' '1' "$st"
+check '  ... reporting it for zinit' 'error: cannot read the repository' "$(said z/zinit)"
+check '  ... and for b/two' 'error: cannot read the repository' "$(said b/two)"
+check '  ... while a/one is still decided' 'moved *\(v2\)*' "$(said a/one)"
+check '  ... and only a/one moves' "$Z $N $O " "$(pins_now)"
+
+# Not "no history": a log that cannot be read must not pass for an empty one.
+fresh_case; zinit_still
+serve repos/a/one '{"default_branch":"main"}'
+releases a/one v2
+run
+check 'a push history that cannot be read is an error, not a hold' \
+  '1 error: cannot read the push history' "$st $(said a/one)"
+
+fresh_case; zinit_still; repo_basics a/one
+releases a/one v2
+run
+check 'a tag that cannot be resolved is an error' \
+  '1 error: cannot resolve v2' "$st $(said a/one)"
+
+fresh_case; zinit_still; repo_basics a/one
+releases a/one v2
+tag_at a/one v2 $N
+run
+check 'a gate that cannot be checked is an error' \
+  '1 error: cannot compare v2*' "$st $(said a/one)"
+
+# The last comparison, against the pin: failing it must not read as "behind".
+fresh_case; zinit_still; repo_basics a/one
+releases a/one v2
+tag_at a/one v2 $N
+compare a/one $N $T ahead
+run
+check 'a pin that cannot be compared with the tag is an error' \
+  '1 error: cannot compare the pin with v2' "$st $(said a/one)"
+check '  ... and leaves it' "$Z $P " "$(pins_now)"
 
 # Releases that cannot be read are an error, not "no releases": falling back
 # to the tags would decide by a different rule without anyone choosing it.
@@ -273,16 +333,16 @@ serve "repos/a/one/tags?per_page=100" '[{"name":"v2"}]'
 tag_at a/one v2 $N
 compare a/one $N $T ahead
 compare a/one $P $N ahead
-got=$(run_tool)
+run
 check 'a release list that cannot be read fails the repo, not falls back to tags' \
-  "exit=1*a/one*error*tags*" "$got"
+  '1 error: cannot list the releases' "$st $(said a/one)"
 check '  ... and leaves it' "$Z $P " "$(pins_now)"
 
 fresh_case
 print -r -- 'zinit light b/unpinned' >> $PLUGIN
-got=$(run_tool)
+run
 check 'stops before any API call when the pins cannot be read' \
-  "exit=1*b/unpinned*" "$got"
+  "1 *b/unpinned*" "$st $out"
 check '  ... asking GitHub nothing' '' "$(cat $GH_FIXTURES/calls 2>/dev/null)"
 
 # The rewrite is a plain substitution of the SHA, so it must name one line.
@@ -292,9 +352,9 @@ releases a/one v2
 tag_at a/one v2 $N
 compare a/one $N $T ahead
 compare a/one $P $N ahead
-got=$(run_tool)
+run
 check 'refuses to rewrite a SHA that appears more than once' \
-  "exit=1*a/one*$P*2 times*" "$got"
+  "1 error: $P appears 2 times in plugin.zsh, not once" "$st $(said a/one)"
 check '  ... and leaves the file as it was' "$Z $P $P " "$(pins_now)"
 
 check 'refuses an unknown option' \
