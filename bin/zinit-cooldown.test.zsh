@@ -282,6 +282,23 @@ check 'holds a repo whose push history does not reach back a week' \
   '0 stays: no push to main older than 7 days on record' "$st $(said a/one)"
 check '  ... and leaves it' "$Z $P " "$(pins_now)"
 
+# The 7 days themselves: pushes a day either side of the cutoff, and only the
+# 8-day-old tip is served. A cutoff computed short of 7 days picks the 6-day
+# one, whose compare is not served, and the case fails on the 404.
+fresh_case; zinit_still
+X6=6666666666666666666666666666666666666666
+X8=8888888888888888888888888888888888888888
+serve repos/a/one '{"default_branch":"main"}'
+serve "repos/a/one/activity?ref=refs/heads/main&per_page=100" \
+  '[{"timestamp":"'$(ago 6)'","after":"'$X6'"},{"timestamp":"'$(ago 8)'","after":"'$X8'"}]'
+releases a/one v2
+tag_at a/one v2 $N
+compare a/one $N $X8 ahead
+compare a/one $P $N ahead
+run
+check 'the cutoff is 7 days: the gate tip is the push 8 days ago, not 6' \
+  '0 moved *\(v2\)*' "$st $(said a/one)"
+
 # --days moves the cutoff: the 2-day-old push is the gate's tip at --days 1.
 fresh_case; zinit_still; repo_basics a/one
 releases a/one v2
