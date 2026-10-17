@@ -133,8 +133,24 @@ check 'moves a pin to a release tag that was on the branch a week ago' \
 check '  ... rewriting that SHA and nothing else in plugin.zsh' \
   "${(b)${before//$P/$N}}" "$(<$PLUGIN; print x)"
 
-# The newest tag fails the gate (tagged after the cutoff, or moved onto a
-# commit main did not have), so the next one is taken.
+# The case the cooldown exists for: the newest release is on a commit that
+# reached main after the cutoff. Compared against the tip of a week ago, that
+# commit is ahead of it -- GitHub says the tip is "behind" the tag -- and it
+# must not pass.
+fresh_case; zinit_still; repo_basics a/one
+releases a/one v3 v2
+tag_at a/one v3 $M
+compare a/one $M $T behind
+tag_at a/one v2 $N
+compare a/one $N $T ahead
+compare a/one $P $N ahead
+run
+check 'skips a tag on a commit that reached main after the cutoff' \
+  '0 moved *\(v2\)*' "$st $(said a/one)"
+check '  ... landing on the older release that was there' "$Z $N " "$(pins_now)"
+
+# The newest tag fails the gate the other way -- moved onto a commit main
+# never had -- so the next one is taken.
 fresh_case; zinit_still; repo_basics a/one
 releases a/one v3 v2
 tag_at a/one v3 $M
