@@ -74,6 +74,8 @@ fi
 # what splitting the line on non-word characters and matching words gives.
 sh_targets=()
 zsh_targets=(.zshrc .zshenv)
+# A sourced zsh fragment has no shebang either.
+zsh_targets+=(bin/cooldown.zsh)
 while IFS= read -r f; do
   [ -f "$f" ] || continue
   # A file without a trailing newline still has its line read; read fails.

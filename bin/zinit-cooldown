@@ -12,6 +12,7 @@
 emulate -L zsh
 setopt extendedglob pipefail
 zmodload zsh/datetime
+source ${0:A:h}/cooldown.zsh
 
 usage() { print -u2 -- "usage: zinit-cooldown [--days N] [plugin.zsh]"; exit 2; }
 
@@ -30,14 +31,7 @@ file=${1:-${0:A:h}/../zsh/plugin.zsh}
 # without a word. See bin/zinit-pins.md.
 pins=$(${0:A:h}/zinit-pins $file) || exit 1
 
-# GitHub's timestamps are UTC ISO 8601, which order as strings.
-cutoff=$(TZ=UTC strftime '%Y-%m-%dT%H:%M:%SZ' $(( EPOCHSECONDS - days * 86400 )))
-
-api() { command gh api "$@"; }
-
-# status <repo> <base> <head> — GitHub's compare status of head against base:
-# ahead, behind, identical or diverged.
-status() { api "repos/$1/compare/$2...$3" | jq -er .status; }
+cooldown_cutoff $days
 
 # candidates <repo> — release tags newest first; without releases, every tag
 # by version, highest first (0.10 after 0.9).
@@ -70,14 +64,8 @@ for line in ${(f)pins}; do
   {
     branch=$(api "repos/$repo" | jq -er .default_branch) || { report "error: cannot read the repository"; failed=1; continue; }
 
-    # The branch's tip at the cutoff: the newest recorded push at or before it.
-    # A commit is old enough when that tip contains it.
-    # One call, kept: asking again to tell "unreadable" from "empty" could get
-    # a different answer the second time.
-    activity=$(api "repos/$repo/activity?ref=refs/heads/$branch&per_page=100") ||
-      { report "error: cannot read the push history"; failed=1; continue; }
-    tip=$(jq -r --arg c "$cutoff" '[.[] | select(.timestamp <= $c)][0].after // empty' <<<$activity) ||
-      { report "error: cannot read the push history"; failed=1; continue; }
+    # A commit is old enough when the branch's tip at the cutoff contains it.
+    tip=$(tip_at $repo $branch) || { report "error: cannot read the push history"; failed=1; continue; }
     if [[ -z $tip ]]; then
       report "stays: no push to $branch older than $days days on record"
       continue
@@ -119,25 +107,11 @@ for line in ${(f)pins}; do
       continue
     fi
 
-    # The rewrite is a plain substitution, so the SHA must appear exactly once.
-    # `read -d ''` keeps the file byte for byte, trailing newlines included,
-    # which $(<file) would strip; the new file replaces the old with mv, so a
-    # failure part-way leaves the old one whole.
-    IFS= read -rd '' content < $file
-    # Occurrences, not lines: a comment quoting the SHA on the pin's own line
-    # would leave the old one behind.
-    count=$(( ${#${(ps:$pin:)${:-x${content}x}}} - 1 ))
-    if (( count != 1 )); then
-      report "error: $pin appears $count times in ${file:t}, not once"
-      failed=1
-      continue
-    fi
-    if ! { print -rn -- "${content/$pin/$esha}" > $file.cooldown && command mv -f $file.cooldown $file; }; then
-      command rm -f $file.cooldown
-      report "error: cannot write ${file:t}"
-      failed=1
-      continue
-    fi
+    rewrite_once $file $pin $esha
+    case $? in
+      1) report "error: $pin appears $count times in ${file:t}, not once"; failed=1; continue ;;
+      2) report "error: cannot write ${file:t}"; failed=1; continue ;;
+    esac
     report "moved ${pin[1,7]}..${esha[1,7]} ($eligible) https://github.com/$repo/compare/$pin...$esha"
   } always {
     unfunction report
