@@ -137,6 +137,7 @@ Behaviour verified against zinit `f466c88` and `db9e267` (v3.17.0), 2026-10:
 | `zinit update`, pin unchanged | stays |
 | `zinit update` after moving the pin forward | moves to the new pin |
 | `zinit update` from a shell that has not loaded the plugin | stays: the ice is stored in `._zinit/ver` |
+| **move the pin back** (to an ancestor), then `zinit update` | **stays on the newer commit** — the update is `git pull --ff-only origin <sha>`, and pulling an ancestor is "Already up to date"; check the pin out by hand in `~/.zinit/plugins/<owner>---<repo>` (zinit itself goes back on its own, at the next shell start) |
 | **remove `ver`**, then `zinit update` | **still stays** — the stored ice outlives the line; `zinit delete` and reinstall to unpin |
 | **`ver"<SHA>"` with `depth"1"`** | **unpinned, silently** — see below |
 

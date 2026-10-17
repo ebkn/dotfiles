@@ -7,7 +7,7 @@
 # a pinned ice: the shallow clone cannot check out the pin, and every shell
 # after the first loads the newest commit without a word. See zsh/README.md.
 _zinit_repo=zdharma-continuum/zinit
-_zinit_pin=f466c8805d8890f76bed8cf0972e0f7310fc5fc9
+_zinit_pin=db9e267184c85a26056c2646222f48df609cecd5
 _zinit_bin=$HOME/.zinit/bin
 
 ### Added by Zinit's installer
@@ -64,7 +64,7 @@ zinit ice wait lucid ver"4672ad5dd9ad68a7effc1476d65afb7c584ce2b3"
 zinit light zdharma-continuum/fast-syntax-highlighting
 
 # completion
-zinit ice wait lucid ver"989b23277ab33e8d5e82df6aed936e846db9d8b8"
+zinit ice wait lucid ver"28c5bdcaf81bb89e56d0df8267d822c3b8aed9e0"
 zinit light zsh-users/zsh-completions
 
 # notify after completion
