@@ -357,6 +357,19 @@ check '  ... and for b/two' 'error: cannot read the repository' "$(said b/two)"
 check '  ... while a/one is still decided' 'moved *\(v2\)*' "$(said a/one)"
 check '  ... and only a/one moves' "$Z $N $O " "$(pins_now)"
 
+# The same promise from inside the tag loop, which leaves two loops at once:
+# zinit, first, fails resolving its tag, and a/one after it is still decided.
+fresh_case; repo_basics z/zinit; repo_basics a/one
+releases z/zinit v9 # commits/v9 not served
+releases a/one v2
+tag_at a/one v2 $N
+compare a/one $N $T ahead
+compare a/one $P $N ahead
+run
+check 'a failure inside the tag loop fails the run' '1' "$st"
+check '  ... reporting it for zinit' 'error: cannot resolve v9' "$(said z/zinit)"
+check '  ... while a/one after it is still decided' 'moved *\(v2\)*' "$(said a/one)"
+
 # Not "no history": a log that cannot be read must not pass for an empty one.
 fresh_case; zinit_still
 serve repos/a/one '{"default_branch":"main"}'
