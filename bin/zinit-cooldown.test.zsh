@@ -192,6 +192,22 @@ run
 check 'moves zinit'"'"'s own pin' '0 moved *\(v9\)*' "$st $(said z/zinit)"
 check '  ... rewriting _zinit_pin' "$M $P " "$(pins_now)"
 
+# Two pins move in one run: the second rewrite must start from the file the
+# first one left, or the first move is lost.
+fresh_case; repo_basics z/zinit; repo_basics a/one
+releases z/zinit v9
+tag_at z/zinit v9 $M
+compare z/zinit $M $T ahead
+compare z/zinit $Z $M ahead
+releases a/one v2
+tag_at a/one v2 $N
+compare a/one $N $T ahead
+compare a/one $P $N ahead
+run
+check 'moves two pins in one run' '0' "$st"
+check '  ... and both moves are in the file' "$M $N " "$(pins_now)"
+check '  ... leaving no temporary file behind' '' "$(print -l -- $GH_FIXTURES/*.cooldown(N))"
+
 # --- Holding -------------------------------------------------------------
 
 # The pin itself must pass the gate to count as up to date.
@@ -337,6 +353,34 @@ run
 check 'a release list that cannot be read fails the repo, not falls back to tags' \
   '1 error: cannot list the releases' "$st $(said a/one)"
 check '  ... and leaves it' "$Z $P " "$(pins_now)"
+
+# No releases, and the tag list cannot be read: an error, not "no tags".
+fresh_case; zinit_still; repo_basics a/one
+serve "repos/a/one/releases?per_page=20" '[]'
+run
+check 'a tag list that cannot be read is an error, not a hold' \
+  '1 error: cannot list the tags' "$st $(said a/one)"
+check '  ... and leaves it' "$Z $P " "$(pins_now)"
+
+# A write that fails leaves the old file whole. plugin.zsh goes in a directory
+# of its own, made read-only, so the temporary file cannot be created there
+# either; the stub keeps writing its log beside the fixtures.
+fresh_case; zinit_still; repo_basics a/one
+releases a/one v2
+tag_at a/one v2 $N
+compare a/one $N $T ahead
+compare a/one $P $N ahead
+mkdir $GH_FIXTURES/ro
+mv $PLUGIN $GH_FIXTURES/ro/plugin.zsh
+PLUGIN=$GH_FIXTURES/ro/plugin.zsh
+before=$(cat $PLUGIN; print x)
+chmod 555 $GH_FIXTURES/ro
+run
+chmod 755 $GH_FIXTURES/ro
+check 'a plugin.zsh that cannot be written is an error' \
+  '1 error: cannot write plugin.zsh' "$st $(said a/one)"
+check '  ... leaving the file as it was' "${(b)before}" "$(cat $PLUGIN; print x)"
+check '  ... and no temporary file' '' "$(print -l -- $GH_FIXTURES/ro/*.cooldown(N))"
 
 fresh_case
 print -r -- 'zinit light b/unpinned' >> $PLUGIN
