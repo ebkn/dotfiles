@@ -1,0 +1,125 @@
+#!/usr/bin/env zsh
+# zinit-cooldown [--days N] [plugin.zsh] — move each commit pin in
+# zsh/plugin.zsh forward to the newest release tag whose commit was already on
+# the repository's default branch N days ago (default 7), as GitHub's push
+# record has it. Prints one line per repository; rewrites only the pins that
+# move. See bin/zinit-cooldown.md.
+#
+# Exit: 0 when every repository was decided (moved, up to date, or held), 1
+# when any could not be (API failure, a SHA that is not on exactly one line,
+# pins that cannot be read), 2 on a usage error.
+
+emulate -L zsh
+setopt extendedglob pipefail
+zmodload zsh/datetime
+
+usage() { print -u2 -- "usage: zinit-cooldown [--days N] [plugin.zsh]"; exit 2; }
+
+days=7
+while (( $# )); do
+  case $1 in
+    --days) [[ ${2-} == <-> ]] || usage; days=$2; shift 2 ;;
+    -*) usage ;;
+    *) break ;;
+  esac
+done
+(( $# <= 1 )) || usage
+file=${1:-${0:A:h}/../zsh/plugin.zsh}
+
+# The pins, or nothing: a pin the reader could not see would be left behind
+# without a word. See bin/zinit-pins.md.
+pins=$(${0:A:h}/zinit-pins $file) || exit 1
+
+# GitHub's timestamps are UTC ISO 8601, which order as strings.
+cutoff=$(TZ=UTC strftime '%Y-%m-%dT%H:%M:%SZ' $(( EPOCHSECONDS - days * 86400 )))
+
+api() { command gh api "$@"; }
+
+# status <repo> <base> <head> — GitHub's compare status of head against base:
+# ahead, behind, identical or diverged.
+status() { api "repos/$1/compare/$2...$3" | jq -er .status; }
+
+# candidates <repo> — release tags newest first; without releases, every tag
+# by version, highest first (0.10 after 0.9).
+# A failed call fails the repo: falling back to tags because releases could not
+# be read would change which commits count without anyone deciding it. An
+# empty list is not a failure (`jq -r`, not `-e`, which treats no output as one).
+candidates() {
+  local rel
+  rel=$(api "repos/$1/releases?per_page=20" | jq -r '.[] | select(.draft | not) | select(.prerelease | not) | .tag_name') || return 1
+  if [[ -n $rel ]]; then
+    print -r -- $rel
+    return
+  fi
+  local names
+  names=$(api "repos/$1/tags?per_page=100" | jq -r '.[].name') || return 1
+  print -rl -- ${(On)${(f)names}}
+}
+
+typeset -i failed=0
+for line in ${(f)pins}; do
+  repo=${line% *} pin=${line#* }
+  report() { print -r -- "$repo: $*"; }
+  {
+    branch=$(api "repos/$repo" | jq -er .default_branch) || { report "error: cannot read the repository"; failed=1; continue; }
+
+    # The branch's tip at the cutoff: the newest recorded push at or before it.
+    # A commit is old enough when that tip contains it.
+    tip=$(api "repos/$repo/activity?ref=refs/heads/$branch&per_page=100" |
+      jq -er --arg c "$cutoff" '[.[] | select(.timestamp <= $c)][0].after // empty') || tip=''
+    if [[ -z $tip ]]; then
+      if ! api "repos/$repo/activity?ref=refs/heads/$branch&per_page=100" >/dev/null 2>&1; then
+        report "error: cannot read the push history"; failed=1
+      else
+        report "stays: no push to $branch older than $days days on record"
+      fi
+      continue
+    fi
+
+    tagged=$(candidates $repo) || { report "error: cannot list the tags"; failed=1; continue; }
+    if [[ -z $tagged ]]; then
+      report "stays: no tags"
+      continue
+    fi
+
+    eligible='' esha=''
+    for tag in ${(f)tagged}; do
+      sha=$(api "repos/$repo/commits/$tag" | jq -er .sha) || { report "error: cannot resolve $tag"; failed=1; continue 2; }
+      st=$(status $repo $sha $tip) || { report "error: cannot compare $tag"; failed=1; continue 2; }
+      if [[ $st == (ahead|identical) ]]; then
+        eligible=$tag esha=$sha
+        break
+      fi
+    done
+    if [[ -z $eligible ]]; then
+      report "stays: no release tag was on $branch $days days ago"
+      continue
+    fi
+
+    if [[ $esha == $pin ]]; then
+      report "up to date ($eligible)"
+      continue
+    fi
+    st=$(status $repo $pin $esha) || { report "error: cannot compare the pin with $eligible"; failed=1; continue; }
+    if [[ $st != ahead ]]; then
+      # Forward only: moving back is a decision for a person, not this tool.
+      report "stays: $eligible ($esha) is $st the pin, which only moves forward"
+      continue
+    fi
+
+    # The rewrite is a plain substitution, so the SHA must name one line.
+    content=$(<$file)
+    count=${(M)#${(f)content}:#*$pin*}
+    if (( count != 1 )); then
+      report "error: $pin appears $count times in ${file:t}, not once"
+      failed=1
+      continue
+    fi
+    print -r -- "${content/$pin/$esha}" > $file
+    report "moved ${pin[1,7]}..${esha[1,7]} ($eligible) https://github.com/$repo/compare/$pin...$esha"
+  } always {
+    unfunction report
+  }
+done
+
+exit $failed
