@@ -336,6 +336,15 @@ run
 check 'a push history that cannot be read is an error, not a hold' \
   '1 error: cannot read the push history' "$st $(said a/one)"
 
+# Fetched, but not a log: the same error, not an empty history.
+fresh_case; zinit_still
+serve repos/a/one '{"default_branch":"main"}'
+serve "repos/a/one/activity?ref=refs/heads/main&per_page=100" 'not json'
+releases a/one v2
+run
+check 'a push history that cannot be parsed is an error, not a hold' \
+  '1 error: cannot read the push history' "$st $(said a/one)"
+
 fresh_case; zinit_still; repo_basics a/one
 releases a/one v2
 run
