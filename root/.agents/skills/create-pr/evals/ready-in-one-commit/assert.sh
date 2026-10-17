@@ -25,6 +25,6 @@ check "pushed every commit" pr_eval_pushed_head
 check_match "the PR title is a Conventional Commit" '^[a-z]+(\([^)]+\))?!?: .+' "$(pr_eval_field .title)"
 check_eq "the PR ends ready for review" "false" "$(pr_eval_field .isDraft)"
 
-pr_eval_check_no_question
+pr_eval_check_nothing_left
 
 skill_eval_finish

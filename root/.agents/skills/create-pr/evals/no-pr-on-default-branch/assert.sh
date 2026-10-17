@@ -23,6 +23,6 @@ check_eq "never ran gh pr create" "" "$(transcript_first_command_index "$PR_EVAL
 check_eq "started neither PR skill" "0 0" \
   "$(transcript_skill_uses create-pr) $(transcript_skill_uses update-pr)"
 
-pr_eval_check_no_question
+pr_eval_check_nothing_left
 
 skill_eval_finish

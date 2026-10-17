@@ -22,7 +22,7 @@ PR_EVAL_GH_VIEW='(^|[[:space:]])gh[[:space:]]+pr[[:space:]]+view([[:space:]]|$)'
 PR_EVAL_GH_CREATE='(^|[;&|(]|[[:space:]])gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$)'
 
 # The questions this work set out to remove, in the forms runs used. A judge
-# reads the closing message as well (pr_eval_check_no_question), over more
+# reads the closing message as well (pr_eval_check_nothing_left), over more
 # ground than this regex: any phrasing, and a publishing step left to the user
 # without a question ("必要なら ready にしてください"). The regex stays as the
 # deterministic half, since a judge alone is not.
@@ -127,12 +127,12 @@ pr_eval_asks_nothing() {
   return 0
 }
 
-# pr_eval_check_no_question
+# pr_eval_check_nothing_left
 # Three checks that nothing about publishing was put to the user: no
 # AskUserQuestion call, no question in the closing message a regex knows, and
 # the judge's reading of it -- which also fails a step left to the user with
 # no question at all (PR_EVAL_NOTHING_LEFT_RUBRIC).
-pr_eval_check_no_question() {
+pr_eval_check_nothing_left() {
   check_eq "asked nothing through AskUserQuestion" 0 "$(transcript_tool_uses AskUserQuestion)"
   check "the closing message asks nothing about pushing or a PR (known phrasings)" \
     pr_eval_asks_nothing "$(transcript_result_text)"

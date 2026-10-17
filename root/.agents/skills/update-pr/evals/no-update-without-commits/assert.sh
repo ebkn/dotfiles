@@ -22,6 +22,6 @@ check_eq "left the PR as it was" "0 0 true" \
 check_eq "pushed nothing" "docs/contributing $(git rev-parse run-start)
 main $(git rev-parse eval-base)" "$(fake_github_remote_refs)"
 
-pr_eval_check_no_question
+pr_eval_check_nothing_left
 
 skill_eval_finish

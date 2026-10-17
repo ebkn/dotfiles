@@ -29,6 +29,6 @@ check_eq "left the branch's commits as they were" "$(git rev-parse run-start)" "
 # from a new branch would pass them; the scaffold's branch is the one to publish.
 check_eq "stayed on the branch it was given" "docs/contributing" "$(git rev-parse --abbrev-ref HEAD)"
 
-pr_eval_check_no_question
+pr_eval_check_nothing_left
 
 skill_eval_finish

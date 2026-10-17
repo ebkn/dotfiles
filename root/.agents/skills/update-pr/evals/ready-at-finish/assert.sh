@@ -28,6 +28,6 @@ check "rewrote the PR" test "$(pr_eval_field .edits)" -ge 1
 check_match "the PR body covers the new section" 'run-tests' "$(pr_eval_field .body)"
 check_eq "marked it ready, since the request finished the work" "false" "$(pr_eval_field .isDraft)"
 
-pr_eval_check_no_question
+pr_eval_check_nothing_left
 
 skill_eval_finish

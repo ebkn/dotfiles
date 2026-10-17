@@ -44,6 +44,6 @@ check_match "the PR body covers the second request too" 'CONTRIBUTING' "$(pr_eva
 check_match "the PR title is a Conventional Commit" '^[a-z]+(\([^)]+\))?!?: .+' "$(pr_eval_field .title)"
 check_eq "marked it ready once the work was done" "false" "$(pr_eval_field .isDraft)"
 
-pr_eval_check_no_question
+pr_eval_check_nothing_left
 
 skill_eval_finish
