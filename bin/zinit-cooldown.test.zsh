@@ -147,6 +147,19 @@ check 'skips a tag whose commit was not on the branch a week ago' \
   '0 moved *\(v2\)*' "$st $(said a/one)"
 check '  ... landing on the newest tag that passes' "$Z $N " "$(pins_now)"
 
+# Two releases both pass: the newer is taken. The older one's comparison
+# with the pin is not served, so reaching for it fails on the 404.
+fresh_case; zinit_still; repo_basics a/one
+releases a/one v3 v2
+tag_at a/one v3 $M
+compare a/one $M $T ahead
+tag_at a/one v2 $N
+compare a/one $N $T ahead
+compare a/one $P $M ahead
+run
+check 'of releases that all pass, takes the newest' \
+  '0 moved *\(v3\)*' "$st $(said a/one)"
+
 fresh_case; zinit_still; repo_basics a/one
 releases a/one v2
 tag_at a/one v2 $N
