@@ -72,14 +72,14 @@ for line in ${(f)pins}; do
 
     # The branch's tip at the cutoff: the newest recorded push at or before it.
     # A commit is old enough when that tip contains it.
-    tip=$(api "repos/$repo/activity?ref=refs/heads/$branch&per_page=100" |
-      jq -er --arg c "$cutoff" '[.[] | select(.timestamp <= $c)][0].after // empty') || tip=''
+    # One call, kept: asking again to tell "unreadable" from "empty" could get
+    # a different answer the second time.
+    activity=$(api "repos/$repo/activity?ref=refs/heads/$branch&per_page=100") ||
+      { report "error: cannot read the push history"; failed=1; continue; }
+    tip=$(jq -r --arg c "$cutoff" '[.[] | select(.timestamp <= $c)][0].after // empty' <<<$activity) ||
+      { report "error: cannot read the push history"; failed=1; continue; }
     if [[ -z $tip ]]; then
-      if ! api "repos/$repo/activity?ref=refs/heads/$branch&per_page=100" >/dev/null 2>&1; then
-        report "error: cannot read the push history"; failed=1
-      else
-        report "stays: no push to $branch older than $days days on record"
-      fi
+      report "stays: no push to $branch older than $days days on record"
       continue
     fi
 
