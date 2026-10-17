@@ -12,7 +12,7 @@ jobs:
     # install step's own limit below is what is meant to turn a hang red.
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: winget exit-code classification
         run: powershell -ExecutionPolicy Bypass -File bin\init\winget-result.test.ps1
       - name: Run install script

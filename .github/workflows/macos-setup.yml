@@ -7,7 +7,7 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # The bootstrap resolves everything under $HOME/dotfiles, so point that at
       # this checkout. Previously CI curled the script from the main branch and

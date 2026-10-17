@@ -1,0 +1,102 @@
+#!/usr/bin/env zsh
+# zinit-pins [plugin.zsh] — list the commit pins in zsh/plugin.zsh, one
+# "<owner/repo> <sha>" per line: zinit first, then each plugin in file order.
+#
+# The one place that knows how a pin is written. It exits 1, naming what it
+# could not read, rather than list fewer pins than there are: a caller that
+# moves pins would leave a skipped one where it is, and "not updated" looks the
+# same as "up to date". See bin/zinit-pins.md.
+
+emulate -L zsh
+setopt extendedglob
+
+file=${1:-${0:A:h}/../zsh/plugin.zsh}
+if [[ ! -r $file ]]; then
+  print -u2 -- "zinit-pins: cannot read $file"
+  exit 1
+fi
+
+sha='[[:xdigit:]](#c40)'
+# What GitHub allows in an owner and a repository name. Narrower than "not a
+# space" on purpose: `;`, `&`, `\` or a quote after `light` is shell, not a name.
+name='[[:alnum:]._-]##/[[:alnum:]._-]##'
+lines=("${(@f)$(<$file)}")
+pins=() errors=()
+
+# zinit is not a plugin: its pin is a pair of assignments, not an ice. Each
+# must be there exactly once and hold nothing else, or the line printed for it
+# is not "<owner/repo> <sha>".
+repo=(${(M)lines:#_zinit_repo=*})
+pin=(${(M)lines:#_zinit_pin=*})
+if (( $#repo == 1 && $#pin == 1 )) && [[ ${repo#_zinit_repo=} == ${~name} && ${pin#_zinit_pin=} == ${~sha} ]]; then
+  pins+=("${repo#_zinit_repo=} ${pin#_zinit_pin=}")
+else
+  errors+=("zinit itself: needs one _zinit_repo=<owner/repo> and one _zinit_pin=<40-hex sha>")
+fi
+
+# A plugin's pin is the ver on the `zinit ice` line before its `zinit light`
+# or `zinit load`, with only comments and blank lines between them, as zinit
+# reads it. Any other zinit form is refused rather than read wrong -- including
+# zinit run as part of another command (`[[ … ]] && zinit light …`), which a
+# check of the line's start alone would pass over. The SHA must close with the
+# quote it opened with; anything else is not what zinit would read.
+s='[[:space:]]##'
+# zinit's name as a word that runs it: bare or quoted; the patterns below add
+# the escaped form (`\zinit`) themselves, because a backslash carried in this
+# variable stops matching once ${~zname} is embedded in a longer pattern.
+zname="(zinit|'zinit'|\"zinit\")"
+ice=''
+for line in "${lines[@]}"; do
+  line=${line##[[:space:]]#}
+  [[ $line == (\#*|) ]] && continue
+  # The whole line, not its start: anything after the name but a comment
+  # (`&& zinit light …`, `; …`, a continuation) is refused below.
+  if [[ $line == (#b)zinit${~s}(light|load)${~s}(${~name})([[:space:]]##\#*|[[:space:]]#) ]]; then
+    plugin=$match[2]
+    # The ice's words as the shell splits them, comments dropped: a ver in a
+    # comment or inside another ice's quoted value is not one zinit reads.
+    # Exactly one word may be a ver, and it must be a full SHA -- with two, a
+    # caller moving the pin could not tell which one zinit uses.
+    vers=(${(M)${(Z+C+)ice}:#ver*})
+    if (( $#vers == 1 )) && [[ $vers[1] == ver(\"${~sha}\"|\'${~sha}\') ]]; then
+      pins+=("$plugin ${vers[1][5,-2]}")
+    else
+      errors+=("$plugin: needs exactly one ver\"<40-hex sha>\" on the zinit ice before it")
+    fi
+    ice=''
+    continue
+  fi
+  [[ -n $ice ]] && errors+=("an ice with no zinit light|load after it: $ice")
+  ice=''
+  # Split as the shell would, comments dropped. Text in a quoted string
+  # ("… zinit's pin …") is one word and runs nothing; a word that is zinit's
+  # name, however escaped or quoted, or that starts a command substitution
+  # with it, does. eval runs a string, so on a line with eval any mention of
+  # zinit counts. Further indirection -- an alias, a wrapper function -- is
+  # beyond a static reader; see bin/zinit-pins.md.
+  words=(${(Z+C+)line})
+  runs=0 ops=0
+  for w in $words; do
+    # A substitution stays one word, so what runs inside it (`; zinit …`,
+    # `eval "zinit …"`) is out of reach of the checks on this line's words:
+    # any zinit inside one counts.
+    [[ $w == (\\|)${~zname} || $w == *(\`|[\$\<\>=]\()*zinit* ]] && (( runs++ ))
+    [[ $w == (\;|\&|\&\&|\||\|\||\|\&) ]] && (( ops++ ))
+  done
+  (( ${words[(I)eval]} && ${words[(I)*zinit*]} && ! runs )) && runs=1
+  # An ice line that goes on to run something else (`; zinit light b/two`)
+  # hands its ice to that, not to the plugin on the next line.
+  if [[ $line == zinit${~s}ice${~s}* ]] && (( runs == 1 && ops == 0 )); then
+    ice=$line
+  elif (( runs )); then
+    errors+=("cannot read: $line")
+  fi
+done
+[[ -n $ice ]] && errors+=("an ice with no zinit light|load after it: $ice")
+
+if (( $#errors )); then
+  # -r: the lines quoted back are shell, and `\zinit` must not lose its `\`.
+  print -u2 -rl -- "zinit-pins: $file:" "  "${^errors}
+  exit 1
+fi
+print -l -- $pins

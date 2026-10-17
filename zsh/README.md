@@ -109,6 +109,45 @@ are deliberate:
 
 Pinned by `zsh/update.test.zsh`.
 
+## zinit and every plugin are pinned to a commit
+
+A plugin is sourced into every shell, with SSH keys and `gh`/cloud tokens in
+reach, so a compromised push to any of them would run here on the next
+`update-all`. `zsh/plugin.zsh` therefore holds each one at a commit, and an
+update is a commit to this repo that moves a SHA.
+
+- **Plugins**: a `ver"<SHA>"` on the plugin's `zinit ice`.
+- **zinit itself** is not a plugin and takes no ice. `_zinit_pin` holds it: each
+  start `read`s `.zinit/bin/.git/HEAD` (no fork) and, only when it differs,
+  checks the pin out detached, fetching first if the clone lacks it. Detached
+  also makes zinit's self-update a no-op, because it pulls only a branch with an
+  upstream — so `zinit update --all` cannot move it either. When the pin cannot
+  be checked out (offline after a bump) the shell still starts, and says on
+  stderr that zinit is running unpinned.
+
+To update: change the SHA, then `zinit update <plugin>` for a plugin, or start a
+new shell for zinit. Behaviour verified against zinit `f466c88` (2026-10):
+
+| Action | Result |
+| --- | --- |
+| install with `ver"<SHA>"` (full or short) | checked out at the pin |
+| `zinit update`, pin unchanged | stays |
+| `zinit update` after moving the pin forward | moves to the new pin |
+| `zinit update` from a shell that has not loaded the plugin | stays: the ice is stored in `._zinit/ver` |
+| **remove `ver`**, then `zinit update` | **still stays** — the stored ice outlives the line; `zinit delete` and reinstall to unpin |
+| **`ver"<SHA>"` with `depth"1"`** | **unpinned, silently** — see below |
+
+**Never put `depth` on a pinned ice.** The shallow clone does not contain an
+older commit, so the checkout fails — and the clone is left at the newest
+commit. zinit prints `Cannot check out … (ver ice)` once, on the install; every
+shell after that loads the unpinned code without a word.
+
+`zinit update` lists the upstream commits it found even when the pin keeps it
+from moving to them. The list is not what was installed; the plugin's
+`git rev-parse HEAD` is.
+
+Pinned by `zsh/plugin.test.zsh`.
+
 ## Other conventions
 
 - **Tmux auto-start**: `.zshrc` starts tmux automatically and exits the shell
@@ -133,6 +172,7 @@ Pinned by `zsh/update.test.zsh`.
 | `rm.test.zsh`, `fd.test.zsh` | the two `alias.zsh` wrappers |
 | `git-worktree.test.zsh` | `gw()` and `gdmerged()` — see [git.md](git.md) |
 | `update.test.zsh` | which releases and uptimes `update-all`'s warning speaks on, and that `update-all` still ends with it |
+| `plugin.test.zsh` | that every plugin and zinit carry a commit pin, no ice has `depth`, and zinit is held at its pin |
 
 After changing shell config, verify with a new shell session or
 `source ~/.zshrc`. Startup profiling can be enabled by uncommenting the `zprof`
@@ -195,3 +235,29 @@ Three cases earn their keep:
   silent whether it parsed the boot time or failed to. So the case feeds the
   real line through with the clock set to the year 2286.
 - **Both edges of the gate**: Darwin 25.0 and 25.3 warn, 24.x and 25.4 do not.
+
+### plugin.test.zsh
+
+The plugin pins are checked statically: running zinit against GitHub would
+make the suite depend on the network, and what fails is a line in
+`plugin.zsh`, not zinit. The zinit pin is run for real, against a local
+repository whose `zinit.zsh` defines a logging stub, with the copy of
+`plugin.zsh` changed only in its pin.
+
+Whether a start ran git, and whether it fetched, is read from a `git` first on
+`PATH` that logs each call and hands over to the real one. Neither shows any
+other way: the fetch's failure is silenced, and a checkout of a commit already
+in the clone succeeds with or without it. An unreachable remote was tried first
+and proved nothing for that reason. The already-pinned case asserts that git is
+not run at all — the cost guarded is a fork, and worse a network call, on every
+shell. The bumped cases add a commit after the clone was made, so that the
+fetch, and its failure offline, are actually reached.
+
+Reading the pins is left to [bin/zinit-pins](../bin/zinit-pins.md), which
+refuses any `zinit` line it cannot read (`snippet`, `for`, inline ices); this
+suite holds it to the real file and checks it returned one pin per plugin plus
+zinit's. `depth` fails on any line that is not a comment.
+
+Confirmed red against the unpinned `plugin.zsh` and `update.zsh`, against a
+start that skips the HEAD comparison (git is run while pinned), and against one
+that always fetches.
