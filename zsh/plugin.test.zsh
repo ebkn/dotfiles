@@ -2,8 +2,9 @@
 # Unit tests for the supply-chain pins in zsh/plugin.zsh.
 #
 # Every plugin and zinit itself run inside every shell with the user's keys and
-# tokens in reach, so each is pinned to a commit and moves only when a commit
-# here moves it. Both ways the pin can be lost are silent:
+# tokens in reach, so each is pinned to a commit and moves only when its SHA in
+# plugin.zsh moves (see zsh/README.md). Both ways the pin can be lost are
+# silent:
 #
 # - A plugin whose ice has `depth` next to a commit `ver` is cloned shallow,
 #   the checkout of an older commit fails, and the clone is left at the newest
