@@ -125,8 +125,11 @@ update is a commit to this repo that moves a SHA.
   be checked out (offline after a bump) the shell still starts, and says on
   stderr that zinit is running unpinned.
 
-To update: change the SHA, then `zinit update <plugin>` for a plugin, or start a
-new shell for zinit. Behaviour verified against zinit `f466c88` (2026-10):
+To update: `update-all` runs [bin/zinit-cooldown](../bin/zinit-cooldown.md),
+which moves each pin forward to a release tag already on its default branch a
+week ago, then `zinit update --all`. By hand: change the SHA, then
+`zinit update <plugin>` for a plugin, or start a new shell for zinit.
+Behaviour verified against zinit `f466c88` and `db9e267` (v3.17.0), 2026-10:
 
 | Action | Result |
 | --- | --- |
@@ -139,8 +142,9 @@ new shell for zinit. Behaviour verified against zinit `f466c88` (2026-10):
 
 **Never put `depth` on a pinned ice.** The shallow clone does not contain an
 older commit, so the checkout fails — and the clone is left at the newest
-commit. zinit prints `Cannot check out … (ver ice)` once, on the install; every
-shell after that loads the unpinned code without a word.
+commit. zinit `f466c88` prints `Cannot check out … (ver ice)` once, on the
+install; v3.17.0 does not even do that. Every shell after it loads the
+unpinned code without a word.
 
 `zinit update` lists the upstream commits it found even when the pin keeps it
 from moving to them. The list is not what was installed; the plugin's

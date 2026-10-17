@@ -124,6 +124,9 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/bin/textlint-docs" "${HOME}/.local/bin/textlint-docs"
   # Same idiom: resolves read-doc/style.css relative to its own resolved path.
   link_with_backup "${DOTFILES_DIR}/bin/read-doc" "${HOME}/.local/bin/read-doc"
+  # update-all runs this bare. It finds bin/zinit-pins and zsh/plugin.zsh
+  # through its own resolved path, so zinit-pins needs no link of its own.
+  link_with_backup "${DOTFILES_DIR}/bin/zinit-cooldown" "${HOME}/.local/bin/zinit-cooldown"
   # The LaunchAgent below execs this through ~/.local/bin, so the two links are
   # a pair: linking the plist without this one leaves launchd calling a path
   # that does not exist, and it reports that only in its own log.
