@@ -124,7 +124,9 @@ for line in ${(f)pins}; do
     # which $(<file) would strip; the new file replaces the old with mv, so a
     # failure part-way leaves the old one whole.
     IFS= read -rd '' content < $file
-    count=${(M)#${(f)content}:#*$pin*}
+    # Occurrences, not lines: a comment quoting the SHA on the pin's own line
+    # would leave the old one behind.
+    count=$(( ${#${(ps:$pin:)${:-x${content}x}}} - 1 ))
     if (( count != 1 )); then
       report "error: $pin appears $count times in ${file:t}, not once"
       failed=1

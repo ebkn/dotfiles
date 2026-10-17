@@ -76,8 +76,9 @@ Every way of not knowing ends in `stays` or `error`, never in a move:
   the tip at the cutoff is unknown;
 - the releases list cannot be read: falling back to tags would choose by a
   different rule without anyone deciding to;
-- the old SHA appears on more than one line of `plugin.zsh` (a comment that
-  quotes it, say): the rewrite is a plain substitution and would change both.
+- the old SHA appears more than once in `plugin.zsh` (a comment that quotes
+  it, on its own line or the pin's): the rewrite is a plain substitution and
+  would change one and leave the other, or change both.
 
 The rewrite keeps the file byte for byte apart from the SHA — trailing blank
 lines included, which `$(<file)` would have dropped — and replaces it with

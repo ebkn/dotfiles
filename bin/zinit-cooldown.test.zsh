@@ -481,6 +481,21 @@ check 'refuses to rewrite a SHA that appears more than once' \
   "1 error: $P appears 2 times in plugin.zsh, not once" "$st $(said a/one)"
 check '  ... and leaves the file as it was' "$Z $P $P " "$(pins_now)"
 
+# Counted by occurrence, not by line: a comment on the pin's own line that
+# quotes it would otherwise leave the old SHA behind after the rewrite.
+fresh_case; zinit_still; repo_basics a/one
+print -r -- "_zinit_repo=z/zinit
+_zinit_pin=$Z
+zinit ice ver\"$P\" # was $P
+zinit light a/one" > $PLUGIN
+releases a/one v2
+tag_at a/one v2 $N
+compare a/one $N $T ahead
+compare a/one $P $N ahead
+run
+check 'refuses a SHA that appears twice on one line' \
+  "1 error: $P appears 2 times in plugin.zsh, not once" "$st $(said a/one)"
+
 check 'refuses an unknown option' \
   '*usage*exit=2' \
   "$(PATH=$TMP/bin:$PATH zsh -f $TOOL --bogus 2>&1; print -r -- "exit=$?")"
