@@ -328,6 +328,18 @@ run
 check 'the cutoff is 7 days: the gate tip is the push 8 days ago, not 6' \
   '0 moved *\(v2\)*' "$st $(said a/one)"
 
+# The gate reads the repository's own default branch, which for many zsh
+# plugins is master. Only master's log is served, so reading main's 404s.
+fresh_case; zinit_still
+serve repos/a/one '{"default_branch":"master"}'
+serve "repos/a/one/activity?ref=refs/heads/master&per_page=100" '[{"timestamp":"'$(ago 10)'","after":"'$T'"}]'
+releases a/one v2
+tag_at a/one v2 $N
+compare a/one $N $T diverged
+run
+check 'gates on the default branch, whatever it is called' \
+  '0 stays: no release tag was on master 7 days ago' "$st $(said a/one)"
+
 # --days moves the cutoff: the 2-day-old push is the gate's tip at --days 1.
 fresh_case; zinit_still; repo_basics a/one
 releases a/one v2
