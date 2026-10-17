@@ -42,8 +42,12 @@ _uptime_reboot_warning() {
 update-all() {
   brew upgrade
   brew upgrade --cask
-  # Moves a plugin only as far as its ver pin in zsh/plugin.zsh, and leaves the
-  # pinned zinit where it is.
+  # Move the pins in zsh/plugin.zsh to release tags that have been on their
+  # default branch for 7 days (bin/zinit-cooldown.md), then let zinit follow:
+  # it moves a plugin only as far as its ver pin, and zinit itself moves to
+  # _zinit_pin at the next shell start. A cooldown failure holds the pins it
+  # could not decide, so the update after it is still safe to run.
+  zinit-cooldown
   zinit update --all
   nvim --headless +'CocUpdate' +qa
   nvim --headless +'TSUpdate' +qa

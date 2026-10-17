@@ -17,7 +17,7 @@ How a pin is written is a convention of `plugin.zsh`, not of zinit:
   `zinit light|load`, with only comments and blank lines in between;
 - either quote is accepted around the SHA, and the SHA is the full 40 hex.
 
-`zsh/plugin.test.zsh` and the pin updater both need that, so it is written
+`zsh/plugin.test.zsh` and [bin/zinit-cooldown](zinit-cooldown.md) both need that, so it is written
 once, here. A second copy would drift: one side learns inline ices or a
 renamed repository, the other keeps passing over them.
 
