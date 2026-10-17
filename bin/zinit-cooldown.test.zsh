@@ -469,7 +469,7 @@ check 'stops before any API call when the pins cannot be read' \
   "1 *b/unpinned*" "$st $out"
 check '  ... asking GitHub nothing' '' "$(cat $GH_FIXTURES/calls 2>/dev/null)"
 
-# The rewrite is a plain substitution of the SHA, so it must name one line.
+# The rewrite is a plain substitution of the SHA, so it must appear exactly once.
 fresh_case; zinit_still; repo_basics a/one
 print -r -- "# was on $P before" >> $PLUGIN
 releases a/one v2

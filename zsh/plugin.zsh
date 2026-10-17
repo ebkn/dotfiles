@@ -2,10 +2,13 @@
 #
 # Supply-chain pins: zinit and every plugin run inside every shell, with the
 # user's keys and tokens in reach, so each is held at a commit and moves only
-# when a commit here moves it. To update one, change its SHA and run
-# `zinit update` (a plugin) or start a new shell (zinit). Never add `depth` to
-# a pinned ice: the shallow clone cannot check out the pin, and every shell
-# after the first loads the newest commit without a word. See zsh/README.md.
+# when its SHA here moves. update-all moves them, through bin/zinit-cooldown,
+# which rewrites this file; by hand, change a SHA and run `zinit update` (a
+# plugin) or start a new shell (zinit). Do not quote a full pinned SHA in a
+# comment: the cooldown refuses to rewrite a SHA that appears twice. Never add
+# `depth` to a pinned ice: the shallow clone cannot check out the pin, and
+# every shell after the first loads the newest commit without a word. See
+# zsh/README.md.
 _zinit_repo=zdharma-continuum/zinit
 _zinit_pin=db9e267184c85a26056c2646222f48df609cecd5
 _zinit_bin=$HOME/.zinit/bin

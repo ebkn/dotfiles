@@ -3,11 +3,11 @@
 # zsh/plugin.zsh forward to the newest release tag whose commit was already on
 # the repository's default branch N days ago (default 7), as GitHub's push
 # record has it. Prints one line per repository; rewrites only the pins that
-# move. See bin/zinit-cooldown.md.
+# move, and commits nothing. See bin/zinit-cooldown.md.
 #
 # Exit: 0 when every repository was decided (moved, up to date, or held), 1
-# when any could not be (API failure, a SHA that is not on exactly one line,
-# pins that cannot be read), 2 on a usage error.
+# when any could not be (API failure, a SHA that does not appear exactly
+# once, a write that fails, pins that cannot be read), 2 on a usage error.
 
 emulate -L zsh
 setopt extendedglob pipefail
@@ -119,7 +119,7 @@ for line in ${(f)pins}; do
       continue
     fi
 
-    # The rewrite is a plain substitution, so the SHA must name one line.
+    # The rewrite is a plain substitution, so the SHA must appear exactly once.
     # `read -d ''` keeps the file byte for byte, trailing newlines included,
     # which $(<file) would strip; the new file replaces the old with mv, so a
     # failure part-way leaves the old one whole.

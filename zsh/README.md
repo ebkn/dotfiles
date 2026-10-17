@@ -114,7 +114,10 @@ Pinned by `zsh/update.test.zsh`.
 A plugin is sourced into every shell, with SSH keys and `gh`/cloud tokens in
 reach, so a compromised push to any of them would run here on the next
 `update-all`. `zsh/plugin.zsh` therefore holds each one at a commit, and an
-update is a commit to this repo that moves a SHA.
+update is a move of that SHA. `update-all` makes the moves itself through
+[bin/zinit-cooldown](../bin/zinit-cooldown.md) and zinit follows at once, so
+what guards it is the cooldown, not a review; the rewritten `plugin.zsh` is
+left uncommitted, for the diff to be read and committed afterwards.
 
 - **Plugins**: a `ver"<SHA>"` on the plugin's `zinit ice`.
 - **zinit itself** is not a plugin and takes no ice. `_zinit_pin` holds it: each

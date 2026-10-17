@@ -5,6 +5,8 @@
 already on the repository's default branch **N days ago** (default 7), by
 GitHub's own record of pushes. It prints one line per repository and rewrites
 only the pins that move. `update-all` runs it, then `zinit update --all`.
+It commits nothing: the rewritten `plugin.zsh` is left for its diff to be read
+and committed.
 
 Why the pins exist: [zsh/README.md](../zsh/README.md#zinit-and-every-plugin-are-pinned-to-a-commit).
 How they are read: [bin/zinit-pins.md](zinit-pins.md).
