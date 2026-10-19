@@ -106,13 +106,13 @@ pins_now() { grep -o '[[:xdigit:]]\{40\}' $LOCK | tr '\n' ' '; }
 fresh_case; two_still; history a/one main
 compare a/one $P $T ahead   # the tip of a week ago is past the pin
 compare a/one $T main ahead # and still on the branch
-before=$(<$LOCK; print x)
+before=$(cat $LOCK; print x)
 run
 check 'moves a pin to its branch tip of a week ago' \
   "0 moved 1111111..5555555 \(main 7 days ago\) https://github.com/a/one/compare/$P...$T" \
   "$st $(said one.nvim)"
 check '  ... rewriting that SHA and nothing else in the lockfile' \
-  "${(b)${before//$P/$T}}" "$(<$LOCK; print x)"
+  "${(b)${before//$P/$T}}" "$(cat $LOCK; print x)"
 
 # The branch the lockfile names, not the default one: coc.nvim follows release.
 fresh_case; history a/one main; compare a/one $P $T behind

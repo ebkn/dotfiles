@@ -126,12 +126,12 @@ releases a/one v2
 tag_at a/one v2 $N
 compare a/one $N $T ahead   # in the branch as it was a week ago
 compare a/one $P $N ahead   # and past the pin
-before=$(<$PLUGIN; print x)
+before=$(cat $PLUGIN; print x)
 run
 check 'moves a pin to a release tag that was on the branch a week ago' \
   "0 moved 1111111..2222222 \(v2\) https://github.com/a/one/compare/$P...$N" "$st $(said a/one)"
 check '  ... rewriting that SHA and nothing else in plugin.zsh' \
-  "${(b)${before//$P/$N}}" "$(<$PLUGIN; print x)"
+  "${(b)${before//$P/$N}}" "$(cat $PLUGIN; print x)"
 
 # The case the cooldown exists for: the newest release is on a commit that
 # reached main after the cutoff. Compared against the tip of a week ago, that
