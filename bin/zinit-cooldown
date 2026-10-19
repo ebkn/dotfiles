@@ -65,7 +65,11 @@ for line in ${(f)pins}; do
     branch=$(api "repos/$repo" | jq -er .default_branch) || { report "error: cannot read the repository"; failed=1; continue; }
 
     # A commit is old enough when the branch's tip at the cutoff contains it.
-    tip=$(tip_at $repo $branch) || { report "error: cannot read the push history"; failed=1; continue; }
+    tip=$(tip_at $repo $branch)
+    case $? in
+      1) report "error: cannot read the push history"; failed=1; continue ;;
+      2) report "stays: no $branch branch $days days ago (deleted or renamed)"; continue ;;
+    esac
     if [[ -z $tip ]]; then
       report "stays: no push to $branch older than $days days on record"
       continue

@@ -311,6 +311,21 @@ check 'holds a repo whose push history does not reach back a week' \
   '0 stays: no push to main older than 7 days on record' "$st $(said a/one)"
 check '  ... and leaves it' "$Z $P " "$(pins_now)"
 
+# The newest push before the cutoff deleted the branch -- a rename shows up
+# as one -- so the branch did not exist then. Its `after` is the zero SHA,
+# which is not a tip to compare anything with.
+fresh_case; zinit_still
+serve repos/a/one '{"default_branch":"main"}'
+serve "repos/a/one/activity?ref=refs/heads/main&per_page=100" \
+  '[{"timestamp":"'$(ago 2)'","after":"'$T'"},
+    {"timestamp":"'$(ago 10)'","after":"0000000000000000000000000000000000000000"}]'
+releases a/one v2
+tag_at a/one v2 $N
+run
+check 'holds a repo whose branch had been deleted at the cutoff' \
+  '0 stays: no main branch 7 days ago \(deleted or renamed\)' "$st $(said a/one)"
+check '  ... and leaves it' "$Z $P " "$(pins_now)"
+
 # The 7 days themselves: pushes a day either side of the cutoff, and only the
 # 8-day-old tip is served. A cutoff computed short of 7 days picks the 6-day
 # one, whose compare is not served, and the case fails on the 404.

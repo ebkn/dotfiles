@@ -18,13 +18,17 @@ status() { api "repos/$1/compare/$2...$3" | jq -er .status; }
 # tip_at <repo> <branch> — the branch's tip at $cutoff: the newest push
 # GitHub's activity log records at or before it. A push's time is GitHub's,
 # which the pusher cannot set. Prints nothing when no push that old is on
-# record; fails when the log cannot be read or parsed.
+# record. Status 1 when the log cannot be read or parsed; 2 when that push
+# deleted the branch, so it did not exist at the cutoff -- a rename shows up
+# as a deletion too, and its `after` is the zero SHA, not a commit.
 # One call: asking again to tell "unreadable" from "empty" could get a
 # different answer the second time.
 tip_at() {
-  local activity
+  local activity tip
   activity=$(api "repos/$1/activity?ref=refs/heads/$2&per_page=100") || return 1
-  jq -r --arg c "$cutoff" '[.[] | select(.timestamp <= $c)][0].after // empty' <<<$activity
+  tip=$(jq -r --arg c "$cutoff" '[.[] | select(.timestamp <= $c)][0].after // empty' <<<$activity) || return 1
+  [[ -n $tip && $tip == 0## ]] && return 2
+  print -r -- $tip
 }
 
 # rewrite_once <file> <old> <new> — replace the one occurrence of <old> in

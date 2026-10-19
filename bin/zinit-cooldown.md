@@ -40,6 +40,7 @@ Each line is one of:
 | `stays: no published release` | releases exist, but only drafts or pre-releases |
 | `stays: no tags` | no releases and no tags: nothing to choose from |
 | `stays: no push to <branch> older than N days on record` | the gate cannot be computed |
+| `stays: no <branch> branch N days ago (deleted or renamed)` | the newest push before the cutoff deleted the branch; GitHub records a rename that way too |
 | `error: …` | a call failed or the rewrite was unsafe; that repo is untouched |
 
 Exit status: 0 when every repository was decided, 1 when any ended in `error`
