@@ -24,6 +24,9 @@ require("lazy").setup({
     lazy = false, -- instantly plugins are not lazy by default
 
     -- Supply-chain hardening: minimum release age.
+    -- update-all does it outside lazy.nvim: bin/lazy-cooldown moves the lockfile to
+    -- each branch's tip of 7 days ago, then `Lazy! restore` follows it. `:Lazy update`
+    -- by hand still takes the newest tips (bin/lazy-cooldown.md).
     -- lazy.nvim has no native "min release age" yet. Track folke/lazy.nvim#2141;
     -- the `commit` hook (PR #2165) is the intended home. Once it merges, uncomment
     -- to skip any commit younger than 7 days on `:Lazy update`, giving the community

@@ -127,6 +127,8 @@ link_dotfiles() {
   # update-all runs this bare. It finds bin/zinit-pins and zsh/plugin.zsh
   # through its own resolved path, so zinit-pins needs no link of its own.
   link_with_backup "${DOTFILES_DIR}/bin/zinit-cooldown" "${HOME}/.local/bin/zinit-cooldown"
+  # Same: finds bin/cooldown.zsh and vim/nvim/lazy-lock.json the same way.
+  link_with_backup "${DOTFILES_DIR}/bin/lazy-cooldown" "${HOME}/.local/bin/lazy-cooldown"
   # The LaunchAgent below execs this through ~/.local/bin, so the two links are
   # a pair: linking the plist without this one leaves launchd calling a path
   # that does not exist, and it reports that only in its own log.

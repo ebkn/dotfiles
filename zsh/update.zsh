@@ -51,7 +51,11 @@ update-all() {
   zinit update --all
   nvim --headless +'CocUpdate' +qa
   nvim --headless +'TSUpdate' +qa
-  nvim --headless '+Lazy! sync' +qa
+  # The same for vim/nvim/lazy-lock.json, then let lazy.nvim follow it. Not
+  # `Lazy! sync`: its update ignores the lockfile, checks out every branch tip
+  # as pushed, and writes those into the lockfile (bin/lazy-cooldown.md).
+  lazy-cooldown
+  nvim --headless '+Lazy! clean' '+Lazy! restore' +qa
   go install golang.org/x/tools/...@latest
   go install github.com/cweill/gotests/...@latest
   go install github.com/mattn/efm-langserver@latest

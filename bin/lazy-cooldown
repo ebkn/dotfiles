@@ -1,0 +1,113 @@
+#!/usr/bin/env zsh
+# lazy-cooldown [--days N] [lazy-lock.json] — move each commit in
+# vim/nvim/lazy-lock.json forward to its branch's tip as it was N days ago
+# (default 7), as GitHub's push record has it. Prints one line per plugin;
+# rewrites only the pins that move, and commits nothing. See
+# bin/lazy-cooldown.md.
+#
+# Exit: 0 when every plugin was decided (moved, up to date, or held), 1 when
+# any could not be (API failure, a plugin lazy.nvim does not list, a SHA that
+# does not appear exactly once, a write that fails, a lockfile or plugin list
+# that cannot be read), 2 on a usage error.
+
+emulate -L zsh
+setopt extendedglob pipefail
+zmodload zsh/datetime
+source ${0:A:h}/cooldown.zsh
+
+usage() { print -u2 -- "usage: lazy-cooldown [--days N] [lazy-lock.json]"; exit 2; }
+
+days=7
+while (( $# )); do
+  case $1 in
+    --days) [[ ${2-} == <-> ]] || usage; days=$2; shift 2 ;;
+    -*) usage ;;
+    *) break ;;
+  esac
+done
+(( $# <= 1 )) || usage
+file=${1:-${0:A:h}/../vim/nvim/lazy-lock.json}
+
+# name, branch and commit, in the lockfile's order.
+pins=$(jq -r 'to_entries[] | "\(.key) \(.value.branch) \(.value.commit)"' < $file) ||
+  { print -u2 -r -- "lazy-cooldown: cannot read $file"; exit 1; }
+
+# The lockfile has names only; which repository a name is, lazy.nvim decides
+# (a spec's `name`, `url` and `dependencies` all count), so it is asked. A
+# record is found anywhere in a line: a plugin may write to stdout under
+# --headless without ending its line (image.nvim does), and the first record
+# is glued to it.
+listing=$(command nvim --headless \
+  "+lua for _, p in pairs(require('lazy.core.config').plugins) do io.stdout:write('lazy-cooldown ', p.name, ' ', p.url or '', '\n') end" \
+  +qa) || { print -u2 -- "lazy-cooldown: cannot ask lazy.nvim for its plugins"; exit 1; }
+typeset -A url
+for line in ${(M)${(f)listing}:#*lazy-cooldown *}; do
+  line=${line#*lazy-cooldown }
+  url[${line%% *}]=${line#* }
+done
+if (( ! ${#url} )); then
+  print -u2 -- "lazy-cooldown: cannot ask lazy.nvim for its plugins"
+  exit 1
+fi
+
+cooldown_cutoff $days
+
+typeset -i failed=0
+for line in ${(f)pins}; do
+  name=${line%% *} rest=${line#* }
+  branch=${rest% *} pin=${rest#* }
+  report() { print -r -- "$name: $*"; }
+  {
+    if [[ -z ${url[$name]-} ]]; then
+      report "error: lazy.nvim does not list this plugin"; failed=1; continue
+    fi
+    if [[ ${url[$name]} != https://github.com/[^/]##/[^/]## ]]; then
+      report "error: not a GitHub repository: ${url[$name]}"; failed=1; continue
+    fi
+    repo=${${url[$name]#https://github.com/}%.git}
+    when="$branch $days days ago"
+
+    # Not the newest commit: the newest one that had been public for N days.
+    tip=$(tip_at $repo $branch)
+    case $? in
+      1) report "error: cannot read the push history"; failed=1; continue ;;
+      2) report "stays: no $branch branch $days days ago (deleted or renamed)"; continue ;;
+    esac
+    if [[ -z $tip ]]; then
+      report "stays: no push to $branch older than $days days on record"
+      continue
+    fi
+    if [[ $tip == $pin ]]; then
+      report "up to date ($when)"
+      continue
+    fi
+
+    st=$(status $repo $pin $tip) || { report "error: cannot compare the pin with $when"; failed=1; continue; }
+    case $st in
+      ahead) ;;
+      # Forward only: moving back is a decision for a person, not this tool.
+      # Behind means the pin is newer than the cutoff, so not yet vetted.
+      behind) report "stays: $when ($tip) is behind the pin, which only moves forward"; continue ;;
+      *) report "stays: $when ($tip) has diverged from the pin, which only moves forward"; continue ;;
+    esac
+
+    # Still on the branch: lazy.nvim fetches branches, so a commit force-pushed
+    # off it since cannot be checked out, and the restore would fail.
+    st=$(status $repo $tip $branch) || { report "error: cannot compare ${tip[1,7]} with $branch"; failed=1; continue; }
+    if [[ $st != (ahead|identical) ]]; then
+      report "stays: ${tip[1,7]} is no longer on $branch"
+      continue
+    fi
+
+    rewrite_once $file $pin $tip
+    case $? in
+      1) report "error: $pin appears $count times in ${file:t}, not once"; failed=1; continue ;;
+      2) report "error: cannot write ${file:t}"; failed=1; continue ;;
+    esac
+    report "moved ${pin[1,7]}..${tip[1,7]} ($when) https://github.com/$repo/compare/$pin...$tip"
+  } always {
+    unfunction report
+  }
+done
+
+exit $failed
