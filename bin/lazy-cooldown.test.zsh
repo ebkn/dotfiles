@@ -258,6 +258,15 @@ check 'stops before any API call when lazy.nvim cannot be asked' \
   '1 *cannot ask lazy.nvim*' "$st $out"
 check '  ... asking GitHub nothing' '' "$(cat $GH_FIXTURES/calls 2>/dev/null)"
 
+# nvim ran, but no record came back: the Lua's output changed shape. Every
+# plugin would read as unlisted; the run stops instead, before asking GitHub.
+fresh_case
+: > $GH_FIXTURES/nvim
+run
+check 'stops before any API call when lazy.nvim lists nothing' \
+  '1 *cannot ask lazy.nvim*' "$st $out"
+check '  ... asking GitHub nothing' '' "$(cat $GH_FIXTURES/calls 2>/dev/null)"
+
 fresh_case
 print -r -- 'not json' > $LOCK
 run
