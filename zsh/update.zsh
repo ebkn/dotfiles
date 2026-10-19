@@ -42,18 +42,23 @@ _uptime_reboot_warning() {
 # and the change reported: the pins that passed the cooldown stay recorded,
 # and the next update-all applies them. See bin/lazy-cooldown.md.
 _lazy_restore() {
-  local lock=${XDG_CONFIG_HOME:-$HOME/.config}/nvim/lazy-lock.json want
+  local lock=${XDG_CONFIG_HOME:-$HOME/.config}/nvim/lazy-lock.json want got
   local -i st=0
-  if ! IFS= read -rd '' want < $lock && [[ -z $want ]]; then
+  # `read -d ''` always fails at the end of the file, so what it read is the
+  # test: missing, unreadable and empty all leave nothing to hold on to.
+  IFS= read -rd '' want 2>/dev/null < $lock
+  if [[ -z $want ]]; then
     print -u2 -r -- "update-all: cannot read $lock; Lazy! restore not run"
     return 1
   fi
   nvim --headless '+Lazy! restore' +qa || st=$?
-  local got
-  IFS= read -rd '' got < $lock
+  IFS= read -rd '' got 2>/dev/null < $lock
   if [[ $got != $want ]]; then
-    print -rn -- $want > $lock
-    print -u2 -r -- "update-all: Lazy! restore did not follow lazy-lock.json (a plugin that failed to install?); the lockfile is put back"
+    if print -rn -- $want > $lock; then
+      print -u2 -r -- "update-all: Lazy! restore did not follow lazy-lock.json (a plugin that failed to install?); the lockfile is put back"
+    else
+      print -u2 -r -- "update-all: Lazy! restore did not follow lazy-lock.json, and it cannot be put back: compare it with git"
+    fi
     return 1
   fi
   return st
