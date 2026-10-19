@@ -50,7 +50,7 @@ branch for N days.
 | `stays: <sha> is no longer on <branch>` | force-pushed away since the cutoff |
 | `stays: no push to <branch> older than N days on record` | the tip at the cutoff is unknown |
 | `stays: no <branch> branch N days ago (deleted or renamed)` | GitHub records a rename as a deletion: change the lockfile's branch by hand |
-| `error: …` | a call failed, lazy.nvim does not list the plugin, or the rewrite was unsafe; that plugin is untouched |
+| `error: …` | a call failed, lazy.nvim does not list the plugin, its URL is not on GitHub, or the rewrite was unsafe; that plugin is untouched |
 
 Exit status: 0 when every plugin was decided, 1 when any ended in `error` or
 the lockfile or plugin list could not be read, 2 on a usage error.

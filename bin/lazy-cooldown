@@ -6,9 +6,9 @@
 # bin/lazy-cooldown.md.
 #
 # Exit: 0 when every plugin was decided (moved, up to date, or held), 1 when
-# any could not be (API failure, a plugin lazy.nvim does not list, a SHA that
-# does not appear exactly once, a write that fails, a lockfile or plugin list
-# that cannot be read), 2 on a usage error.
+# any could not be (API failure, a plugin lazy.nvim does not list or that is
+# not on GitHub, a SHA that does not appear exactly once, a write that fails,
+# a lockfile or plugin list that cannot be read), 2 on a usage error.
 
 emulate -L zsh
 setopt extendedglob pipefail

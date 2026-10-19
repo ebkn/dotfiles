@@ -51,7 +51,9 @@ update-all() {
   zinit update --all
   nvim --headless +'CocUpdate' +qa
   nvim --headless +'TSUpdate' +qa
-  # The same for vim/nvim/lazy-lock.json, then let lazy.nvim follow it. Not
+  # Move each commit in vim/nvim/lazy-lock.json forward to its lockfile
+  # branch's tip of 7 days ago -- a branch tip, not a tag: most of these
+  # plugins tag rarely or never -- then let lazy.nvim follow it. Not
   # `Lazy! sync`: its update ignores the lockfile, checks out every branch tip
   # as pushed, and writes those into the lockfile (bin/lazy-cooldown.md).
   lazy-cooldown

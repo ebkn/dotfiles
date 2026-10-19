@@ -69,7 +69,9 @@ every sourced fragment (such as
 shebang; each carries a `# shellcheck shell=bash` directive and **must be added
 to the inline list**, or nothing checks it. `lint-shell.test.sh` fails on a
 tracked fragment that is missing, which is how `review-test/evals/grading.sh`
-was found unchecked.
+was found unchecked. That test looks for the bash directive only, so a
+**sourced zsh fragment** outside `zsh/` (`bin/cooldown.zsh`) is like
+`.zprofile`: named in `zsh_targets`, and nothing catches one left out.
 
 Discovery is `git ls-files`, so an **untracked** script is skipped silently — run
 it after `git add`, or a brand-new file passes vacuously.
