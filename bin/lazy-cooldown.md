@@ -73,7 +73,7 @@ branch for N days.
 | `stays: <branch> N days ago (<sha>) has diverged from the pin …` | the branch was rewritten under the pin |
 | `stays: <sha> is no longer on <branch>` | force-pushed away since the cutoff |
 | `stays: no push to <branch> older than N days on record` | the tip at the cutoff is unknown |
-| `stays: no <branch> branch N days ago (deleted or renamed)` | GitHub records a rename as a deletion: change the lockfile's branch by hand (below) |
+| `stays: no <branch> branch N days ago (deleted or renamed)` | GitHub records a rename as a deletion: name the new branch in the plugin's spec (below) |
 | `error: …` | a call failed, lazy.nvim does not list the plugin, its URL is not on GitHub, or the rewrite was unsafe; that plugin is untouched. Right after a branch rename, too, when the pin would move (below) |
 
 Exit status: 0 when every plugin was decided, 1 when any ended in `error` or
@@ -81,13 +81,15 @@ the lockfile or plugin list could not be read, 2 on a usage error.
 
 ## A renamed branch
 
-Editing the lockfile's `branch` is not enough on its own. lazy.nvim writes the
-lockfile back after a restore, and for a detached checkout it takes the branch
-from the clone's `origin/HEAD`, which a clone made before the rename still
-points at the old name. So the old branch comes back, and the plugin is held
-on it for good. Name the new branch in the plugin's spec (`branch = "main"`),
-which lazy.nvim reads before `origin/HEAD`: one line in this repository holds
-on every machine (rust.vim, `master` to `main`, 2026-10). The alternative,
+Name the new branch in the plugin's spec (`branch = "main"`); the lockfile
+needs no edit. lazy.nvim writes the lockfile back after a restore, and for a
+detached checkout takes the branch from the spec, else from the clone's
+`origin/HEAD` (`get_branch` in `lua/lazy/manage/git.lua`). A clone made
+before the rename still has `origin/HEAD` on the old name, so without the
+spec, editing the lockfile alone does not stick: the old branch comes back,
+and the plugin is held on it for good. With it, the next restore writes the
+new name on every machine (rust.vim, `master` to `main`, 2026-10: a lockfile
+put back to `master` came back as `main`). The alternative,
 `git -C ~/.local/share/nvim/lazy/<name> remote set-head origin --auto`, has
 to be run on each machine, and forgetting it fails silently.
 
