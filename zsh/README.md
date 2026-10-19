@@ -179,7 +179,7 @@ Pinned by `zsh/plugin.test.zsh`.
 | `his.test.zsh` | `his()` and `gs()` — see [alias.md](alias.md) |
 | `rm.test.zsh`, `fd.test.zsh` | the two `alias.zsh` wrappers |
 | `git-worktree.test.zsh` | `gw()` and `gdmerged()` — see [git.md](git.md) |
-| `update.test.zsh` | which releases and uptimes `update-all`'s warning speaks on, that `update-all` still ends with it, and the order of its lazy.nvim steps |
+| `update.test.zsh` | which releases and uptimes `update-all`'s warning speaks on, that `update-all` still ends with it, the order of its lazy.nvim steps, the guard on its restore, and the list of failed pin steps |
 | `plugin.test.zsh` | that every plugin and zinit carry a commit pin, no ice has `depth`, and zinit is held at its pin |
 
 After changing shell config, verify with a new shell session or
@@ -234,7 +234,9 @@ Four cases earn their keep:
   an nvim of its own: the reason is in
   [bin/lazy-cooldown.md](../bin/lazy-cooldown.md#only-restore-may-run-after-the-rewrite).
   `nvim` is a function logging each argument quoted, so an unquoted
-  `+Lazy! clean`, which splits into two arguments, fails it too.
+  `+Lazy! clean`, which splits into two arguments, fails it too. Beside it,
+  `_lazy_restore`'s cases point `XDG_CONFIG_HOME` at a fixture lockfile and
+  have the `nvim` function rewrite it, as an install at startup would.
 - **`update-all` ends with the warning.** The function can pass every case of
   its own while `update-all` no longer calls it — and a warning that stopped
   firing looks exactly like a healthy machine. The case runs the real

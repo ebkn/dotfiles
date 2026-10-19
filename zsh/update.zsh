@@ -34,12 +34,40 @@ _uptime_reboot_warning() {
   print -u2 -- "         Outbound connections then fail. Reboot before that, or update to macOS 26.4+ (fixed)."
 }
 
+# _lazy_restore — `Lazy! restore`, holding on to the lockfile it was given.
+# An install that finishes in the same nvim -- at startup, of a plugin missing
+# from disk -- rewrites lazy-lock.json from what is installed before the
+# restore reads it, undoing every pin bin/lazy-cooldown moved, without an
+# error. So the lockfile is read first, put back if the restore changed it,
+# and the change reported: the pins that passed the cooldown stay recorded,
+# and the next update-all applies them. See bin/lazy-cooldown.md.
+_lazy_restore() {
+  local lock=${XDG_CONFIG_HOME:-$HOME/.config}/nvim/lazy-lock.json want
+  local -i st=0
+  if ! IFS= read -rd '' want < $lock && [[ -z $want ]]; then
+    print -u2 -r -- "update-all: cannot read $lock; Lazy! restore not run"
+    return 1
+  fi
+  nvim --headless '+Lazy! restore' +qa || st=$?
+  local got
+  IFS= read -rd '' got < $lock
+  if [[ $got != $want ]]; then
+    print -rn -- $want > $lock
+    print -u2 -r -- "update-all: Lazy! restore did not follow lazy-lock.json (a plugin that failed to install?); the lockfile is put back"
+    return 1
+  fi
+  return st
+}
+
 # Every tool here is named bare, never by absolute path. update.test.zsh runs
 # this whole function with an empty $path, which turns each line into "command
 # not found" so it reaches the warning at the end without touching the machine;
 # a line written as /opt/homebrew/bin/brew would really upgrade the machine the
 # test runs on.
 update-all() {
+  # The pin steps that failed, named again at the end: their own `error:`
+  # lines scroll away under brew, go and npm.
+  local -a failed=()
   brew upgrade
   brew upgrade --cask
   # Move the pins in zsh/plugin.zsh to release tags that have been on their
@@ -47,21 +75,22 @@ update-all() {
   # it moves a plugin only as far as its ver pin, and zinit itself moves to
   # _zinit_pin at the next shell start. A cooldown failure holds the pins it
   # could not decide, so the update after it is still safe to run.
-  zinit-cooldown
+  zinit-cooldown || failed+=(zinit-cooldown)
   zinit update --all
   nvim --headless +'CocUpdate' +qa
   nvim --headless +'TSUpdate' +qa
   # Move each commit in vim/nvim/lazy-lock.json forward to its lockfile
   # branch's tip of 7 days ago -- a branch tip, not a tag -- then let lazy.nvim
   # follow it. Not `Lazy! sync`: its update ignores the lockfile, checks out
-  # every branch tip as pushed, and writes those into the lockfile. And the
-  # restore alone in the nvim after the rewrite: a clean or an install that
-  # finishes first rewrites the lockfile from what is installed, undoing it.
-  # The clean (and any install at startup) goes before. See
-  # bin/lazy-cooldown.md.
+  # every branch tip as pushed, and writes those into the lockfile. The
+  # restore runs alone in an nvim after the rewrite, because a clean or an
+  # install that finishes before it in the same nvim rewrites the lockfile
+  # from what is installed; so the clean, and any install at startup, go in
+  # an nvim before. _lazy_restore guards the install that can still happen.
+  # See bin/lazy-cooldown.md.
   nvim --headless '+Lazy! clean' +qa
-  lazy-cooldown
-  nvim --headless '+Lazy! restore' +qa
+  lazy-cooldown || failed+=(lazy-cooldown)
+  _lazy_restore || failed+=('Lazy! restore')
   go install golang.org/x/tools/...@latest
   go install github.com/cweill/gotests/...@latest
   go install github.com/mattn/efm-langserver@latest
@@ -96,6 +125,9 @@ update-all() {
   # asks before changing anything). See bin/relink.
   if command -v relink >/dev/null 2>&1; then
     relink
+  fi
+  if (( ${#failed} )); then
+    print -u2 -r -- "update-all: ${(j:, :)failed} failed; the pins involved stay where they were. Their error lines are above."
   fi
   # Last, so it is what is left on screen -- and so that when the clock has
   # already stopped, it explains the network failures scrolled past above.

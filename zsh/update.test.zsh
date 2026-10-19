@@ -35,6 +35,18 @@ check() {
   fi
 }
 
+TMP=$(mktemp -d "${TMPDIR:-/tmp}/update-test.XXXXXX")
+trap 'rm -rf $TMP' EXIT
+# update-all's restore guard reads lazy.nvim's lockfile under here, so no case
+# reads or writes the real one.
+export XDG_CONFIG_HOME=$TMP/config
+mkdir -p $XDG_CONFIG_HOME/nvim
+LOCK=$XDG_CONFIG_HOME/nvim/lazy-lock.json
+LOCKED='{
+  "one.nvim": { "branch": "main", "commit": "1111111111111111111111111111111111111111" }
+}'
+print -r -- $LOCKED > $LOCK
+
 typeset -i NOW=1800000000 DAY=86400
 # Well past both the day-30 threshold and the 49.7-day deadline.
 typeset -i LONG=$(( 400 * DAY ))
@@ -158,8 +170,9 @@ check 'a warning is not a failure: the status stays 0' \
 # "command not found" and the function runs to its end without touching the
 # machine. (A line that named a tool by absolute path would run for real here.)
 # relink is a function so that there is something for the warning to follow.
+# Between the two comes the list of what failed: here, everything.
 check 'update-all ends with the warning, after relink' \
-  "*relink ran"$'\n'"${(b)$(warning_on $AFFECTED $LONG)}" \
+  "*relink ran"$'\n'"update-all: *"$'\n'"${(b)$(warning_on $AFFECTED $LONG)}" \
   "$(
     (
       OSTYPE=darwin25.0
@@ -193,6 +206,72 @@ nvim '--headless' '+Lazy! restore' '+qa'" \
       update-all 2>/dev/null
     ) | grep -i 'lazy'
   )"
+
+# A cooldown that fails has still decided the pins it could, and they are to
+# be applied: the restore runs anyway, and the failure is named at the end,
+# where the scroll of brew and go output does not bury it.
+out=$(
+  (
+    OSTYPE=linux
+    relink() { :; }
+    nvim() { print -r -- "nvim ${(qq)@}"; }
+    zinit-cooldown() { :; }
+    zinit() { :; }
+    lazy-cooldown() { return 1; }
+    path=()
+    update-all 2>&1
+  )
+)
+check 'a failed lazy-cooldown still lets the restore run' \
+  "*nvim '--headless' '+Lazy! restore' '+qa'*" "$out"
+# OSTYPE=linux keeps the uptime warning silent, so the list is the last line.
+check '  ... and is named at the end' \
+  'update-all: lazy-cooldown failed;*' "${${(f)out}[-1]}"
+said=(${(M)${(f)out}:#update-all: *})
+check '  ... in one line, naming nothing else' '1' "${#said}"
+
+# --- The restore guard ------------------------------------------------------
+
+# A restore can still undo the cooldown: an nvim whose startup installs a
+# plugin missing from disk -- one that failed to clone in the clean before it
+# -- rewrites the lockfile from what is installed before the restore reads it.
+# _lazy_restore keeps the lockfile it was given and puts it back if the restore
+# changed it, so the pins that passed the cooldown stay recorded.
+# restore_with <nvim body> — run _lazy_restore against that nvim; prints the
+# status, then what it printed.
+restore_with() {
+  print -r -- $LOCKED > $LOCK
+  (
+    eval "nvim() { $1; }"
+    path=()
+    _lazy_restore 2>&1
+    print -r -- "status=$?"
+  )
+}
+
+check 'restore guard: silent when the restore follows the lockfile' \
+  'status=0' "$(restore_with ':')"
+
+out=$(restore_with "print -r -- '{ \"one.nvim\": { \"branch\": \"main\", \"commit\": \"2222222222222222222222222222222222222222\" } }' > \$LOCK")
+check 'restore guard: a restore that rewrote the lockfile fails, saying so' \
+  '*did not follow*status=1' "$out"
+check '  ... and the lockfile it was given is put back' "${(b)LOCKED}" "$(cat $LOCK)"
+
+check 'restore guard: a restore that fails fails the guard' \
+  'status=1' "$(restore_with 'return 1')"
+
+rm $LOCK
+check 'restore guard: without a lockfile, nvim is not run' \
+  '*cannot read*status=1' \
+  "$(
+    (
+      nvim() { print -r -- 'nvim ran'; }
+      path=()
+      _lazy_restore 2>&1
+      print -r -- "status=$?"
+    )
+  )"
+print -r -- $LOCKED > $LOCK
 
 # The stub is a hand copy of what one Mac printed. On a Mac, hold it against the
 # real thing: the release must have the shape the gate reads, and the real boot

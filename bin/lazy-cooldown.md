@@ -33,6 +33,18 @@ An install at startup, of a plugin missing from disk, does the same. So
 missing, and restores in another after `lazy-cooldown`;
 `zsh/update.test.zsh` pins that order.
 
+That leaves one way in: a plugin that failed to install in the clean's nvim
+(the network down, say) is installed again at the restore's startup, and that
+install rewrites the lockfile before the restore reads it. So the restore goes
+through `_lazy_restore` in `zsh/update.zsh`, which reads the lockfile first and
+puts it back if the restore changed it. The pins that passed stay recorded,
+and the next `update-all` applies them.
+
+`update-all` also names, at its end, each of `zinit-cooldown`,
+`lazy-cooldown` and the restore that failed. Their own `error:` lines scroll
+away under brew, go and npm output. A failure never stops the run: what the
+cooldown did decide is still applied.
+
 ## The rule
 
 For each `<name> <branch> <commit>` in the lockfile:
