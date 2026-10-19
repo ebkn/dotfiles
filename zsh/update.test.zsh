@@ -285,16 +285,26 @@ check 'restore guard: silent when the restore follows the lockfile' \
   'status=0' "$(restore_with ':')"
 
 out=$(restore_with "print -r -- '{ \"one.nvim\": { \"branch\": \"main\", \"commit\": \"2222222222222222222222222222222222222222\" } }' > \$LOCK")
-check 'restore guard: a restore that rewrote the lockfile fails, saying so' \
-  '*did not follow*put back*status=1' "$out"
+check 'restore guard: a restore that rewrote the lockfile fails, saying it is put back' \
+  '*did not follow*the lockfile is put back*status=1' "$out"
+check '  ... and not that it cannot be' '' "${(M)${(f)out}:#*cannot*}"
 check '  ... and the lockfile it was given is put back, byte for byte' \
   "${(b)LOCKED}"$'\n''\|' "$(lock_bytes)"
 
-# zsh's own rm: an empty path leaves no other.
+# zsh's own rm and mkdir: an empty path leaves no other.
 out=$(restore_with 'zmodload -F zsh/files b:zf_rm; zf_rm $LOCK')
-check 'restore guard: a restore that removed the lockfile fails, saying so' \
-  '*did not follow*status=1' "$out"
+check 'restore guard: a restore that removed the lockfile fails, saying it is put back' \
+  '*did not follow*the lockfile is put back*status=1' "$out"
 check '  ... and the lockfile is back' "${(b)LOCKED}"$'\n''\|' "$(lock_bytes)"
+
+# The put-back itself fails: a directory where the lockfile was, which no
+# write can replace -- as root too, where a chmod would not stop it.
+out=$(restore_with 'zmodload -F zsh/files b:zf_rm b:zf_mkdir; zf_rm $LOCK; zf_mkdir $LOCK')
+check 'restore guard: a lockfile that cannot be put back fails, saying so' \
+  '*did not follow*cannot be put back*status=1' "$out"
+check '  ... and not that it is put back' '' "${(M)${(f)out}:#*is put back*}"
+zmodload -F zsh/files b:zf_rm
+zf_rm -r $LOCK
 
 # Its own status, not just "1": the guard passes nvim's on.
 check 'restore guard: a restore that fails fails the guard with its status' \
