@@ -72,9 +72,12 @@ the lockfile or plugin list could not be read, 2 on a usage error.
 Editing the lockfile's `branch` is not enough on its own. lazy.nvim writes the
 lockfile back after a restore, and for a detached checkout it takes the branch
 from the clone's `origin/HEAD`, which a clone made before the rename still
-points at the old name. So the old branch comes back. On each machine that has
-the clone, run `git -C ~/.local/share/nvim/lazy/<name> remote set-head origin
---auto` before the restore (rust.vim, `master` to `main`, 2026-10).
+points at the old name. So the old branch comes back, and the plugin is held
+on it for good. Name the new branch in the plugin's spec (`branch = "main"`),
+which lazy.nvim reads before `origin/HEAD`: one line in this repository holds
+on every machine (rust.vim, `master` to `main`, 2026-10). The alternative,
+`git -C ~/.local/share/nvim/lazy/<name> remote set-head origin --auto`, has
+to be run on each machine, and forgetting it fails silently.
 
 Until the rename is N days old, it does not read as one: the candidate is
 still the old branch's tip at the cutoff. When that is the pin, the line is
