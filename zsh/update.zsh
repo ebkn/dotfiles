@@ -70,8 +70,9 @@ _lazy_restore() {
 # a line written as /opt/homebrew/bin/brew would really upgrade the machine the
 # test runs on.
 update-all() {
-  # The pin steps that failed, named again at the end: their own `error:`
-  # lines scroll away under brew, go and npm.
+  # The pin steps that failed, named again at the end: their own lines scroll
+  # away under brew, go and npm. Not "the pins stayed": a failed restore leaves
+  # the moved pins in the lockfile, and only the checkout behind.
   local -a failed=()
   brew upgrade
   brew upgrade --cask
@@ -132,7 +133,7 @@ update-all() {
     relink
   fi
   if (( ${#failed} )); then
-    print -u2 -r -- "update-all: ${(j:, :)failed} failed; the pins involved stay where they were. Their error lines are above."
+    print -u2 -r -- "update-all: ${(j:, :)failed} failed; their own lines are above."
   fi
   # Last, so it is what is left on screen -- and so that when the clock has
   # already stopped, it explains the network failures scrolled past above.
