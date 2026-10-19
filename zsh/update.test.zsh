@@ -169,6 +169,28 @@ check 'update-all ends with the warning, after relink' \
     )
   )"
 
+# lazy.nvim rewrites lazy-lock.json from the installed commits whenever a clean
+# or an install finishes, and keeps that in memory for the rest of the process.
+# So lazy-cooldown's rewrite survives only if nothing but the restore runs in
+# the nvim after it: a clean in the same process put every pin back where it
+# was, and nothing failed (bin/lazy-cooldown.md). `sync` or `update` would
+# skip the lockfile altogether. nvim and lazy-cooldown are functions that log,
+# which an empty path leaves as the only ones found.
+check 'update-all cleans, then cools down, then restores in an nvim of its own' \
+  'nvim --headless +Lazy! clean +qa
+lazy-cooldown
+nvim --headless +Lazy! restore +qa' \
+  "$(
+    (
+      OSTYPE=linux
+      relink() { :; }
+      nvim() { print -r -- "nvim $*"; }
+      lazy-cooldown() { print -r -- lazy-cooldown; }
+      path=()
+      update-all 2>/dev/null
+    ) | grep -i 'lazy'
+  )"
+
 # The stub is a hand copy of what one Mac printed. On a Mac, hold it against the
 # real thing: the release must have the shape the gate reads, and the real boot
 # time must parse. The clock is set to the year 2286 so that any real uptime is

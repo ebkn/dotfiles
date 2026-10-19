@@ -52,12 +52,16 @@ update-all() {
   nvim --headless +'CocUpdate' +qa
   nvim --headless +'TSUpdate' +qa
   # Move each commit in vim/nvim/lazy-lock.json forward to its lockfile
-  # branch's tip of 7 days ago -- a branch tip, not a tag: most of these
-  # plugins tag rarely or never -- then let lazy.nvim follow it. Not
-  # `Lazy! sync`: its update ignores the lockfile, checks out every branch tip
-  # as pushed, and writes those into the lockfile (bin/lazy-cooldown.md).
+  # branch's tip of 7 days ago -- a branch tip, not a tag -- then let lazy.nvim
+  # follow it. Not `Lazy! sync`: its update ignores the lockfile, checks out
+  # every branch tip as pushed, and writes those into the lockfile. And the
+  # restore alone in the nvim after the rewrite: a clean or an install that
+  # finishes first rewrites the lockfile from what is installed, undoing it.
+  # The clean (and any install at startup) goes before. See
+  # bin/lazy-cooldown.md.
+  nvim --headless '+Lazy! clean' +qa
   lazy-cooldown
-  nvim --headless '+Lazy! clean' '+Lazy! restore' +qa
+  nvim --headless '+Lazy! restore' +qa
   go install golang.org/x/tools/...@latest
   go install github.com/cweill/gotests/...@latest
   go install github.com/mattn/efm-langserver@latest

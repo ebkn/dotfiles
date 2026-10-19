@@ -3,9 +3,9 @@
 `lazy-cooldown [--days N] [lazy-lock.json]` moves each commit in
 `vim/nvim/lazy-lock.json` forward to the tip its branch had **N days ago**
 (default 7), by GitHub's own record of pushes. It prints one line per plugin
-and rewrites only the pins that move. `update-all` runs it, then
-`Lazy! clean` and `Lazy! restore`, which checks every plugin out at its
-lockfile commit. It commits nothing: the rewritten lockfile is left for its
+and rewrites only the pins that move. `update-all` runs `Lazy! clean`, then
+it, then `Lazy! restore` in an nvim of its own, which checks every plugin out
+at its lockfile commit. It commits nothing: the rewritten lockfile is left for its
 diff to be read and committed.
 
 The zsh counterpart, and the reasoning both share about the gate, is
@@ -20,6 +20,18 @@ commit pushed a minute earlier ran on the next start. Only `restore` (and the
 install of a missing plugin at startup) reads it. lazy.nvim has no cooldown of
 its own yet: folke/lazy.nvim#2141, and the `commit` hook of PR #2165 (both
 open, 2026-10).
+
+## Only `restore` may run after the rewrite
+
+When a clean or an install finishes, lazy.nvim rewrites the lockfile from the
+commits *installed*, and keeps that in memory for the rest of the process.
+`nvim '+Lazy! clean' '+Lazy! restore'` therefore restores to the old pins:
+the clean writes them back over the rewrite, the restore reads them, nothing
+moves and nothing fails (found by hand, 2026-10, stepping back three pins).
+An install at startup, of a plugin missing from disk, does the same. So
+`update-all` cleans in one nvim, whose startup also installs what is
+missing, and restores in another after `lazy-cooldown`;
+`zsh/update.test.zsh` pins that order.
 
 ## The rule
 
@@ -49,11 +61,20 @@ branch for N days.
 | `stays: <branch> N days ago (<sha>) has diverged from the pin …` | the branch was rewritten under the pin |
 | `stays: <sha> is no longer on <branch>` | force-pushed away since the cutoff |
 | `stays: no push to <branch> older than N days on record` | the tip at the cutoff is unknown |
-| `stays: no <branch> branch N days ago (deleted or renamed)` | GitHub records a rename as a deletion: change the lockfile's branch by hand |
+| `stays: no <branch> branch N days ago (deleted or renamed)` | GitHub records a rename as a deletion: change the lockfile's branch by hand (below) |
 | `error: …` | a call failed, lazy.nvim does not list the plugin, its URL is not on GitHub, or the rewrite was unsafe; that plugin is untouched |
 
 Exit status: 0 when every plugin was decided, 1 when any ended in `error` or
 the lockfile or plugin list could not be read, 2 on a usage error.
+
+## A renamed branch
+
+Editing the lockfile's `branch` is not enough on its own. lazy.nvim writes the
+lockfile back after a restore, and for a detached checkout it takes the branch
+from the clone's `origin/HEAD`, which a clone made before the rename still
+points at the old name. So the old branch comes back. On each machine that has
+the clone, run `git -C ~/.local/share/nvim/lazy/<name> remote set-head origin
+--auto` before the restore (rust.vim, `master` to `main`, 2026-10).
 
 ## What it does not cover
 
