@@ -62,7 +62,7 @@ branch for N days.
 | `stays: <sha> is no longer on <branch>` | force-pushed away since the cutoff |
 | `stays: no push to <branch> older than N days on record` | the tip at the cutoff is unknown |
 | `stays: no <branch> branch N days ago (deleted or renamed)` | GitHub records a rename as a deletion: change the lockfile's branch by hand (below) |
-| `error: …` | a call failed, lazy.nvim does not list the plugin, its URL is not on GitHub, or the rewrite was unsafe; that plugin is untouched. Right after a branch rename, too (below) |
+| `error: …` | a call failed, lazy.nvim does not list the plugin, its URL is not on GitHub, or the rewrite was unsafe; that plugin is untouched. Right after a branch rename, too, when the pin would move (below) |
 
 Exit status: 0 when every plugin was decided, 1 when any ended in `error` or
 the lockfile or plugin list could not be read, 2 on a usage error.
@@ -76,11 +76,13 @@ points at the old name. So the old branch comes back. On each machine that has
 the clone, run `git -C ~/.local/share/nvim/lazy/<name> remote set-head origin
 --auto` before the restore (rust.vim, `master` to `main`, 2026-10).
 
-Until the rename is N days old, it does not read as one. The tip at the cutoff
-is still the old branch's, and checking that it is still on the branch asks
-GitHub about a name that is gone: the line is `error: cannot compare <sha>
-with <old branch>`, exit 1. Once the rename is older than the cutoff, the
-line becomes the `stays: no <branch> branch` hold. That window was accepted
+Until the rename is N days old, it does not read as one: the candidate is
+still the old branch's tip at the cutoff. When that is the pin, the line is
+`up to date`; behind or diverged, the matching `stays`, and neither mentions
+a rename. Only when the pin would move does checking that the tip is still on
+the branch ask GitHub about a name that is gone: `error: cannot compare <sha>
+with <old branch>`, exit 1. Once the rename is older than the cutoff, every
+case becomes the `stays: no <branch> branch` hold. That window was accepted
 (2026-10) rather than given a case of its own.
 
 ## What it does not cover
