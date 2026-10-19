@@ -175,16 +175,18 @@ check 'update-all ends with the warning, after relink' \
 # the nvim after it: a clean in the same process put every pin back where it
 # was, and nothing failed (bin/lazy-cooldown.md). `sync` or `update` would
 # skip the lockfile altogether. nvim and lazy-cooldown are functions that log,
-# which an empty path leaves as the only ones found.
+# which an empty path leaves as the only ones found. nvim logs each argument
+# quoted: `+Lazy! clean` unquoted is two arguments, the second a file to edit,
+# and joined with spaces it would read the same.
 check 'update-all cleans, then cools down, then restores in an nvim of its own' \
-  'nvim --headless +Lazy! clean +qa
+  "nvim '--headless' '+Lazy! clean' '+qa'
 lazy-cooldown
-nvim --headless +Lazy! restore +qa' \
+nvim '--headless' '+Lazy! restore' '+qa'" \
   "$(
     (
       OSTYPE=linux
       relink() { :; }
-      nvim() { print -r -- "nvim $*"; }
+      nvim() { print -r -- "nvim ${(qq)@}"; }
       lazy-cooldown() { print -r -- lazy-cooldown; }
       path=()
       update-all 2>/dev/null
