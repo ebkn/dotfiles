@@ -1,6 +1,7 @@
 #!/usr/bin/env zsh
 # Unit tests for _uptime_reboot_warning and its place in update-all
-# (zsh/update.zsh).
+# (zsh/update.zsh), and for the order of update-all's lazy.nvim steps: clean,
+# then lazy-cooldown, then a restore in an nvim of its own (see the case).
 #
 # The warning predicts a failure that gives no notice of its own: on macOS
 # 26.0-26.3 the kernel's TCP clock stops 49.7 days after boot, TIME_WAIT sockets

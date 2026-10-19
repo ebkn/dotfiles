@@ -179,7 +179,7 @@ Pinned by `zsh/plugin.test.zsh`.
 | `his.test.zsh` | `his()` and `gs()` — see [alias.md](alias.md) |
 | `rm.test.zsh`, `fd.test.zsh` | the two `alias.zsh` wrappers |
 | `git-worktree.test.zsh` | `gw()` and `gdmerged()` — see [git.md](git.md) |
-| `update.test.zsh` | which releases and uptimes `update-all`'s warning speaks on, and that `update-all` still ends with it |
+| `update.test.zsh` | which releases and uptimes `update-all`'s warning speaks on, that `update-all` still ends with it, and the order of its lazy.nvim steps |
 | `plugin.test.zsh` | that every plugin and zinit carry a commit pin, no ice has `depth`, and zinit is held at its pin |
 
 After changing shell config, verify with a new shell session or
@@ -228,8 +228,13 @@ Most of the expectations are *silence*, which is also what a function that never
 ran produces. So every case captures stderr: a missing or crashing function
 prints `command not found` and fails them, rather than passing as quiet.
 
-Three cases earn their keep:
+Four cases earn their keep:
 
+- **The lazy.nvim steps run clean, `lazy-cooldown`, restore**, the restore in
+  an nvim of its own: the reason is in
+  [bin/lazy-cooldown.md](../bin/lazy-cooldown.md#only-restore-may-run-after-the-rewrite).
+  `nvim` is a function logging each argument quoted, so an unquoted
+  `+Lazy! clean`, which splits into two arguments, fails it too.
 - **`update-all` ends with the warning.** The function can pass every case of
   its own while `update-all` no longer calls it — and a warning that stopped
   firing looks exactly like a healthy machine. The case runs the real
