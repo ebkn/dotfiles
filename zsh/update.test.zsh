@@ -210,25 +210,50 @@ nvim '--headless' '+Lazy! restore' '+qa'" \
 # A cooldown that fails has still decided the pins it could, and they are to
 # be applied: the restore runs anyway, and the failure is named at the end,
 # where the scroll of brew and go output does not bury it.
-out=$(
+# update_with <zinit-cooldown> <lazy-cooldown> <restore> — run update-all with
+# those three exiting with the given statuses and everything else succeeding;
+# prints what it printed. OSTYPE=linux keeps the uptime warning silent, so the
+# list, when there is one, is the last line.
+update_with() {
+  print -r -- $LOCKED > $LOCK
   (
     OSTYPE=linux
+    typeset -g ZC=$1 LC=$2 RS=$3
     relink() { :; }
-    nvim() { print -r -- "nvim ${(qq)@}"; }
-    zinit-cooldown() { :; }
+    zinit-cooldown() { return $ZC; }
     zinit() { :; }
-    lazy-cooldown() { return 1; }
+    lazy-cooldown() { return $LC; }
+    nvim() {
+      print -r -- "nvim ${(qq)@}"
+      [[ $2 == '+Lazy! restore' ]] && return $RS
+      return 0
+    }
     path=()
     update-all 2>&1
   )
-)
+}
+# lists — the update-all: lines in $out, one per line.
+lists() { print -rl -- ${(M)${(f)out}:#update-all: *}; }
+
+out=$(update_with 0 0 0)
+check 'when every pin step succeeds, no failure is listed' '' "$(lists)"
+
+out=$(update_with 0 1 0)
 check 'a failed lazy-cooldown still lets the restore run' \
   "*nvim '--headless' '+Lazy! restore' '+qa'*" "$out"
-# OSTYPE=linux keeps the uptime warning silent, so the list is the last line.
-check '  ... and is named at the end' \
-  'update-all: lazy-cooldown failed;*' "${${(f)out}[-1]}"
-said=(${(M)${(f)out}:#update-all: *})
-check '  ... in one line, naming nothing else' '1' "${#said}"
+check '  ... and is named, alone, on the last line' \
+  'update-all: lazy-cooldown failed;*' "$(lists)"
+check '  ... which is the last line' "${(b)$(lists)}" "${${(f)out}[-1]}"
+
+out=$(update_with 1 0 0)
+check 'a failed zinit-cooldown is named, alone' 'update-all: zinit-cooldown failed;*' "$(lists)"
+
+out=$(update_with 0 0 1)
+check 'a failed restore is named, alone' 'update-all: Lazy! restore failed;*' "$(lists)"
+
+out=$(update_with 1 1 1)
+check 'all three failing are named on one line, in order' \
+  'update-all: zinit-cooldown, lazy-cooldown, Lazy! restore failed;*' "$(lists)"
 
 # --- The restore guard ------------------------------------------------------
 
@@ -237,10 +262,14 @@ check '  ... in one line, naming nothing else' '1' "${#said}"
 # -- rewrites the lockfile from what is installed before the restore reads it.
 # _lazy_restore keeps the lockfile it was given and puts it back if the restore
 # changed it, so the pins that passed the cooldown stay recorded.
-# restore_with <nvim body> — run _lazy_restore against that nvim; prints the
-# status, then what it printed.
+# restore_with <nvim body> — run _lazy_restore against that nvim, starting
+# from the fixture lockfile; prints what it printed, then its status.
 restore_with() {
   print -r -- $LOCKED > $LOCK
+  restore_as_is "$1"
+}
+# restore_as_is <nvim body> — the same, on the lockfile as it stands.
+restore_as_is() {
   (
     eval "nvim() { $1; }"
     path=()
@@ -248,29 +277,38 @@ restore_with() {
     print -r -- "status=$?"
   )
 }
+# lock_bytes — the lockfile exactly, trailing newlines included, which $(cat)
+# would strip.
+lock_bytes() { local b; IFS= read -rd '' b < $LOCK; print -rn -- "$b|"; }
 
 check 'restore guard: silent when the restore follows the lockfile' \
   'status=0' "$(restore_with ':')"
 
 out=$(restore_with "print -r -- '{ \"one.nvim\": { \"branch\": \"main\", \"commit\": \"2222222222222222222222222222222222222222\" } }' > \$LOCK")
 check 'restore guard: a restore that rewrote the lockfile fails, saying so' \
-  '*did not follow*status=1' "$out"
-check '  ... and the lockfile it was given is put back' "${(b)LOCKED}" "$(cat $LOCK)"
+  '*did not follow*put back*status=1' "$out"
+check '  ... and the lockfile it was given is put back, byte for byte' \
+  "${(b)LOCKED}"$'\n''\|' "$(lock_bytes)"
 
-check 'restore guard: a restore that fails fails the guard' \
-  'status=1' "$(restore_with 'return 1')"
+# zsh's own rm: an empty path leaves no other.
+out=$(restore_with 'zmodload -F zsh/files b:zf_rm; zf_rm $LOCK')
+check 'restore guard: a restore that removed the lockfile fails, saying so' \
+  '*did not follow*status=1' "$out"
+check '  ... and the lockfile is back' "${(b)LOCKED}"$'\n''\|' "$(lock_bytes)"
+
+# Its own status, not just "1": the guard passes nvim's on.
+check 'restore guard: a restore that fails fails the guard with its status' \
+  'status=3' "$(restore_with 'return 3')"
 
 rm $LOCK
-check 'restore guard: without a lockfile, nvim is not run' \
-  '*cannot read*status=1' \
-  "$(
-    (
-      nvim() { print -r -- 'nvim ran'; }
-      path=()
-      _lazy_restore 2>&1
-      print -r -- "status=$?"
-    )
-  )"
+out=$(restore_as_is "print -r -- 'nvim ran'")
+check 'restore guard: without a lockfile, it fails, saying so' '*cannot read*status=1' "$out"
+check '  ... and nvim is not run' '' "${(M)${(f)out}:#nvim ran}"
+
+: > $LOCK
+out=$(restore_as_is "print -r -- 'nvim ran'")
+check 'restore guard: with an empty lockfile, it fails, saying so' '*cannot read*status=1' "$out"
+check '  ... and nvim is not run' '' "${(M)${(f)out}:#nvim ran}"
 print -r -- $LOCKED > $LOCK
 
 # The stub is a hand copy of what one Mac printed. On a Mac, hold it against the
