@@ -77,7 +77,10 @@ for line in $lines; do
   report() { print -r -- "$module: $*"; }
   {
     # Versions in semver order, retracted ones left out by go itself. A
-    # pre-release is not a release.
+    # pre-release is not a release. From /, not the caller's directory:
+    # update-all runs wherever its shell is, and inside a module with a
+    # vendor/ directory go refuses ("can't determine available versions
+    # using the vendor directory", go 1.27, 2026-10).
     listed=$(cd / && command go list -m -json -versions $module@latest | jq -r '.Versions[]?') ||
       { report "error: cannot list the versions"; failed=1; continue; }
     released=(${${(f)listed}:#*-*})
