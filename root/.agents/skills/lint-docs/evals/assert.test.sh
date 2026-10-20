@@ -216,15 +216,21 @@ grade "$(detect_report | sed 's/（実測.*）//')"
 expect_fail "detect: a サーバ finding reported without its count is caught" \
   "reports the count behind the サーバ finding"
 
-# Locations, before or after the word, are not counts.
+# Numbers that are not counts: locations on either side of the word, list
+# and heading numbering, and the shapes the rejected spellings leaked.
 for location in \
   'docs/guide.md:3:8 サーバ → サーバー' \
   'サーバ 3 行目で検出' \
   'サーバ 3:5 で検出' \
-  'サーバ（3 行目）'; do
+  'サーバ（3 行目）' \
+  '1. docs/guide.md:3:8 サーバ → サーバー' \
+  '## 3. 表記ゆれ サーバ' \
+  'docs/guide.md L3 サーバ' \
+  'docs/guide.md line 3 サーバ' \
+  'docs/guide.md:3-5 サーバ'; do
   new_run detects-each-category "$detect_good"
   grade "$(detect_report | sed "s|^- docs/guide.md:3 .*|- $location|")"
-  expect_fail "detect: a location is not a count: $location" \
+  expect_fail "detect: not a count: $location" \
     "reports the count behind the サーバ finding"
 done
 

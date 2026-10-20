@@ -78,15 +78,18 @@ lint_docs_read_diff_after_edit() {
 
 # lint_docs_reports_count <report>
 # Step 4: "実測結果は報告に数値付きで含める". A line naming サーバ carries a
-# count -- `3 : 1`, `3 件` -- not merely a location. Rather than listing
-# every spelling of a count, the locations are removed -- `3 行目`, `3 行`,
-# textlint's `path:3:5`, a bare `3:5` -- and whatever digit is left is one.
-# A ratio survives because it is spaced (`3 : 1`) or full-width (`3：1`); a
-# location never is.
+# count, in one of the two shapes every real run used: `3 件`, or a ratio
+# whose second side may name the word again (`サーバー 3 : サーバ 1`,
+# `3：1`). Positive shapes rather than "a digit that is not a
+# location": blocklisting locations leaked each one not yet listed (a line
+# number after the word, list and heading numbers, `L3`, ranges). A ratio
+# is told from a location by its spaces or full-width colon, which textlint's
+# `path:3:5` never has. What it rejects on purpose: `サーバー 3、サーバ 1`
+# and full-width digits -- a real count graded FAIL is visible in
+# assert.log, a location graded PASS is not.
 lint_docs_reports_count() {
   printf '%s\n' "$1" | grep 'サーバ' |
-    sed -E 's/[0-9]+ ?行目?//g; s/[0-9]+(:[0-9]+)+//g; s/:[0-9]+//g' |
-    grep -qE '[0-9]'
+    grep -qE '[0-9]+ ?件|[0-9]+ : ([^ 0-9]+ )?[0-9]+|[0-9]+ ?： ?([^ 0-9：]+ ?)?[0-9]+'
 }
 
 # lint_docs_writes
