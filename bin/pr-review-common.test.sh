@@ -259,7 +259,11 @@ echo "== the session-cwd hook and with_current_cwd agree =="
 # So the real hook writes, with nothing overridden, and the reader reads.
 HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")/../root/.claude/hooks" && pwd)/session-cwd.sh"
 seam=$(
-  unset CLAUDE_SESSION_CWD_DIR XDG_STATE_HOME
+  # The hook also publishes @claude_cwd on $TMUX_PANE. This suite runs on the
+  # host, often from a Claude session inside tmux, and an inherited TMUX_PANE
+  # once pointed that session's real pane at this suite's temp repo: deleted on
+  # exit, so its `prefix + t` popup fell back to $HOME and tig found no repo.
+  unset CLAUDE_SESSION_CWD_DIR XDG_STATE_HOME TMUX TMUX_PANE
   export HOME="$TMP/seam-home"
   printf '{"session_id":"seam-1","hook_event_name":"CwdChanged","old_cwd":"%s","new_cwd":"%s"}' \
     "$REPO" "$REPO/git-worktrees/a" | "$HOOK" cd
