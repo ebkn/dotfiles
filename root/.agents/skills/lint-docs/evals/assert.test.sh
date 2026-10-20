@@ -30,6 +30,19 @@ bad() {
 root_dir="$(mktemp -d)"
 trap 'rm -rf "$root_dir"' EXIT
 
+# Every git here runs under an external diff tool that prints no unified diff,
+# as a grading machine with difftastic configured does. The graders must read
+# diffs with --no-ext-diff; without this the check depends on the host -- red
+# on a laptop with diff.external, green on CI without it, for the same grader.
+# GIT_CONFIG_* outranks the global config, so the host's own setting is
+# replaced, not added to.
+cat >"$root_dir/ext-diff" <<'EXT'
+#!/bin/sh
+echo "external diff of $1"
+EXT
+chmod +x "$root_dir/ext-diff"
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=diff.external GIT_CONFIG_VALUE_0="$root_dir/ext-diff"
+
 # --- transcript records, in the stream-json shape the helpers read ---
 # Scenarios name them inside strings that new_run evals, which shellcheck
 # cannot follow.
@@ -446,6 +459,11 @@ new_run after-writing-ja-doc 'rec_edit Write docs/deploy.md; rec_skill; rec_bash
 grade "書きました。"
 expect_pass "after-writing: a good run passes every assertion"
 
+# shellcheck disable=SC2016 # $work is expanded when new_run evals the records
+new_run after-writing-ja-doc 'rec_edit Write "$work/docs/deploy.md"; rec_skill; rec_bash "textlint-docs docs/deploy.md"' "$after_write"
+grade "書きました。"
+expect_pass "after-writing: an absolute file_path, as real runs record, is the breakpoint"
+
 new_run after-writing-ja-doc 'rec_edit Write docs/deploy.md' "$after_write"
 grade "書きました。"
 expect_fail "after-writing: not starting the skill is caught" \
@@ -500,6 +518,14 @@ section_good='rec_edit Edit docs/ops.md; rec_skill; rec_bash "textlint-docs docs
 new_run after-adding-ja-section "$section_good" "$section_add"
 grade "節を足しました。"
 expect_pass "section: a good run passes every assertion"
+
+# Real runs record absolute paths. The records above are relative, so a
+# breakpoint regex "simplified" to ^docs/ops\.md$ would pass them and fail
+# every paid run.
+# shellcheck disable=SC2016 # $work is expanded when new_run evals the records
+new_run after-adding-ja-section 'rec_edit Edit "$work/docs/ops.md"; rec_skill; rec_bash "textlint-docs docs/ops.md"' "$section_add"
+grade "節を足しました。"
+expect_pass "section: an absolute file_path, as real runs record, is the breakpoint"
 
 # The tool that wrote it does not matter; the size of what it wrote does.
 new_run after-adding-ja-section "$section_good" 'printf "\n## 障害時の切り替え\n" >>docs/ops.md'
