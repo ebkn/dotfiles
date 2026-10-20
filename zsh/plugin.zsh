@@ -10,7 +10,7 @@
 # every shell after the first loads the newest commit without a word. See
 # zsh/README.md.
 _zinit_repo=zdharma-continuum/zinit
-_zinit_pin=db9e267184c85a26056c2646222f48df609cecd5
+_zinit_pin=0616639b9577f8708ff664c2b157abfcefc42ffa
 _zinit_bin=$HOME/.zinit/bin
 
 ### Added by Zinit's installer
