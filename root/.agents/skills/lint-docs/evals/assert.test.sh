@@ -146,7 +146,7 @@ detect_checks=(
   '誇張: 大幅に / 完全に (line 11)'
   '英語式コロン: 次を実行する: (line 13)'
   '装飾絵文字: ✅ (line 15)'
-  '冗長表現: ことができる (line 18, beyond the tool)'
+  '冗長表現: ことができる (line 18)'
 )
 # detect_report [<index to drop>]
 detect_report() {

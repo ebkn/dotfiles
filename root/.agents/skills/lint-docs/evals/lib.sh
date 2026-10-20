@@ -31,10 +31,8 @@ lint_docs_link_tool() {
 #   11 大幅に / 完全に      誇張 (no-ai-hype-expressions)
 #   13 次を実行する:        英語式コロン (no-ai-colon-continuation)
 #   15 ✅                   装飾絵文字 (no-ai-list-formatting)
-#   18 ことができる         冗長表現 -- no rule reports it: ja-no-redundant-expression
-#                           is disabled in textlintrc.yml. Planted to measure
-#                           whether the skill covers what its description promises
-#                           beyond the tool.
+#   18 ことができる         冗長表現 (ja-no-redundant-phrase, textlint/rules/; the
+#                           upstream ja-no-redundant-expression stays disabled)
 # docs/ops.md uses サーバー three times and is otherwise clean, so the section B
 # finding is one the skill should adopt after measuring.
 lint_docs_write_guide() {

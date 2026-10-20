@@ -18,10 +18,9 @@ check_match "ひらき: 予め (line 9)" '予め' "$report"
 check_match "誇張: 大幅に / 完全に (line 11)" '大幅に|完全に' "$report"
 check_match "英語式コロン: 次を実行する: (line 13)" '次を実行する|コロン' "$report"
 check_match "装飾絵文字: ✅ (line 15)" '✅|絵文字' "$report"
-# No rule in the toolchain reports this one (ja-no-redundant-expression is
-# disabled), while the description promises 冗長表現. A FAIL here is the skill
-# relaying the tool, not reading the document.
-check_match "冗長表現: ことができる (line 18, beyond the tool)" 'ことができる' "$report"
+# Reported by the local ja-no-redundant-phrase. Before it existed no rule
+# caught this, and 0 of 4 runs started by name reported it.
+check_match "冗長表現: ことができる (line 18)" 'ことができる' "$report"
 
 # --- step 4: a section B finding is measured before it is adopted ---
 check "counted サーバ across the project" lint_docs_measured 'サーバ'

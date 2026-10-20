@@ -18,14 +18,15 @@ Started by name (`/lint-docs ...`), so starting is not what they measure.
 | `prh-direction-reversed` | 4, 5 | the dictionary's サーバー applied in a project that writes サーバ; the diff not read after fixing |
 
 `detects-each-category` plants one finding per category on its own line
-(`lib.sh` lists them). **Line 18, `ことができる`, is one no rule reports**:
-`ja-no-redundant-expression` is disabled in `textlint/textlintrc.yml`, while
-the description promises 冗長表現. It is graded anyway, because the
-question is whether the skill delivers what its description says, not whether
-it relays the tool.
+(`lib.sh` lists them). **Line 18, `ことができる`, was at first one no rule
+reported**: `ja-no-redundant-expression` is disabled in
+`textlint/textlintrc.yml`, while the description promises 冗長表現. That case
+failed 4 of 4 (below), and the local `ja-no-redundant-phrase`
+(`textlint/rules/`) now reports it.
 
 **Each planted finding was confirmed against the real toolchain** (2026-10-20,
-`textlint-docs` on each scaffold's output): every line but 18 is reported,
+`textlint-docs` on each scaffold's output): every line is reported (line 18
+since the local rule),
 `docs/ops.md` is clean, and both English documents of `excludes-english-docs`
 yield `sentence-length` and `max-comma` findings. Phrasings that looked like
 violations and were not: `画期的` / `劇的` (not in `no-ai-hype-expressions`'s
