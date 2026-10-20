@@ -93,6 +93,13 @@ for (const ancestors of [["Paragraph", "BlockQuote"], ["Link", "Paragraph"], ["L
     lint(withLocator, str("読み込むことができる。", ancestors)).length);
 }
 
+// ... and what it still reads. Skipping too much fails silently -- fewer
+// findings, nothing else -- and list items are where generated prose puts
+// the most of it.
+for (const ancestors of [["ListItem", "List"], ["Header"], ["Strong", "Paragraph"], ["Emphasis", "Paragraph"], ["TableCell", "TableRow", "Table"]]) {
+  t(`reported inside ${ancestors[0]}`, 1, lint(withLocator, str("読み込むことができる。", ancestors)).length);
+}
+
 // --- the upstream failure, structurally excluded ---
 // textlintrc.yml's repro: two paragraphs, upstream joined them and reported
 // "することができるWeb", then --fix wrote into the second one.
