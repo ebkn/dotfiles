@@ -44,6 +44,10 @@
       }
     }
   },
+  // gopls comes from bin/go-tools.txt, past go-cooldown. Without a path,
+  // coc-go checks once a day and runs `go install gopls@latest` itself, and
+  // installs it the same way when it is missing. See bin/go-cooldown.md.
+  "go.goplsPath": "~/go/bin/gopls",
   "go.goplsOptions": {
     "local": "github.com/ebkn,github.com/mesh-i,github.com/delight-ventures,github.com/Next-Genba",
     "gofumpt": true,

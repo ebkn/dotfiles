@@ -49,7 +49,8 @@ For each line, newest release first, after the pin only:
 4. **On its branch N days ago**: the branch's tip at the cutoff, from GitHub's
    activity log (`tip_at`), contains the commit. `{X.Y}` in the branch is the
    release's own major.minor: tailscale cuts `v1.104.1` from
-   `release-branch/1.104` and never merges it into `main`. A branch with no
+   `release-branch/1.104` and never merges it into `main`, and gopls cuts
+   `v0.23.0` from `gopls-release-branch.0.23`. A branch with no
    tip at the cutoff -- created since, or deleted -- holds no release.
 
 The first release that passes is taken. **Not the release's `Time`**: the
@@ -75,6 +76,17 @@ before committing: a starting version that is not a release is an `error`. The
 branch is the one its releases are tagged on: the default branch for most,
 which `gh api repos/<repo> --jq .default_branch` gives.
 
+## gopls, and coc-go's own installer
+
+coc-go installs gopls itself unless `go.goplsPath` names one: once a day at
+startup it compares the newest `gopls/` tag with the installed version and runs
+`go install golang.org/x/tools/gopls@latest` (`go.checkForUpdates` defaults
+to `install`), and it does the same when gopls is missing (coc-go 1.3.35,
+`lib/commands.js` and `lib/extension.js`). `vim/nvim/coc-settings.json` points
+it at `~/go/bin/gopls`, which `go-tools-install` builds from this list, and
+that one setting turns off both. A missing gopls is then an error message, not
+an install.
+
 ## What it does not cover
 
 - The tools' own dependencies: each is built from its `go.sum`, as published
@@ -96,4 +108,5 @@ named by a `file://` `GOPROXY`, which curl reads. `bin/go-tools-install.test.sh`
 `update-all` does, and reads the real `go-tools.txt`.
 `bin/init/install-helpers.test.sh` pins that `install_go_tools` hands its
 arguments to `go-tools-install`. The lookups themselves
-were checked by running `go-cooldown` against all 13 tools, 2026-10.
+were checked by running `go-cooldown` against all 13 tools, and against gopls
+alone when it was added, 2026-10.
