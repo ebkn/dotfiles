@@ -31,9 +31,10 @@ root_dir="$(mktemp -d)"
 trap 'rm -rf "$root_dir"' EXIT
 
 # Every git here runs under an external diff tool that prints no unified diff,
-# as a grading machine with difftastic configured does. The graders must read
-# diffs with --no-ext-diff; without this the check depends on the host -- red
-# on a laptop with diff.external, green on CI without it, for the same grader.
+# as a grading machine with difftastic configured does, and with colour forced
+# on. The graders must read diffs with --no-ext-diff --no-color; without this
+# the check depends on the host -- red on a laptop with diff.external or
+# color.diff=always, green on CI without them, for the same grader.
 # GIT_CONFIG_* outranks the global config, so the host's own setting is
 # replaced, not added to.
 cat >"$root_dir/ext-diff" <<'EXT'
@@ -41,7 +42,9 @@ cat >"$root_dir/ext-diff" <<'EXT'
 echo "external diff of $1"
 EXT
 chmod +x "$root_dir/ext-diff"
-export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=diff.external GIT_CONFIG_VALUE_0="$root_dir/ext-diff"
+export GIT_CONFIG_COUNT=2 \
+  GIT_CONFIG_KEY_0=diff.external GIT_CONFIG_VALUE_0="$root_dir/ext-diff" \
+  GIT_CONFIG_KEY_1=color.diff GIT_CONFIG_VALUE_1=always
 
 # --- transcript records, in the stream-json shape the helpers read ---
 # Scenarios name them inside strings that new_run evals, which shellcheck
@@ -531,6 +534,11 @@ expect_pass "section: an absolute file_path, as real runs record, is the breakpo
 new_run after-adding-ja-section "$section_good" 'printf "\n## 障害時の切り替え\n" >>docs/ops.md'
 grade "見出しを足しました。"
 expect_fail "section: a heading alone is not a section" "added several sentences"
+
+# Just under the line: two sentences are "数行", not a section.
+new_run after-adding-ja-section "$section_good" 'printf "\n## 障害時の切り替え\n\n片方が落ちたら切り替える。\n\n応答を確かめる。\n" >>docs/ops.md'
+grade "節を足しました。"
+expect_fail "section: two sentences are not a section" "added several sentences"
 
 new_run after-adding-ja-section 'rec_edit Edit docs/ops.md' "$section_add"
 grade "節を足しました。"
