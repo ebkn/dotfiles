@@ -129,6 +129,9 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/bin/zinit-cooldown" "${HOME}/.local/bin/zinit-cooldown"
   # Same: finds bin/cooldown.zsh and vim/nvim/lazy-lock.json the same way.
   link_with_backup "${DOTFILES_DIR}/bin/lazy-cooldown" "${HOME}/.local/bin/lazy-cooldown"
+  # Same, both finding bin/go-tools.txt beside the link's target.
+  link_with_backup "${DOTFILES_DIR}/bin/go-cooldown" "${HOME}/.local/bin/go-cooldown"
+  link_with_backup "${DOTFILES_DIR}/bin/go-tools-install" "${HOME}/.local/bin/go-tools-install"
   # The LaunchAgent below execs this through ~/.local/bin, so the two links are
   # a pair: linking the plist without this one leaves launchd calling a path
   # that does not exist, and it reports that only in its own log.

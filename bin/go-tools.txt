@@ -1,0 +1,20 @@
+# The Go tools update-all and bin/init install, at the versions they install.
+# bin/go-cooldown moves a version forward once its commit has been on its
+# branch for 7 days; bin/go-tools-install runs `go install <package>@<version>`
+# for each package. See bin/go-cooldown.md.
+#
+# <module> <version> <github repo> <branch> <package>...
+# {X.Y} in a branch is the release's own major.minor.
+golang.org/x/tools v0.52.0 golang/tools master golang.org/x/tools/...
+github.com/cweill/gotests v1.9.0 cweill/gotests develop github.com/cweill/gotests/...
+github.com/mattn/efm-langserver v0.0.57 mattn/efm-langserver master github.com/mattn/efm-langserver
+github.com/hashicorp/terraform-ls v0.39.0 hashicorp/terraform-ls main github.com/hashicorp/terraform-ls
+github.com/golangci/golangci-lint/v2 v2.14.0 golangci/golangci-lint main github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+github.com/nametake/golangci-lint-langserver v0.0.12 nametake/golangci-lint-langserver main github.com/nametake/golangci-lint-langserver
+github.com/mikefarah/yq/v4 v4.54.1 mikefarah/yq master github.com/mikefarah/yq/v4
+github.com/x-motemen/ghq v1.11.2 x-motemen/ghq master github.com/x-motemen/ghq
+github.com/cloudspannerecosystem/spanner-cli v0.11.2 cloudspannerecosystem/spanner-cli master github.com/cloudspannerecosystem/spanner-cli
+github.com/aquasecurity/tfsec v1.28.14 aquasecurity/tfsec master github.com/aquasecurity/tfsec/cmd/tfsec
+github.com/terraform-linters/tflint v0.64.0 terraform-linters/tflint master github.com/terraform-linters/tflint
+mvdan.cc/gofumpt v0.12.0 mvdan/gofumpt master mvdan.cc/gofumpt
+tailscale.com v1.104.1 tailscale/tailscale release-branch/{X.Y} tailscale.com/cmd/tailscale tailscale.com/cmd/tailscaled

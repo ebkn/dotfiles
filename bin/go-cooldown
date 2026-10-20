@@ -1,0 +1,148 @@
+#!/usr/bin/env zsh
+# go-cooldown [--days N] [go-tools.txt] — move each version in bin/go-tools.txt
+# forward to the newest release whose commit was already on its branch N days
+# ago (default 7), as GitHub's push record has it. Prints one line per module;
+# rewrites only the versions that move, and commits nothing.
+# bin/go-tools-install installs what the file names. See bin/go-cooldown.md.
+#
+# Exit: 0 when every module was decided (moved, up to date, or held), 1 when
+# any could not be (a call that fails, a release the proxy cannot vouch for, a
+# pin that is not a release, a version that does not appear exactly once, a
+# write that fails, a file that cannot be read), 2 on a usage error.
+
+emulate -L zsh
+setopt extendedglob pipefail
+zmodload zsh/datetime
+source ${0:A:h}/cooldown.zsh
+
+usage() { print -u2 -- "usage: go-cooldown [--days N] [go-tools.txt]"; exit 2; }
+
+days=7
+while (( $# )); do
+  case $1 in
+    --days) [[ ${2-} == <-> ]] || usage; days=$2; shift 2 ;;
+    -*) usage ;;
+    *) break ;;
+  esac
+done
+(( $# <= 1 )) || usage
+file=${1:-${0:A:h}/go-tools.txt}
+
+lines=("${(@f)$(<$file)}") || { print -u2 -r -- "go-cooldown: cannot read $file"; exit 1; }
+# Every line is read before anything is asked: one the tool could not parse
+# would otherwise be left behind without a word.
+typeset -i i=0
+for line in $lines; do
+  (( ++i ))
+  [[ $line == (\#*|[[:space:]]#) ]] && continue
+  if (( ${#${(z)line}} < 5 )); then
+    print -u2 -r -- "go-cooldown: ${file:t} line $i is not <module> <version> <repo> <branch> <package>..."
+    exit 1
+  fi
+done
+
+# The proxy, not the repository, is where a version's commit is read: what go
+# install builds is what the proxy served first, and the checksum database
+# holds it there even if the tag moves later. Only the first entry is asked:
+# the ones after it serve only when it fails.
+proxy=$(command go env GOPROXY) || { print -u2 -- "go-cooldown: cannot run go env"; exit 1; }
+proxy=${proxy%%[,|]*}
+if [[ $proxy != (https|file)://* ]]; then
+  print -u2 -r -- "go-cooldown: GOPROXY is \"$proxy\"; a module proxy is needed to read what was published"
+  exit 1
+fi
+
+cooldown_cutoff $days
+
+# escape <path> — the proxy protocol's case encoding: each capital letter
+# becomes ! and its lower case.
+escape() { print -r -- ${1//(#b)([[:upper:]])/!${(L)match[1]}}; }
+
+# info <module> <version> — sets $hash and $origin from the proxy's .info.
+# Status 1 unreadable, 2 no commit recorded (a version fetched before the
+# proxy kept origins).
+info() {
+  local json
+  json=$(command curl -fsS "$proxy/$(escape $1)/@v/$(escape $2).info") || return 1
+  hash=$(jq -r '.Origin.Hash // empty' <<<$json) || return 1
+  origin=$(jq -r '.Origin.URL // empty' <<<$json) || return 1
+  [[ $hash == [[:xdigit:]](#c40) ]] || return 2
+}
+
+typeset -i failed=0
+for line in $lines; do
+  [[ $line == (\#*|[[:space:]]#) ]] && continue
+  words=(${(z)line})
+  module=$words[1] pin=$words[2] repo=$words[3] branch_rule=$words[4]
+  report() { print -r -- "$module: $*"; }
+  {
+    # Versions in semver order, retracted ones left out by go itself. A
+    # pre-release is not a release.
+    listed=$(cd / && command go list -m -json -versions $module@latest | jq -r '.Versions[]?') ||
+      { report "error: cannot list the versions"; failed=1; continue; }
+    released=(${${(f)listed}:#*-*})
+    integer at=${released[(Ie)$pin]}
+    if (( ! at )); then
+      report "error: $pin is not among the released versions (retracted?)"; failed=1; continue
+    fi
+    newer=(${released[at+1,-1]})
+    if (( ! ${#newer} )); then
+      report "up to date ($pin)"
+      continue
+    fi
+
+    # Newest first, the first one whose commit the branch held at the cutoff.
+    # A branch with no tip then -- created since, or deleted -- holds none.
+    typeset -A tips=()
+    eligible='' esha='' ebranch=''
+    for v in ${(Oa)newer}; do
+      info $module $v
+      case $? in
+        1) report "error: cannot read $v from the proxy"; failed=1; continue 2 ;;
+        2) report "error: the proxy records no commit for $v"; failed=1; continue 2 ;;
+      esac
+      if [[ $origin == https://github.com/* && ${(L)${origin#https://github.com/}%.git} != ${(L)repo} ]]; then
+        report "error: $v comes from $origin, not github.com/$repo"; failed=1; continue 2
+      fi
+      # {X.Y} is the release's own major.minor: tailscale cuts each from
+      # release-branch/X.Y, never from main.
+      mm=${${v#v}%.*}
+      branch=${branch_rule//\{X.Y\}/$mm}
+      if (( ! ${+tips[$branch]} )); then
+        tip=$(tip_at $repo $branch)
+        if (( $? == 1 )); then
+          report "error: cannot read the push history of $branch"; failed=1; continue 2
+        fi
+        tips[$branch]=$tip
+      fi
+      [[ -n ${tips[$branch]} ]] || continue
+      st=$(status $repo $hash ${tips[$branch]}) ||
+        { report "error: cannot compare $v with $branch $days days ago"; failed=1; continue 2; }
+      if [[ $st == (ahead|identical) ]]; then
+        eligible=$v esha=$hash ebranch=$branch
+        break
+      fi
+    done
+    if [[ -z $eligible ]]; then
+      report "stays: no release after $pin was on its branch $days days ago"
+      continue
+    fi
+
+    info $module $pin
+    case $? in
+      1) report "error: cannot read $pin from the proxy"; failed=1; continue ;;
+      2) report "error: the proxy records no commit for $pin"; failed=1; continue ;;
+    esac
+    # The module and a space either side, so v1.1 cannot match inside v1.10.
+    rewrite_once $file "$module $pin " "$module $eligible "
+    case $? in
+      1) report "error: \"$module $pin \" appears $count times in ${file:t}, not once"; failed=1; continue ;;
+      2) report "error: cannot write ${file:t}"; failed=1; continue ;;
+    esac
+    report "moved $pin..$eligible (on $ebranch $days days ago) https://github.com/$repo/compare/$hash...$esha"
+  } always {
+    unfunction report
+  }
+done
+
+exit $failed

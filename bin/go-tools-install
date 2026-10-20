@@ -1,0 +1,72 @@
+#!/bin/bash
+# go-tools-install [--except <module>]... [go-tools.txt] -- `go install
+# <package>@<version>` for every package in bin/go-tools.txt, at the version
+# bin/go-cooldown let through. A failed install does not stop the rest; the
+# run exits 1 once they are done, naming each. See bin/go-cooldown.md.
+#
+# bash 3.2: bin/init runs this on a machine with nothing else installed yet.
+set -eo pipefail
+# Lines are split into words with `set -- $line`; no word is a pattern.
+set -f
+
+usage() {
+  echo "usage: go-tools-install [--except <module>]... [go-tools.txt]" >&2
+  exit 2
+}
+
+except=" "
+while [ $# -gt 0 ]; do
+  case $1 in
+    --except)
+      [ $# -ge 2 ] || usage
+      except="$except$2 "
+      shift 2
+      ;;
+    -*) usage ;;
+    *) break ;;
+  esac
+done
+[ $# -le 1 ] || usage
+# Run through its link in ~/.local/bin, the file is beside the link's target
+# (bin/init/links.sh links by absolute path). No `readlink -f` in bash 3.2's
+# macOS.
+self=$0
+[ -L "$self" ] && self=$(readlink "$self")
+file=${1:-$(dirname "$self")/go-tools.txt}
+
+if ! content=$(cat "$file"); then
+  echo "go-tools-install: cannot read $file" >&2
+  exit 1
+fi
+
+# Every line is checked before anything is installed: one that cannot be read
+# would otherwise be skipped without a word.
+n=0
+while IFS= read -r line; do
+  n=$((n + 1))
+  case $line in '#'* | '') continue ;; esac
+  # shellcheck disable=SC2086 # split into words on purpose
+  set -- $line
+  if [ $# -lt 5 ]; then
+    echo "go-tools-install: $(basename "$file") line $n is not <module> <version> <repo> <branch> <package>..." >&2
+    exit 1
+  fi
+done <<<"$content"
+
+failed=""
+while IFS= read -r line; do
+  case $line in '#'* | '') continue ;; esac
+  # shellcheck disable=SC2086 # split into words on purpose
+  set -- $line
+  module=$1 version=$2
+  shift 4
+  case $except in *" $module "*) continue ;; esac
+  for package; do
+    if ! go install "$package@$version"; then
+      echo "go-tools-install: $package@$version failed" >&2
+      failed="$failed $package@$version"
+    fi
+  done
+done <<<"$content"
+
+[ -z "$failed" ]

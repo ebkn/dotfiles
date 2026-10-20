@@ -58,5 +58,6 @@ Claude Code loads these from `.claude/rules/` when a matching file is touched. C
 | Japanese prose linting (`textlint-docs`)         | [bin/textlint-docs.md](bin/textlint-docs.md) |
 | Skill evals (`skill-eval`)                       | [bin/skill-eval.md](bin/skill-eval.md) |
 | Neovim plugin cooldown (`lazy-lock.json`)        | [bin/lazy-cooldown.md](bin/lazy-cooldown.md) |
+| Go tool versions and their cooldown (`go-tools.txt`) | [bin/go-cooldown.md](bin/go-cooldown.md) |
 | zsh plugin pins and their cooldown               | [zsh/README.md](zsh/README.md#zinit-and-every-plugin-are-pinned-to-a-commit), [bin/zinit-pins.md](bin/zinit-pins.md), [bin/zinit-cooldown.md](bin/zinit-cooldown.md) |
 | Session retrospective (`/retrospective`)         | [root/.agents/skills/retrospective/NOTES.md](root/.agents/skills/retrospective/NOTES.md) |
