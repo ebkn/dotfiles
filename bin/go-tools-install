@@ -44,9 +44,11 @@ fi
 n=0
 while IFS= read -r line; do
   n=$((n + 1))
-  case $line in '#'* | '') continue ;; esac
+  case $line in '#'*) continue ;; esac
   # shellcheck disable=SC2086 # split into words on purpose
   set -- $line
+  # A blank line, spaces or not, as go-cooldown reads it.
+  [ $# -gt 0 ] || continue
   if [ $# -lt 5 ]; then
     echo "go-tools-install: $(basename "$file") line $n is not <module> <version> <repo> <branch> <package>..." >&2
     exit 1
@@ -55,9 +57,11 @@ done <<<"$content"
 
 failed=""
 while IFS= read -r line; do
-  case $line in '#'* | '') continue ;; esac
+  case $line in '#'*) continue ;; esac
   # shellcheck disable=SC2086 # split into words on purpose
   set -- $line
+  # A blank line, spaces or not, as go-cooldown reads it.
+  [ $# -gt 0 ] || continue
   module=$1 version=$2
   shift 4
   case $except in *" $module "*) continue ;; esac

@@ -30,6 +30,10 @@ cat >"$PINS" <<'EOF'
 example.com/one v1.0.0 a/one main example.com/one/...
 example.com/two v1.3.1 b/two release-branch/{X.Y} example.com/two/cmd/x example.com/two/cmd/y
 EOF
+# And a line of two spaces, written so no editor trims it: go-cooldown skips
+# such a line, so this must too, or one file would pass the cooldown and stop
+# the install.
+printf '  \n' >>"$PINS"
 
 : >"$GO_LOG"
 assert_status "installs every line" 0 "$TOOL" "$PINS"
