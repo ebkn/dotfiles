@@ -1,0 +1,87 @@
+# lint-docs evals
+
+Run with `bin/skill-eval lint-docs` ([bin/skill-eval.md](../../../../../bin/skill-eval.md)).
+This file sits in `evals/` on purpose: the runner strips the directory from the
+copy of the skill a run sees.
+
+The cases answer two questions separately, because a pass on one says nothing
+about the other.
+
+## Does each check catch what it claims
+
+Started by name (`/lint-docs ...`), so starting is not what they measure.
+
+| Case | Step of SKILL.md | What would make it fail |
+| --- | --- | --- |
+| `detects-each-category` | 3, 4, 6 | a category from the description missing from the report; a section B finding adopted without counting; any write |
+| `excludes-english-docs` | 1 | an English document, the hiragana trap among them, reaching `textlint-docs`; the report not saying how many were left out |
+| `prh-direction-reversed` | 4, 5 | the dictionary's サーバー applied in a project that writes サーバ; the diff not read after fixing |
+
+`detects-each-category` plants one finding per category on its own line
+(`lib.sh` lists them). **Line 18, `ことができる`, is one no rule reports**:
+`ja-no-redundant-expression` is disabled in `textlint/textlintrc.yml`, while
+the description promises 冗長表現. It is graded anyway, because the
+question is whether the skill delivers what its description says, not whether
+it relays the tool.
+
+**Each planted finding was confirmed against the real toolchain** (2026-10-20,
+`textlint-docs` on each scaffold's output): every line but 18 is reported,
+`docs/ops.md` is clean, and both English documents of `excludes-english-docs`
+yield `sentence-length` and `max-comma` findings. Phrasings that looked like
+violations and were not: `画期的` / `劇的` (not in `no-ai-hype-expressions`'s
+word list) and `次のとおり:` (`no-ai-colon-continuation` accepts a noun before
+the colon). `assert.test.sh` cannot re-check this — CI has no textlint — so a
+rule bump in `textlint/package.json` needs it redone by hand.
+
+## Does it start on its own
+
+| Case | Request | Expected |
+| --- | --- | --- |
+| `fires-on-trigger-phrase` | the description's own words, skill unnamed | starts |
+| `fires-on-paraphrase` | same doc, words the description does not list | starts |
+| `no-fire-english-doc` | proofread an English README | does not start |
+| `after-writing-ja-doc` | write a Japanese doc; checking it is not asked | **not promised** |
+
+The two `fires-*` cases share fixture and grader by `exec`, so a difference
+between them is the wording's. `after-writing-ja-doc` measures a trigger the
+description does not offer: it starts the skill on a request to check prose,
+never after writing it. Its number says whether "it fires on our own Japanese
+docs" holds by accident; a FAIL there is not a regression of anything
+promised.
+
+No case brings in `root/CLAUDE.md`: it says nothing about this skill, so the
+description is the only thing that can start it.
+
+## Last measured
+
+**2026-10-20, sonnet, four runs per case** (one, then three):
+
+| Case | Passed | What failed |
+| --- | --- | --- |
+| `detects-each-category` | 0/4 | 冗長表現 (line 18) missing from all four reports; one run also refused (below) |
+| `excludes-english-docs` | 4/4 | |
+| `prh-direction-reversed` | 1/4 | `git diff` never read after fixing in three; they re-ran `textlint-docs` instead |
+| `fires-on-trigger-phrase` | 4/4 | |
+| `fires-on-paraphrase` | 4/4 | |
+| `no-fire-english-doc` | 4/4 | |
+| `after-writing-ja-doc` | 0/4 | never started, as the description predicts |
+
+What the numbers say about the skill, not the harness:
+
+- **Starting is carried by the description.** Unnamed requests started it 8
+  of 8, paraphrase included, and an English proofreading request 0 of 4.
+- **Line 18 is reported only when the skill was not started by name**: both
+  `fires-*` runs read in full flagged `ことができる` by eye; the four
+  `/lint-docs` runs relayed textlint and nothing else. SKILL.md asks for no
+  reading beyond the tool, so the description's 冗長表現 rests on chance.
+- **Section A and B cannot be told apart.** Step 4 adopts section A as-is,
+  but neither textlint's output nor SKILL.md says which section a rule is in.
+  `再試行` (section A) was counted and then held back as if it were B in
+  three of five runs whose report was read; one run tried to read `prh.yml`
+  to find out, through a guessed `~/.local/bin/../../dotfiles/textlint/prh.yml`,
+  and was refused. That refusal is the only one across all 28 runs. A check
+  for it is not graded yet: the right answer is "adopt", which a regex on the
+  report cannot separate from a mention.
+- **A section B rule the project contradicts is handled.** All four
+  `prh-direction-reversed` runs counted, kept サーバ and fixed 予め by `Edit`
+  rather than a blind `--fix`; what fails there is only step 5.4.
