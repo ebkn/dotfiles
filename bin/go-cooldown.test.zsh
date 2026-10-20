@@ -164,6 +164,39 @@ run --days 1
 check '--days moves the cutoff' \
   '0 moved v1.0.0..v1.3.0 \(on main 1 days ago\)*' "$st $(said example.com/one)"
 
+# The proxy protocol spells a capital as ! and its lower case, so a module
+# with one is read from example.com/!upper; read as written, it is not found.
+fresh_case; history a/one main
+compare a/one $C $T ahead
+versions example.com/one v1.0.0
+print -r -- "example.com/Upper v1.0.0 a/one main example.com/Upper" >> $PINS
+versions example.com/Upper v1.0.0 v1.1.0
+mkdir -p $GH_FIXTURES/proxy/example.com/!upper/@v
+print -r -- "{\"Version\":\"v1.0.0\",\"Origin\":{\"URL\":\"https://github.com/a/one\",\"Hash\":\"$P\"}}" \
+  > $GH_FIXTURES/proxy/example.com/!upper/@v/v1.0.0.info
+print -r -- "{\"Version\":\"v1.1.0\",\"Origin\":{\"URL\":\"https://github.com/a/one\",\"Hash\":\"$C\"}}" \
+  > $GH_FIXTURES/proxy/example.com/!upper/@v/v1.1.0.info
+run
+check 'reads a module with a capital from the proxy in its escaped form' \
+  '0 moved v1.0.0..v1.1.0 *' "$st $(said example.com/Upper)"
+
+# GitHub names are not case-sensitive, and a URL may end in .git.
+fresh_case; history a/one main
+compare a/one $C $T ahead
+origin example.com/one v1.3.0 A/One.git $C
+run
+check 'takes a release from the same repository, spelt in another case or with .git' \
+  '0 moved v1.0.0..v1.3.0 *' "$st $(said example.com/one)"
+
+# golang.org/x/tools comes from go.googlesource.com: its GitHub mirror is asked.
+fresh_case; history a/one main
+compare a/one $C $T ahead
+print -r -- "{\"Version\":\"v1.3.0\",\"Origin\":{\"URL\":\"https://go.googlesource.com/one\",\"Hash\":\"$C\"}}" \
+  > $GH_FIXTURES/proxy/example.com/one/@v/v1.3.0.info
+run
+check 'takes a release from outside GitHub, asking the repository the line names' \
+  '0 moved v1.0.0..v1.3.0 *' "$st $(said example.com/one)"
+
 # --- A release branch -----------------------------------------------------
 
 # Each release's branch is named from its own major.minor: v1.4.0's branch is
@@ -220,6 +253,24 @@ run
 check 'fails when the proxy cannot be read' \
   '1 error: cannot read v1.3.0 from the proxy' "$st $(said example.com/one)"
 
+# The pin's own commit is read only for the compare URL, once a release has
+# passed; a pin the proxy cannot vouch for still stops the move.
+fresh_case; history a/one main
+compare a/one $C $T ahead
+command rm $GH_FIXTURES/proxy/example.com/one/@v/v1.0.0.info
+before=$(file_now)
+run
+check 'fails when the pin cannot be read from the proxy' \
+  '1 error: cannot read v1.0.0 from the proxy' "$st $(said example.com/one)"
+check '  ... and the file is as it was' "${(b)before}" "$(file_now)"
+
+fresh_case; history a/one main
+compare a/one $C $T ahead
+print -r -- '{"Version":"v1.0.0"}' > $GH_FIXTURES/proxy/example.com/one/@v/v1.0.0.info
+run
+check 'fails a pin the proxy records no commit for' \
+  '1 error: the proxy records no commit for v1.0.0' "$st $(said example.com/one)"
+
 fresh_case
 versions example.com/one v1.1.0 v1.2.0
 run
@@ -251,6 +302,26 @@ check 'fails a pin that appears twice, rewriting nothing' \
   '1 error: "example.com/one v1.0.0 " appears 2 times in go-tools.txt, not once' \
   "$st $(said example.com/one)"
 check '  ... and the file is as it was' "${(b)before}" "$(file_now)"
+
+# As root the directory's mode is ignored and the write succeeds: skip there
+# rather than report a bug that does not exist (.claude/rules/testing.md).
+if (( EUID )); then
+  fresh_case; history a/one main
+  compare a/one $C $T ahead
+  chmod 500 $GH_FIXTURES
+  before=$(file_now)
+  run
+  chmod 700 $GH_FIXTURES
+  check 'fails when the file cannot be written' \
+    '1 error: cannot write go-tools.txt' "$st $(said example.com/one)"
+  check '  ... and the file is as it was' "${(b)before}" "$(file_now)"
+else
+  print 'skip a file that cannot be written: running as root'
+fi
+
+fresh_case
+out=$(PATH=$TMP/bin:$PATH zsh -f $TOOL $GH_FIXTURES/none.txt 2>&1); st=$?
+check 'fails a file it cannot read' "1 *go-cooldown: cannot read $GH_FIXTURES/none.txt" "$st $out"
 
 fresh_case; FAKE_GOPROXY=direct
 run
