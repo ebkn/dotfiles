@@ -24,9 +24,15 @@ cat >"$STUB/npm" <<'EOF'
 [ "$1" = list ] && { [ -n "${NPM_HAS:-}" ]; exit; }
 echo "npm $*" >>"$LOG"
 EOF
-printf '#!/bin/sh\necho "go $*" >>"$LOG"\n' >"$STUB/go"
-printf '#!/bin/sh\necho "go-tools-install $*" >>"$LOG"\nexit "${GTI_EXIT:-0}"\n' \
-  >"$TEST_TMPDIR/dotfiles/bin/go-tools-install"
+cat >"$STUB/go" <<'EOF'
+#!/bin/sh
+echo "go $*" >>"$LOG"
+EOF
+cat >"$TEST_TMPDIR/dotfiles/bin/go-tools-install" <<'EOF'
+#!/bin/sh
+echo "go-tools-install $*" >>"$LOG"
+exit "${GTI_EXIT:-0}"
+EOF
 chmod +x "$STUB/npm" "$STUB/go" "$TEST_TMPDIR/dotfiles/bin/go-tools-install"
 export LOG="$TEST_TMPDIR/log" DOTFILES_DIR="$TEST_TMPDIR/dotfiles"
 
@@ -66,7 +72,8 @@ assert_eq "go: ... and fails when it fails" "1" "$st"
 mkdir -p "$TEST_TMPDIR/nogo"
 cp "$STUB/npm" "$TEST_TMPDIR/nogo/"
 : >"$LOG"
-st=$(helper "$TEST_TMPDIR/nogo:/usr/bin:/bin" install_go_tools)
+# Only the stubs' directory: a runner may have go in /usr/bin.
+st=$(helper "$TEST_TMPDIR/nogo" install_go_tools)
 assert_eq "go: without go it fails" "1" "$st"
 assert_contains "  ... saying so" "$(cat "$TEST_TMPDIR/err")" "go is not installed yet"
 assert_eq "  ... and installs nothing" "" "$(cat "$LOG")"

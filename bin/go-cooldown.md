@@ -93,5 +93,7 @@ which `gh api repos/<repo> --jq .default_branch` gives.
 [lazy-cooldown's suite](lazy-cooldown.md#tests), and the proxy is a directory
 named by a `file://` `GOPROXY`, which curl reads. `bin/go-tools-install.test.sh`:
 `go` is a stub that logs; one case runs the tool through a link, as
-`update-all` does, and reads the real `go-tools.txt`. The lookups themselves
+`update-all` does, and reads the real `go-tools.txt`.
+`bin/init/install-helpers.test.sh` pins that `install_go_tools` hands its
+arguments to `go-tools-install`. The lookups themselves
 were checked by running `go-cooldown` against all 13 tools, 2026-10.
