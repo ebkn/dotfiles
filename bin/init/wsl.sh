@@ -299,8 +299,9 @@ else
 fi
 
 log_step "Ensuring tmux plugin manager"
-install_or_upgrade_git_repo "https://github.com/tmux-plugins/tpm" "${HOME}/.tmux/plugins/tpm"
-"${HOME}/.tmux/plugins/tpm/bin/install_plugins"
+# tpm and every plugin at the commit bin/tmux-plugins.txt names; tpm cannot pin
+# one (bin/tmux-plugins-install.md).
+"${DOTFILES_DIR}/bin/tmux-plugins-install"
 
 # Copy GUI app configs to the Windows side so WezTerm and Cursor running
 # natively on Windows pick them up.  Re-run the init script to resync

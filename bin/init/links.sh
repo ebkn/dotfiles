@@ -136,6 +136,8 @@ link_dotfiles() {
   # Same, both finding bin/go-tools.txt beside the link's target.
   link_with_backup "${DOTFILES_DIR}/bin/go-cooldown" "${HOME}/.local/bin/go-cooldown"
   link_with_backup "${DOTFILES_DIR}/bin/go-tools-install" "${HOME}/.local/bin/go-tools-install"
+  # Same, finding bin/tmux-plugins.txt beside the link's target.
+  link_with_backup "${DOTFILES_DIR}/bin/tmux-plugins-install" "${HOME}/.local/bin/tmux-plugins-install"
   # The LaunchAgent below execs this through ~/.local/bin, so the two links are
   # a pair: linking the plist without this one leaves launchd calling a path
   # that does not exist, and it reports that only in its own log.

@@ -1,0 +1,12 @@
+# The tmux plugins, each at the commit bin/tmux-plugins-install checks out in
+# ~/.tmux/plugins/<repo name>. tpm (the last line's loader in .tmux.conf) then
+# only sources them; its prefix + I and prefix + U are not how they get there.
+# Every @plugin line in .tmux.conf has a line here (tmux-plugins-install.test.sh
+# checks both ways). Move a pin by hand, to a commit read and at least 7 days
+# old. See bin/tmux-plugins-install.md.
+#
+# <https URL> <commit>
+https://github.com/tmux-plugins/tpm 99469c4a9b1ccf77fade25842dc7bafbc8ce9946
+https://github.com/tmux-plugins/tmux-resurrect cff343cf9e81983d3da0c8562b01616f12e8d548
+https://github.com/tmux-plugins/tmux-continuum 0698e8f4b17d6454c71bf5212895ec055c578da0
+https://github.com/wfxr/tmux-fzf-url c71d2113b4cb00eb159ad723fc5072ff5ec738b8

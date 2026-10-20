@@ -104,6 +104,10 @@ update-all() {
   # at the version already vetted. See bin/go-cooldown.md.
   go-cooldown || failed+=(go-cooldown)
   go-tools-install || failed+=(go-tools-install)
+  # Check the tmux plugins out at the commits in bin/tmux-plugins.txt. tpm
+  # cannot pin one, and its update is a `git pull` to the tip; this is how a
+  # moved pin reaches a machine. See bin/tmux-plugins-install.md.
+  tmux-plugins-install || failed+=(tmux-plugins-install)
   # Install scripts stay off (~/.npmrc ignore-scripts=true), here as for any
   # install: a script runs with this user's rights, for every package in each
   # tree, and none of these needs one (zsh/README.md). Keep in sync with

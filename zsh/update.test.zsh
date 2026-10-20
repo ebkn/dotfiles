@@ -228,7 +228,8 @@ check '  ... leaving install scripts to ~/.npmrc' '' "${(M)${(f)out}:#npm *ignor
 # be applied: the restore runs anyway, and the failure is named at the end,
 # where the scroll of brew and go output does not bury it.
 # update_with <zinit-cooldown> <lazy-cooldown> <restore> <go-cooldown>
-# <go-tools-install> — run update-all with those five exiting with the given
+# <go-tools-install> [<tmux-plugins-install>] — run update-all with those
+# exiting with the given
 # statuses and everything else succeeding; prints what it printed.
 # OSTYPE=linux keeps the uptime warning silent, so the list, when there is
 # one, is the last line.
@@ -236,13 +237,14 @@ update_with() {
   print -r -- $LOCKED > $LOCK
   (
     OSTYPE=linux
-    typeset -g ZC=$1 LC=$2 RS=$3 GC=$4 GI=$5
+    typeset -g ZC=$1 LC=$2 RS=$3 GC=$4 GI=$5 TP=${6:-0}
     relink() { :; }
     zinit-cooldown() { return $ZC; }
     zinit() { :; }
     lazy-cooldown() { return $LC; }
     go-cooldown() { print -r -- go-cooldown; return $GC; }
     go-tools-install() { print -r -- go-tools-install; return $GI; }
+    tmux-plugins-install() { return $TP; }
     go() { print -r -- "go ${(qq)@}"; }
     nvim() {
       print -r -- "nvim ${(qq)@}"
@@ -286,9 +288,12 @@ check '  ... and is named, alone' 'update-all: go-cooldown failed;*' "$(lists)"
 out=$(update_with 0 0 0 0 1)
 check 'a failed go-tools-install is named, alone' 'update-all: go-tools-install failed;*' "$(lists)"
 
-out=$(update_with 1 1 1 1 1)
-check 'all five failing are named on one line, in order' \
-  'update-all: zinit-cooldown, lazy-cooldown, Lazy! restore, go-cooldown, go-tools-install failed;*' "$(lists)"
+out=$(update_with 0 0 0 0 0 1)
+check 'a failed tmux-plugins-install is named, alone' 'update-all: tmux-plugins-install failed;*' "$(lists)"
+
+out=$(update_with 1 1 1 1 1 1)
+check 'all six failing are named on one line, in order' \
+  'update-all: zinit-cooldown, lazy-cooldown, Lazy! restore, go-cooldown, go-tools-install, tmux-plugins-install failed;*' "$(lists)"
 
 # --- The restore guard ------------------------------------------------------
 

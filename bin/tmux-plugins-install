@@ -1,0 +1,110 @@
+#!/bin/bash
+# tmux-plugins-install [tmux-plugins.txt] -- check every tmux plugin out in
+# ~/.tmux/plugins/<repo name> at the commit bin/tmux-plugins.txt names. tpm
+# cannot pin a commit (its #ref is a branch or tag for `git clone -b`, and its
+# update is a `git pull`), so it only loads what this put there. A plugin that
+# fails does not stop the rest; the run exits 1 once they are done, naming
+# each. See bin/tmux-plugins-install.md.
+#
+# bash 3.2: bin/init runs this on a machine with nothing else installed yet.
+set -eo pipefail
+# Lines are split into words with `set -- $line`; no word is a pattern.
+set -f
+
+usage() {
+  echo "usage: tmux-plugins-install [tmux-plugins.txt]" >&2
+  exit 2
+}
+
+case ${1-} in -*) usage ;; esac
+[ $# -le 1 ] || usage
+# Run through its link in ~/.local/bin, the list is beside the link's target
+# (bin/init/links.sh links by absolute path). No `readlink -f` in bash 3.2's
+# macOS.
+self=$0
+[ -L "$self" ] && self=$(readlink "$self")
+file=${1:-$(dirname "$self")/tmux-plugins.txt}
+root=$HOME/.tmux/plugins
+
+if ! content=$(cat "$file"); then
+  echo "tmux-plugins-install: cannot read $file" >&2
+  exit 1
+fi
+
+# Every line is checked before anything is cloned: one that cannot be read
+# would otherwise be skipped without a word, and its plugin left unpinned.
+n=0
+while IFS= read -r line; do
+  n=$((n + 1))
+  case $line in '#'*) continue ;; esac
+  # shellcheck disable=SC2086 # split into words on purpose
+  set -- $line
+  [ $# -gt 0 ] || continue
+  if [ $# -eq 2 ] && [ ${#2} -eq 40 ]; then
+    case $2 in *[!0-9a-f]*) ;; *) continue ;; esac
+  fi
+  echo "tmux-plugins-install: $(basename "$file") line $n is not <url> <40-hex commit>" >&2
+  exit 1
+done <<<"$content"
+
+# Which repository a URL names, whichever way it was written: tpm clones as
+# https://git::@github.com/<repo>, bin/init cloned tpm without the .git.
+same_repo() {
+  local a=${1/:\/\/git::@/://} b=${2/:\/\/git::@/://}
+  a=${a%/} b=${b%/}
+  [ "${a%.git}" = "${b%.git}" ]
+}
+
+# install <url> <commit>: prints one line, or fails with one on stderr.
+install() {
+  local url=$1 sha=$2 name dest origin fresh=""
+  name=$(basename "$url" .git)
+  dest=$root/$name
+  if [ ! -e "$dest" ]; then
+    mkdir -p "$root"
+    # Submodules are left out: in these plugins they are test libraries
+    # (tmux-test, bats), more code fetched for nothing that runs.
+    git clone --quiet --no-checkout -- "$url" "$dest" || return 1
+    fresh=1
+  elif [ ! -e "$dest/.git" ]; then
+    echo "$name: $dest is not a git clone" >&2
+    return 1
+  fi
+  # The raw value, not `remote get-url`, which applies .gitconfig's insteadOf.
+  origin=$(git -C "$dest" config --get remote.origin.url) || origin=""
+  if ! same_repo "$origin" "$url"; then
+    echo "$name: origin is $origin, not $url" >&2
+    return 1
+  fi
+  if ! git -C "$dest" cat-file -e "$sha^{commit}" 2>/dev/null; then
+    git -C "$dest" fetch --quiet origin || return 1
+    if ! git -C "$dest" cat-file -e "$sha^{commit}" 2>/dev/null; then
+      echo "$name: $sha is not in $url" >&2
+      return 1
+    fi
+  fi
+  # A fresh --no-checkout clone has HEAD at the tip and nothing on disk, so
+  # it is checked out even when the pin is the tip.
+  if [ -z "$fresh" ] && [ "$(git -C "$dest" rev-parse HEAD)" = "$sha" ]; then
+    echo "$name: at ${sha:0:7}"
+    return 0
+  fi
+  # --force: .tmux.conf patches tmux-fzf-url's working tree on every load,
+  # and that edit would refuse the checkout. It is applied again on the next.
+  git -C "$dest" checkout --quiet --force --detach "$sha" || return 1
+  echo "$name: checked out ${sha:0:7}"
+}
+
+failed=""
+while IFS= read -r line; do
+  case $line in '#'*) continue ;; esac
+  # shellcheck disable=SC2086 # split into words on purpose
+  set -- $line
+  [ $# -gt 0 ] || continue
+  if ! install "$1" "$2"; then
+    echo "tmux-plugins-install: $(basename "$1" .git) failed" >&2
+    failed="$failed $1"
+  fi
+done <<<"$content"
+
+[ -z "$failed" ]

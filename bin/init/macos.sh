@@ -196,8 +196,9 @@ link_with_backup "${DOTFILES_DIR}/.eslintrc.js" "${HOME}/.eslintrc.js"
 link_with_backup "${DOTFILES_DIR}/tsconfig.json" "${HOME}/tsconfig.json"
 
 log_step "Ensuring tmux plugin manager"
-install_or_upgrade_git_repo "https://github.com/tmux-plugins/tpm" "${HOME}/.tmux/plugins/tpm"
-"${HOME}/.tmux/plugins/tpm/bin/install_plugins"
+# tpm and every plugin at the commit bin/tmux-plugins.txt names; tpm cannot pin
+# one (bin/tmux-plugins-install.md).
+"${DOTFILES_DIR}/bin/tmux-plugins-install"
 
 log_step "Installing languages from homebrew"
 install_or_upgrade_brew_bundle "${DOTFILES_DIR}/brewfiles/Brewfile-lang"
