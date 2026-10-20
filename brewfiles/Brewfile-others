@@ -4,9 +4,6 @@ brew 'gnu-sed'
 # make
 brew 'cmake'
 
-# tree
-brew 'tree'
-
 # env
 brew 'direnv'
 
