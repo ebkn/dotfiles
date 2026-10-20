@@ -9,6 +9,11 @@ export HOMEBREW_FORBIDDEN_FORMULAE="node npm pnpm yarn claude"
 export HOMEBREW_VERIFY_ATTESTATIONS=1
 # Refuse HTTP-to-HTTPS redirects during downloads.
 export HOMEBREW_NO_INSECURE_REDIRECT=1
+# Not HOMEBREW_CASK_OPTS=--require-sha: it has no per-cask exemption, and 4 of
+# brewfiles/Brewfile-cask (google-chrome, google-drive, google-japanese-ime,
+# spotify) are `sha256 :no_check`, so they would fail to install or upgrade. The
+# other checksums are taken by Homebrew's autobump from the vendor's own file,
+# so they catch a CDN swap after the bump, not a compromised vendor (2026-10).
 
 # User-local scripts PATH and VOLTA_HOME are set in .zshenv
 
