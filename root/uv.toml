@@ -1,0 +1,14 @@
+# uv user config (linked to ~/.config/uv/uv.toml, read on macOS and Linux).
+#
+# Supply-chain hardening: resolve only against files uploaded at least 7 days
+# ago, the window ~/.npmrc, yarn, pnpm, pip and the cooldown tools in bin/ use.
+# A relative span ("7 days") moves with the clock; checked with uv 0.13.1.
+#
+# Accepted cost (2026-10): a project whose uv.lock was made without this is
+# re-resolved, not reused -- uv reports "Resolving despite existing lockfile due
+# to addition of global exclude newer" -- so `uv sync` can step packages back
+# and rewrite uv.lock, and `uv sync --locked` fails. In a repo where that lock
+# must stay as committed, run with --no-config. A project's own
+# `[tool.uv] exclude-newer` did not stop it when this file was passed as
+# --config-file; through the real user-config lookup, untested.
+exclude-newer = "7 days"

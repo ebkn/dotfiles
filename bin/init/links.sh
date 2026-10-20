@@ -96,6 +96,7 @@ link_dotfiles() {
   # The same 7 days for PyPI. pip reads ~/.config/pip/pip.conf on both
   # platforms.
   link_with_backup "${DOTFILES_DIR}/root/pip.conf" "${HOME}/.config/pip/pip.conf"
+  link_with_backup "${DOTFILES_DIR}/root/uv.toml" "${HOME}/.config/uv/uv.toml"
 
   # others
   link_with_backup "${DOTFILES_DIR}/.rgignore" "${HOME}/.rgignore"
