@@ -449,21 +449,57 @@ expect_pass "after-writing: a good run passes every assertion"
 new_run after-writing-ja-doc 'rec_edit Write docs/deploy.md' "$after_write"
 grade "書きました。"
 expect_fail "after-writing: not starting the skill is caught" \
-  "started lint-docs on the document it wrote" "ran textlint-docs on docs/deploy.md"
+  "started lint-docs on the document it wrote" "ran textlint-docs on docs/deploy.md" \
+  "started it after writing the document"
 
-new_run after-writing-ja-doc 'rec_skill; rec_bash "textlint-docs docs/guide.md"' "$after_write"
+new_run after-writing-ja-doc 'rec_edit Write docs/deploy.md; rec_skill; rec_bash "textlint-docs docs/guide.md"' "$after_write"
 grade "書きました。"
 expect_fail "after-writing: linting another document is caught" "ran textlint-docs on docs/deploy.md"
+
+# Started before the document exists: not the breakpoint.
+new_run after-writing-ja-doc 'rec_skill; rec_edit Write docs/deploy.md; rec_bash "textlint-docs docs/deploy.md"' "$after_write"
+grade "書きました。"
+expect_fail "after-writing: starting before writing is caught" "started it after writing the document"
 
 new_run after-writing-ja-doc 'rec_skill; rec_bash "textlint-docs docs/deploy.md"' ''
 grade "書きました。"
 expect_fail "after-writing: not writing the document is caught" "wrote docs/deploy.md" \
-  "wrote it in Japanese"
+  "wrote it in Japanese" "started it after writing the document" \
+  "changed nothing but docs/deploy.md"
+
+# Fixing is allowed in the document it wrote, and only there.
+new_run after-writing-ja-doc 'rec_edit Write docs/deploy.md; rec_skill; rec_bash "textlint-docs docs/deploy.md"; rec_edit Edit docs/guide.md' \
+  "$after_write; printf 'x\n' >>docs/guide.md"
+grade "書きました。"
+expect_fail "after-writing: fixing another document is caught" "changed nothing but docs/deploy.md"
 
 new_run after-writing-ja-doc 'rec_edit Write docs/deploy.md; rec_skill; rec_bash "textlint-docs docs/deploy.md"' \
   'printf "# Deploy\n\nBuild, then ship.\n" >docs/deploy.md'
 grade "Done."
 expect_fail "after-writing: an English document is caught" "wrote it in Japanese"
+
+# ============================================================
+# no-fire-small-ja-edit
+# ============================================================
+small_fix='sed "s/2 台/3 台/" docs/ops.md >docs/o.tmp; mv docs/o.tmp docs/ops.md'
+
+# The scaffold must hold 2 台, or "changed" holds before the run starts.
+new_run no-fire-small-ja-edit 'rec_edit Edit docs/ops.md'
+grade "直しました。"
+expect_fail "small-edit: the scaffold plants 2 台" "changed 2 台 to 3 台" "changed nothing else"
+
+new_run no-fire-small-ja-edit 'rec_edit Edit docs/ops.md' "$small_fix"
+grade "直しました。"
+expect_pass "small-edit: a good run passes every assertion"
+
+new_run no-fire-small-ja-edit 'rec_edit Edit docs/ops.md; rec_skill; rec_bash "textlint-docs docs/ops.md"' "$small_fix"
+grade "直しました。"
+expect_fail "small-edit: starting the skill is caught" \
+  "did not start lint-docs for a few characters" "did not run textlint-docs"
+
+new_run no-fire-small-ja-edit 'rec_edit Edit docs/ops.md' "$small_fix; printf 'x\n' >>docs/guide.md"
+grade "直しました。"
+expect_fail "small-edit: touching another document is caught" "changed nothing else"
 
 if [ "$fails" -eq 0 ]; then
   printf '\nall lint-docs grader tests passed\n'

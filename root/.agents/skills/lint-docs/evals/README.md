@@ -41,21 +41,39 @@ rule bump in `textlint/package.json` needs it redone by hand.
 | `fires-on-trigger-phrase` | the description's own words, skill unnamed | starts |
 | `fires-on-paraphrase` | same doc, words the description does not list | starts |
 | `no-fire-english-doc` | proofread an English README | does not start |
-| `after-writing-ja-doc` | write a Japanese doc; checking it is not asked | **not promised** |
+| `after-writing-ja-doc` | write a Japanese doc; checking it is not asked | starts after writing, fixes only that doc |
+| `no-fire-small-ja-edit` | change 2 台 to 3 台 in a Japanese doc | does not start |
 
 The two `fires-*` cases share fixture and grader by `exec`, so a difference
-between them is the wording's. `after-writing-ja-doc` measures a trigger the
-description does not offer: it starts the skill on a request to check prose,
-never after writing it. Its number says whether "it fires on our own Japanese
-docs" holds by accident; a FAIL there is not a regression of anything
-promised.
+between them is the wording's. `after-writing-ja-doc` and
+`no-fire-small-ja-edit` are the pair for "## いつ起動するか": a Japanese
+document written, or merely touched.
 
 No case brings in `root/CLAUDE.md`: it says nothing about this skill, so the
 description is the only thing that can start it.
 
 ## Last measured
 
-**2026-10-20, sonnet, four runs per case** (one, then three):
+**After the three fixes, 2026-10-20, sonnet, three runs per case.** The local
+`ja-no-redundant-phrase`, `Bash(git diff *)` in allowed-tools, and the
+written-a-document trigger in the description and "## いつ起動するか":
+
+| Case | Passed | What failed |
+| --- | --- | --- |
+| `detects-each-category` | 2/3 | one run refused reading `~/dotfiles/textlint/prh.yml` to tell section A from B (below); 冗長表現 reported in all three |
+| `excludes-english-docs` | 3/3 | |
+| `prh-direction-reversed` | 3/3 | |
+| `fires-on-trigger-phrase` | 3/3 | |
+| `fires-on-paraphrase` | 3/3 | |
+| `no-fire-english-doc` | 3/3 | |
+| `after-writing-ja-doc` | 3/3 | |
+| `no-fire-small-ja-edit` | 3/3 | |
+
+The description alone carries the written-a-document trigger: `root/CLAUDE.md`
+was not needed, unlike `review-test`'s auto-start. Section A against B is still
+open, as below.
+
+**Before them, 2026-10-20, sonnet, four runs per case** (one, then three):
 
 | Case | Passed | What failed |
 | --- | --- | --- |
