@@ -3,9 +3,10 @@ return {
   -- requires `$ brew install fzf`
   {
     "junegunn/fzf",
-    build = function()
-      vim.fn["fzf#install"]()
-    end,
+    -- No `build = fzf#install`: whenever brew's fzf and this pin differ in
+    -- version, it downloads a release binary with no checksum, outside
+    -- lazy-cooldown. brew's fzf is on $PATH, and fzf#exec() asks before
+    -- downloading when none is found.
     config = function()
       vim.cmd([[
         set rtp+=/usr/local/opt/fzf
