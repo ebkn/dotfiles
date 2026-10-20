@@ -112,6 +112,10 @@ case becomes the `stays: no <branch> branch` hold. That window was accepted
   lazy.nvim does for any plugin missing from the lockfile.
 - `CocUpdate` and `TSUpdate`, which `update-all` also runs, fetch coc
   extensions from npm and treesitter parsers; neither goes through here.
+  coc.nvim applies `~/.npmrc`'s `min-release-age` to the extensions itself
+  (since 2026-08) and installs their dependencies with `--ignore-scripts`;
+  treesitter parsers have no cooldown. coc-go's gopls is taken out of its
+  hands: [go-cooldown.md](go-cooldown.md#gopls-and-coc-gos-own-installer).
 
 ## Requirements
 
