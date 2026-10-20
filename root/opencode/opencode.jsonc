@@ -7,11 +7,18 @@
   "mcp": {
     // Signs requests with the local AWS credential chain; with no credentials
     // the proxy exits at startup and the server simply shows as failed.
+    // Pinned, not @latest (which the installer writes): uvx would otherwise
+    // run a release the moment it is on PyPI. The pin covers the proxy alone;
+    // --exclude-newer holds its 70-odd dependencies to uploads older than 7
+    // days, the window npm's min-release-age and the cooldowns use. Raise the
+    // pin by hand to a release at least that old.
     "aws-mcp": {
       "type": "local",
       "command": [
         "uvx",
-        "mcp-proxy-for-aws@latest",
+        "--exclude-newer",
+        "7 days",
+        "mcp-proxy-for-aws@1.7.0",
         "https://aws-mcp.us-east-1.api.aws/mcp",
         "--metadata",
         "INSTALL_SOURCE=aws-cli"
