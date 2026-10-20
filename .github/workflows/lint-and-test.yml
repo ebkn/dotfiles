@@ -3,6 +3,11 @@ name: Lint and test
 
 on: [push]
 
+# Read-only token: no job writes to the repo, and a step compromised through a
+# pinned tool or action gets nothing more than a clone could.
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
