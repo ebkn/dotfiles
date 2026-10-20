@@ -16,11 +16,12 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 # bsdutils carries script(1), which the suites use to hand tmux a pty;
 # less (tmux-cheatsheet pages through it), netcat-openbsd, procps and
-# openssh-client (relink.test.sh resolves configs with ssh -G) are on the runner
+# openssh-client (relink.test.sh resolves configs with ssh -G) and nodejs
+# (textlint/rules.test.sh runs the local textlint rules) are on the runner
 # image and absent here.
 RUN apt-get update -qq \
   && apt-get install -y -qq --no-install-recommends \
-    ca-certificates curl git jq less zsh bsdutils netcat-openbsd procps openssh-client \
+    ca-certificates curl git jq less zsh bsdutils netcat-openbsd procps openssh-client nodejs \
     build-essential libevent-dev libncurses-dev pkg-config bison bzip2 \
   && rm -rf /var/lib/apt/lists/*
 

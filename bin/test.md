@@ -160,8 +160,9 @@ by itself. Add a line when you add a suite.
   themselves never run in CI, since they would spend.
 - **Eval graders** — init-project's swift case (which also extracts and runs
   the Makefile from `references/swift.md`, so a TAB lost in the documentation
-  fails here), review-test's and review-design's cases. An inert grader reports
-  a green, paid, non-deterministic eval run that measured nothing.
+  fails here), review-test's, review-design's and lint-docs' cases. An inert
+  grader reports a green, paid, non-deterministic eval run that measured
+  nothing.
 - **`relink.test.sh`** — link_with_backup moves real files out of `$HOME` on
   every update-all: a backup that replaces an earlier one, or a "backup" of a
   file that is the repo's own, loses data with no error. The setup workflows
@@ -175,7 +176,15 @@ by itself. Add a line when you add a suite.
   nothing under `--status`; and every plist's Label matching its file name.
 - **`textlint-docs.test.sh`** — npm stubbed: when to install, that a failed
   install is not mistaken for a finished one, and which ignore list textlint
-  gets — a wrong one skips files without a word.
+  gets — a wrong one skips files without a word. Also that the local rules
+  reach textlint as `--rulesdir`, and that `textlintrc.yml` names none of
+  them: a single unresolvable key makes textlint drop every rule silently.
+- **`textlint/rules.test.sh`** — the local textlint rules against a fake
+  context under node. CI installs no textlint, so this is the only automated
+  check of them: that `ja-no-redundant-phrase` matches inside one `Str` node
+  (the upstream rule it replaces corrupts text by joining paragraphs), skips
+  quotes and links, and has no fixer. Skipped, its regressions show only as
+  fewer findings.
 - **`read-doc.test.sh`** — read-doc renders untrusted documents: the page must
   load nothing, and an image may only come from the document's own tree.
 - **`tmux-test-guard.test.sh`** — every tmux suite must refuse a developer

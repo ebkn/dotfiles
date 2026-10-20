@@ -348,7 +348,9 @@ it, so the documented snippet is executed rather than trusted.
 `proactive-after-writing-tests`'s scaffold and grader, so it is pinned through
 that one), `review-design/evals/assert.test.sh` for all eight of its, and
 `create-pr/evals/assert.test.sh` for `create-pr`'s and `update-pr`'s, which
-share their graders. A case there is graded on the transcript as much as on the tree, so it
+share their graders, and `lint-docs/evals/assert.test.sh` for all nine of
+`lint-docs`'s — which cannot pin that each planted finding is one textlint
+reports, since CI has no textlint (see that skill's `evals/README.md`). A case there is graded on the transcript as much as on the tree, so it
 writes synthetic transcripts, and two things about them are worth copying:
 
 - **A synthetic transcript carries the loaded SKILL.md.** The Skill tool puts

@@ -53,6 +53,11 @@ mkdir -p "${CACHE_DIR}" || exit 2
 # The config travels with every run so edits to textlintrc.yml / prh.yml take
 # effect immediately; only a dependency change triggers a reinstall.
 cp "${CONFIG_DIR}/textlintrc.yml" "${CONFIG_DIR}/prh.yml" "${CONFIG_DIR}/textlintignore" "${CACHE_DIR}/" || exit 2
+# The local rules (textlint/rules/, not npm packages) are replaced whole rather
+# than copied over: a rule deleted here would otherwise keep reporting from the
+# cache, with nothing in this repo to explain the finding.
+rm -rf "${CACHE_DIR}/rules" || exit 2
+cp -R "${CONFIG_DIR}/rules" "${CACHE_DIR}/rules" || exit 2
 
 needs_install=0
 [ -x "${CACHE_DIR}/node_modules/.bin/textlint" ] || needs_install=1
@@ -95,13 +100,17 @@ for arg in "$@"; do
   esac
 done
 
+# --rulesdir loads textlint/rules/; without it those rules do not exist, and
+# textlint says nothing -- their findings simply never appear.
 if [ "${use_bundled_ignore}" -eq 1 ]; then
   exec "${CACHE_DIR}/node_modules/.bin/textlint" \
     --config "${CACHE_DIR}/textlintrc.yml" \
+    --rulesdir "${CACHE_DIR}/rules" \
     --ignore-path "${CACHE_DIR}/textlintignore" \
     "$@"
 fi
 
 exec "${CACHE_DIR}/node_modules/.bin/textlint" \
   --config "${CACHE_DIR}/textlintrc.yml" \
+  --rulesdir "${CACHE_DIR}/rules" \
   "$@"

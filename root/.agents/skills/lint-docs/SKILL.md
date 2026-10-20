@@ -1,21 +1,32 @@
 ---
 name: lint-docs
-description: 日本語ドキュメントの文体・表記を textlint で検査し、翻訳調・AI 特有の文体パターン・表記ゆれ・冗長表現を指摘する。対象リポジトリに textlint を導入せず、このスキルの持つルールと辞書をその場で適用する。「日本語をチェックして」「ドキュメントの文体を見て」「textlint をかけて」「表記ゆれを確認して」などドキュメントの日本語そのものの検査を依頼された時、または /lint-docs コマンドで起動する。
+description: 日本語ドキュメントの文体・表記を textlint で検査し、翻訳調・AI 特有の文体パターン・表記ゆれ・冗長表現を指摘する。対象リポジトリに textlint を導入せず、このスキルの持つルールと辞書をその場で適用する。「日本語をチェックして」「ドキュメントの文体を見て」「textlint をかけて」「表記ゆれを確認して」などドキュメントの日本語そのものの検査を依頼された時、または /lint-docs コマンドで起動する。依頼が無くても、日本語の Markdown 文書を自分で書き上げた時、または節単位で書き換え終えた時には、報告の前に自分から起動する。数文字・数行の修正では起動しない。
 effort: high
-allowed-tools: Bash(textlint-docs *), Bash(git status *), Bash(git ls-files *), Bash(rg *), Bash(wc *), Read, Glob, Grep, Edit
+allowed-tools: Bash(textlint-docs *), Bash(git status *), Bash(git ls-files *), Bash(git diff *), Bash(rg *), Bash(wc *), Read, Glob, Grep, Edit
 ---
 
 任意のドキュメントに日本語の文体・表記ルールを適用し、指摘を報告する。必要なツールとルールはこのスキル側が持つ。**対象リポジトリには設定ファイルも依存も一切追加しない。**
 
 **出力言語: 全て日本語で記述すること。** ファイルパス・ルール ID・コマンドはそのまま記載してよい。
 
+## いつ起動するか
+
+依頼されたとき（description の起動語、`/lint-docs`）に加えて、**自分が日本語の Markdown 文書を書き終えた区切り**で、頼まれなくても起動する。区切りとは次のいずれかである。
+
+- 新しい日本語文書を書き上げ、ユーザーへ報告する直前
+- 既存の日本語文書の節を書き足し、または書き換え終えた時点
+
+書いている途中の Edit ごとには起動しない。同じ文書に何度も当てると、直したばかりの箇所を読み直すだけになる。数文字・数行の修正（誤字、数値の差し替え、リンクの更新）でも起動しない。文体を変えるほどの書き換えではないからである。
+
+自分から起動したときの対象は、**その区切りで自分が書いた文書だけ**である。手順 1 の候補集めはせず、その文書を明示パスとして渡す。
+
 ## このスキルの境界
 
-**デフォルトは検査のみ。** ユーザーが明示的に修正を依頼したときだけファイルを書き換える。git 操作（`git add` / `git commit` / `git push`、`gh pr create` / `edit` など）は一切行わない。
+**デフォルトは検査のみ。** ユーザーが明示的に修正を依頼したとき、または上の区切りで自分から起動したときだけファイルを書き換える。後者で直してよいのは、その区切りで自分が書いた文書に限る。その文書はユーザーに頼まれた成果物で、まだ報告前だからである。直すときも手順 4・5 の規則（prh の方向の実測、`git diff` の確認）に従う。git 操作（`git add` / `git commit` / `git push`、`gh pr create` / `edit` など）は一切行わない。
 
 **この境界は自分で守るルールであり、実行環境に依存しない。** frontmatter の `allowed-tools` を尊重しないホストがある（Codex は `name` と `description` しか読まない）。そうしたホストでは上記の git / gh コマンドが事前承認済みで、確認プロンプトなしに実行される。**プロンプトが出ないことは許可を意味しない。**
 
-**`allowed-tools` の `Bash` は前置詞でスコープしてある。** `allowed-tools` は制限ではなく事前承認の付与なので、素の `Bash` を書くとこのスキルが動いている間だけセッションの標準権限より広い許可が生まれる。付与してあるのは、この手順が実際に使う `textlint-docs` と、対象を選ぶための読み取り専用コマンド（`git status` / `git ls-files` / `rg` / `wc`）だけ。プロジェクト側の lint コマンド（`yarn lint:docs` 等）はここに含まれないので**プロンプトが出るのが正しい** — 中身が何であるかはリポジトリ次第で、事前に列挙できない。
+**`allowed-tools` の `Bash` は前置詞でスコープしてある。** `allowed-tools` は制限ではなく事前承認の付与なので、素の `Bash` を書くとこのスキルが動いている間だけセッションの標準権限より広い許可が生まれる。付与してあるのは、この手順が実際に使う `textlint-docs` と、読み取り専用のコマンドだけである。対象を選ぶための `git status` / `git ls-files` / `rg` / `wc` と、手順 5 で修正結果を確かめる `git diff` がそれに当たる。プロジェクト側の lint コマンド（`yarn lint:docs` 等）はここに含まれないので**プロンプトが出るのが正しい** — 中身が何であるかはリポジトリ次第で、事前に列挙できない。
 
 ## ツール
 
@@ -25,7 +36,7 @@ textlint-docs --fix docs/foo.md  # 自動修正
 textlint-docs --format json ...  # textlint のオプションはそのまま通る
 ```
 
-`textlint-docs` は dotfiles の `bin/textlint-docs`（`~/.local/bin` にリンク）。ルールは `dotfiles/textlint/textlintrc.yml`、表記辞書は `dotfiles/textlint/prh.yml`、対象外は `dotfiles/textlint/textlintignore`。依存はキャッシュディレクトリへ隔離して導入されるため、検査対象のリポジトリは一切汚れない。初回だけ npm install が走る（ネットワークが必要）。
+`textlint-docs` は dotfiles の `bin/textlint-docs`（`~/.local/bin` にリンク）。ルールは `dotfiles/textlint/textlintrc.yml`、npm パッケージでない自前ルールは `dotfiles/textlint/rules/`、表記辞書は `dotfiles/textlint/prh.yml`、対象外は `dotfiles/textlint/textlintignore`。依存はキャッシュディレクトリへ隔離して導入されるため、検査対象のリポジトリは一切汚れない。初回だけ npm install が走る（ネットワークが必要）。
 
 コマンドが見つからない場合は `relink` を案内する（dotfiles にファイルはあるがシンボリックリンクが未作成）。
 
@@ -110,9 +121,16 @@ rg -oI --pcre2 'サーバ(?!ー|レス)' -g '*.md' . | wc -l
 
 実測結果は報告に数値付きで含める。
 
-### 5. 修正する（明示的に依頼されたときだけ）
+### 5. 修正する（「このスキルの境界」が許すときだけ）
 
-`--fix` が直せるのは、ひらき系 3 ルールと prh だけである。文長・AI 文体パターンは人手で直す。
+`--fix` が直せるのは、ひらき系 3 ルールと prh だけである。文長・AI 文体パターン・冗長表現（`ja-no-redundant-phrase`）は人手で直す。
+
+<!-- textlint-disable ja-no-redundant-phrase -->
+<!-- 直下の文は、このルールが指摘する冗長表現そのものを例に引いている。 -->
+
+冗長表現の書き換えは動詞の活用に依存する（「読み込むことができる」→「読み込める」）ため、このルールは指摘だけを出す。
+
+<!-- textlint-enable ja-no-redundant-phrase -->
 
 修正の手順。
 
@@ -151,7 +169,7 @@ rg -oI --pcre2 'サーバ(?!ー|レス)' -g '*.md' . | wc -l
 
 - 同じ規則が広範囲で大量に出る → 閾値・方向がそのプロジェクトの実態と合っていない可能性が高い。`dotfiles/textlint/textlintrc.yml` の調整を提案する
 - 引用文・固有名詞・外部からの転載が違反している → 文書は直さず、理由を添えた `textlint-disable` コメントで囲む
-- ルール自体が壊れている → 例として `ja-no-redundant-expression` はノード境界をまたいで誤マッチし `--fix` が文章を破壊するため無効化してある。同種の挙動を見つけたら報告する
+- ルール自体が壊れている → 例として `ja-no-redundant-expression` はノード境界をまたいで誤マッチし `--fix` が文章を破壊するため無効化してある。冗長表現は、照合を 1 ノード内に限った自前の `ja-no-redundant-phrase` が代わりに指摘する。同種の挙動を見つけたら報告する
 <!-- textlint-disable ja-hiragana-fukushi -->
 <!-- 直下の項目は ja-hiragana-fukushi の誤検知そのものを引用して説明しているため、
      当のルールに引っかかる。文言を変えると実例でなくなるので、範囲を限って無効化する。 -->
