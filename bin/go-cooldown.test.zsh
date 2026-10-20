@@ -151,8 +151,11 @@ check 'holds when no release after the pin was on its branch a week ago' \
   '0 stays: no release after v1.0.0 was on its branch 7 days ago' "$st $(said example.com/one)"
 check '  ... and the file is as it was' "*example.com/one v1.0.0 *" "$(file_now)"
 
+# A blank line of spaces too, which go-tools-install skips the same way: a
+# file one of them accepts, the other must not reject.
 fresh_case
 versions example.com/one v0.9.0 v1.0.0 v1.1.0-pre
+printf '  \n' >> $PINS
 run
 check 'up to date when no release follows the pin, a pre-release aside' \
   '0 up to date \(v1.0.0\)' "$st $(said example.com/one)"
