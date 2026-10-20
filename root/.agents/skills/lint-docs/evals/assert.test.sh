@@ -216,19 +216,27 @@ grade "$(detect_report | sed 's/（実測.*）//')"
 expect_fail "detect: a サーバ finding reported without its count is caught" \
   "reports the count behind the サーバ finding"
 
-new_run detects-each-category "$detect_good"
-grade "$(detect_report | sed 's/^- docs\/guide.md:3 .*/- docs\/guide.md:3:8 サーバ → サーバー/')"
-expect_fail "detect: textlint's path:line:col is not a count" \
-  "reports the count behind the サーバ finding"
-
-# The spellings real runs used for the count.
-for spelling in \
-  'リポジトリの Markdown 内で サーバー 3 : サーバ 1 です' \
-  '「サーバー」が 3 件、「サーバ」が 1 件です' \
-  'サーバ: サーバー 0 : サーバ 7'; do
+# Locations, before or after the word, are not counts.
+for location in \
+  'docs/guide.md:3:8 サーバ → サーバー' \
+  'サーバ 3 行目で検出' \
+  'サーバ 3:5 で検出' \
+  'サーバ（3 行目）'; do
   new_run detects-each-category "$detect_good"
-  grade "$(detect_report | sed "s/^- docs\/guide.md:3 .*/- $spelling/")"
-  expect_pass "detect: a count spelled as: $spelling"
+  grade "$(detect_report | sed "s|^- docs/guide.md:3 .*|- $location|")"
+  expect_fail "detect: a location is not a count: $location" \
+    "reports the count behind the サーバ finding"
+done
+
+# The spellings real runs used for the count, a location beside them.
+for spelling in \
+  '（3 行目）: サーバー 3 : サーバ 1' \
+  'docs/guide.md:3 「サーバー」が 3 件' \
+  'サーバ: サーバー 0 : サーバ 7' \
+  'サーバー 3：サーバ 1'; do
+  new_run detects-each-category "$detect_good"
+  grade "$(detect_report | sed "s|^- docs/guide.md:3 .*|- $spelling|")"
+  expect_pass "detect: a count: $spelling"
 done
 
 new_run detects-each-category "$detect_good; rec_edit Edit docs/guide.md"
