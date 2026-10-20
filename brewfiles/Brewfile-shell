@@ -52,6 +52,9 @@ brew 'shellcheck'
 # or local and CI disagree about what "formatted" means.
 brew 'shfmt'
 
+# GitHub Actions workflow linter
+brew 'actionlint'
+
 # aws
 brew 'awscli'
 

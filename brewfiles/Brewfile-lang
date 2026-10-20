@@ -9,6 +9,9 @@ brew 'go'
 # Rust
 brew 'rustup'
 
+# Python (its config, root/uv.toml, is linked by bin/init/links.sh)
+brew 'uv'
+
 # Dockerfile
 brew 'hadolint'
 
