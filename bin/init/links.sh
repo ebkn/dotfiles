@@ -83,8 +83,8 @@ link_dotfiles() {
   # ~/.agents/skills and ~/.claude/skills, so it needs no skills dir of its own.
   link_with_backup "${DOTFILES_DIR}/root/opencode/opencode.jsonc" "${HOME}/.config/opencode/opencode.jsonc"
 
-  # Supply-chain cooldown: refuse npm package versions younger than 3 days.
-  # Keeps yarn/pnpm in lockstep with npm's min-release-age=3 (.npmrc). yarn Berry
+  # Supply-chain cooldown: refuse npm package versions younger than 7 days.
+  # Keeps yarn/pnpm in lockstep with npm's min-release-age=7 (.npmrc). yarn Berry
   # reads ~/.yarnrc.yml; pnpm's global config path is platform-specific (macOS
   # keeps it under ~/Library/Preferences, Linux/WSL under ~/.config).
   link_with_backup "${DOTFILES_DIR}/root/.yarnrc.yml" "${HOME}/.yarnrc.yml"
