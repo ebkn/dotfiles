@@ -57,6 +57,15 @@ test_fresh_clone() {
   assert_eq "  ... still at the pin" "$C1" "$(head_of "$P")"
 }
 
+# A --no-checkout clone already has HEAD at the tip, so a pin on the tip
+# looks done by HEAD alone while nothing is on disk. tpm is pinned to its tip.
+test_fresh_clone_pinned_to_tip() {
+  case_dir fresh-tip
+  printf '%s %s\n' "$URL" "$C2" >"$D/list"
+  assert_status "a missing plugin pinned to the tip is cloned" 0 "$TOOL" "$D/list"
+  assert_eq "  ... with the tip's files on disk" two "$(cat "$P/a.tmux" 2>/dev/null)"
+}
+
 test_moved_pin_fetches() {
   case_dir moved
   printf '%s %s\n' "$URL" "$C1" >"$D/list"
@@ -202,6 +211,7 @@ test_list_matches_tmux_conf() {
 # Called by name, not through run_tests, so shellcheck sees each one used.
 # Every case sets its own $HOME and directory through case_dir.
 test_fresh_clone
+test_fresh_clone_pinned_to_tip
 test_moved_pin_fetches
 test_dirty_tree_is_reset
 test_tpm_style_origin_is_the_same_repo
