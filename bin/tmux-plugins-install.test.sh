@@ -127,13 +127,48 @@ test_not_a_clone_fails() {
   assert_contains "  ... naming it" "$out" "plugin-a: $P is not a git clone"
 }
 
+# Each bad line breaks one condition of the check, so loosening any one of
+# them (a length, the hex class, the word count) lets its line through.
 test_unreadable_line_fails_first() {
+  local bad what
   case_dir bad-line
-  printf '%s %s\n%s\n' "$URL" "$C1" "$URL main" >"$D/list"
+  while IFS='|' read -r what bad; do
+    printf '%s %s\n%s\n' "$URL" "$C1" "$bad" >"$D/list"
+    out=$("$TOOL" "$D/list" 2>&1)
+    assert_eq "a line with $what fails" 1 "$?"
+    assert_contains "  ... naming it" "$out" "list line 2"
+    assert_status "  ... before anything is cloned" 1 test -e "$P"
+  done <<EOF
+a branch for a commit|$URL main
+39 hex digits|$URL ${C1:0:39}
+41 hex digits|$URL ${C1}0
+upper-case hex|$URL $(tr a-f A-F <<<"$C1")
+a third word|$URL $C1 extra
+no commit|$URL
+EOF
+}
+
+# A clone or a fetch that git itself fails is a failed plugin like any other:
+# named, and the next one still installed.
+test_git_failures_fail_and_others_still_run() {
+  case_dir git-fails
+  cp -R "$URL" "$D/up/plugin-b"
+  printf '%s %s\n%s %s\n' "$D/up/no-such-repo" "$C1" "$D/up/plugin-b" "$C1" >"$D/list"
   out=$("$TOOL" "$D/list" 2>&1)
-  assert_eq "a line that is not <url> <40-hex sha> fails" 1 "$?"
-  assert_contains "  ... naming it" "$out" "list line 2"
-  assert_status "  ... before anything is cloned" 1 test -e "$P"
+  assert_eq "a clone that fails fails the run" 1 "$?"
+  assert_contains "  ... naming it" "$out" "tmux-plugins-install: no-such-repo failed"
+  assert_eq "  ... after the next plugin was still installed" "$C1" \
+    "$(head_of "$HOME/.tmux/plugins/plugin-b")"
+
+  # The remote gone: the pin is absent, so the fetch is tried, and fails.
+  printf '%s %s\n' "$URL" "$C1" >"$D/list"
+  "$TOOL" "$D/list" >/dev/null 2>&1
+  rm -rf "$URL"
+  printf '%s %s\n' "$URL" 0123456789abcdef0123456789abcdef01234567 >"$D/list"
+  out=$("$TOOL" "$D/list" 2>&1)
+  assert_eq "a fetch that fails fails the run" 1 "$?"
+  assert_contains "  ... naming it" "$out" "tmux-plugins-install: plugin-a failed"
+  assert_eq "  ... and the checkout is left alone" "$C1" "$(head_of "$P")"
 }
 
 test_run_through_link_finds_its_list() {
@@ -174,6 +209,7 @@ test_other_origin_is_refused
 test_unknown_commit_fails_and_others_still_run
 test_not_a_clone_fails
 test_unreadable_line_fails_first
+test_git_failures_fail_and_others_still_run
 test_run_through_link_finds_its_list
 test_usage
 test_list_matches_tmux_conf
