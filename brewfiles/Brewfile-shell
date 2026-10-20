@@ -52,12 +52,6 @@ brew 'shellcheck'
 # or local and CI disagree about what "formatted" means.
 brew 'shfmt'
 
-# static analysis (security)
-brew 'semgrep'
-
-# fly
-brew 'flyctl'
-
 # aws
 brew 'awscli'
 
