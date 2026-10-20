@@ -24,7 +24,8 @@ check_match "装飾絵文字: ✅ (line 15)" '✅|絵文字' "$report"
 check_match "冗長表現: ことができる (line 18, beyond the tool)" 'ことができる' "$report"
 
 # --- step 4: a section B finding is measured before it is adopted ---
-check "counted サーバ in the project before adopting サーバー" lint_docs_measured 'サーバ'
+check "counted サーバ across the project" lint_docs_measured 'サーバ'
+check "reports the count behind the サーバ finding" lint_docs_reports_count "$report"
 
 # --- "## このスキルの境界": inspection only ---
 check_eq "used neither Edit nor Write" "0" "$(lint_docs_writes)"

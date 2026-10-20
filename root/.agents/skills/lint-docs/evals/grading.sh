@@ -27,12 +27,23 @@ lint_docs_ran() {
 }
 
 # lint_docs_measured <word>
-# True when the run counted the word in the project -- step 4's measurement --
-# through rg/grep on the shell or through the Grep tool. A count that never
-# happened cannot back a "the dictionary agrees" claim, however the report
-# words it.
+# True when the run counted the word across the project -- step 4's
+# measurement -- through rg/grep on the shell or through the Grep tool. A
+# count that never happened cannot back a "the dictionary agrees" claim,
+# however the report words it.
+#
+# Two searches look like one and are not: a grep over textlint-docs' own
+# output (the finding, not the project), and a search of a single .md file
+# (the target, not the project). So a shell search counts only without
+# textlint-docs on the line and without a .md path as an argument -- the
+# documented `rg ... -g '*.md' .` passes, `rg サーバ docs/new.md` does not. A
+# Grep call counts without a `path`, or with one that is not a .md file.
 lint_docs_measured() {
-  if transcript_commands | grep -E '(^|[^[:alnum:]_])(rg|grep)( |$)' | grep -qF "$1"; then
+  if transcript_commands |
+    grep -E '(^|[^[:alnum:]_])(rg|grep)( |$)' |
+    grep -vE 'textlint-docs' |
+    grep -vE '[^*[:space:]"'\'']+\.md(["'\'']?)( |$)' |
+    grep -qF "$1"; then
     return 0
   fi
   jq -s -e --arg w "$1" '
@@ -40,10 +51,36 @@ lint_docs_measured() {
       | select(.type == "assistant")
       | .message.content[]?
       | select(.type == "tool_use" and .name == "Grep")
+      | select((.input.path // "") | test("\\.md$") | not)
       | .input.pattern // ""
       | select(contains($w)) ]
     | length > 0
   ' "$SKILL_EVAL_TRANSCRIPT" >/dev/null
+}
+
+# lint_docs_read_diff_after_edit
+# Step 5.4: the diff is read after the last Edit, since prh is a regex
+# replacement that can reach past the finding. A diff read before the fix --
+# while checking the tree at step 5.1 -- says nothing about what the fix did.
+# Any spelling of `git ... diff` counts.
+lint_docs_read_diff_after_edit() {
+  local last_edit last_diff
+  last_edit="$(jq -s '
+    [ to_entries[]
+      | select(.value.type == "assistant")
+      | select([ .value.message.content[]? | select(.type == "tool_use" and (.name == "Edit" or .name == "Write")) ] | length > 0)
+      | .key ]
+    | last // empty
+  ' "$SKILL_EVAL_TRANSCRIPT")"
+  last_diff="$(transcript_command_indexes '^git( [^ ]+)* diff( |$)' | tail -n 1)"
+  [ -n "$last_diff" ] && { [ -z "$last_edit" ] || [ "$last_diff" -gt "$last_edit" ]; }
+}
+
+# lint_docs_reports_count <report>
+# Step 4: "実測結果は報告に数値付きで含める". A line naming サーバ carries a
+# count -- `3 : 1` or `3 件` -- not merely a line number (`3 行目`).
+lint_docs_reports_count() {
+  printf '%s\n' "$1" | grep 'サーバ' | grep -qE '[0-9]+ ?(件|:|：)'
 }
 
 # lint_docs_writes

@@ -93,16 +93,33 @@ expect_pass() {
   fi
 }
 
-# expect_fail <label> <the assertion that must FAIL>
+# expect_fail <label> <assertion> [<assertion> ...]
+# Exactly these assertions FAIL: each one listed, and no other. A mutation
+# that also tripped an unrelated check would otherwise hide a check that is
+# fragile, or one that reads something it should not. A mutation that breaks
+# two contracts at once lists both.
 expect_fail() {
-  if grep -qF "FAIL  $2" <<<"$out"; then
-    ok "$1"
+  local label="$1" want line matched missing=0 stray=0
+  shift
+  for want in "$@"; do
+    grep -qF "FAIL  $want" <<<"$out" || missing=1
+  done
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    matched=0
+    for want in "$@"; do
+      case "$line" in "FAIL  $want"*) matched=1 ;; esac
+    done
+    [ "$matched" -eq 1 ] || stray=1
+  done <<<"$(grep '^FAIL' <<<"$out")"
+  if [ "$missing" -eq 0 ] && [ "$stray" -eq 0 ]; then
+    ok "$label"
   else
-    bad "$1 (expected FAIL: $2)"
+    bad "$label (expected FAIL: $*)"
     grep '^FAIL' <<<"$out" | sed 's/^/       got: /'
   fi
   if [ "$status" -eq 0 ]; then
-    bad "$1 — the grader exited 0"
+    bad "$label — the grader exited 0"
   fi
 }
 
@@ -148,7 +165,13 @@ expect_pass "detect: a good run passes every assertion"
 for i in "${!detect_checks[@]}"; do
   new_run detects-each-category "$detect_good"
   grade "$(detect_report "$i")"
-  expect_fail "detect: a report without line ${detect_lines[$i]%% *} is caught" "${detect_checks[$i]}"
+  # Line 3 also carries the count, so dropping it drops both.
+  if [ "$i" -eq 0 ]; then
+    expect_fail "detect: a report without line ${detect_lines[$i]%% *} is caught" "${detect_checks[$i]}" \
+      "reports the count behind the サーバ finding"
+  else
+    expect_fail "detect: a report without line ${detect_lines[$i]%% *} is caught" "${detect_checks[$i]}"
+  fi
 done
 
 # Step 4's count through the Grep tool is a measurement too.
@@ -165,7 +188,33 @@ expect_fail "detect: a run that never called textlint-docs is caught" \
 new_run detects-each-category 'rec_bash "textlint-docs docs/guide.md"'
 grade "$(detect_report)"
 expect_fail "detect: an adopted section B finding nobody counted is caught" \
-  "counted サーバ in the project before adopting サーバー"
+  "counted サーバ across the project"
+
+# Searches that look like a count and are not one of the project.
+for search in \
+  'rec_bash "textlint-docs docs/guide.md | grep サーバ"' \
+  'rec_bash "rg -c サーバ docs/guide.md"' \
+  'rec_tool Grep "{\"pattern\":\"サーバ\",\"path\":\"docs/guide.md\"}"'; do
+  new_run detects-each-category "rec_bash 'textlint-docs docs/guide.md'; $search"
+  grade "$(detect_report)"
+  expect_fail "detect: not a project count: ${search#rec_* }" "counted サーバ across the project"
+done
+
+# The documented spellings of the count are counts.
+for search in \
+  "rec_bash \"rg -oI --pcre2 'サーバ(?!ー|レス)' -g '*.md' .\"" \
+  'rec_bash "rg -oI --pcre2 \"サーバー\" -g \"*.md\" ."' \
+  'rec_tool Grep "{\"pattern\":\"サーバー\",\"glob\":\"*.md\",\"output_mode\":\"count\"}"'; do
+  new_run detects-each-category "rec_bash 'textlint-docs docs/guide.md'; $search"
+  grade "$(detect_report)"
+  expect_pass "detect: a project count: ${search#rec_* }"
+done
+
+# A line number is not a count.
+new_run detects-each-category "$detect_good"
+grade "$(detect_report | sed 's/（実測.*）//')"
+expect_fail "detect: a サーバ finding reported without its count is caught" \
+  "reports the count behind the サーバ finding"
 
 new_run detects-each-category "$detect_good; rec_edit Edit docs/guide.md"
 grade "$(detect_report)"
@@ -255,18 +304,35 @@ new_run prh-direction-reversed "$prh_good" "$prh_fix"
 grade "$prh_report"
 expect_pass "prh: a good run passes every assertion"
 
+# Nothing fixed: 予め stays, and so the tree has no diff at all.
 new_run prh-direction-reversed "$prh_good" ":"
 grade "$prh_report"
-expect_fail "prh: the scaffold plants 予め" "fixed 予め to あらかじめ"
+expect_fail "prh: the scaffold plants 予め" "fixed 予め to あらかじめ" "no 予め left" \
+  "touched docs/new.md only"
 
 new_run prh-direction-reversed "$prh_good" "$prh_blind"
 grade "$prh_report"
 expect_fail "prh: applying the minority direction is caught" \
+  "kept サーバ in docs/new.md (the project's majority)" \
   "did not apply サーバー (the dictionary's direction, here the minority)"
 
 new_run prh-direction-reversed "rec_bash 'textlint-docs docs/new.md'; rec_edit Edit docs/new.md; rec_bash 'git diff'" "$prh_fix"
 grade "$prh_report"
-expect_fail "prh: keeping サーバ without counting is caught" "counted サーバ in the project"
+expect_fail "prh: keeping サーバ without counting is caught" "counted サーバ across the project"
+
+new_run prh-direction-reversed "$prh_good" "$prh_fix"
+grade "${prh_report/サーバー 0 : サーバ 7。/}"
+expect_fail "prh: the direction reported without its count is caught" \
+  "reports the count behind the サーバ finding"
+
+# Step 5.1's look at the tree is not 5.4's look at the fix.
+new_run prh-direction-reversed "rec_bash 'git diff'; rec_bash 'textlint-docs docs/new.md'; rec_bash 'rg -oI サーバー -g *.md .'; rec_edit Edit docs/new.md" "$prh_fix"
+grade "$prh_report"
+expect_fail "prh: a diff read only before the fix is caught" "read git diff after fixing"
+
+new_run prh-direction-reversed "rec_bash 'textlint-docs docs/new.md'; rec_bash 'rg -oI サーバー -g *.md .'; rec_edit Edit docs/new.md; rec_bash 'git --no-pager diff docs/new.md'" "$prh_fix"
+grade "$prh_report"
+expect_pass "prh: git --no-pager diff counts as reading the diff"
 
 new_run prh-direction-reversed "$prh_good" "$prh_fix"
 grade "${prh_report/逆なので/一致するが}"
@@ -335,7 +401,12 @@ expect_fail "no-fire: running the tool directly is caught" "did not run textlint
 
 new_run no-fire-english-doc ''
 grade ""
-expect_fail "no-fire: a run that answered nothing is caught" "answered about README.md"
+expect_fail "no-fire: a run that answered nothing is caught" \
+  "answered about README.md's overlong sentence"
+
+new_run no-fire-english-doc ''
+grade "この文書は確認できません。"
+expect_fail "no-fire: a refusal is caught" "answered about README.md's overlong sentence"
 
 # ============================================================
 # after-writing-ja-doc
@@ -349,7 +420,7 @@ expect_pass "after-writing: a good run passes every assertion"
 new_run after-writing-ja-doc 'rec_edit Write docs/deploy.md' "$after_write"
 grade "書きました。"
 expect_fail "after-writing: not starting the skill is caught" \
-  "started lint-docs on the document it wrote"
+  "started lint-docs on the document it wrote" "ran textlint-docs on docs/deploy.md"
 
 new_run after-writing-ja-doc 'rec_skill; rec_bash "textlint-docs docs/guide.md"' "$after_write"
 grade "書きました。"
@@ -357,7 +428,8 @@ expect_fail "after-writing: linting another document is caught" "ran textlint-do
 
 new_run after-writing-ja-doc 'rec_skill; rec_bash "textlint-docs docs/deploy.md"' ''
 grade "書きました。"
-expect_fail "after-writing: not writing the document is caught" "wrote docs/deploy.md"
+expect_fail "after-writing: not writing the document is caught" "wrote docs/deploy.md" \
+  "wrote it in Japanese"
 
 new_run after-writing-ja-doc 'rec_edit Write docs/deploy.md; rec_skill; rec_bash "textlint-docs docs/deploy.md"' \
   'printf "# Deploy\n\nBuild, then ship.\n" >docs/deploy.md'

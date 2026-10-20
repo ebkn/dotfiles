@@ -66,6 +66,11 @@ description is the only thing that can start it.
 | `no-fire-english-doc` | 4/4 | |
 | `after-writing-ja-doc` | 0/4 | never started, as the description predicts |
 
+The graders were tightened after these runs (a project-wide count, the count
+in the report, the diff read *after* the edit, an English answer that names
+the overlong sentence). Re-graded on the saved transcripts, the transcript
+checks gave the same verdicts for all 28.
+
 What the numbers say about the skill, not the harness:
 
 - **Starting is carried by the description.** Unnamed requests started it 8
