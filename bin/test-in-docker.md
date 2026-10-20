@@ -102,6 +102,11 @@ the architecture, the one difference chosen on purpose:
   bare `ubuntu:24.04`. `ssh` is for `relink.test.sh`, which checks the ssh
   config it writes by what `ssh -G` resolves; it fails rather than skips
   without it.
+- **`node`**, for `textlint/rules.test.sh`, which runs the local textlint
+  rules. It is on the runner image too, and it also fails rather than
+  skips without it. It is not pinned: the rules use nothing newer than
+  regex lookbehind and `\p{Script=…}`, which the apt `nodejs` of
+  `ubuntu:24.04` (18.x) already has.
 - **No `TERM`.** `docker run` without `-t` leaves it unset, as the runner does.
   Of what a laptop has and the runner lacks, that is the one worth keeping
   absent, because the suites have to survive it.

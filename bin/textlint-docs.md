@@ -90,9 +90,12 @@ proven otherwise** — check with `--ignore-path /dev/null`.
 when the toolchain is installed, that a failed install leaves no manifest behind
 (so the next run installs again), that the local rules are refreshed whole and
 passed as `--rulesdir`, which ignore list textlint gets in each of the three
-cases, and that textlint's exit status passes through. The **rules**
+cases, and that textlint's exit status passes through. The **package rules**
 are not in it: they are verified by running `textlint-docs <some.md>` on a file
-with known violations.
+with known violations. The **local rules** are: `textlint/rules.test.sh` runs
+each one against a fake textlint context under `node`, with no textlint
+installed. It sits outside `textlint/rules/` because `--rulesdir` would load a
+test file there as a rule.
 
 Its failure mode is silent: a misspelled or unknown rule key inside a preset
 (`sentence-lenght:`, a rule that no longer exists) is **ignored without any
