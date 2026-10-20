@@ -297,7 +297,7 @@ install_or_upgrade_git_repo() {
     return 1
   fi
 
-  # Some callers use nested destinations (e.g. ~/.tmux/plugins/tpm).
+  # The destination's parent may not exist yet.
   mkdir -p "$(dirname "$dest")"
   git clone "$@" "$repo_url" "$dest"
 }
