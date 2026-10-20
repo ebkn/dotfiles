@@ -207,6 +207,23 @@ nvim '--headless' '+Lazy! restore' '+qa'" \
     ) | grep -i 'lazy'
   )"
 
+# ~/.npmrc's ignore-scripts=true keeps a dependency's install script -- the
+# usual way a hijacked package runs -- from running. update-all once turned it
+# off for every global and their whole trees; none of them needs a script
+# (zsh/README.md). npm logs each argument, as nvim does above.
+out=$(
+  (
+    OSTYPE=linux
+    relink() { :; }
+    nvim() { :; }
+    npm() { print -r -- "npm ${(qq)@}"; }
+    path=()
+    update-all 2>/dev/null
+  )
+)
+check 'update-all updates the npm globals' "*npm 'update' '--location=global'*" "$out"
+check '  ... leaving install scripts to ~/.npmrc' '' "${(M)${(f)out}:#npm *ignore-scripts*}"
+
 # A cooldown that fails has still decided the pins it could, and they are to
 # be applied: the restore runs anyway, and the failure is named at the end,
 # where the scroll of brew and go output does not bury it.

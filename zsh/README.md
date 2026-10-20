@@ -156,6 +156,20 @@ from moving to them. The list is not what was installed; the plugin's
 
 Pinned by `zsh/plugin.test.zsh`.
 
+## npm globals install with their scripts off
+
+`update-all` and `bin/init/common.sh`'s `install_or_upgrade_npm_global` leave
+install scripts to `~/.npmrc`'s `ignore-scripts=true`. They used to pass
+`--ignore-scripts=false`, on the belief that `@openai/codex` builds its binary
+in a postinstall; it no longer does (its binaries are optional dependencies),
+and the override ran every script in every global's tree, under this user.
+
+Checked 2026-10 by installing the whole list with `--ignore-scripts` into a
+scratch prefix: of 380 packages only `yarn` declares one, a `preinstall` that
+removes a Corepack `yarn` link, which Volta does not make. A global added later
+that does need its script is installed by hand with `--ignore-scripts=false`,
+or gets the flag on its own line here, with the reason.
+
 ## Other conventions
 
 - **Tmux auto-start**: `.zshrc` starts tmux automatically and exits the shell
@@ -179,7 +193,7 @@ Pinned by `zsh/plugin.test.zsh`.
 | `his.test.zsh` | `his()` and `gs()` — see [alias.md](alias.md) |
 | `rm.test.zsh`, `fd.test.zsh` | the two `alias.zsh` wrappers |
 | `git-worktree.test.zsh` | `gw()` and `gdmerged()` — see [git.md](git.md) |
-| `update.test.zsh` | which releases and uptimes `update-all`'s warning speaks on, that `update-all` still ends with it, the order of its lazy.nvim steps, the guard on its restore, and the list of failed pin steps |
+| `update.test.zsh` | which releases and uptimes `update-all`'s warning speaks on, that `update-all` still ends with it, the order of its lazy.nvim steps, the guard on its restore, the list of failed pin steps, and that npm runs with install scripts off |
 | `plugin.test.zsh` | that every plugin and zinit carry a commit pin, no ice has `depth`, and zinit is held at its pin |
 
 After changing shell config, verify with a new shell session or

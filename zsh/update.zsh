@@ -110,17 +110,18 @@ update-all() {
   go install github.com/terraform-linters/tflint@latest
   go install mvdan.cc/gofumpt@latest
   go install tailscale.com/cmd/tailscale{,d}@main
-  # --ignore-scripts=false overrides ~/.npmrc's global ignore-scripts=true: this
-  # is a curated, trusted list, and some (e.g. @openai/codex) need postinstall
-  # to build/fetch a native binary. Keep in sync with bin/init/{macos,ubuntu,wsl}.sh.
-  npm update --location=global --ignore-scripts=false
-  npm i -g --ignore-scripts=false diagnostic-languageserver
-  npm i -g --ignore-scripts=false dockerfile-language-server-nodejs
-  npm i -g --ignore-scripts=false markdownlint-cli
-  npm i -g --ignore-scripts=false textlint
-  npm i -g --ignore-scripts=false git-delete-squashed
-  npm i -g --ignore-scripts=false yarn
-  npm i -g --ignore-scripts=false @openai/codex
+  # Install scripts stay off (~/.npmrc ignore-scripts=true), here as for any
+  # install: a script runs with this user's rights, for every package in each
+  # tree, and none of these needs one (zsh/README.md). Keep in sync with
+  # bin/init/{macos,ubuntu,wsl}.sh.
+  npm update --location=global
+  npm i -g diagnostic-languageserver
+  npm i -g dockerfile-language-server-nodejs
+  npm i -g markdownlint-cli
+  npm i -g textlint
+  npm i -g git-delete-squashed
+  npm i -g yarn
+  npm i -g @openai/codex
   # Audit the cwd project for known vulnerabilities (skipped outside projects).
   if [ -f package-lock.json ]; then
     npm audit || true

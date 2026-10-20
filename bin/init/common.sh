@@ -353,14 +353,12 @@ install_or_upgrade_npm_global() {
     return 1
   fi
 
-  # ~/.npmrc sets ignore-scripts=true to block install scripts of untrusted
-  # transitive deps. These globals are a curated, trusted list, so re-enable
-  # scripts here — some (e.g. @openai/codex) build/fetch a native binary in
-  # postinstall and would install broken otherwise.
+  # Install scripts stay off (~/.npmrc ignore-scripts=true, linked before this
+  # runs): none of the globals installed here needs one (zsh/README.md).
   if "$npm_cmd" list -g --depth=0 "$package" >/dev/null 2>&1; then
-    "$npm_cmd" update --global --ignore-scripts=false "$package"
+    "$npm_cmd" update --global "$package"
   else
-    "$npm_cmd" install --global --ignore-scripts=false "$package"
+    "$npm_cmd" install --global "$package"
   fi
 }
 
