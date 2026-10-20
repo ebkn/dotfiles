@@ -76,6 +76,19 @@ for cfg in textlintrc.yml prh.yml textlintignore; do
     "$(cmp -s "$(dirname "$TD")/../textlint/$cfg" "$TMP/cache/$cfg" && echo same || echo stale)"
 done
 
+# The local rules travel the same way, as a directory replaced whole: copied
+# over the old one, a rule deleted from textlint/rules/ would keep reporting
+# from the cache, and the only symptom is findings nobody can find the source of.
+mkdir -p "$TMP/cache/rules"
+printf '// stale\n' >"$TMP/cache/rules/ja-no-redundant-phrase.js"
+printf '// deleted upstream\n' >"$TMP/cache/rules/removed-rule.js"
+td doc.md >/dev/null
+t "an edited local rule reaches the cache without a reinstall" "same" \
+  "$(cmp -s "$(dirname "$TD")/../textlint/rules/ja-no-redundant-phrase.js" \
+    "$TMP/cache/rules/ja-no-redundant-phrase.js" && echo same || echo stale)"
+t "a rule deleted from textlint/rules/ leaves the cache" "absent" \
+  "$([ -e "$TMP/cache/rules/removed-rule.js" ] && echo present || echo absent)"
+
 # A dependency change is what DOES reinstall: the cached manifests are compared
 # with textlint/'s, so a bumped version is not silently ignored in favour of the
 # toolchain already sitting in the cache.
@@ -109,6 +122,14 @@ t "with no project ignore file, the bundled one is passed" "$TMP/cache/textlinti
   "$(printf '%s\n' "$args" | grep -A1 -x -- '--ignore-path' | tail -n 1)"
 t "with the config from the cache" "$TMP/cache/textlintrc.yml" \
   "$(printf '%s\n' "$args" | grep -A1 -x -- '--config' | tail -n 1)"
+# The local rules are not packages, so without --rulesdir they do not exist and
+# textlint says nothing about it: their findings just never appear.
+t "with the local rules from the cache" "$TMP/cache/rules" \
+  "$(printf '%s\n' "$args" | grep -A1 -x -- '--rulesdir' | tail -n 1)"
+printf 'vendor/\n' >"$TMP/proj/.textlintignore"
+t "the local rules are passed with a project .textlintignore too" "1" \
+  "$(td doc.md | grep -c -x -- '--rulesdir')"
+/bin/rm -f "$TMP/proj/.textlintignore"
 printf 'vendor/\n' >"$TMP/proj/.textlintignore"
 t "a project .textlintignore wins: the bundled one is not passed" "0" \
   "$(td doc.md | grep -c -- '--ignore-path')"
@@ -117,6 +138,16 @@ args=$(td --ignore-path=mine doc.md)
 t "an explicit --ignore-path=... wins" "--ignore-path=mine" "$(printf '%s\n' "$args" | grep -- '--ignore-path')"
 args=$(td --ignore-path mine doc.md)
 t "and so does --ignore-path <file>" "1" "$(printf '%s\n' "$args" | grep -c -- '--ignore-path')"
+
+# A local rule named as a key in textlintrc.yml cannot be resolved as a
+# package, and textlint then drops every rule in the file without a word --
+# measured, 11 findings became 1. Checked statically, since the stub textlint
+# here loads no config.
+for rule in "$(dirname "$TD")"/../textlint/rules/*.js; do
+  name=$(basename "$rule" .js)
+  t "textlintrc.yml does not name the local rule $name" "0" \
+    "$(grep -cE "^[[:space:]]+\"?$name\"?:" "$(dirname "$TD")/../textlint/textlintrc.yml")"
+done
 
 # --- pass-through ------------------------------------------------------------------
 TEXTLINT_EXIT=1 td doc.md >/dev/null
