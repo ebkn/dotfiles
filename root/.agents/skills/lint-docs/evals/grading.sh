@@ -78,9 +78,12 @@ lint_docs_read_diff_after_edit() {
 
 # lint_docs_reports_count <report>
 # Step 4: "実測結果は報告に数値付きで含める". A line naming サーバ carries a
-# count -- `3 : 1` or `3 件` -- not merely a line number (`3 行目`).
+# count -- `サーバー 3`, `3 : 1`, `3 件` -- not merely a location. textlint's
+# own `path:3:5` is the trap: a colon after a digit is a ratio only with
+# spaces or a full-width colon around it, which a location never has.
 lint_docs_reports_count() {
-  printf '%s\n' "$1" | grep 'サーバ' | grep -qE '[0-9]+ ?(件|:|：)'
+  printf '%s\n' "$1" | grep 'サーバ' |
+    grep -qE 'サーバー?」? ?[0-9]+|[0-9]+ ?件|[0-9]+ (:|：) ?[0-9]+|[0-9]+ ?：'
 }
 
 # lint_docs_writes
