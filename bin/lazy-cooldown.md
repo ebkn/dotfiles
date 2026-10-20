@@ -9,7 +9,8 @@ at its lockfile commit. It commits nothing: the rewritten lockfile is left for i
 diff to be read and committed.
 
 The zsh counterpart, and the reasoning both share about the gate, is
-[bin/zinit-cooldown.md](zinit-cooldown.md). The two share their gate code in
+[bin/zinit-cooldown.md](zinit-cooldown.md); the Go one is
+[bin/go-cooldown.md](go-cooldown.md). All three share their gate code in
 `bin/cooldown.zsh`.
 
 ## Why `Lazy! sync` had to go

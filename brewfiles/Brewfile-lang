@@ -16,8 +16,8 @@ brew 'hadolint'
 brew 'shellcheck'
 
 # Terraform: tflint relicensed to BUSL and was dropped from homebrew-core
-# (2026-05-13), so it is installed via install_go_tool alongside terraform-ls
-# and tfsec in the platform init scripts.
+# (2026-05-13), so it is listed in bin/go-tools.txt alongside terraform-ls and
+# tfsec, and installed by go-tools-install (bin/go-cooldown.md).
 
 # Java
 brew 'java'

@@ -1,5 +1,6 @@
-# Sourced by bin/zinit-cooldown and bin/lazy-cooldown: the parts of the gate
-# both apply, kept in one place because each is easy to get subtly wrong. The
+# Sourced by bin/zinit-cooldown, bin/lazy-cooldown and bin/go-cooldown: the
+# parts of the gate all three apply, kept in one place because each is easy to
+# get subtly wrong; a change here is checked against all three suites. The
 # caller has run `emulate -L zsh`, `setopt extendedglob pipefail` and
 # `zmodload zsh/datetime`. See bin/zinit-cooldown.md.
 
