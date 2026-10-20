@@ -9,6 +9,13 @@ export HOMEBREW_FORBIDDEN_FORMULAE="node npm pnpm yarn claude"
 export HOMEBREW_VERIFY_ATTESTATIONS=1
 # Refuse HTTP-to-HTTPS redirects during downloads.
 export HOMEBREW_NO_INSECURE_REDIRECT=1
+# Refuse every third-party tap: a tap is Ruby that brew evaluates, and none is
+# in use (brewfiles/ has no `tap` line). Official taps are allowed without being
+# listed (Tap#implicitly_trusted?), but an empty value allows every tap
+# (`allowed_taps.blank?` in Tap#allowed_by_env?), so the official two are named
+# to keep the list non-empty. `brew tap` itself is refused, not only installs
+# (Homebrew 7.0, 2026-10). A new tap goes here first.
+export HOMEBREW_ALLOWED_TAPS="homebrew/core homebrew/cask"
 # Not HOMEBREW_CASK_OPTS=--require-sha: it has no per-cask exemption, and 4 of
 # brewfiles/Brewfile-cask (google-chrome, google-drive, google-japanese-ime,
 # spotify) are `sha256 :no_check`, so they would fail to install or upgrade. The
