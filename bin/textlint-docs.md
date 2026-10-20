@@ -26,6 +26,28 @@ not JavaScript.
 global install is per-node-version under volta, so a `volta` node bump silently
 removes it.
 
+## Local rules live in textlint/rules/
+
+Rules that are not npm packages, such as `ja-no-redundant-phrase` (redundant
+phrasing, report only), sit in `textlint/rules/`. The wrapper replaces the
+cache's copy whole on every run and passes it as `--rulesdir`. Replacing it
+whole, rather than copying over the old copy, matters: a rule deleted here
+would otherwise keep reporting from the cache.
+
+**Do not name a local rule in `textlintrc.yml`.** A rule key textlint cannot
+resolve as a package makes it discard *every* rule in the config file. The run
+then uses only what `--rulesdir` supplies, says nothing, and keeps the same
+exit code. Measured on the eval fixture, 11 findings became 1. A local rule
+is therefore enabled by being in the directory, and its options go in the rule
+file. The cost is that a missing `--rulesdir` drops the local rule silently,
+which is why the test pins that the flag is passed on both ignore branches.
+
+It replaces `ja-no-redundant-expression`, which stays disabled. That rule
+joins text across node boundaries, so it matches strings the source does not
+contain and its `--fix` corrupts words. The local rule matches inside one
+`Str` node and has no fixer, since "読み込むことができる → 読み込める"
+depends on conjugation, which string replacement cannot produce.
+
 ## The dictionary is split for portability
 
 `prh.yml` has a universal section and a project-dependent one (katakana
@@ -66,8 +88,9 @@ proven otherwise** — check with `--ignore-path /dev/null`.
 
 `bin/textlint-docs.test.sh` pins the script's own decisions with npm stubbed:
 when the toolchain is installed, that a failed install leaves no manifest behind
-(so the next run installs again), which ignore list textlint gets in each of
-the three cases, and that textlint's exit status passes through. The **rules**
+(so the next run installs again), that the local rules are refreshed whole and
+passed as `--rulesdir`, which ignore list textlint gets in each of the three
+cases, and that textlint's exit status passes through. The **rules**
 are not in it: they are verified by running `textlint-docs <some.md>` on a file
 with known violations.
 

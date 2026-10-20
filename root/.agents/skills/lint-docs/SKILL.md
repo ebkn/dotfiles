@@ -25,7 +25,7 @@ textlint-docs --fix docs/foo.md  # 自動修正
 textlint-docs --format json ...  # textlint のオプションはそのまま通る
 ```
 
-`textlint-docs` は dotfiles の `bin/textlint-docs`（`~/.local/bin` にリンク）。ルールは `dotfiles/textlint/textlintrc.yml`、表記辞書は `dotfiles/textlint/prh.yml`、対象外は `dotfiles/textlint/textlintignore`。依存はキャッシュディレクトリへ隔離して導入されるため、検査対象のリポジトリは一切汚れない。初回だけ npm install が走る（ネットワークが必要）。
+`textlint-docs` は dotfiles の `bin/textlint-docs`（`~/.local/bin` にリンク）。ルールは `dotfiles/textlint/textlintrc.yml`、npm パッケージでない自前ルールは `dotfiles/textlint/rules/`、表記辞書は `dotfiles/textlint/prh.yml`、対象外は `dotfiles/textlint/textlintignore`。依存はキャッシュディレクトリへ隔離して導入されるため、検査対象のリポジトリは一切汚れない。初回だけ npm install が走る（ネットワークが必要）。
 
 コマンドが見つからない場合は `relink` を案内する（dotfiles にファイルはあるがシンボリックリンクが未作成）。
 
@@ -112,7 +112,14 @@ rg -oI --pcre2 'サーバ(?!ー|レス)' -g '*.md' . | wc -l
 
 ### 5. 修正する（明示的に依頼されたときだけ）
 
-`--fix` が直せるのは、ひらき系 3 ルールと prh だけである。文長・AI 文体パターンは人手で直す。
+`--fix` が直せるのは、ひらき系 3 ルールと prh だけである。文長・AI 文体パターン・冗長表現（`ja-no-redundant-phrase`）は人手で直す。
+
+<!-- textlint-disable ja-no-redundant-phrase -->
+<!-- 直下の文は、このルールが指摘する冗長表現そのものを例に引いている。 -->
+
+冗長表現の書き換えは動詞の活用に依存する（「読み込むことができる」→「読み込める」）ため、このルールは指摘だけを出す。
+
+<!-- textlint-enable ja-no-redundant-phrase -->
 
 修正の手順。
 
@@ -151,7 +158,7 @@ rg -oI --pcre2 'サーバ(?!ー|レス)' -g '*.md' . | wc -l
 
 - 同じ規則が広範囲で大量に出る → 閾値・方向がそのプロジェクトの実態と合っていない可能性が高い。`dotfiles/textlint/textlintrc.yml` の調整を提案する
 - 引用文・固有名詞・外部からの転載が違反している → 文書は直さず、理由を添えた `textlint-disable` コメントで囲む
-- ルール自体が壊れている → 例として `ja-no-redundant-expression` はノード境界をまたいで誤マッチし `--fix` が文章を破壊するため無効化してある。同種の挙動を見つけたら報告する
+- ルール自体が壊れている → 例として `ja-no-redundant-expression` はノード境界をまたいで誤マッチし `--fix` が文章を破壊するため無効化してある。冗長表現は、照合を 1 ノード内に限った自前の `ja-no-redundant-phrase` が代わりに指摘する。同種の挙動を見つけたら報告する
 <!-- textlint-disable ja-hiragana-fukushi -->
 <!-- 直下の項目は ja-hiragana-fukushi の誤検知そのものを引用して説明しているため、
      当のルールに引っかかる。文言を変えると実例でなくなるので、範囲を限って無効化する。 -->
