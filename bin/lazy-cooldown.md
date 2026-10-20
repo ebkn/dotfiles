@@ -41,9 +41,9 @@ puts it back if the restore changed it. The pins that passed stay recorded,
 and the next `update-all` applies them.
 
 `update-all` also names, at its end, each of `zinit-cooldown`,
-`lazy-cooldown` and the restore that failed. Their own lines scroll
-away under brew, go and npm output. A failure never stops the run: what the
-cooldown did decide is still applied.
+`lazy-cooldown`, the restore, `go-cooldown` and `go-tools-install` that
+failed. Their own lines scroll away under brew and npm output. A failure never
+stops the run: what the cooldown did decide is still applied.
 
 ## The rule
 

@@ -362,16 +362,16 @@ install_or_upgrade_npm_global() {
   fi
 }
 
-install_go_tool() {
-  local module
-  module="$1"
-
+# install_go_tools [--except <module>]... -- the Go tools in bin/go-tools.txt,
+# at the versions bin/go-cooldown let through, never @latest. See
+# bin/go-cooldown.md.
+install_go_tools() {
   if ! command -v go >/dev/null 2>&1; then
-    printf "warning: go is not installed yet (cannot install %s)\n" "$module" >&2
+    printf "warning: go is not installed yet (cannot install the Go tools)\n" >&2
     return 1
   fi
 
-  go install "$module"
+  "${DOTFILES_DIR}/bin/go-tools-install" "$@"
 }
 
 install_or_upgrade_gcloud() {

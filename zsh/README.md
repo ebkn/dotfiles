@@ -193,7 +193,7 @@ or gets the flag on its own line here, with the reason.
 | `his.test.zsh` | `his()` and `gs()` — see [alias.md](alias.md) |
 | `rm.test.zsh`, `fd.test.zsh` | the two `alias.zsh` wrappers |
 | `git-worktree.test.zsh` | `gw()` and `gdmerged()` — see [git.md](git.md) |
-| `update.test.zsh` | which releases and uptimes `update-all`'s warning speaks on, that `update-all` still ends with it, the order of its lazy.nvim steps, the guard on its restore, the list of failed pin steps, and that npm runs with install scripts off |
+| `update.test.zsh` | which releases and uptimes `update-all`'s warning speaks on, that `update-all` still ends with it, the order of its lazy.nvim and Go steps, the guard on its restore, the list of failed pin steps, and that npm runs with install scripts off |
 | `plugin.test.zsh` | that every plugin and zinit carry a commit pin, no ice has `depth`, and zinit is held at its pin |
 
 After changing shell config, verify with a new shell session or

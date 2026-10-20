@@ -227,19 +227,23 @@ check '  ... leaving install scripts to ~/.npmrc' '' "${(M)${(f)out}:#npm *ignor
 # A cooldown that fails has still decided the pins it could, and they are to
 # be applied: the restore runs anyway, and the failure is named at the end,
 # where the scroll of brew and go output does not bury it.
-# update_with <zinit-cooldown> <lazy-cooldown> <restore> — run update-all with
-# those three exiting with the given statuses and everything else succeeding;
-# prints what it printed. OSTYPE=linux keeps the uptime warning silent, so the
-# list, when there is one, is the last line.
+# update_with <zinit-cooldown> <lazy-cooldown> <restore> <go-cooldown>
+# <go-tools-install> — run update-all with those five exiting with the given
+# statuses and everything else succeeding; prints what it printed.
+# OSTYPE=linux keeps the uptime warning silent, so the list, when there is
+# one, is the last line.
 update_with() {
   print -r -- $LOCKED > $LOCK
   (
     OSTYPE=linux
-    typeset -g ZC=$1 LC=$2 RS=$3
+    typeset -g ZC=$1 LC=$2 RS=$3 GC=$4 GI=$5
     relink() { :; }
     zinit-cooldown() { return $ZC; }
     zinit() { :; }
     lazy-cooldown() { return $LC; }
+    go-cooldown() { print -r -- go-cooldown; return $GC; }
+    go-tools-install() { print -r -- go-tools-install; return $GI; }
+    go() { print -r -- "go ${(qq)@}"; }
     nvim() {
       print -r -- "nvim ${(qq)@}"
       [[ $2 == '+Lazy! restore' ]] && return $RS
@@ -252,25 +256,39 @@ update_with() {
 # lists — the update-all: lines in $out, one per line.
 lists() { print -rl -- ${(M)${(f)out}:#update-all: *}; }
 
-out=$(update_with 0 0 0)
+out=$(update_with 0 0 0 0 0)
 check 'when every pin step succeeds, no failure is listed' '' "$(lists)"
 
-out=$(update_with 0 1 0)
+out=$(update_with 0 1 0 0 0)
 check 'a failed lazy-cooldown still lets the restore run' \
   "*nvim '--headless' '+Lazy! restore' '+qa'*" "$out"
 check '  ... and is named, alone, on the last line' \
   'update-all: lazy-cooldown failed;*' "$(lists)"
 check '  ... which is the last line' "${(b)$(lists)}" "${${(f)out}[-1]}"
 
-out=$(update_with 1 0 0)
+out=$(update_with 1 0 0 0 0)
 check 'a failed zinit-cooldown is named, alone' 'update-all: zinit-cooldown failed;*' "$(lists)"
 
-out=$(update_with 0 0 1)
+out=$(update_with 0 0 1 0 0)
 check 'a failed restore is named, alone' 'update-all: Lazy! restore failed;*' "$(lists)"
 
-out=$(update_with 1 1 1)
-check 'all three failing are named on one line, in order' \
-  'update-all: zinit-cooldown, lazy-cooldown, Lazy! restore failed;*' "$(lists)"
+# The Go tools are installed only at the versions go-cooldown let through: no
+# `go install …@latest` of update-all's own, and the install after the
+# cooldown, whether or not the cooldown decided every module.
+golines() { local -a l=(${(M)${(f)out}:#go*}); print -rl -- $l; }
+check 'update-all cools the Go tools down, then installs them, and nothing else' \
+  $'go-cooldown\ngo-tools-install' "$(golines)"
+
+out=$(update_with 0 0 0 1 0)
+check 'a failed go-cooldown still lets the install run' '*go-cooldown'$'\n''go-tools-install*' "$out"
+check '  ... and is named, alone' 'update-all: go-cooldown failed;*' "$(lists)"
+
+out=$(update_with 0 0 0 0 1)
+check 'a failed go-tools-install is named, alone' 'update-all: go-tools-install failed;*' "$(lists)"
+
+out=$(update_with 1 1 1 1 1)
+check 'all five failing are named on one line, in order' \
+  'update-all: zinit-cooldown, lazy-cooldown, Lazy! restore, go-cooldown, go-tools-install failed;*' "$(lists)"
 
 # --- The restore guard ------------------------------------------------------
 

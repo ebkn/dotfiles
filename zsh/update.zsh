@@ -97,19 +97,13 @@ update-all() {
   nvim --headless '+Lazy! clean' +qa
   lazy-cooldown || failed+=(lazy-cooldown)
   _lazy_restore || failed+=('Lazy! restore')
-  go install golang.org/x/tools/...@latest
-  go install github.com/cweill/gotests/...@latest
-  go install github.com/mattn/efm-langserver@latest
-  go install github.com/hashicorp/terraform-ls@latest
-  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-  go install github.com/nametake/golangci-lint-langserver@latest
-  go install github.com/mikefarah/yq/v4@latest
-  go install github.com/x-motemen/ghq@latest
-  go install github.com/cloudspannerecosystem/spanner-cli@latest
-  go install github.com/aquasecurity/tfsec/cmd/tfsec@latest
-  go install github.com/terraform-linters/tflint@latest
-  go install mvdan.cc/gofumpt@latest
-  go install tailscale.com/cmd/tailscale{,d}@main
+  # Move the versions in bin/go-tools.txt to releases whose commit has been on
+  # their branch for 7 days, then install exactly those -- never @latest,
+  # which builds and runs a release the minute it is published. The install
+  # runs whether or not the cooldown decided every module: what it held stays
+  # at the version already vetted. See bin/go-cooldown.md.
+  go-cooldown || failed+=(go-cooldown)
+  go-tools-install || failed+=(go-tools-install)
   # Install scripts stay off (~/.npmrc ignore-scripts=true), here as for any
   # install: a script runs with this user's rights, for every package in each
   # tree, and none of these needs one (zsh/README.md). Keep in sync with
