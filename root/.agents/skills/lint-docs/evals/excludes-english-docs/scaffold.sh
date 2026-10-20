@@ -29,6 +29,9 @@ cat >>docs/guide-ja.md <<'EOF'
 EOF
 lint_docs_write_english_readme
 lint_docs_write_english_skill
-git diff | git hash-object --stdin >.git/lint-docs-eval-diff
+# --no-ext-diff, here and in assert.sh: an external diff tool's output can
+# carry terminal width or timing, and the two hashes would then differ for
+# an untouched tree.
+git diff --no-ext-diff --no-color | git hash-object --stdin >.git/lint-docs-eval-diff
 
 lint_docs_link_tool

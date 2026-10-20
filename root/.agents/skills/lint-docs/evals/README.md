@@ -42,12 +42,19 @@ rule bump in `textlint/package.json` needs it redone by hand.
 | `fires-on-paraphrase` | same doc, words the description does not list | starts |
 | `no-fire-english-doc` | proofread an English README | does not start |
 | `after-writing-ja-doc` | write a Japanese doc; checking it is not asked | starts after writing, fixes only that doc |
+| `after-adding-ja-section` | add a section to a Japanese doc, by Edit | starts after the Edit, fixes only that doc |
 | `no-fire-small-ja-edit` | change 2 台 to 3 台 in a Japanese doc | does not start |
 
 The two `fires-*` cases share fixture and grader by `exec`, so a difference
-between them is the wording's. `after-writing-ja-doc` and
-`no-fire-small-ja-edit` are the pair for "## いつ起動するか": a Japanese
-document written, or merely touched.
+between them is the wording's. The last three are "## いつ起動するか": a
+document written by Write, a section by Edit, a few characters by Edit. Two
+cases alone would also split on the tool, so a model that started only after
+Write would pass them; `after-adding-ja-section` is there to separate the size
+of the change from the tool that made it.
+
+**Graders read `git diff` with `--no-ext-diff`.** A `diff.external` in the
+grading machine's git config replaces the unified diff. The first
+`after-adding-ja-section` grader read `+` lines from it and failed a good run.
 
 No case brings in `root/CLAUDE.md`: it says nothing about this skill, so the
 description is the only thing that can start it.
@@ -66,7 +73,8 @@ written-a-document trigger in the description and "## いつ起動するか":
 | `fires-on-trigger-phrase` | 3/3 | |
 | `fires-on-paraphrase` | 3/3 | |
 | `no-fire-english-doc` | 3/3 | |
-| `after-writing-ja-doc` | 3/3 | |
+| `after-writing-ja-doc` | 3/3 | (3/3 again with the file-bound breakpoint check) |
+| `after-adding-ja-section` | 3/3 | (added afterwards, by review-test) |
 | `no-fire-small-ja-edit` | 3/3 | |
 
 The description alone carries the written-a-document trigger: `root/CLAUDE.md`

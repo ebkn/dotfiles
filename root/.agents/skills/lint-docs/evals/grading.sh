@@ -92,6 +92,27 @@ lint_docs_reports_count() {
     grep -qE '[0-9]+ ?件|[0-9]+ : ([^ 0-9]+ )?[0-9]+|[0-9]+ ?： ?([^ 0-9：]+ ?)?[0-9]+'
 }
 
+# lint_docs_started_after_writing <path regex>
+# "## いつ起動するか": the skill starts at the breakpoint, once the document has
+# been written -- by Write for a new one, by Edit for a rewritten section. True
+# when the first Skill call of lint-docs comes after the first Write or Edit of
+# a file matching the regex. Tied to the file, since a Write of something else
+# before the skill does not make it the breakpoint.
+lint_docs_started_after_writing() {
+  local skill_at write_at
+  skill_at="$(transcript_skill_rounds lint-docs | jq -s '.[0].index // empty')"
+  write_at="$(jq -s --arg re "$1" '
+    [ to_entries[]
+      | select(.value.type == "assistant")
+      | select([ .value.message.content[]?
+                 | select(.type == "tool_use" and (.name == "Write" or .name == "Edit"))
+                 | .input.file_path // "" | test($re) ] | any)
+      | .key ]
+    | first // empty
+  ' "$SKILL_EVAL_TRANSCRIPT")"
+  [ -n "$skill_at" ] && [ -n "$write_at" ] && [ "$skill_at" -gt "$write_at" ]
+}
+
 # lint_docs_writes
 # Edit and Write calls together: the skill's default is inspection only.
 lint_docs_writes() {

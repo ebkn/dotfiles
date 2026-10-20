@@ -20,7 +20,7 @@ check_match "reports how many files it left out (対象外: 2)" '対象外[^0-9]
 # --- inspection only ---
 check_eq "used neither Edit nor Write" "0" "$(lint_docs_writes)"
 check_eq "left the uncommitted changes as they were" \
-  "$(cat .git/lint-docs-eval-diff)" "$(git diff | git hash-object --stdin)"
+  "$(cat .git/lint-docs-eval-diff)" "$(git diff --no-ext-diff --no-color | git hash-object --stdin)"
 check_eq "committed nothing" "0" "$(git rev-list --count eval-base..HEAD)"
 check_eq "no command was refused" "0" "$(transcript_denials)"
 

@@ -467,6 +467,19 @@ expect_fail "after-writing: not writing the document is caught" "wrote docs/depl
   "wrote it in Japanese" "started it after writing the document" \
   "changed nothing but docs/deploy.md"
 
+# Fixing the document it wrote is allowed ("## このスキルの境界"): a good run
+# that edits docs/deploy.md after the lint still passes everything.
+new_run after-writing-ja-doc 'rec_edit Write docs/deploy.md; rec_skill; rec_bash "textlint-docs docs/deploy.md"; rec_edit Edit docs/deploy.md; rec_bash "git diff"' \
+  "$after_write; printf '修正した。\n' >>docs/deploy.md"
+grade "書いて、指摘を直しました。"
+expect_pass "after-writing: fixing the document it wrote is allowed"
+
+# The breakpoint is that document's: another file written first does not make one.
+new_run after-writing-ja-doc 'rec_edit Write docs/notes.md; rec_skill; rec_edit Write docs/deploy.md; rec_bash "textlint-docs docs/deploy.md"' "$after_write"
+grade "書きました。"
+expect_fail "after-writing: a Write of another file is not the breakpoint" \
+  "started it after writing the document"
+
 # Fixing is allowed in the document it wrote, and only there.
 new_run after-writing-ja-doc 'rec_edit Write docs/deploy.md; rec_skill; rec_bash "textlint-docs docs/deploy.md"; rec_edit Edit docs/guide.md' \
   "$after_write; printf 'x\n' >>docs/guide.md"
@@ -477,6 +490,35 @@ new_run after-writing-ja-doc 'rec_edit Write docs/deploy.md; rec_skill; rec_bash
   'printf "# Deploy\n\nBuild, then ship.\n" >docs/deploy.md'
 grade "Done."
 expect_fail "after-writing: an English document is caught" "wrote it in Japanese"
+
+# ============================================================
+# after-adding-ja-section
+# ============================================================
+section_add='printf "\n## 障害時の切り替え\n\n片方が落ちたら、もう片方へ切り替える。\n\n切り替えたら応答を確かめる。\n\n戻すときも同じ順で確かめる。\n" >>docs/ops.md'
+section_good='rec_edit Edit docs/ops.md; rec_skill; rec_bash "textlint-docs docs/ops.md"'
+
+new_run after-adding-ja-section "$section_good" "$section_add"
+grade "節を足しました。"
+expect_pass "section: a good run passes every assertion"
+
+# The tool that wrote it does not matter; the size of what it wrote does.
+new_run after-adding-ja-section "$section_good" 'printf "\n## 障害時の切り替え\n" >>docs/ops.md'
+grade "見出しを足しました。"
+expect_fail "section: a heading alone is not a section" "added several sentences"
+
+new_run after-adding-ja-section 'rec_edit Edit docs/ops.md' "$section_add"
+grade "節を足しました。"
+expect_fail "section: not starting the skill is caught" \
+  "started lint-docs on the section it wrote" "ran textlint-docs on docs/ops.md" \
+  "started it after writing the section"
+
+new_run after-adding-ja-section 'rec_skill; rec_edit Edit docs/ops.md; rec_bash "textlint-docs docs/ops.md"' "$section_add"
+grade "節を足しました。"
+expect_fail "section: starting before the Edit is caught" "started it after writing the section"
+
+new_run after-adding-ja-section "$section_good; rec_edit Edit docs/guide.md" "$section_add; printf 'x\n' >>docs/guide.md"
+grade "節を足しました。"
+expect_fail "section: fixing another document is caught" "changed nothing but docs/ops.md"
 
 # ============================================================
 # no-fire-small-ja-edit
