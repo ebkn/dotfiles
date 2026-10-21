@@ -259,6 +259,29 @@ no rule; that gap is older than this change.
 wins: a work repository that keeps `Bash(git push --force*)` in its
 `.claude/settings.json` refuses the lease push there regardless.
 
+## Subagent models are chosen, never inherited
+
+A subagent that names no model runs on the session's model — Opus, in fast
+mode, here — and [Claude Code's own workflow
+guidance](https://code.claude.com/docs/en/workflows) tells the model to leave it
+out ("the agent inherits the main-loop model … almost always correct"), while
+ultracode adds that token cost is no constraint. Against that, the old
+`CLAUDE.md` line "match the model to the task" lost: under ultracode every
+workflow agent ran on Opus, and the token budget went in minutes.
+
+**`agent-model-guard.sh` denies an `Agent` call with no `model`**, and its reason
+— which the model reads — lists the tiers, so the retry carries a choice. It
+deliberately does not fill one in: a fixed model written by a hook is just
+another default. It lets through the types that ignore or need no per-call
+model (`fork`, `claude-code-guide`, `statusline-setup`); a new built-in with a
+fixed cheap model belongs in that list, or it pays a refused round-trip for
+nothing.
+
+It fails open — no `jq`, bad input — because a missed choice costs tokens and a
+blocked spawn costs the task.
+
+Run `root/.claude/hooks/agent-model-guard.test.sh` after touching it.
+
 ## Codex prefix rules
 
 `root/.codex/rules/default.rules` is linked to `~/.codex/rules` and is the Codex
