@@ -26,7 +26,17 @@ decision() {
     printf none
     return
   fi
-  printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision'
+  # Claude Code ignores a hookSpecificOutput for another event, so a deny that
+  # lost its hookEventName would refuse nothing.
+  printf '%s' "$out" | jq -r '.hookSpecificOutput |
+    if .hookEventName == "PreToolUse" then .permissionDecision else "wrong-event" end'
+}
+
+# raw <stdin> [<PATH>] -- the hook's exit status and output for raw input.
+raw() {
+  local out status
+  if out=$(printf '%s' "$1" | PATH=${2:-$PATH} "$HOOK" 2>/dev/null); then status=0; else status=$?; fi
+  printf 'exit%s:%s' "$status" "$out"
 }
 
 assert_eq "general-purpose with no model" deny \
@@ -37,6 +47,15 @@ assert_eq "Explore with no model" deny \
   "$(decision '{"subagent_type":"Explore","prompt":"x","description":"d"}')"
 assert_eq "empty model string" deny \
   "$(decision '{"subagent_type":"general-purpose","model":"","prompt":"x"}')"
+assert_eq "null model" deny \
+  "$(decision '{"subagent_type":"general-purpose","model":null,"prompt":"x"}')"
+
+# The exemption is an exact name: a glob or a case-folded match would let any
+# lookalike type spawn on the session's model.
+for t in Fork fork-something my-claude-code-guide; do
+  assert_eq "lookalike subagent_type $t with no model" deny \
+    "$(decision "$(jq -nc --arg t "$t" '{subagent_type:$t, prompt:"x"}')")"
+done
 
 for m in haiku sonnet opus fable claude-sonnet-5-5; do
   assert_eq "model $m" none \
@@ -54,7 +73,22 @@ done
 # The reason is all the model sees of the refusal, so it must say what to do.
 reason=$(jq -n '{tool_name:"Agent", tool_input:{subagent_type:"general-purpose",prompt:"x"}}' |
   "$HOOK" | jq -r '.hookSpecificOutput.permissionDecisionReason')
-assert_contains "reason asks for the model parameter" "$reason" "model"
+assert_contains "reason asks for a retry with model set" "$reason" "Retry the same call with"
 assert_contains "reason offers the cheap tier" "$reason" "haiku"
+
+# Fail open: input the hook cannot read must not turn into a refusal. A
+# PreToolUse hook exiting non-zero other than 2 lets the call through; exit 2
+# or a printed deny would block it.
+for input in '' 'not json'; do
+  got=$(raw "$input")
+  assert_not_contains "input '$input' does not deny" "$got" '"deny"'
+  assert_not_contains "input '$input' does not exit 2" "$got" 'exit2:'
+  assert_not_contains "input '$input' does not exit 0" "$got" 'exit0:'
+done
+# No jq on PATH: bash is called by absolute path in the shebang, so only jq goes.
+got=$(raw '{"tool_input":{"subagent_type":"general-purpose"}}' /nonexistent)
+assert_not_contains "no jq does not deny" "$got" '"deny"'
+assert_not_contains "no jq does not exit 2" "$got" 'exit2:'
+assert_not_contains "no jq does not exit 0" "$got" 'exit0:'
 
 test_summary
