@@ -3,7 +3,8 @@
 # call naming no model.
 #
 # Both directions are silent: a guard that lets an unnamed model through puts
-# the subagent on the session's model (Opus) with nothing to show for it, and a
+# the subagent on a default nobody chose for the task (Sonnet via
+# CLAUDE_CODE_SUBAGENT_MODEL, the session's Opus for Explore and Plan), and a
 # guard that refuses a call it should pass blocks the spawn outright. So each
 # case asserts the decision Claude Code would read -- a deny with a reason, or
 # no output at all -- not the exit status, which is 0 either way.
@@ -51,7 +52,7 @@ assert_eq "null model" deny \
   "$(decision '{"subagent_type":"general-purpose","model":null,"prompt":"x"}')"
 
 # The exemption is an exact name: a glob or a case-folded match would let any
-# lookalike type spawn on the session's model.
+# lookalike type spawn on a default nobody chose.
 for t in Fork fork-something my-claude-code-guide; do
   assert_eq "lookalike subagent_type $t with no model" deny \
     "$(decision "$(jq -nc --arg t "$t" '{subagent_type:$t, prompt:"x"}')")"
