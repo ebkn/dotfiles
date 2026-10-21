@@ -261,8 +261,8 @@ wins: a work repository that keeps `Bash(git push --force*)` in its
 
 ## Subagent models are chosen, never inherited
 
-A subagent that names no model runs on the session's model — Opus, in fast
-mode, here — and [Claude Code's own workflow
+Left to itself, a subagent that names no model runs on the session's model —
+Opus, in fast mode, here — and [Claude Code's own workflow
 guidance](https://code.claude.com/docs/en/workflows) tells the model to leave it
 out ("the agent inherits the main-loop model … almost always correct"), while
 ultracode adds that token cost is no constraint. Against that, the old
@@ -270,7 +270,9 @@ ultracode adds that token cost is no constraint. Against that, the old
 workflow agent ran on Opus, and the token budget went in minutes.
 
 **`agent-model-guard.sh` denies an `Agent` call with no `model`**, and its reason
-— which the model reads — lists the tiers, so the retry carries a choice. It
+— which the model reads — lists the tiers, so the retry carries a choice. Those
+tiers repeat the `root/CLAUDE.md` rule "Name a model for every subagent";
+retune both together. It
 deliberately does not fill one in: a fixed model written by a hook is just
 another default. It lets through the types that ignore or need no per-call
 model (`fork`, `claude-code-guide`, `statusline-setup`); a new built-in with a
