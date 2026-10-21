@@ -85,8 +85,13 @@ for input in '' 'not json'; do
   assert_not_contains "input '$input' does not exit 2" "$got" 'exit2:'
   assert_not_contains "input '$input' does not exit 0" "$got" 'exit0:'
 done
-# No jq on PATH: bash is called by absolute path in the shebang, so only jq goes.
-got=$(raw '{"tool_input":{"subagent_type":"general-purpose"}}' /nonexistent)
+# No jq on PATH, but cat still there: the hook reads stdin with cat first, so a
+# PATH with nothing on it would fail on cat and never reach the jq call.
+test_tmpdir
+ln -s "$(command -v cat)" "$TEST_TMPDIR/cat"
+assert_eq "the no-jq PATH has cat but no jq" "$TEST_TMPDIR/cat:" \
+  "$(PATH=$TEST_TMPDIR command -v cat):$(PATH=$TEST_TMPDIR command -v jq)"
+got=$(raw '{"tool_input":{"subagent_type":"general-purpose"}}' "$TEST_TMPDIR")
 assert_not_contains "no jq does not deny" "$got" '"deny"'
 assert_not_contains "no jq does not exit 2" "$got" 'exit2:'
 assert_not_contains "no jq does not exit 0" "$got" 'exit0:'
