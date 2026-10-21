@@ -5,6 +5,7 @@ effort: high
 allowed-tools: Read, Glob, Grep, Bash(git diff *), Bash(git log *), Bash(git show *), Bash(git merge-base *), Bash(git status *), Bash(git rev-parse *)
 context: fork
 agent: general-purpose
+model: opus
 background: false
 ---
 

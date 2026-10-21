@@ -4,6 +4,7 @@ description: Review test code. Start from the module's public contract (inputs a
 allowed-tools: Read, Glob, Grep
 context: fork
 agent: general-purpose
+model: opus
 background: false
 ---
 

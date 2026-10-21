@@ -280,6 +280,21 @@ nothing.
 It fails open — no `jq`, bad input — because a missed choice costs tokens and a
 blocked spawn costs the task.
 
+**What gets past the hook lands on Sonnet**, through
+`env.CLAUDE_CODE_SUBAGENT_MODEL` in `settings.json`. Since Claude Code 2.1.251
+that variable is only a default — a per-call `model`, a script's `agent()`
+`model`, or a definition's `model:` still wins — and it covers workflow agents,
+whose `agent()` calls the docs never say reach PreToolUse. Two things it does
+**not** do: it leaves the built-in `Explore` and `Plan` on the parent's model
+(the hook catches those), and it is not `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`,
+which would pin every subagent to one tier and remove the choice this section
+exists to keep.
+
+The default would have moved `review-test` and `review-design`, forked
+`general-purpose` skills, from Opus to Sonnet without anyone deciding it, so
+their frontmatter names `model: opus`. A new forked skill should name its tier
+the same way.
+
 Run `root/.claude/hooks/agent-model-guard.test.sh` after touching it.
 
 ## Codex prefix rules
