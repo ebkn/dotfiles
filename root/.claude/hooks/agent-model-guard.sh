@@ -20,6 +20,9 @@
 set -eo pipefail
 
 INPUT=$(cat)
+# jq reads empty input as no value, not an error, so without this an empty
+# stdin would look like a call with no model and be refused.
+[[ -n "$INPUT" ]] || exit 1
 MODEL=$(printf '%s' "$INPUT" | jq -r '.tool_input.model // empty')
 TYPE=$(printf '%s' "$INPUT" | jq -r '.tool_input.subagent_type // empty')
 
