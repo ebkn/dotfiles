@@ -3,8 +3,8 @@
 # call naming no model.
 #
 # Both directions are silent: a guard that lets an unnamed model through puts
-# the subagent on a default nobody chose for the task (Sonnet via
-# CLAUDE_CODE_SUBAGENT_MODEL, the session's Opus for Explore and Plan), and a
+# the subagent on a default nobody chose for the task (which one: the hook's
+# header), and a
 # guard that refuses a call it should pass blocks the spawn outright. So each
 # case asserts the decision Claude Code would read -- a deny with a reason, or
 # no output at all -- not the exit status, which is 0 either way.
