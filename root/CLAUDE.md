@@ -91,7 +91,7 @@
 # Git
 
 - **Bring main into a branch with a merge** (`git merge origin/main`), not a rebase, unless the user asks for a rebase. A merge needs no force push.
-- **Undo a temporary edit with git, never by hand.** When a file is changed only to check something — a mutation to prove a test fails — restore it with `git checkout -- <path>` or `git restore <path>`, which ask first. A hand-written `sed` back to the original leaves the change in place when its pattern misses. Prefer mutating a copy when the test can be pointed at one.
+- **Undo a temporary edit with git, never by hand.** When a file is changed only to check something — a mutation to prove a test fails — restore it with `git restore <path>`, not `git checkout -- <path>`, which asks first in Claude Code. A hand-written `sed` back to the original leaves the change in place when its pattern misses. Prefer mutating a copy when the test can be pointed at one.
 
 # Tool Usage
 

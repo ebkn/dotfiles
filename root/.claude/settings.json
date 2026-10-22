@@ -400,7 +400,6 @@
       "Bash(git push --force-with-lease*)",
       "Bash(git push * --force-with-lease*)",
       "Bash(git checkout *)",
-      "Bash(git restore *)",
       "Bash(git stash drop*)",
       "Bash(git stash clear*)",
       "Bash(git switch *)",

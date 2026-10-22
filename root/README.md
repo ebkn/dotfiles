@@ -230,10 +230,10 @@ touching any of them, or `git-rules.lib.sh`.
 
 ### Force push and discarded changes ask; they are not denied
 
-`git push --force-with-lease`, `git checkout -- <path>`, `git restore` and
-`git stash drop`/`clear` are `ask` rules (Codex: `prompt`). A bare `--force`
-and `-f` stay `deny`. Both were `deny` until transcripts showed what refusing
-them did:
+`git push --force-with-lease`, `git checkout -- <path>` and
+`git stash drop`/`clear` are `ask` rules (Codex: `prompt`, `git restore`
+included). A bare `--force` and `-f` stay `deny`. Both were `deny` until
+transcripts showed what refusing them did:
 
 - **A refused undo became a hand-written `sed`.** About 25 `git checkout --`
   refusals in 90 days, most of them the model restoring its *own* temporary
@@ -245,10 +245,24 @@ them did:
   dropped one piece at a time, and once not reported at all: a PR was opened
   from the unrebased remote branch. A lease refuses to overwrite a remote that
   moved since the last fetch, so on a feature branch it is a reviewable step.
-- **Every discarding spelling has to ask, or the prompt is one synonym away.**
-  `git restore <path>` restores the worktree by default and `git stash*` is an
-  allow rule, so both were open while `git checkout --` was denied. An `ask`
-  outranks an `allow`, which is what makes `git stash drop` prompt.
+- **A discarding spelling left open makes the gate one synonym away.**
+  `git stash*` is an allow rule, so `git stash drop` was open while
+  `git checkout --` was denied. An `ask` outranks an `allow`, which is what
+  makes it prompt.
+
+**`git restore` left `ask`, as `rm` did**, and the auto-mode classifier decides
+it. It is the undo `root/CLAUDE.md` names for the model's own temporary edit,
+and a prompt on every such undo was friction on exactly the case the first
+bullet set out to make cheap. A hook cannot recover the safe ones instead: an
+`ask` rule is still evaluated whatever a PreToolUse hook returns, and the safe
+case is defined by *who wrote the diff*, which no path check can see.
+
+**Know what that trades away.** `git checkout -- <path>` still asks, so for
+discarding the prompt is now one synonym away on purpose. In `default` mode a
+restore the classifier does not approve still prompts, but under
+`bypassPermissions` nothing stands between a model mistake and discarded
+uncommitted work. Codex keeps its `prompt` rule, as it keeps `rm`'s. Restoring
+the rule is a one-line revert.
 
 The deny rules spell `--force` as a whole word (`git push --force` and
 `git push --force *`), because `--force*` also matches `--force-with-lease`.

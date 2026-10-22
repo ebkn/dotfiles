@@ -825,15 +825,16 @@ check ASK 'git -C sub push --force-with-lease'
 check ASK 'git -C sub push --force-with-lease origin topic'
 check ASK 'git -C sub push origin HEAD --force-with-lease=topic:abc123'
 # Discarding worktree changes asks rather than refuses: refusing only drove the
-# undo of a model's own temporary edit to a hand-written sed. Every spelling
-# that discards asks, or the prompt is one synonym away.
+# undo of a model's own temporary edit to a hand-written sed.
 check ASK 'git -C sub checkout -- f'
 check ASK 'git -C sub checkout f'
 check ASK 'git -C sub checkout .'
 check ASK 'git -C sub checkout HEAD -- f'
-check ASK 'git -C sub restore f'
-check ASK 'git -C sub restore --worktree f'
-check ASK 'git -C sub restore --source=HEAD f'
+# git restore is the undo root/CLAUDE.md names, so it left ask, as rm did: the
+# classifier decides it. A -C must not bring the old prompt back.
+check PASS 'git -C sub restore f'
+check PASS 'git -C sub restore --worktree f'
+check PASS 'git -C sub restore --source=HEAD f'
 check ASK 'git -C sub stash drop'
 check ASK 'git -C sub stash clear'
 check PASS 'git -C sub stash list'
