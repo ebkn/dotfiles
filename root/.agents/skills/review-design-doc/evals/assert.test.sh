@@ -488,6 +488,17 @@ for loc in '' C; do
   expect_pass "clean: lint-docs' heading with a full-width colon is dropped (locale '${loc:-inherited}')"
 done
 
+# A review heading after lint-docs' report ends it whatever its level or
+# bold form, in both locales.
+for loc in '' C; do
+  for heading in '**設計ドキュメントレビュー:**' '### 設計ドキュメントレビュー：'; do
+    new_run clean-doc-no-false-p1 "$req"
+    LC_ALL="$loc" grade "$(printf '## ドキュメント検査: %s\n\n- 冗長\n\n%s %s\n\n- 【P1】ロールバックが無い\n' "$doc" "$heading" "$doc")"
+    expect_fail "clean: a priority under '$heading' after lint-docs' report fails the contract (locale '${loc:-inherited}')" \
+      "ranks findings under priority headings, not inline"
+  done
+done
+
 # lint-docs' report first: only it is dropped, not the review after it.
 new_run clean-doc-no-false-p1 "$req"
 grade "$(printf '## ドキュメント検査: %s\n\n- 9 行目: 冗長\n\n## 設計ドキュメントレビュー: %s\n\n- 【P1】ロールバックが無い\n' "$doc" "$doc")"

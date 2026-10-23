@@ -365,9 +365,15 @@ rdd_check_requested() {
 # pinned in assert.test.sh: prose after lint-docs' findings with no heading
 # of its own reads as lint-docs'. Colons as alternatives, not a class, so the
 # locale does not decide.
+#
+# A review heading (RDD_REPORT_HEADING: bold or any `#` level) ends it too,
+# so a review placed after it is checked however its heading is set. That
+# pattern's one class is `[:：]` at its end, which matches the first byte of
+# `：` under the C locale as well.
 rdd_review_part() {
-  printf '%s\n' "$1" | awk '
+  printf '%s\n' "$1" | review="$RDD_REPORT_HEADING" awk '
     /^#+[ \t]*ドキュメント検査[ \t]*(:|：)/ { match($0, /#+/); llvl = RLENGTH; lint = 1; next }
+    lint && $0 ~ ENVIRON["review"] { lint = 0 }
     lint && /^[ \t]*#/ { match($0, /#+/); if (RLENGTH <= llvl) lint = 0 }
     !lint { print }
   '
