@@ -30,30 +30,56 @@ rdd_has_heading() {
 }
 
 # rdd_section <report> <P1|P2|P3>
-# The lines under that priority's heading, up to the next heading. A section
-# that opens by saying there is nothing ("なし", "None") yields nothing, as
-# transcript_skill_rounds reads it: a clean review that kept the heading is not
-# one with findings.
+# The lines under that priority's heading, up to the next heading.
+#
+# Read wide on purpose. The clean cases grade "no P1" on this, so a P1 the
+# parser misses is a false alarm graded clean: a heading is any `#` line or a
+# line that is bold and nothing else (`**P1**`), and it is that priority's when
+# the label appears in it as a word (`### 🔴 P1`, `### 重大 (P1)`). Every
+# non-blank line under it is kept, bullet or paragraph.
+#
+# The one line dropped is an item that says there is nothing and nothing more
+# ("なし", "- None."), as transcript_skill_rounds' open_findings drops it.
+# "なし。ただし…" or "None of the goals …" is a finding and stays.
 rdd_section() {
   printf '%s\n' "$1" | awk -v p="$2" '
-    /^#+/ {
-      sec = ($0 ~ ("^#+[[:space:]]*" p "([^0-9]|$)"))
-      first = sec
+    /^#+/ || /^[[:space:]]*\*\*[^*]+\*\*[[:space:]:：]*$/ {
+      sec = ($0 ~ ("(^|[^A-Za-z0-9])" p "([^0-9]|$)"))
       next
     }
     /^[[:space:]]*$/ { next }
-    first && /^[[:space:]]*([-*][[:space:]]+)?(なし|該当なし|ありません|指摘なし|None|none|No findings|N\/A)([。.:：、,]|[[:space:]]*$)/ {
-      sec = 0
-    }
-    { first = 0 }
+    /^[[:space:]]*([-*][[:space:]]+)?(なし|該当なし|ありません|指摘なし|None|none|No findings|N\/A)[。.]?[[:space:]]*$/ { next }
     sec { print }
   '
 }
 
+# rdd_ranks_under_headings <report>
+# No finding is ranked inline: no list item that leads with its priority
+# (`- **P1**: …`, `- [P2] …`, `1. P1 …`) and no table cell holding one
+# (`| P1 | … |`). rdd_section reads priorities from headings alone, so a finding
+# ranked inline is one it cannot see -- and on a clean doc an unseen P1 grades
+# as none. Failing such a report here keeps the parser simple and the contract
+# enforced. Prose that merely mentions a priority ("P1 はありません") is not a
+# ranking and passes.
+rdd_ranks_under_headings() {
+  ! printf '%s\n' "$1" |
+    grep -qE '^[[:space:]]*([-*]|[0-9]+\.)[[:space:]]+(\*\*|\[|`)?P[123]([^0-9]|$)|\|[[:space:]]*(\*\*)?P[123]([^0-9]|$)'
+}
+
 # rdd_count <report> <P1|P2|P3>
-# List items under that heading.
+# Findings under that heading: its list items, or 1 for a section written as
+# prose with no list. Nested evidence bullets count too; the cases ask only
+# whether it is 0.
 rdd_count() {
-  rdd_section "$1" "$2" | grep -cE '^[[:space:]]*([-*]|[0-9]+\.)[[:space:]]+' || true
+  local section items
+  section="$(rdd_section "$1" "$2")"
+  [ -n "$section" ] || {
+    echo 0
+    return
+  }
+  items="$(grep -cE '^[[:space:]]*([-*]|[0-9]+\.)[[:space:]]+' <<<"$section" || true)"
+  [ "$items" -gt 0 ] || items=1
+  echo "$items"
 }
 
 # rdd_open_text <report>
@@ -125,6 +151,7 @@ rdd_check_read_only() {
 # nothing.
 rdd_check_requested() {
   check "reported under the review heading, naming the doc" rdd_has_heading "$(rdd_report)" "$1"
+  check "ranks findings under priority headings, not inline" rdd_ranks_under_headings "$(rdd_report)"
   rdd_check_read_only
   check_eq "no command was refused" "0" "$(transcript_denials)"
 }

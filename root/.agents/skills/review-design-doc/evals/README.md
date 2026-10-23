@@ -16,9 +16,15 @@ What `SKILL.md` must keep, because `grading.sh` reads it:
 - **A report heading with a colon, naming the doc**: `## Design doc review: <path>`,
   translated (`設計ドキュメントレビュー:`, `設計書レビュー:` and `Design Document Review:`
   are accepted too). A preamble without the colon does not count.
-- **Findings under headings named `P1`, `P2`, `P3`**; an empty one is dropped or says
-  "なし" / "None". A judged finding counts only under P1 or P2: a mention under
-  P3, or in passing, is not a finding raised.
+- **Findings under headings naming `P1`, `P2`, `P3`**; an empty one is dropped or says
+  "なし" / "None" and nothing more. A judged finding counts only under P1 or
+  P2: a mention under P3, or in passing, is not a finding raised. The parser
+  reads wide -- the label anywhere in a `#` heading or a bold-only line, any
+  line under it, bullet or prose -- because "no P1" on a clean doc fails open
+  when a P1 goes unseen; `assert.test.sh` pins the shapes on both sides.
+  **Ranking inline is a contract failure**: a list item that leads with its
+  priority (`- **P1**: …`, `- [P2] …`) or a `| P1 |` table cell fails
+  "ranks findings under priority headings", since the parser cannot see it.
 - **The report reaches the user**: it is graded on the run's final response,
   so a forked skill's report left in its tool result is not one.
 - **Report-only, all the way through.** No Edit, no Write, no commit, a clean

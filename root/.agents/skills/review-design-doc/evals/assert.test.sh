@@ -211,6 +211,10 @@ for entry in \
   expect_fail "$c: a P1 section saying none is not a finding" "$judged"
 
   new_run "$c" ''
+  grade "$(report "$doc" '' 'None.' '見つけた問題')"
+  expect_fail "$c: a P2 section saying none is not a finding" "$judged"
+
+  new_run "$c" ''
   grade "$(report "$doc" 'JUDGE_FAIL')"
   expect_fail "$c: the judge reads the P1 section" "$judged"
 
@@ -298,6 +302,41 @@ expect_fail "clean: a P1 is caught" "raised no P1"
 new_run clean-doc-no-false-p1 ''
 grade "$(printf '## 設計ドキュメントレビュー: %s\n\n### P1\n1. 誤検知\n' "$doc")"
 expect_fail "clean: a numbered P1 is caught" "raised no P1"
+
+# Shapes a real P1 can take. "raised no P1" fails open if the parser misses
+# one, so each must be counted.
+for shape in '### 🔴 P1\n- 誤検知' '### 重大 (P1)\n- 誤検知' '### **P1**\n- 誤検知' \
+  '**P1**\n- 誤検知' '**P1:**\n- 誤検知' '### P1\nロールバック手順が書かれていない。' \
+  '### P1\n- なし。ただし、ロールバック手順が無い' '### P1\n- None of the non-goals are real.'; do
+  new_run clean-doc-no-false-p1 ''
+  grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
+  expect_fail "clean: a P1 shaped '${shape%%\\n*} / ${shape#*\\n}' is caught" "raised no P1"
+done
+
+# And shapes that are not a P1.
+for shape in '### P1\nなし' '### P1\n- None.' '### P12\n- 番号違い' '### P2\n- これは P1 ではない' \
+  '**P1 のつもりの太字** を含む文\n- 本文'; do
+  new_run clean-doc-no-false-p1 ''
+  grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
+  expect_pass "clean: not a P1: '${shape%%\\n*} / ${shape#*\\n}'"
+done
+
+# A finding ranked inline is one rdd_section cannot see, so the report fails
+# the contract instead of grading as clean.
+for shape in '### Findings\n- **P1**: ロールバックが無い' '### Findings\n- [P1] ロールバックが無い' \
+  '### 指摘\n1. P1 ロールバックが無い' '| 優先度 | 指摘 |\n|---|---|\n| P1 | ロールバックが無い |'; do
+  new_run clean-doc-no-false-p1 ''
+  grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
+  expect_fail "clean: a finding ranked inline is caught: '${shape%%\\n*} / ${shape#*\\n}'" \
+    "ranks findings under priority headings, not inline"
+done
+
+# Prose that mentions a priority is not a ranking.
+new_run clean-doc-no-false-p1 ''
+grade "$(report "$doc" '' '補足があるとよい')
+
+P1 に当たる問題はありません。"
+expect_pass "clean: prose mentioning P1 passes"
 
 new_run clean-doc-no-false-p1 "rec_edit Edit $doc"
 grade "$(report "$doc")"
