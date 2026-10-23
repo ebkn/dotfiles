@@ -35,6 +35,7 @@ const PATTERNS = [
 ];
 
 // 引用・リンク文字列は書き手の文ではないので見ない。コードは Str にならない。
+// ja-no-ai-phrase.js に同じ一覧がある。変えるときは両方を変える。
 const SKIP_PARENTS = new Set(["BlockQuote", "Link", "LinkReference", "Image"]);
 
 function insideSkipped(node) {

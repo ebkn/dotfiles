@@ -23,8 +23,10 @@
 const FIGURATIVE = "比喩動詞";
 const FILLER = "定型句";
 
-// anchored: true の型は、yomiyasu と同じく文の頭（^）か終わり（$）に限って当たる。
-// Str ノードは段落全体なので、文に切ってから照合する。
+// どの型も文ごとに照合する。Str ノードは段落全体なので、段落のまま照合すると ^ と $ は
+// 段落の頭と終わりにしか当たらない。文の頭か終わりに限る型（yomiyasu と同じ前置き・
+// 結び）は、型の側の ^ と $ だけで示す。文の外へ出る型は無い（収斂も [^。！？!?] で
+// 文の内側に留まる）ので、文の頭・終わりを問わない型も、段落で照合した場合と同じに当たる。
 const PATTERNS = [
   // --- 比喩動詞・直訳（文のどこでも） ---
   {
@@ -62,12 +64,12 @@ const PATTERNS = [
   { kind: FIGURATIVE, pattern: /文化が醸成|プロセスが定着|事例が残した/gu, hint: "誰が何をするのかが分かる主語にしてください" },
 
   // --- 定型の前置き・結び（文の頭か終わり） ---
-  { kind: FILLER, anchored: true, pattern: /^(?:まず|ここで)?(?:重要|大切|大事)なのは、?/u, hint: "前置きを外し、述語で評価を述べてください" },
-  { kind: FILLER, anchored: true, pattern: /^結論から(?:言|い)[ういえ]|^結論から申し上げ/u, hint: "続く結論が具体的なら前置きは要りません" },
-  { kind: FILLER, anchored: true, pattern: /^(?:正直に|本音を)言うと、?/u, hint: "前置きを外してください" },
-  { kind: FILLER, anchored: true, pattern: /^避けたいのは、?|^ポイントは、/u, hint: "前置きを外し、述語で述べてください" },
+  { kind: FILLER, pattern: /^(?:まず|ここで)?(?:重要|大切|大事)なのは、?/gu, hint: "前置きを外し、述語で評価を述べてください" },
+  { kind: FILLER, pattern: /^結論から(?:言|い)[ういえ]|^結論から申し上げ/gu, hint: "続く結論が具体的なら前置きは要りません" },
+  { kind: FILLER, pattern: /^(?:正直に|本音を)言うと、?/gu, hint: "前置きを外してください" },
+  { kind: FILLER, pattern: /^避けたいのは、?|^ポイントは、/gu, hint: "前置きを外し、述語で述べてください" },
   { kind: FILLER, pattern: /見落とされがち|面白いのはここ|まさにそこがポイント/gu, hint: "自己ラベルです。中身だけを書いてください" },
-  { kind: FILLER, anchored: true, pattern: /いかがでした(?:でしょうか|か)?[？?。]?$/u, hint: "意味を担わない結びです。削ってください" },
+  { kind: FILLER, pattern: /いかがでした(?:でしょうか|か)?[？?。]?$/gu, hint: "意味を担わない結びです。削ってください" },
   {
     kind: FILLER,
     pattern: /ぜひ(?:参考にして|試して|活用して)(?:みて)?ください|参考に(?:なれ|な)ば幸い|お役に立て(?:れ)?ば幸い|ぜひご(?:活用|参考に)ください/gu,
@@ -76,18 +78,16 @@ const PATTERNS = [
   { kind: FILLER, pattern: /に(?:他|ほか)なりません/gu, hint: "「〜です」と言い切ってください" },
   {
     kind: FILLER,
-    anchored: true,
     // 文末に限る。「〜と言っても過言ではありませんという言い方」のような言及は拾わない。
-    pattern: /と(?:も)?(?:言|い)っても(?:過言|言い過ぎ|言いすぎ)(?:では(?:ありません|ない)|じゃ(?:ありません|ない))(?:です)?(?:でしょう|だろう|かもしれ(?:ません|ない)|と(?:思|おも)(?:います|う)|ね|よ)?(?=[。！？!?]?$)/u,
+    pattern: /と(?:も)?(?:言|い)っても(?:過言|言い過ぎ|言いすぎ)(?:では(?:ありません|ない)|じゃ(?:ありません|ない))(?:です)?(?:でしょう|だろう|かもしれ(?:ません|ない)|と(?:思|おも)(?:います|う)|ね|よ)?(?=[。！？!?]?$)/gu,
     hint: "誇張の枠を外し、事実をそのまま書いてください",
   },
-  { kind: FILLER, anchored: true, pattern: /^ご質問ありがとうございます/u, hint: "チャット応答の名残です。文書の本文なら削ってください" },
-  { kind: FILLER, anchored: true, pattern: /見ていきましょう[。！!]?$/u, hint: "予告だけの文です。中身の文とまとめるか削ってください" },
+  { kind: FILLER, pattern: /^ご質問ありがとうございます/gu, hint: "チャット応答の名残です。文書の本文なら削ってください" },
+  { kind: FILLER, pattern: /見ていきましょう[。！!]?$/gu, hint: "予告だけの文です。中身の文とまとめるか削ってください" },
   { kind: FILLER, pattern: /深掘りしていきます/gu, hint: "予告だけの文です。中身の文とまとめるか削ってください" },
   {
     kind: FILLER,
-    anchored: true,
-    pattern: /^(?:必要なら|ご希望があれば|よろしければ)、?(?:次に|続けて|この後(?!の))[^。！？!?]*(?:ます|ましょう)(?:か|よ|ね|よね)?[。！？!?]?$/u,
+    pattern: /^(?:必要なら|ご希望があれば|よろしければ)、?(?:次に|続けて|この後(?!の))[^。！？!?]*(?:ます|ましょう)(?:か|よ|ね|よね)?[。！？!?]?$/gu,
     hint: "チャット応答の名残です。書き手が実際に申し出ているのでなければ削ってください",
   },
 ];
@@ -96,6 +96,7 @@ const PATTERNS = [
 const SENTENCE = /[^。！？!?]+[。！？!?]*/gu;
 
 // 引用・リンク文字列は書き手の文ではないので見ない。コードは Str にならない。
+// ja-no-redundant-phrase.js に同じ一覧がある。変えるときは両方を変える。
 const SKIP_PARENTS = new Set(["BlockQuote", "Link", "LinkReference", "Image"]);
 
 function insideSkipped(node) {
@@ -105,18 +106,20 @@ function insideSkipped(node) {
   return false;
 }
 
+function sentences(text) {
+  return [...text.matchAll(SENTENCE)].map((s) => {
+    const lead = s[0].length - s[0].trimStart().length;
+    return { start: s.index + lead, text: s[0].slice(lead) };
+  });
+}
+
+// 型を外側、文を内側に回す。重なりの除外は先に出た当たりを残すので、この順が
+// 「どの型の報告を残すか」を決める。
 function* matches(text) {
-  for (const { kind, pattern, hint, anchored } of PATTERNS) {
-    if (!anchored) {
-      pattern.lastIndex = 0;
-      for (const m of text.matchAll(pattern)) yield { kind, hint, start: m.index, text: m[0] };
-      continue;
-    }
-    SENTENCE.lastIndex = 0;
-    for (const s of text.matchAll(SENTENCE)) {
-      const lead = s[0].length - s[0].trimStart().length;
-      const m = pattern.exec(s[0].slice(lead));
-      if (m) yield { kind, hint, start: s.index + lead + m.index, text: m[0] };
+  const all = sentences(text);
+  for (const { kind, pattern, hint } of PATTERNS) {
+    for (const s of all) {
+      for (const m of s.text.matchAll(pattern)) yield { kind, hint, start: s.start + m.index, text: m[0] };
     }
   }
 }
