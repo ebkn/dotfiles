@@ -351,7 +351,7 @@ that one), `review-design/evals/assert.test.sh` for all eight of its, and
 share their graders, and `lint-docs/evals/assert.test.sh` for all nine of
 `lint-docs`'s — which cannot pin that each planted finding is one textlint
 reports, since CI has no textlint (see that skill's `evals/README.md`) — and
-`review-design-doc/evals/assert.test.sh` for all fifteen of
+`review-design-doc/evals/assert.test.sh` for all seventeen of
 `review-design-doc`'s, written before the skill itself, so the cases are its
 specification; it reads the report from the final response, not from the
 Skill's `tool_result`. Each of these suites is graded on the transcript as much

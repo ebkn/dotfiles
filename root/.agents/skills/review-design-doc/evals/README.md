@@ -6,8 +6,12 @@ copy of the skill a run sees, so what is measured here stays out of the
 model's reach, as the graders do.
 
 **Written before the skill.** The cases state what `SKILL.md` has to achieve,
-so the first version of it is written against them. Nothing here has been run
-against a real model yet.
+so the first version of it was written against them. Its first run against a
+real model (sonnet, one run per case) failed every Japanese requested case
+on lint-docs -- the slash-command start, below -- and a correct P1 written
+under a bold title; the second, after those fixes, passed 16 of 17. The
+grader's section readers were tightened over the rounds of review that
+followed, so earlier runs are not comparable with later ones.
 
 ## The contract the cases read
 
