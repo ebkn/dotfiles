@@ -58,15 +58,20 @@ rdd_has_heading() {
 # on, which is why evals/README.md asks SKILL.md for label-first headings.
 # Widening it instead would change review-test's and review-design's grading.
 
+# Indentation before a heading: a space or a literal tab, never [[:space:]],
+# which takes in U+3000 under a UTF-8 locale -- and in macOS grep but not its
+# awk, so the two readers below would disagree about the same line.
+RDD_INDENT=$'[ \t]*'
+
 # The bold-only line rdd_section takes for a priority heading. ASCII alone, so
 # what it matches does not change with the locale (a full-width bracket or
 # colon in a bracket expression does). Shared with rdd_ranks_under_headings,
 # which fails every other bold shape naming a priority.
-RDD_BOLD_HEADING='^[[:space:]]*\*\*P[123]:?\*\*:?[[:space:]]*$'
+RDD_BOLD_HEADING="^$RDD_INDENT"'\*\*P[123]:?\*\*:?'"$RDD_INDENT"'$'
 
 rdd_section() {
-  printf '%s\n' "$1" | bold="$RDD_BOLD_HEADING" awk -v p="$2" '
-    /^[[:space:]]*#+/ || $0 ~ ENVIRON["bold"] {
+  printf '%s\n' "$1" | bold="$RDD_BOLD_HEADING" heading="^$RDD_INDENT#" awk -v p="$2" '
+    $0 ~ ENVIRON["heading"] || $0 ~ ENVIRON["bold"] {
       sec = ($0 ~ ("(^|[^A-Za-z0-9])" p "([^0-9]|$)"))
       next
     }
@@ -79,31 +84,22 @@ rdd_section() {
 # rdd_ranks_under_headings <report>
 # No priority is written where rdd_section cannot see it. rdd_section reads
 # priorities from headings alone, so a finding ranked anywhere else is unseen
-# -- and on a clean doc an unseen P1 grades as none. Outside `#` headings and
-# the bare bold label, a report fails when
-# - a line's first word is a priority, whatever marks it: a list bullet or
-#   number, a quote, emphasis, a bracket (`- **P1**: …`, `1) P1 …`, `・P1`,
-#   `【P1】`, `> P1 —`, `__P1__`, `P1` above a setext `---`)
-# - a table cell holds one (`| P1 | … |`)
-# - a bold span names one anywhere on the line (`🔴 **P1**`,
-#   `**重大度 (P1)**`)
-# - `【P1】` appears anywhere
-# A line with words before the label is prose and passes ("この文書に
-# P1 は無い"). Rounds of review kept finding one more ranked shape while the rule
-# listed shapes; a position catches them all. The costs, pinned in
-# assert.test.sh: prose that opens with a label ("P1 に当たる…") fails, as
-# does a bold finding title naming a priority -- SKILL.md asks for neither.
-# Multibyte markers are literal alternatives and every class is ASCII, so the
-# verdict is the same in every locale.
-RDD_INLINE_RANK='^([[:space:]>*+_`[(.)-]|・|【|「|•|[0-9]+[.)])*P[123]([^0-9]|$)'
-RDD_INLINE_RANK+='|\|[[:space:]]*(\*\*)?P[123]([^0-9]|$)'
-RDD_INLINE_RANK+='|\*\*([^*]*[^A-Za-z0-9*])?P[123]([^0-9*][^*]*)?\*\*'
-RDD_INLINE_RANK+='|【P[123]】'
+# -- and on a clean doc an unseen P1 grades as none. So outside `#` headings
+# and the bare bold label, any whole-word P1, P2 or P3 fails: a list item, a
+# table cell, a bracket, an emoji or a label at the end of a line alike.
+#
+# Five rounds of review each found ranked shapes a rule listing shapes had
+# missed (`🔴 P1`, `（P1）`, `- … [P1]`, a full-width indent); only a rule with
+# no shapes in it closes that. The cost, pinned in assert.test.sh, is that
+# prose cannot name a priority ("上の P2 で指摘した"): SKILL.md tells the
+# review to refer to a finding by its title. The class is ASCII, which reads
+# a multibyte character the same way in every locale.
+RDD_INLINE_RANK='(^|[^A-Za-z0-9])P[123]([^0-9]|$)'
 rdd_ranks_under_headings() {
   local body
   # Filtered first, not piped into grep -q: its early exit can kill the
   # writer, and under pipefail that would read as "nothing found".
-  body="$(printf '%s\n' "$1" | grep -vE "^[[:space:]]*#|$RDD_BOLD_HEADING" || true)"
+  body="$(printf '%s\n' "$1" | grep -vE "^$RDD_INDENT#|$RDD_BOLD_HEADING" || true)"
   ! grep -qE "$RDD_INLINE_RANK" <<<"$body"
 }
 
