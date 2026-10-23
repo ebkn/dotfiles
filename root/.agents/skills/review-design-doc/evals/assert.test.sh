@@ -475,6 +475,19 @@ new_run clean-doc-no-false-p1 "$req"
 grade "$(printf '## 設計ドキュメントレビュー: %s\n\n### P2\n- x\n\n## ドキュメント検査: %s\n\n- 冗長\n\nなお P2 と同じ問題です。\n' "$doc" "$doc")"
 expect_pass "clean: prose after lint-docs' findings reads as lint-docs' (accepted)"
 
+# A heading above lint-docs' level closes it too.
+new_run clean-doc-no-false-p1 "$req"
+grade "$(printf '# 設計ドキュメントレビュー: %s\n\n### ドキュメント検査: %s\n\n- 冗長\n\n## 未決事項\n- 【P1】ロールバックが無い\n' "$doc" "$doc")"
+expect_fail "clean: a priority under a heading above lint-docs' level fails the contract" \
+  "ranks findings under priority headings, not inline"
+
+# lint-docs' heading with a full-width colon, in the inherited and C locales.
+for loc in '' C; do
+  new_run clean-doc-no-false-p1 "$req"
+  LC_ALL="$loc" grade "$(printf '## 設計ドキュメントレビュー: %s\n\n### P2\n- x\n\n## ドキュメント検査： %s\n\n- レビューの P2 と同じ\n' "$doc" "$doc")"
+  expect_pass "clean: lint-docs' heading with a full-width colon is dropped (locale '${loc:-inherited}')"
+done
+
 # lint-docs' report first: only it is dropped, not the review after it.
 new_run clean-doc-no-false-p1 "$req"
 grade "$(printf '## ドキュメント検査: %s\n\n- 9 行目: 冗長\n\n## 設計ドキュメントレビュー: %s\n\n- 【P1】ロールバックが無い\n' "$doc" "$doc")"
