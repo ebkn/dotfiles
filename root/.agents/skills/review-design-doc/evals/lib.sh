@@ -4,9 +4,11 @@
 # good by the standard the skill reviews against: a problem with numbers, goals
 # and real non-goals, a proposal from overview to detail, alternatives that
 # include doing nothing, drawbacks, cross-cutting concerns, dependencies whose
-# owners agreed, open questions. A defect case swaps exactly one section for a
-# flawed variant, so the case and clean-doc-no-false-p1 differ in that section
-# alone and a finding can be traced to it.
+# owners agreed, open questions. A defect case plants one defect, swapping only
+# the sections it touches, so the case and clean-doc-no-false-p1 differ in that
+# defect alone. Most touch one section; unsupported-claims swaps summary,
+# context and risks (the figures live in all three), and hidden-uncertainty
+# swaps proposal and open questions (the TBDs and the "none" that hides them).
 #
 # Two documents stand apart: an implementation manual (no decision in it at
 # all) and a one-page mini doc for a small change, which leaves out sections

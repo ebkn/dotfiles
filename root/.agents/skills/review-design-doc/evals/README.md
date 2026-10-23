@@ -40,7 +40,9 @@ Each defect is one the research behind the skill found named across several
 sources (Google's design docs, the Rust RFC and Python PEP templates, the
 Kubernetes KEP, Oxide's RFDs, Squarespace's "Yes, if", Nygard's ADRs, Larson,
 Zhang). One shared doc, `lib.sh`, is written to be good by that standard; a
-defect case swaps one section.
+defect case plants one defect, swapping only the sections it touches -- one
+for most, three for `unsupported-claims` (summary, context, risks) and two for
+`hidden-uncertainty` (proposal, open questions).
 
 | Case | What it plants | Principle |
 | --- | --- | --- |
@@ -57,7 +59,7 @@ defect case swaps one section.
 
 | Pair | Differs in |
 | --- | --- |
-| each defect case / `clean-doc-no-false-p1` | one section of the doc (`assert.test.sh` checks the doc differs) |
+| each defect case / `clean-doc-no-false-p1` | one planted defect (`assert.test.sh` checks the doc differs) |
 | `mini-doc-no-template-demands` / `clean-doc-no-false-p1` | a small doc without the large one's sections |
 | `missing-rollback` / `missing-rollback-en` | language, and asked by phrase instead of by name |
 | `clean-doc-no-false-p1` / `clean-doc-no-false-p1-en` | language |
@@ -74,9 +76,10 @@ nothing.
 A judged check reads **only the P1 and P2 sections**, cut out deterministically
 (`rdd_open_text`), so the priority is graded by a regex and only the meaning
 by the judge. A report with nothing under P1 or P2 fails without asking the
-judge. The exception is `dependency-unconfirmed`, which reads the whole
-report: a question to the author is as good an answer there as a ranked
-finding.
+judge. Two exceptions: `dependency-unconfirmed` reads the whole report, since
+a question to the author is as good an answer there as a ranked finding; and
+`mini-doc-no-template-demands` asks the opposite question -- that nothing was
+demanded -- so an empty P1/P2 passes it without the judge.
 
 `assert.test.sh` pins every assertion offline: a good synthetic run per case,
 then each assertion provoked, and a stub judge that fails on `JUDGE_FAIL` to

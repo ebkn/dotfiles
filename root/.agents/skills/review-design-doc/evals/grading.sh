@@ -39,8 +39,15 @@ rdd_has_heading() {
 # non-blank line under it is kept, bullet or paragraph.
 #
 # The one line dropped is an item that says there is nothing and nothing more
-# ("なし", "- None."), as transcript_skill_rounds' open_findings drops it.
-# "なし。ただし…" or "None of the goals …" is a finding and stays.
+# ("なし", "- None."). "なし。ただし…" or "None of the goals …" is a finding
+# and stays.
+#
+# This differs on purpose from transcript_skill_rounds' open_findings, which
+# the runner prints as `round: open=N` for every skill: that reader takes only
+# label-first headings, treats a section opening with "なし…" as closed, and
+# reads the Skill's tool_result rather than the final response. Here its
+# number is informational; this reader decides the grade. Widening it instead
+# would change review-test's and review-design's grading.
 rdd_section() {
   printf '%s\n' "$1" | awk -v p="$2" '
     /^#+/ || /^[[:space:]]*\*\*[^*]+\*\*[[:space:]:：]*$/ {

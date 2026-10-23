@@ -353,7 +353,8 @@ share their graders, and `lint-docs/evals/assert.test.sh` for all nine of
 reports, since CI has no textlint (see that skill's `evals/README.md`) — and
 `review-design-doc/evals/assert.test.sh` for all fifteen of
 `review-design-doc`'s, written before the skill itself, so the cases are its
-specification. A case there is graded on the transcript as much as on the tree, so it
+specification; it grades only the final response, so the forked shape below
+does not reach it. A case in review-test's and review-design's suites is graded on the transcript as much as on the tree, so it
 writes synthetic transcripts, and two things about them are worth copying:
 
 - **A synthetic transcript carries the loaded SKILL.md.** The Skill tool puts
