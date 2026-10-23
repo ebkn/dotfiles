@@ -42,7 +42,9 @@ Kubernetes KEP, Oxide's RFDs, Squarespace's "Yes, if", Nygard's ADRs, Larson,
 Zhang). One shared doc, `lib.sh`, is written to be good by that standard; a
 defect case plants one defect, swapping only the sections it touches -- one
 for most, three for `unsupported-claims` (summary, context, risks) and two for
-`hidden-uncertainty` (proposal, open questions).
+`hidden-uncertainty` (proposal, open questions). `implementation-manual` is the
+exception: a different document with no decision in it (`lib.sh`), so a
+finding there cannot be traced to one change.
 
 | Case | What it plants | Principle |
 | --- | --- | --- |
@@ -59,7 +61,7 @@ for most, three for `unsupported-claims` (summary, context, risks) and two for
 
 | Pair | Differs in |
 | --- | --- |
-| each defect case / `clean-doc-no-false-p1` | one planted defect (`assert.test.sh` checks the doc differs) |
+| each defect case / `clean-doc-no-false-p1` | one planted defect; for `implementation-manual`, the whole doc (`assert.test.sh` checks the doc differs) |
 | `mini-doc-no-template-demands` / `clean-doc-no-false-p1` | a small doc without the large one's sections |
 | `missing-rollback` / `missing-rollback-en` | language, and asked by phrase instead of by name |
 | `clean-doc-no-false-p1` / `clean-doc-no-false-p1-en` | language |

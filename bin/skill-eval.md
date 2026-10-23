@@ -353,9 +353,11 @@ share their graders, and `lint-docs/evals/assert.test.sh` for all nine of
 reports, since CI has no textlint (see that skill's `evals/README.md`) — and
 `review-design-doc/evals/assert.test.sh` for all fifteen of
 `review-design-doc`'s, written before the skill itself, so the cases are its
-specification; it grades only the final response, so the forked shape below
-does not reach it. A case in review-test's and review-design's suites is graded on the transcript as much as on the tree, so it
-writes synthetic transcripts, and two things about them are worth copying:
+specification; it reads the report from the final response, not from the
+Skill's `tool_result`. Each of these suites is graded on the transcript as much
+as on the tree, so it writes synthetic transcripts, and two things about them
+are worth copying — the first is the forked shape review-test's and
+review-design's cases model:
 
 - **A synthetic transcript carries the loaded SKILL.md.** The Skill tool puts
   the skill's body into the conversation, report template included, so a check
