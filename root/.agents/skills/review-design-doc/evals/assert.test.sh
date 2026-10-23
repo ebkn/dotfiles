@@ -460,6 +460,12 @@ grade "$(report "$doc" 'ロールバックの手段が無い')"
 expect_fail "doc-language: not starting the skill is caught" \
   "started review-design-doc without being named"
 
+# Started by phrase, the review has a Skill call to order lint-docs against.
+new_run answers-in-doc-language "$lint; rec_skill"
+grade "$(report "$doc" 'ロールバックの手段が無い')"
+expect_fail "doc-language: lint-docs before the review is caught" \
+  "handed Japanese readability to lint-docs, after the review"
+
 new_run answers-in-doc-language "rec_skill; $lint"
 grade "$(report "$doc" 'JUDGE_FAIL')"
 expect_fail "doc-language: the judge reads P1" "P1/P2: no staged rollout and no rollback"
@@ -575,7 +581,7 @@ new_run proactive-after-writing-doc "rec_edit Write $doc; $lint" "$write_doc"
 grade "書きました。"
 expect_fail "proactive: not starting the skill is caught" \
   "started review-design-doc on the doc it wrote" "started it after writing the doc" \
-  "the last round reports no P1 and no P2" "answered in Japanese, the doc's language"
+  "the last round reports no P1 and no P2" "answered in Japanese, the doc's language, in every round"
 
 # shellcheck disable=SC2016
 new_run proactive-after-writing-doc "rec_round \"\$clean\"; rec_edit Write $doc; $lint" "$write_doc"
@@ -621,7 +627,15 @@ expect_fail "proactive: the judges read the final response" \
 new_run proactive-after-writing-doc "rec_edit Write $doc; rec_round \"\$found\"; rec_edit Edit $doc; rec_round \"\$clean_en_round\"; $lint" "$write_doc"
 grade "$pro_done"
 expect_fail "proactive: an English review of the Japanese doc is caught" \
-  "answered in Japanese, the doc's language"
+  "answered in Japanese, the doc's language, in every round"
+
+# Every round, not only the last: an English first round is one the user may
+# have been shown.
+# shellcheck disable=SC2016
+new_run proactive-after-writing-doc "rec_edit Write $doc; rec_round \"\$(en_report $doc)\"; rec_edit Edit $doc; rec_round \"\$clean\"; $lint" "$write_doc"
+grade "$pro_done"
+expect_fail "proactive: an English first round is caught" \
+  "answered in Japanese, the doc's language, in every round"
 
 new_run proactive-after-writing-doc "rec_edit Write $doc; $pro_rounds" "$write_doc"
 grade "$pro_done"

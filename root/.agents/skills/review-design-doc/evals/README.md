@@ -42,7 +42,7 @@ What `SKILL.md` must keep, because `grading.sh` reads it:
   loop never ends.
 - **The report is in the doc's language**, whatever the request was written
   in (`answers-in-doc-language`). Judged on the review's own report: for the
-  loop, the last round's, since the caller's summary may follow a `CLAUDE.md`
+  loop, every round's, since the caller's summary may follow a `CLAUDE.md`
   asking for English. "Japanese" means more kana than ASCII words once quotes
   and paths are dropped (`rdd_is_japanese`), so an English review quoting the
   doc does not pass.

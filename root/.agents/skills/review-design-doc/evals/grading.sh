@@ -189,11 +189,19 @@ rdd_check_lint() {
   esac
 }
 
-# rdd_last_round_report
-# The last round's report as the forked review handed it back: the review's
-# own words, whatever language the caller then writes its summary in.
-rdd_last_round_report() {
-  transcript_skill_rounds review-design-doc | jq -rs 'last.report // ""'
+# rdd_every_round_japanese
+# Every round's report, as the forked review handed it back, is Japanese: each
+# is the review's own words, whatever language the caller then writes its
+# summary in, and a round in the wrong language is one the user may be shown.
+# False with no round at all.
+rdd_every_round_japanese() {
+  local rounds n k
+  rounds="$(transcript_skill_rounds review-design-doc)"
+  n="$(jq -s 'length' <<<"$rounds")"
+  [ "$n" -gt 0 ] || return 1
+  for ((k = 0; k < n; k++)); do
+    rdd_is_japanese "$(jq -rs --argjson k "$k" '.[$k].report' <<<"$rounds")" || return 1
+  done
 }
 
 # rdd_changed_paths
