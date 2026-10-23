@@ -2,6 +2,7 @@
 
 - Communicate primarily in clear, precise English. (CEFR C1 Level)
 - Japanese may be used only when explicitly requested.
+- A review of a document is written in that document's language (`review-design-doc`, `lint-docs`): its readers are the ones who act on it. The rest of the conversation stays in English.
 
 # Role
 
@@ -46,6 +47,14 @@
 - It runs in a forked, fresh context, so it knows only what you pass as its arguments: what the unit set out to do and why, the next planned change if one is known, the range or the last `Reviewed:` line, and the language to answer in. The next change matters most — without it the reviewer cannot weigh change cost. State intent, not a defence of the code.
 - The order at a breakpoint is commit → `review-test` → its fixes as commits of their own → `review-design` → its fixes as commits of their own. A doc `review-design` brings back in line is a separate commit too, although the unit should have updated it itself: the review caught it, and that stays visible.
 - Fix the P1 and P2 findings whose reach is local without asking. A fix that reaches outside the range — another caller, a published contract, a structure the commit set out to build — is proposed and waits for an answer. Re-run until a round reports no P1 and no P2, with no round cap; P3 is reported, never auto-fixed.
+
+# Design Doc Review
+
+- Use the `review-design-doc` skill once you have written a design document (an RFC, a design doc, an ADR, a proposal settling a decision) or rewritten a section of one, before reporting it back, without waiting to be asked. Not for a README, a guide or notes.
+- It runs in a forked, fresh context: pass the doc's path, that you wrote it, the sources you wrote it from, and on a later round what the last one fixed.
+- Fix the P1 and P2 findings without asking, from the sources only. A gap they cannot fill is a decision nobody made: name it in the doc's open questions and tell the user, never invent the answer. Re-run until a round reports no P1 and no P2, with no round cap; P3 is reported, never auto-fixed.
+- For a Japanese doc, start `lint-docs` once the loop ends, not between rounds. Open the closing message with the review's conclusion and every decision left open for the user.
+- A design doc the user asks to have reviewed is only reported on: change nothing, and write the report out after `lint-docs` as the final message.
 
 # Commits
 
