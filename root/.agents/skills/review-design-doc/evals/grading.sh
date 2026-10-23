@@ -108,7 +108,8 @@ rdd_section() {
 # priorities from headings alone, so a finding ranked anywhere else is unseen
 # -- and on a clean doc an unseen P1 grades as none. So outside `#` headings
 # and the bare bold label, any whole-word P1, P2 or P3 fails: a list item, a
-# table cell, a bracket, an emoji or a label at the end of a line alike.
+# table cell, a bracket, an emoji or a label at the end of a line alike. A
+# priority heading with nothing under it fails too (rdd_has_empty_priority).
 #
 # Five rounds of review each found ranked shapes a rule listing shapes had
 # missed (`🔴 P1`, `（P1）`, `- … [P1]`, a full-width indent); only a rule with

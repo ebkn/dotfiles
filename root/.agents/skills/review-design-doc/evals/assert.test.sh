@@ -406,12 +406,20 @@ for shape in '### Findings\n- **P1**: ロールバックが無い' '### Findings
   '- p1: ロールバックが無い' '- Ｐ１ ロールバックが無い' '- ｐ１ ロールバックが無い' \
   '- Ｐ1 ロールバックが無い' '- P１ ロールバックが無い' \
   '- ロールバックが無い（P1）' '- ロールバックが無い [P1]' \
-  '__P1__\n- 誤検知' '*P1*\n- 誤検知' 'P1\n---\n- 誤検知' '　### P1\n- 誤検知' \
-  '### P1\n### ロールバックが無い\n- 根拠' '**P1**\n#### P2 との境界\n- 根拠' \
-  '**P1**\n### P3 に近い\n- 根拠' '### P1'; do
+  '__P1__\n- 誤検知' '*P1*\n- 誤検知' 'P1\n---\n- 誤検知' '　### P1\n- 誤検知'; do
   new_run clean-doc-no-false-p1 "$req"
   grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
-  expect_fail "clean: a priority outside a heading fails the contract: '${shape%%\\n*}'" \
+  expect_fail "clean: a priority outside a heading fails the contract: '$shape'" \
+    "ranks findings under priority headings, not inline"
+done
+
+# A priority heading closed with nothing under it: its finding went into the
+# heading or bold label that closed it, which no reader takes as P1's.
+for shape in '### P1\n### ロールバックが無い\n- 根拠' '**P1**\n#### P2 との境界\n- 根拠' \
+  '**P1**\n### P3 に近い\n- 根拠' '### P1\n**P2**\n- 根拠' '**P1**\n**P2**\n- 根拠' '### P1'; do
+  new_run clean-doc-no-false-p1 "$req"
+  grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
+  expect_fail "clean: a priority heading with nothing under it fails the contract: '$shape'" \
     "ranks findings under priority headings, not inline"
 done
 
