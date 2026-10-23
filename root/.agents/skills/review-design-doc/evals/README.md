@@ -19,8 +19,9 @@ What `SKILL.md` must keep, because `grading.sh` reads it:
 - **Findings under headings naming `P1`, `P2`, `P3`**; an empty one is dropped or says
   "なし" / "None" and nothing more. A judged finding counts only under P1 or
   P2: a mention under P3, or in passing, is not a finding raised. The parser
-  reads wide -- the label anywhere in a `#` heading or a bold-only line, any
-  line under it, bullet or prose -- because "no P1" on a clean doc fails open
+  reads wide -- the label anywhere in a `#` heading, or a bold-only line that
+  is the label (`**P1**`), and any line under it, bullet, prose or a bold
+  finding title -- because "no P1" on a clean doc fails open
   when a P1 goes unseen; `assert.test.sh` pins the shapes on both sides.
   **`SKILL.md` should still lead each heading with its label** (`### P1`,
   `### P1（重大）`), not use the wider shapes: the loop's stopping rule is

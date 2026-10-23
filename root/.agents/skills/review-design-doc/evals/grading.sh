@@ -33,12 +33,17 @@ rdd_has_heading() {
 # The lines under that priority's heading, up to the next heading.
 #
 # Read wide on purpose. The clean cases grade "no P1" on this, so a P1 the
-# parser misses is a false alarm graded clean: a heading is any `#` line or a
-# line that is bold and nothing else and names a priority (`**P1**`), and it is
-# that priority's when the label appears in it as a word (`### 🔴 P1`,
-# `### 重大 (P1)`). A bold line naming none is a finding's title, not a heading:
-# taking it for one closed the P1 section above it on a real run. Every
-# non-blank line under it is kept, bullet or paragraph.
+# parser misses is a false alarm graded clean: a heading is any `#` line, and
+# it is that priority's when the label appears in it as a word (`### 🔴 P1`,
+# `### 重大 (P1)`). A bold-only line is a heading only when it is the label
+# and nothing more than a colon or a gloss in brackets (`**P1**`, `**P1:**`,
+# `**P1（重大）**`). Any other bold line is a finding's title and stays in the
+# section: taking every bold line for a heading closed the P1 section at its
+# own finding on a real run, and a title that merely names a priority
+# (`**P2 との境界が曖昧**`) would move its P1 under P2. The cost, pinned in
+# assert.test.sh, is that a bold label such as `**著者への質問**` after P1 reads
+# as part of P1 -- a false alarm on a clean doc, not a missed P1. Every
+# non-blank line in a section is kept, bullet or paragraph.
 #
 # The one line dropped is an item that says there is nothing and nothing more
 # ("なし", "- None."). "なし。ただし…" or "None of the goals …" is a finding
@@ -54,7 +59,7 @@ rdd_has_heading() {
 # Widening it instead would change review-test's and review-design's grading.
 rdd_section() {
   printf '%s\n' "$1" | awk -v p="$2" '
-    /^#+/ || /^[[:space:]]*\*\*([^*]*[^A-Za-z0-9*])?P[123]([^0-9][^*]*)?\*\*[[:space:]:：]*$/ {
+    /^#+/ || /^[[:space:]]*\*\*[[:space:]]*P[123][[:space:]]*([(（][^)）*]*[)）])?[[:space:]:：]*\*\*[[:space:]:：]*$/ {
       sec = ($0 ~ ("(^|[^A-Za-z0-9])" p "([^0-9]|$)"))
       next
     }
@@ -175,14 +180,15 @@ rdd_check_language() {
 # rdd_lint_after_review
 # lint-docs started after the last round of the review. The review leaves the
 # readability of Japanese prose to lint-docs rather than ranking it next to
-# missing decisions, and lints the text the review is done changing. A run
-# started by slash command has no Skill call of the review to order against,
-# so there any call of lint-docs counts -- though under `claude -p` such a run
-# ends with the fork's report and never reaches one, which is why no case
-# starts that way (evals/README.md).
+# missing decisions, and lints the text the review is done changing. With no
+# review there is nothing to be after, so it fails: a run started by slash
+# command records no Skill call of the review, but under `claude -p` such a
+# run ends with the fork's report and never reaches lint-docs anyway, which is
+# why no case starts that way (evals/README.md).
 rdd_lint_after_review() {
   local last
-  last="$(transcript_skill_rounds review-design-doc | jq -s 'last.index // -1')"
+  last="$(transcript_skill_rounds review-design-doc | jq -s 'last.index // empty')"
+  [ -n "$last" ] || return 1
   transcript_skill_rounds lint-docs | jq -se --argjson a "$last" 'any(.[]; .index > $a)' >/dev/null
 }
 
@@ -249,8 +255,10 @@ rdd_check_read_only() {
 # refused nothing. lint-docs started this way only inspects: the doc is not
 # one the agent wrote. Heading and language are read off the final response,
 # which with lint-docs after the review puts the report after lint-docs
-# (evals/README.md).
+# (evals/README.md). The skill must have run: asked for in words, a model can
+# write a review of its own, and that would grade like the skill's.
 rdd_check_requested() {
+  check "started review-design-doc" test "$(transcript_skill_uses review-design-doc)" -ge 1
   check "reported under the review heading, naming the doc" rdd_has_heading "$(rdd_report)" "$2"
   check "ranks findings under priority headings, not inline" rdd_ranks_under_headings "$(rdd_report)"
   rdd_check_language "$1" "$(rdd_report)"

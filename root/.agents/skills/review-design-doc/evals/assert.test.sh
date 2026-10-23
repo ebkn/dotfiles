@@ -55,6 +55,8 @@ rec_edit() { rec_tool "$1" "$(jq -nc --arg p "$2" '{file_path: $p}')"; }
 rec_skill() { rec_tool Skill "$(jq -nc --arg s "${1:-review-design-doc}" '{skill: $s}')"; }
 # lint-docs started, as every Japanese case expects after the review.
 lint='rec_skill lint-docs'
+# A requested run: the review's Skill call, then lint-docs.
+req="rec_skill; $lint"
 # rec_round <report>
 # One round of the forked review: the Skill call, with an id, and the report
 # coming back as its tool_result -- what the loop checks and the per-round
@@ -193,11 +195,11 @@ fi
 
 # Each defect scaffold must differ from the clean doc, or the override did
 # nothing and the case grades a finding the doc does not have.
-new_run clean-doc-no-false-p1 "$lint" && cp "$work/$doc" "$root_dir/clean.md"
+new_run clean-doc-no-false-p1 "$req" && cp "$work/$doc" "$root_dir/clean.md"
 new_run clean-doc-no-false-p1-en '' && cp "$work/$doc" "$root_dir/clean-en.md"
 for c in strawman-alternatives negated-non-goals missing-rollback unsupported-claims \
   hidden-uncertainty dependency-unconfirmed implementation-manual missing-rollback-en; do
-  new_run "$c" "$lint" || continue
+  new_run "$c" "$req" || continue
   clean="$root_dir/clean.md"
   case "$c" in *-en) clean="$root_dir/clean-en.md" ;; esac
   if cmp -s "$work/$doc" "$clean"; then
@@ -220,75 +222,87 @@ for entry in \
   c="${entry%%|*}"
   judged="${entry#*|}"
 
-  new_run "$c" "$lint"
+  new_run "$c" "$req"
   grade "$(report "$doc" '見つけた問題' '' '細かい言い回し')"
   expect_pass "$c: a good run passes every assertion"
 
   # Found under P2 is found: the priority is the skill's call.
-  new_run "$c" "$lint"
+  new_run "$c" "$req"
   grade "$(report "$doc" '' '見つけた問題')"
   expect_pass "$c: a finding under P2 counts"
 
-  new_run "$c" "$lint"
+  new_run "$c" "$req"
   grade "$(report "$doc" '' '' '見つけた問題')"
   expect_fail "$c: a finding under P3 only is caught" "$judged"
 
-  new_run "$c" "$lint"
+  new_run "$c" "$req"
   grade "$(report "$doc" 'なし' '' '見つけた問題')"
   expect_fail "$c: a P1 section saying none is not a finding" "$judged"
 
-  new_run "$c" "$lint"
+  new_run "$c" "$req"
   grade "$(report "$doc" '' 'None.' '見つけた問題')"
   expect_fail "$c: a P2 section saying none is not a finding" "$judged"
 
-  new_run "$c" "$lint"
+  new_run "$c" "$req"
   grade "$(report "$doc" 'JUDGE_FAIL')"
   expect_fail "$c: the judge reads the P1 section" "$judged"
 
-  new_run "$c" "$lint"
+  new_run "$c" "$req"
   grade "$(report "$doc" '' 'JUDGE_FAIL')"
   expect_fail "$c: the judge reads the P2 section" "$judged"
 
   # A P3 item is not shown to the judge.
-  new_run "$c" "$lint"
+  new_run "$c" "$req"
   grade "$(report "$doc" '見つけた問題' '' 'JUDGE_FAIL')"
   expect_pass "$c: the judge does not read P3"
 
-  new_run "$c" "$lint"
+  new_run "$c" "$req"
   grade "$(report "$doc" '見つけた問題' | sed '1s/^.*$/設計ドキュメントをレビューしました。/')"
   expect_fail "$c: a report without the heading is caught" \
     "reported under the review heading, naming the doc"
 
-  new_run "$c" "$lint"
+  new_run "$c" "$req"
   grade "$(report docs/design/other.md '見つけた問題')"
   expect_fail "$c: a heading naming another doc is caught" \
     "reported under the review heading, naming the doc"
 
-  new_run "$c" "$lint; rec_edit Edit $doc"
+  new_run "$c" "$req; rec_edit Edit $doc"
   grade "$(report "$doc" '見つけた問題')"
   expect_fail "$c: an Edit is caught" "used neither Edit nor Write"
 
-  new_run "$c" "$lint" "printf 'x\n' >>$doc"
+  new_run "$c" "$req" "printf 'x\n' >>$doc"
   grade "$(report "$doc" '見つけた問題')"
   expect_fail "$c: a changed tree is caught" "left the tree as it was"
 
-  new_run "$c" "$lint" 'git commit -q --allow-empty -m x'
+  new_run "$c" "$req" 'git commit -q --allow-empty -m x'
   grade "$(report "$doc" '見つけた問題')"
   expect_fail "$c: a commit is caught" "committed nothing"
 
-  new_run "$c" "$lint"
+  new_run "$c" "$req"
   grade "$(report "$doc" '見つけた問題')" 1
   expect_fail "$c: a refused command is caught" "no command was refused"
 
   # Quoting the doc is not answering in its language.
-  new_run "$c" "$lint"
+  new_run "$c" "$req"
   grade "$(en_report "$doc")"
   expect_fail "$c: an English report on a Japanese doc is caught" \
     "answered in Japanese, the doc's language"
 
-  new_run "$c" ''
+  new_run "$c" 'rec_skill'
   grade "$(report "$doc" '見つけた問題')"
   expect_fail "$c: leaving lint-docs out is caught" \
+    "handed Japanese readability to lint-docs, after the review"
+
+  # Asked for in words, the model can review without the skill. lint-docs
+  # then follows no review, so that check fails as well.
+  new_run "$c" "$lint"
+  grade "$(report "$doc" '見つけた問題')"
+  expect_fail "$c: reviewing without the skill is caught" "started review-design-doc" \
+    "handed Japanese readability to lint-docs, after the review"
+
+  new_run "$c" "$lint; rec_skill"
+  grade "$(report "$doc" '見つけた問題')"
+  expect_fail "$c: lint-docs before the review is caught" \
     "handed Japanese readability to lint-docs, after the review"
 done
 
@@ -297,7 +311,7 @@ done
 for heading in '**Design doc review:** docs/design/webhook-retry.md' \
   '# 設計書レビュー：docs/design/webhook-retry.md' \
   '## Design Document Review: `docs/design/webhook-retry.md`'; do
-  new_run strawman-alternatives "$lint"
+  new_run strawman-alternatives "$req"
   grade "$(report "$doc" '見つけた問題' | sed "1s|^.*\$|$heading|")"
   expect_pass "heading: $heading"
 done
@@ -305,49 +319,54 @@ done
 # ============================================================
 # dependency-unconfirmed: judged on the whole report
 # ============================================================
-new_run dependency-unconfirmed "$lint"
+new_run dependency-unconfirmed "$req"
 grade "$(report "$doc" '' '' '細かい言い回し')
 ### 著者への質問
 - 基盤チームは増強に合意していますか"
 expect_pass "dependency: a question outside P1/P2 passes"
 
-new_run dependency-unconfirmed "$lint"
+new_run dependency-unconfirmed "$req"
 grade "$(report "$doc" '' '' '細かい言い回し')
 ### 著者への質問
 - JUDGE_FAIL"
 expect_fail "dependency: the judge reads the whole report" \
   "raises whether the platform team agreed to enlarge the database"
 
-new_run dependency-unconfirmed "$lint; rec_edit Write $doc"
+new_run dependency-unconfirmed "$req; rec_edit Write $doc"
 grade "$(report "$doc" '基盤チームの合意が書かれていない')"
 expect_fail "dependency: a Write is caught" "used neither Edit nor Write"
 
 # ============================================================
 # clean-doc-no-false-p1 (and -en)
 # ============================================================
-new_run clean-doc-no-false-p1 "$lint"
+new_run clean-doc-no-false-p1 "$req"
 grade "$(report "$doc" '' '補足があるとよい' '言い回し')"
 expect_pass "clean: a P2 and a P3 pass"
 
-new_run clean-doc-no-false-p1 "$lint"
+new_run clean-doc-no-false-p1 "$req"
 grade "$(report "$doc" 'なし')"
 expect_pass "clean: a kept P1 heading saying none passes"
 
-new_run clean-doc-no-false-p1 "$lint"
+new_run clean-doc-no-false-p1 "$req"
 grade "$(report "$doc" '誤検知')"
 expect_fail "clean: a P1 is caught" "raised no P1"
 
-new_run clean-doc-no-false-p1 "$lint"
+new_run clean-doc-no-false-p1 "$req"
 grade "$(printf '## 設計ドキュメントレビュー: %s\n\n### P1\n1. 誤検知\n' "$doc")"
 expect_fail "clean: a numbered P1 is caught" "raised no P1"
 
 # Shapes a real P1 can take. "raised no P1" fails open if the parser misses
-# one, so each must be counted.
+# one, so each must be counted. The last is not a P1 but is read as one, on
+# purpose: a bold label after the P1 section stays in it (rdd_section), a false
+# alarm accepted so that a bold finding title never ends its section.
 for shape in '### 🔴 P1\n- 誤検知' '### 重大 (P1)\n- 誤検知' '### **P1**\n- 誤検知' \
   '**P1**\n- 誤検知' '**P1:**\n- 誤検知' '### P1\nロールバック手順が書かれていない。' \
   '### P1\n- なし。ただし、ロールバック手順が無い' '### P1\n- None of the non-goals are real.' \
-  '### P1\n**ロールバック手段が無い**\n- 根拠: 全顧客へ一斉に適用する'; do
-  new_run clean-doc-no-false-p1 "$lint"
+  '### P1\n**ロールバック手段が無い**\n- 根拠: 全顧客へ一斉に適用する' \
+  '### P1\n**P2 との境界が曖昧**\n- 根拠: 全顧客へ一斉に適用する' \
+  '**P1（重大）**\n- 誤検知' \
+  '### P1\n- なし\n\n**著者への質問**\n- 基盤チームは合意していますか'; do
+  new_run clean-doc-no-false-p1 "$req"
   grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
   expect_fail "clean: a P1 shaped '${shape%%\\n*} / ${shape#*\\n}' is caught" "raised no P1"
 done
@@ -355,7 +374,7 @@ done
 # And shapes that are not a P1.
 for shape in '### P1\nなし' '### P1\n- None.' '### P12\n- 番号違い' '### P2\n- これは P1 ではない' \
   '**P1 のつもりの太字** を含む文\n- 本文'; do
-  new_run clean-doc-no-false-p1 "$lint"
+  new_run clean-doc-no-false-p1 "$req"
   grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
   expect_pass "clean: not a P1: '${shape%%\\n*} / ${shape#*\\n}'"
 done
@@ -364,20 +383,20 @@ done
 # the contract instead of grading as clean.
 for shape in '### Findings\n- **P1**: ロールバックが無い' '### Findings\n- [P1] ロールバックが無い' \
   '### 指摘\n1. P1 ロールバックが無い' '| 優先度 | 指摘 |\n|---|---|\n| P1 | ロールバックが無い |'; do
-  new_run clean-doc-no-false-p1 "$lint"
+  new_run clean-doc-no-false-p1 "$req"
   grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
   expect_fail "clean: a finding ranked inline is caught: '${shape%%\\n*} / ${shape#*\\n}'" \
     "ranks findings under priority headings, not inline"
 done
 
 # Prose that mentions a priority is not a ranking.
-new_run clean-doc-no-false-p1 "$lint"
+new_run clean-doc-no-false-p1 "$req"
 grade "$(report "$doc" '' '補足があるとよい')
 
 P1 に当たる問題はありません。"
 expect_pass "clean: prose mentioning P1 passes"
 
-new_run clean-doc-no-false-p1 "$lint; rec_edit Edit $doc"
+new_run clean-doc-no-false-p1 "$req; rec_edit Edit $doc"
 grade "$(report "$doc")"
 expect_fail "clean: an Edit is caught" "used neither Edit nor Write"
 
@@ -388,16 +407,16 @@ The approach is sound.
 ### P2
 - The dashboard could say who acts on a dead letter."
 
-new_run clean-doc-no-false-p1-en ''
+new_run clean-doc-no-false-p1-en rec_skill
 grade "$clean_en"
 expect_pass "clean-en: a good run passes every assertion"
 
-new_run clean-doc-no-false-p1-en ''
+new_run clean-doc-no-false-p1-en rec_skill
 grade "$clean_en
 - 冪等キーの説明"
 expect_fail "clean-en: Japanese in the report is caught" "wrote no Japanese into an English review"
 
-new_run clean-doc-no-false-p1-en ''
+new_run clean-doc-no-false-p1-en rec_skill
 grade "$clean_en
 
 ### P1
@@ -405,7 +424,7 @@ grade "$clean_en
 expect_fail "clean-en: a P1 is caught" "raised no P1"
 
 # lint-docs' rules are for Japanese; on an English doc they are noise.
-new_run clean-doc-no-false-p1-en "$lint"
+new_run clean-doc-no-false-p1-en "rec_skill; $lint"
 grade "$clean_en"
 expect_fail "clean-en: lint-docs on an English doc is caught" "left lint-docs out of an English doc"
 
@@ -424,12 +443,12 @@ expect_pass "rollback-en: a good run passes every assertion"
 new_run missing-rollback-en ''
 grade "$mr_en"
 expect_fail "rollback-en: not starting the skill is caught" \
-  "started review-design-doc without being named"
+  "started review-design-doc"
 
 new_run missing-rollback-en 'rec_skill review-design'
 grade "$mr_en"
 expect_fail "rollback-en: another skill does not count" \
-  "started review-design-doc without being named"
+  "started review-design-doc"
 
 new_run missing-rollback-en 'rec_skill'
 grade "$mr_en (ロールバック)"
@@ -439,6 +458,23 @@ expect_fail "rollback-en: Japanese in the report is caught" \
 new_run missing-rollback-en 'rec_skill'
 grade "${mr_en/No rollback./JUDGE_FAIL}"
 expect_fail "rollback-en: the judge reads P1" "P1/P2: no staged rollout and no rollback"
+
+# The shape of the skill's first real run: a bold title, the finding in the
+# bullets under it. The judge must see those bullets.
+mr_en_titled="## Design doc review: $doc
+
+### P1
+**The change goes to every customer at once.**
+- No rollback."
+
+new_run missing-rollback-en 'rec_skill'
+grade "$mr_en_titled"
+expect_pass "rollback-en: a P1 under a bold title passes"
+
+new_run missing-rollback-en 'rec_skill'
+grade "${mr_en_titled/No rollback./JUDGE_FAIL}"
+expect_fail "rollback-en: the judge reads the bullets under a bold title" \
+  "P1/P2: no staged rollout and no rollback"
 
 new_run missing-rollback-en "rec_skill; $lint"
 grade "$mr_en"
@@ -459,7 +495,7 @@ expect_fail "doc-language: answering in the request's language is caught" \
 new_run answers-in-doc-language "$lint"
 grade "$(report "$doc" 'ロールバックの手段が無い')"
 expect_fail "doc-language: not starting the skill is caught" \
-  "started review-design-doc without being named"
+  "started review-design-doc" "handed Japanese readability to lint-docs, after the review"
 
 # Started by phrase, the review has a Skill call to order lint-docs against.
 new_run answers-in-doc-language "$lint; rec_skill"
@@ -515,23 +551,23 @@ done
 # ============================================================
 mini=docs/design/cache-ttl.md
 
-new_run mini-doc-no-template-demands "$lint"
+new_run mini-doc-no-template-demands "$req"
 grade "$(report "$mini" '' '' '言い回し')"
 expect_pass "mini: nothing under P1 or P2 passes without a judge"
 
-new_run mini-doc-no-template-demands "$lint"
+new_run mini-doc-no-template-demands "$req"
 grade "$(report "$mini" '' 'パージ失敗の検知方法')"
 expect_pass "mini: a P2 about the change passes"
 
-new_run mini-doc-no-template-demands "$lint"
+new_run mini-doc-no-template-demands "$req"
 grade "$(report "$mini" '' 'JUDGE_FAIL')"
 expect_fail "mini: the judge reads P2" "asked for no section the change does not need"
 
-new_run mini-doc-no-template-demands "$lint"
+new_run mini-doc-no-template-demands "$req"
 grade "$(report "$mini" 'セキュリティの節がない')"
 expect_fail "mini: a P1 is caught" "raised no P1"
 
-new_run mini-doc-no-template-demands "$lint"
+new_run mini-doc-no-template-demands "$req"
 grade "$(report "$doc" '' '' '言い回し')"
 expect_fail "mini: a heading naming the webhook doc is caught" \
   "reported under the review heading, naming the doc"
@@ -546,7 +582,7 @@ expect_pass "fires: a good run passes every assertion"
 new_run fires-on-phrase "$lint"
 grade "$(report "$doc" '代替案が藁人形')"
 expect_fail "fires: reviewing without the skill is caught" \
-  "started review-design-doc without being named"
+  "started review-design-doc" "handed Japanese readability to lint-docs, after the review"
 
 new_run fires-on-phrase "rec_skill; $lint; rec_edit Edit $doc" "printf 'x\n' >>$doc"
 grade "$(report "$doc" '代替案が藁人形')"
@@ -599,7 +635,8 @@ new_run proactive-after-writing-doc "rec_edit Write $doc; $lint" "$write_doc"
 grade "書きました。"
 expect_fail "proactive: not starting the skill is caught" \
   "started review-design-doc on the doc it wrote" "started it after writing the doc" \
-  "the last round reports no P1 and no P2" "answered in Japanese, the doc's language, in every round"
+  "the last round reports no P1 and no P2" "answered in Japanese, the doc's language, in every round" \
+  "handed Japanese readability to lint-docs, after the review"
 
 # shellcheck disable=SC2016
 new_run proactive-after-writing-doc "rec_round \"\$clean\"; rec_edit Write $doc; $lint" "$write_doc"
