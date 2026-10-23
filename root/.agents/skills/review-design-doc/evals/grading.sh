@@ -66,7 +66,7 @@ RDD_BOLD_HEADING='^[[:space:]]*\*\*P[123]:?\*\*:?[[:space:]]*$'
 
 rdd_section() {
   printf '%s\n' "$1" | bold="$RDD_BOLD_HEADING" awk -v p="$2" '
-    /^#+/ || $0 ~ ENVIRON["bold"] {
+    /^[[:space:]]*#+/ || $0 ~ ENVIRON["bold"] {
       sec = ($0 ~ ("(^|[^A-Za-z0-9])" p "([^0-9]|$)"))
       next
     }
@@ -77,30 +77,28 @@ rdd_section() {
 }
 
 # rdd_ranks_under_headings <report>
-# No finding is ranked inline: no list item that leads with its priority
-# (`- **P1**: …`, `- [P2] …`, `1. P1 …`) and no table cell holding one
-# (`| P1 | … |`). rdd_section reads priorities from headings alone, so a finding
-# ranked inline is one it cannot see -- and on a clean doc an unseen P1 grades
-# as none. Failing such a report here keeps the parser simple and the contract
-# enforced. Prose that merely mentions a priority ("P1 はありません") is not a
-# ranking and passes.
-#
-# Outside `#` headings and the bare bold label rdd_section reads, two more
-# shapes fail, whatever surrounds them, rather than a list of shapes that each
-# round of review found one more of:
-# - a bold span naming a priority anywhere on the line (`**P1: 重大**`,
-#   `🔴 **P1**`, `> **P1**`, `**P1** (Critical)`, `**重大度 (P1)**`)
-# - a line that leads with a priority and a colon or bracket (`P1: …`,
-#   `[P1] …`)
-# rdd_section sees neither, so either would be a P1 graded as none on a clean
-# doc. The cost is a spurious fail for a finding title that names a priority
-# (`**P2 との境界が曖昧**`), accepted: SKILL.md writes no priority in bold.
-# The classes are ASCII ranges, which read a multibyte character the same way
-# in every locale.
-RDD_INLINE_RANK='^[[:space:]>]*([-*]|[0-9]+\.)[[:space:]]+(\*\*|\[|`)?P[123]([^0-9]|$)'
+# No priority is written where rdd_section cannot see it. rdd_section reads
+# priorities from headings alone, so a finding ranked anywhere else is unseen
+# -- and on a clean doc an unseen P1 grades as none. Outside `#` headings and
+# the bare bold label, a report fails when
+# - a line's first word is a priority, whatever marks it: a list bullet or
+#   number, a quote, emphasis, a bracket (`- **P1**: …`, `1) P1 …`, `・P1`,
+#   `【P1】`, `> P1 —`, `__P1__`, `P1` above a setext `---`)
+# - a table cell holds one (`| P1 | … |`)
+# - a bold span names one anywhere on the line (`🔴 **P1**`,
+#   `**重大度 (P1)**`)
+# - `【P1】` appears anywhere
+# A line with words before the label is prose and passes ("この文書に
+# P1 は無い"). Rounds of review kept finding one more ranked shape while the rule
+# listed shapes; a position catches them all. The costs, pinned in
+# assert.test.sh: prose that opens with a label ("P1 に当たる…") fails, as
+# does a bold finding title naming a priority -- SKILL.md asks for neither.
+# Multibyte markers are literal alternatives and every class is ASCII, so the
+# verdict is the same in every locale.
+RDD_INLINE_RANK='^([[:space:]>*+_`[(.)-]|・|【|「|•|[0-9]+[.)])*P[123]([^0-9]|$)'
 RDD_INLINE_RANK+='|\|[[:space:]]*(\*\*)?P[123]([^0-9]|$)'
 RDD_INLINE_RANK+='|\*\*([^*]*[^A-Za-z0-9*])?P[123]([^0-9*][^*]*)?\*\*'
-RDD_INLINE_RANK+='|^[[:space:]>]*\[?P[123]([]:)]|：|[[:space:]]+(:|：))'
+RDD_INLINE_RANK+='|【P[123]】'
 rdd_ranks_under_headings() {
   local body
   # Filtered first, not piped into grep -q: its early exit can kill the
