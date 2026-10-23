@@ -59,10 +59,18 @@ rdd_has_heading() {
 # on, which is why evals/README.md asks SKILL.md for label-first headings.
 # Widening it instead would change review-test's and review-design's grading.
 
-# A priority label as a word: P, p, Ｐ or ｐ before 1-3 in either width.
-# Literal alternatives, never a class holding a multibyte character, so the
-# locale does not decide; the boundary class is ASCII for the same reason.
-RDD_LABEL='(^|[^A-Za-z0-9])(P|p|Ｐ|ｐ)(1|2|3|１|２|３)([^0-9]|$)'
+# rdd_label <digit alternatives>
+# The pattern of a priority label as a word: P, p, Ｐ or ｐ before one of the
+# digits given. Literal alternatives, never a class holding a multibyte
+# character, so the locale does not decide; the boundary class is ASCII for
+# the same reason. Every reader builds its label here, so a spelling added
+# reaches them all.
+rdd_label() {
+  printf '(^|[^A-Za-z0-9])(P|p|Ｐ|ｐ)(%s)([^0-9]|$)' "$1"
+}
+
+# Any priority, in either width.
+RDD_LABEL="$(rdd_label '1|2|3|１|２|３')"
 
 # Indentation before a heading: a space or a literal tab, never [[:space:]],
 # which takes in U+3000 under a UTF-8 locale -- and in macOS grep but not its
@@ -79,16 +87,19 @@ RDD_BOLD_HEADING="^$RDD_INDENT"'\*\*P[123]:?\*\*:?'"$RDD_INDENT"'$'
 # its content, whatever it names: a finding written as a sub-heading
 # (`### P1` then `#### タイトル`, or `#### P2 との境界`) stays in it. Under a
 # bold label, which has no level, a `#` heading stays in it unless it names a
-# priority. Otherwise a heading naming this priority opens the section and
-# any other heading closes it. The label is any of P, p, Ｐ, ｐ before a digit
-# of either width, as literal alternatives so that the locale does not decide.
+# priority. Otherwise a heading naming this priority (rdd_label) opens the
+# section and any other heading closes it.
 rdd_section() {
-  printf '%s\n' "$1" | bold="$RDD_BOLD_HEADING" heading="^$RDD_INDENT#" label="$RDD_LABEL" awk -v p="$2" '
-    BEGIN {
-      n = substr(p, 2)
-      me = "(^|[^A-Za-z0-9])(P|p|Ｐ|ｐ)(" n "|" (n == 1 ? "１" : n == 2 ? "２" : "３") ")([^0-9]|$)"
-      any = ENVIRON["label"]
-    }
+  local digits
+  case "$2" in
+    P1) digits='1|１' ;;
+    P2) digits='2|２' ;;
+    P3) digits='3|３' ;;
+    *) return 1 ;;
+  esac
+  printf '%s\n' "$1" | bold="$RDD_BOLD_HEADING" heading="^$RDD_INDENT#" any="$RDD_LABEL" \
+    me="$(rdd_label "$digits")" awk '
+    BEGIN { any = ENVIRON["any"]; me = ENVIRON["me"] }
     $0 ~ ENVIRON["heading"] || $0 ~ ENVIRON["bold"] {
       isbold = ($0 ~ ENVIRON["bold"])
       if (!isbold) { match($0, /#+/); lvl = RLENGTH }
