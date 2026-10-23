@@ -61,7 +61,10 @@ rdd_has_heading() {
 
 # rdd_digits <P1|P2|P3>
 # The spellings of that priority's digit, as alternatives. The one home of
-# the digits, as rdd_label is of the letters.
+# the digits every label pattern takes, as rdd_label is of the letters.
+# RDD_BOLD_HEADING spells its own ASCII `P[123]` on purpose (see there); a
+# spelling added here does not reach it, and a bold label it rejects fails
+# the contract rather than going unread.
 rdd_digits() {
   case "$1" in
     P1) printf '1|１' ;;
