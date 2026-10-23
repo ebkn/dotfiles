@@ -175,9 +175,11 @@ rdd_check_language() {
 # rdd_lint_after_review
 # lint-docs started after the last round of the review. The review leaves the
 # readability of Japanese prose to lint-docs rather than ranking it next to
-# missing decisions, and lints the text the review is done changing. A case
-# started by name has no Skill call of the review to order against (the slash
-# command expands in place), so there any call of lint-docs counts.
+# missing decisions, and lints the text the review is done changing. A run
+# started by slash command has no Skill call of the review to order against,
+# so there any call of lint-docs counts -- though under `claude -p` such a run
+# ends with the fork's report and never reaches one, which is why no case
+# starts that way (evals/README.md).
 rdd_lint_after_review() {
   local last
   last="$(transcript_skill_rounds review-design-doc | jq -s 'last.index // -1')"

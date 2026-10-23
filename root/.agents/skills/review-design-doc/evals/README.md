@@ -100,9 +100,11 @@ finding there cannot be traced to one change.
 | `proactive-after-writing-doc` / `proactive-with-claude-md` | `root/CLAUDE.md` brought in, where review-test's auto-start rule lives and this skill's is to |
 | `fires-on-phrase` / `no-fire-code-design-request` | "review my design doc", or "review the design" of a commit that adds code (`review-design`'s request, with a design doc lying nearby) |
 
-The defect cases are started by name (`/review-design-doc <path>`), so they
-measure what the review finds, not whether it starts; the trigger cases measure
-that. Each defect case also checks the run stayed read-only and was refused
+The defect cases name the skill in words ("review-design-doc スキルで <path> を
+レビューしてください"), so they measure what the review finds, not whether it
+starts; the trigger cases measure that. Not as `/review-design-doc <path>`:
+under `claude -p` a forked skill started by slash command ends the run with its
+own report, and the caller never gets the turn that starts lint-docs. Each defect case also checks the run stayed read-only and was refused
 nothing.
 
 ## How the judged checks are built
