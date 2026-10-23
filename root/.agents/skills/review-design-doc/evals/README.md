@@ -22,11 +22,18 @@ What `SKILL.md` must keep, because `grading.sh` reads it:
   reads wide -- the label anywhere in a `#` heading or a bold-only line, any
   line under it, bullet or prose -- because "no P1" on a clean doc fails open
   when a P1 goes unseen; `assert.test.sh` pins the shapes on both sides.
+  **`SKILL.md` should still lead each heading with its label** (`### P1`,
+  `### P1（重大）`), not use the wider shapes: the loop's stopping rule is
+  graded on `transcript_skill_rounds`' `open` count (`bin/skill-eval-assert.sh`),
+  which reads only label-first headings and takes a section opening with
+  "なし" as closed. A `### 重大 (P1)` round would count as clean.
   **Ranking inline is a contract failure**: a list item that leads with its
   priority (`- **P1**: …`, `- [P2] …`) or a `| P1 |` table cell fails
   "ranks findings under priority headings", since the parser cannot see it.
-- **The report reaches the user**: it is graded on the run's final response,
-  so a forked skill's report left in its tool result is not one.
+- **A requested review's report reaches the user**: it is graded on the run's
+  final response, so a forked skill's report left in its tool result is not
+  one. The self-started loop is graded on its rounds instead, and its closing
+  message owes only a conclusion about P1/P2 and the decisions left open.
 - **A doc someone asked to have reviewed is only reported on.** No Edit, no
   Write, no commit, a clean tree. It is the user's doc and records their
   decisions; a run that filled in a missing alternative or rollback plan would
@@ -43,15 +50,19 @@ What `SKILL.md` must keep, because `grading.sh` reads it:
 - **The report is in the doc's language**, whatever the request was written
   in (`answers-in-doc-language`). Judged on the review's own report: for the
   loop, every round's, since the caller's summary may follow a `CLAUDE.md`
-  asking for English. "Japanese" means more kana than ASCII words once quotes
+  asking for English. "Japanese" means at least as many kana as ASCII words once quotes
   and paths are dropped (`rdd_is_japanese`), so an English review quoting the
   doc does not pass.
 - **The readability of a Japanese doc goes to `lint-docs`**, started after the
   review's last round, so it lints text the review is done changing. On a
   user's doc it only inspects (its own boundary); on the agent's it fixes. An
   English doc is not handed over: lint-docs' rules turn to noise on English.
-  Every case carries lint-docs (`skills: lint-docs`), so leaving it out is a
-  choice the run made.
+  Every case that reviews a doc carries lint-docs (`skills: lint-docs`), so
+  leaving it out is a choice the run made. **The review's report goes in the
+  message after lint-docs returns**: only the final response is graded, so a
+  report written out before lint-docs -- the "report first" habit of
+  review-test and review-design -- is an intermediate message and fails the
+  heading check in every Japanese requested case.
 
 ## Where the cases come from
 
