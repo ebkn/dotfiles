@@ -356,12 +356,19 @@ rdd_check_requested() {
 }
 
 # rdd_review_part <report>
-# The final response up to lint-docs' own report, whose heading lint-docs
-# fixes (`## ドキュメント検査: …`, its SKILL.md). That part is lint-docs', not
-# the review's: on real runs the caller wrote "レビューの P2「…」と同じ問題" there
-# however SKILL.md asked, and a cross-reference is not a ranking.
+# The final response without lint-docs' own report: from the heading
+# lint-docs fixes (`## ドキュメント検査: …`, its SKILL.md) up to a review
+# heading or the end. That part is lint-docs', not the review's: on real runs
+# the caller wrote "レビューの P2「…」と同じ問題" there however SKILL.md asked, and
+# a cross-reference is not a ranking. Dropping only that section, rather than
+# everything after its heading, keeps a review placed after it checked.
+# Colons as alternatives, not a class, so the locale does not decide.
 rdd_review_part() {
-  printf '%s\n' "$1" | awk '/^#+[ \t]*ドキュメント検査/ { exit } { print }'
+  printf '%s\n' "$1" | awk '
+    /^#+[ \t]*ドキュメント検査[ \t]*(:|：)/ { lint = 1; next }
+    /(設計ドキュメント|デザインドキュメント|設計書|[Dd]esign [Dd]oc(ument)?) ?(の)?(レビュー|[Rr]eview) *(:|：)/ { lint = 0 }
+    !lint { print }
+  '
 }
 
 # rdd_skill_index

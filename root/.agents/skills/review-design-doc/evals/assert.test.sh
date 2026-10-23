@@ -459,6 +459,12 @@ grade "$(printf "## 設計ドキュメントレビュー: %s\n\n- 【P1】ロー
 expect_fail "clean: a priority before lint-docs' report still fails the contract" \
   "ranks findings under priority headings, not inline"
 
+# lint-docs' report first: only it is dropped, not the review after it.
+new_run clean-doc-no-false-p1 "$req"
+grade "$(printf '## ドキュメント検査: %s\n\n- 9 行目: 冗長\n\n## 設計ドキュメントレビュー: %s\n\n- 【P1】ロールバックが無い\n' "$doc" "$doc")"
+expect_fail "clean: a priority in a review after lint-docs' report fails the contract" \
+  "ranks findings under priority headings, not inline"
+
 # A P1 titled with another priority stays under P1, and the title fails the
 # contract as well.
 new_run clean-doc-no-false-p1 "$req"
