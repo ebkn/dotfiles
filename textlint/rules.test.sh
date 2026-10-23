@@ -158,6 +158,8 @@ t("a closing formula mid-sentence is not one", [], aiTexts("いかがでした�
 t("an opening filler after a line break", ["重要なのは、"], aiTexts("手順は三つある。\n重要なのは、順番だ。"));
 t("a sentence ends at a half-width ?", ["重要なのは、"], aiTexts("順番は守れていますか?重要なのは、順番だ。"));
 t("a sentence ends at !", ["重要なのは、"], aiTexts("できた！重要なのは、順番だ。"));
+t("every sentence is checked, not the first match", ["重要なのは、", "重要なのは、"], aiTexts("重要なのは、Aだ。重要なのは、Bだ。"));
+t("every sentence end is checked too", ["見ていきましょう。", "見ていきましょう。"], aiTexts("順に見ていきましょう。次も見ていきましょう。"));
 t("過言 holds at the end of a sentence", ["と言っても過言ではありません"],
   aiTexts("障害の多くは設定の誤りと言っても過言ではありません。"));
 t("過言 mid-sentence is not one", [], aiTexts("と言っても過言ではありませんという言い方を避ける。"));
