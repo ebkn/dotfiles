@@ -78,9 +78,9 @@ Functions available to `assert.sh`: `check`, `check_eq`, `check_match`,
 `review_loop_rerun_checks <skill>`, `review_loop_checks <skill>`,
 `check_llm <label> <rubric> [<text>]`.
 
-**The review loop is graded per round, not by a count.** `review-test` and
-`review-design` both fix their P1 and P2 findings and review again until a
-round reports none. Two Skill calls are the same number whether the second
+**The review loop is graded per round, not by a count.** `review-test`,
+`review-design` and `review-design-doc` (on a doc the agent wrote) all fix
+their P1 and P2 findings and review again until a round reports none. Two Skill calls are the same number whether the second
 followed a fix or was the same review started twice, so
 `transcript_skill_rounds` takes each call apart: its brief, the report it handed
 back (the forked `tool_result`, which the caller may never have written out),
