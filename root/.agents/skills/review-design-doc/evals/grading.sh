@@ -12,6 +12,12 @@
 # The report's own heading line, not a mention of a review: "設計ドキュメントを
 # レビューします" has no colon after the title, and must not count as having
 # reported. `##` or bold, since the model varies how it sets the line.
+#
+# Two engines read it: jq over the whole text (rdd_has_heading), which is what
+# `(^|\n)` is for, and awk a line at a time (rdd_review_part). Keep it to the
+# syntax both share, POSIX ERE: no `\s`, `(?:`, or `\p{}`, which jq accepts and
+# awk rejects or reads otherwise. Its one class holding a multibyte character,
+# `[:：]` at the end, still matches `：` under the C locale, by its first byte.
 RDD_REPORT_HEADING='(^|\n)(#+ *|\*\*)?(設計ドキュメント|デザインドキュメント|設計書|[Dd]esign [Dd]oc(ument)?) ?(の)?(レビュー|[Rr]eview) *[:：]'
 
 # rdd_report
@@ -367,9 +373,7 @@ rdd_check_requested() {
 # locale does not decide.
 #
 # A review heading (RDD_REPORT_HEADING: bold or any `#` level) ends it too,
-# so a review placed after it is checked however its heading is set. That
-# pattern's one class is `[:：]` at its end, which matches the first byte of
-# `：` under the C locale as well.
+# so a review placed after it is checked however its heading is set.
 rdd_review_part() {
   printf '%s\n' "$1" | review="$RDD_REPORT_HEADING" awk '
     /^#+[ \t]*ドキュメント検査[ \t]*(:|：)/ { match($0, /#+/); llvl = RLENGTH; lint = 1; next }
