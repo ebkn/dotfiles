@@ -447,6 +447,18 @@ for shape in '### P2\n- これは P1 ではない' 'この文書に P1 に当た
     "ranks findings under priority headings, not inline"
 done
 
+# lint-docs' own report, under its fixed heading, is not the review's: a
+# priority it cross-references is not a ranking. One before that heading is.
+lint_part='---\n\n## ドキュメント検査: docs/design/webhook-retry.md\n\n- 9 行目: レビューの P2「数字が無い」と同じ問題'
+new_run clean-doc-no-false-p1 "$req"
+grade "$(printf "## 設計ドキュメントレビュー: %s\n\n### P2\n- 数字が無い\n\n$lint_part\n" "$doc")"
+expect_pass "clean: lint-docs' report naming a priority passes"
+
+new_run clean-doc-no-false-p1 "$req"
+grade "$(printf "## 設計ドキュメントレビュー: %s\n\n- 【P1】ロールバックが無い\n\n$lint_part\n" "$doc")"
+expect_fail "clean: a priority before lint-docs' report still fails the contract" \
+  "ranks findings under priority headings, not inline"
+
 # A P1 titled with another priority stays under P1, and the title fails the
 # contract as well.
 new_run clean-doc-no-false-p1 "$req"

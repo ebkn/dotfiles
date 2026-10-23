@@ -348,11 +348,20 @@ rdd_check_read_only() {
 rdd_check_requested() {
   check "started review-design-doc" test "$(transcript_skill_uses review-design-doc)" -ge 1
   check "reported under the review heading, naming the doc" rdd_has_heading "$(rdd_report)" "$2"
-  check "ranks findings under priority headings, not inline" rdd_ranks_under_headings "$(rdd_report)"
+  check "ranks findings under priority headings, not inline" rdd_ranks_under_headings "$(rdd_review_part "$(rdd_report)")"
   rdd_check_language "$1" "$(rdd_report)"
   rdd_check_lint "$1"
   rdd_check_read_only
   check_eq "no command was refused" "0" "$(transcript_denials)"
+}
+
+# rdd_review_part <report>
+# The final response up to lint-docs' own report, whose heading lint-docs
+# fixes (`## ドキュメント検査: …`, its SKILL.md). That part is lint-docs', not
+# the review's: on real runs the caller wrote "レビューの P2「…」と同じ問題" there
+# however SKILL.md asked, and a cross-reference is not a ranking.
+rdd_review_part() {
+  printf '%s\n' "$1" | awk '/^#+[ \t]*ドキュメント検査/ { exit } { print }'
 }
 
 # rdd_skill_index

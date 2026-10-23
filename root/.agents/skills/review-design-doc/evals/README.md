@@ -35,7 +35,7 @@ What `SKILL.md` must keep, because `grading.sh` reads it:
   **A priority named anywhere else is a contract failure**: outside `#`
   headings and the bare `**P1**` label, any whole-word `P1`/`P2`/`P3` -- a
   list item (`- **P1**: …`), a `| P1 |` cell, `【P1】`, `🔴 P1`, `… (P1)`, even
-  prose ("上の P2 で指摘した") -- fails
+  prose ("上の P2 で指摘した") -- before lint-docs' own report fails
   "ranks findings under priority headings", since the parser cannot see it.
 - **A requested review's report reaches the user**: it is graded on the run's
   final response, so a forked skill's report left in its tool result is not
