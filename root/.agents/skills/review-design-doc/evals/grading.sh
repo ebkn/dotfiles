@@ -57,9 +57,13 @@ rdd_has_heading() {
 # grade; for the proactive pair it is what review_loop_checks grades the loop
 # on, which is why evals/README.md asks SKILL.md for label-first headings.
 # Widening it instead would change review-test's and review-design's grading.
+# A bold-only line rdd_section takes for a priority heading. Shared with
+# rdd_ranks_under_headings, which fails any other bold line leading with one.
+RDD_BOLD_HEADING='^[[:space:]]*\*\*[[:space:]]*P[123][[:space:]]*([(（][^)）*]*[)）])?[[:space:]:：]*\*\*[[:space:]:：]*$'
+
 rdd_section() {
-  printf '%s\n' "$1" | awk -v p="$2" '
-    /^#+/ || /^[[:space:]]*\*\*[[:space:]]*P[123][[:space:]]*([(（][^)）*]*[)）])?[[:space:]:：]*\*\*[[:space:]:：]*$/ {
+  printf '%s\n' "$1" | bold="$RDD_BOLD_HEADING" awk -v p="$2" '
+    /^#+/ || $0 ~ ENVIRON["bold"] {
       sec = ($0 ~ ("(^|[^A-Za-z0-9])" p "([^0-9]|$)"))
       next
     }
@@ -77,9 +81,16 @@ rdd_section() {
 # as none. Failing such a report here keeps the parser simple and the contract
 # enforced. Prose that merely mentions a priority ("P1 はありません") is not a
 # ranking and passes.
+#
+# A bold line that leads with a priority but is not the bare label rdd_section
+# reads as a heading (`**P1: 重大**`, `**🔴 P1**`, `**P1** (Critical)`) fails
+# here too: rdd_section would not see the findings under it, and on a clean
+# doc an unseen P1 grades as none.
 rdd_ranks_under_headings() {
-  ! printf '%s\n' "$1" |
-    grep -qE '^[[:space:]]*([-*]|[0-9]+\.)[[:space:]]+(\*\*|\[|`)?P[123]([^0-9]|$)|\|[[:space:]]*(\*\*)?P[123]([^0-9]|$)'
+  local text
+  text="$(printf '%s\n' "$1" | grep -vE "$RDD_BOLD_HEADING" || true)"
+  ! printf '%s\n' "$text" |
+    grep -qE '^[[:space:]]*([-*]|[0-9]+\.)[[:space:]]+(\*\*|\[|`)?P[123]([^0-9]|$)|\|[[:space:]]*(\*\*)?P[123]([^0-9]|$)|^[[:space:]]*\*\*[^*]{0,8}P[123]([^0-9*][^*]*)?\*\*[[:space:]:：]*$|^[[:space:]]*\*\*[^*]{0,8}P[123][[:space:]:：]*\*\*'
 }
 
 # rdd_count <report> <P1|P2|P3>

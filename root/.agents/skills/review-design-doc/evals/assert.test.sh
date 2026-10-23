@@ -363,7 +363,6 @@ for shape in '### 🔴 P1\n- 誤検知' '### 重大 (P1)\n- 誤検知' '### **P1
   '**P1**\n- 誤検知' '**P1:**\n- 誤検知' '### P1\nロールバック手順が書かれていない。' \
   '### P1\n- なし。ただし、ロールバック手順が無い' '### P1\n- None of the non-goals are real.' \
   '### P1\n**ロールバック手段が無い**\n- 根拠: 全顧客へ一斉に適用する' \
-  '### P1\n**P2 との境界が曖昧**\n- 根拠: 全顧客へ一斉に適用する' \
   '**P1（重大）**\n- 誤検知' \
   '### P1\n- なし\n\n**著者への質問**\n- 基盤チームは合意していますか'; do
   new_run clean-doc-no-false-p1 "$req"
@@ -388,6 +387,25 @@ for shape in '### Findings\n- **P1**: ロールバックが無い' '### Findings
   expect_fail "clean: a finding ranked inline is caught: '${shape%%\\n*} / ${shape#*\\n}'" \
     "ranks findings under priority headings, not inline"
 done
+
+# Bold labels rdd_section does not read as headings. Their findings are unseen,
+# so the report fails the contract; a P1 under them would otherwise grade as
+# none. A bold finding title that leads with a priority fails it too -- a
+# spurious FAIL, accepted: SKILL.md puts titles in list items.
+for shape in '**P1: 重大**\n- 誤検知' '**P1 — Critical**\n- 誤検知' '**🔴 P1**\n- 誤検知' \
+  '**P1**（重大）\n- 誤検知' '**P1** (Critical)\n- 誤検知'; do
+  new_run clean-doc-no-false-p1 "$req"
+  grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
+  expect_fail "clean: a bold label not read as a heading is caught: '${shape%%\\n*}'" \
+    "ranks findings under priority headings, not inline"
+done
+
+# A P1 titled with another priority stays under P1, and the title fails the
+# contract as well.
+new_run clean-doc-no-false-p1 "$req"
+grade "$(printf '## 設計ドキュメントレビュー: %s\n\n### P1\n**P2 との境界が曖昧**\n- 根拠\n' "$doc")"
+expect_fail "clean: a P1 titled with another priority is caught" "raised no P1" \
+  "ranks findings under priority headings, not inline"
 
 # Prose that mentions a priority is not a ranking.
 new_run clean-doc-no-false-p1 "$req"
