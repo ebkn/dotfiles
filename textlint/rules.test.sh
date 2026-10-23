@@ -167,9 +167,15 @@ t("過言 mid-sentence is not one", [], aiTexts("と言っても過言ではあ�
 // would read as two problems.
 t("overlapping patterns are one report", ["データが静かに壊れ"], aiTexts("データが静かに壊れる。"));
 // ... and only overlapping ones: separate phrases in one paragraph are each
-// reported, in PATTERNS order.
-t("separate phrases in one node are each reported", ["時間を溶かさ", "重要なのは、", "いかがでしたか？"],
-  aiTexts("重要なのは、時間を溶かさないことです。いかがでしたか？"));
+// reported. textlint sorts reports by position, so that is the order compared.
+const byPosition = (reports) => [...reports].sort((a, b) => a.at - b.at).map((r) => r.text);
+t("separate phrases in one node are each reported", ["重要なのは、", "時間を溶かさ", "いかがでしたか？"],
+  byPosition(lint(ai, withLocator, str("重要なのは、時間を溶かさないことです。いかがでしたか？"))));
+
+// --- the message: the only thing a reader of the report sees ---
+t("the message names the kind, the phrase and the hint",
+  ["比喩動詞「時間を溶かし」: 「時間を費やす」「時間がかかる」と書いてください。"],
+  lint(ai, withLocator, str("時間を溶かした。")).map((r) => r.error.message));
 
 // --- what it leaves alone ---
 t("the literal verb", [], aiTexts("時計が壊れた。ジャガイモを潰す。"));
