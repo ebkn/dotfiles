@@ -122,7 +122,31 @@ rdd_ranks_under_headings() {
   # Filtered first, not piped into grep -q: its early exit can kill the
   # writer, and under pipefail that would read as "nothing found".
   body="$(printf '%s\n' "$1" | grep -vE "^$RDD_INDENT#|$RDD_BOLD_HEADING" || true)"
-  ! grep -qE "$RDD_INLINE_RANK" <<<"$body"
+  ! grep -qE "$RDD_INLINE_RANK" <<<"$body" && ! rdd_has_empty_priority "$1"
+}
+
+# rdd_has_empty_priority <report>
+# A priority heading closed by the next heading with no line under it.
+# SKILL.md drops an empty section, and a kept one says "なし", so an empty one
+# means its finding went into the heading that closed it (`### P1` then
+# `### ロールバックが無い`) -- a heading no reader takes as P1's. A heading
+# rdd_section keeps inside the section (a deeper one, or a plain one under a
+# bold label) is content, as it is there.
+rdd_has_empty_priority() {
+  printf '%s\n' "$1" | bold="$RDD_BOLD_HEADING" heading="^$RDD_INDENT#" label="$RDD_LABEL" awk '
+    $0 ~ ENVIRON["heading"] || $0 ~ ENVIRON["bold"] {
+      isbold = ($0 ~ ENVIRON["bold"])
+      if (!isbold) { match($0, /#+/); lvl = RLENGTH }
+      if (open && !isbold && (obold ? $0 !~ ENVIRON["label"] : lvl > olvl)) { open = 0; next }
+      if (open) found = 1
+      open = ($0 ~ ENVIRON["label"])
+      if (open) { obold = isbold; olvl = lvl }
+      next
+    }
+    /^[[:space:]]*$/ { next }
+    { open = 0 }
+    END { exit !(found || open) }
+  '
 }
 
 # rdd_count <report> <P1|P2|P3>
