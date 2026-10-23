@@ -306,6 +306,17 @@ for entry in \
     "handed Japanese readability to lint-docs, after the review"
 done
 
+# What the judge reads where the section readers branch: a bold label after a
+# deeper heading inside a `#` section ends it, and the full-width labels of
+# P2 and P3 each open their own section.
+new_run strawman-alternatives "$req"
+grade "$(printf '## 設計ドキュメントレビュー: %s\n\n## P1\n### 細目\n- 見つけた問題\n**P3**\n- JUDGE_FAIL\n' "$doc")"
+expect_pass "judge: a bold P3 after a P1 sub-heading is not read"
+
+new_run strawman-alternatives "$req"
+grade "$(printf '## 設計ドキュメントレビュー: %s\n\n### Ｐ２\n- 見つけた問題\n### Ｐ３\n- JUDGE_FAIL\n' "$doc")"
+expect_pass "judge: a finding under a full-width P2 counts, and a full-width P3 is not read"
+
 # The heading's other spellings. The backticks are literal, not a command.
 # shellcheck disable=SC2016
 for heading in '**Design doc review:** docs/design/webhook-retry.md' \
@@ -380,7 +391,7 @@ done
 for shape in '### P1\nなし' '### P1\n- None.' '### P12\n- 番号違い' \
   '**P12** は番号違い\n- 本文' 'P12 番号違い' '| P12 | 番号違い |' \
   '### P1\nなし\n### 著者への質問\n- 合意は?' '### P1\nなし\n### P2\n- 指摘' \
-  '## P1\nなし\n## 確認したこと\n### 節ごと\n- 読んだ'; do
+  '## P1\nなし\n## 確認したこと\n### 節ごと\n- 読んだ' '### P1\nなし\n   \n### P2\n- 指摘'; do
   new_run clean-doc-no-false-p1 "$req"
   grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
   expect_pass "clean: not a P1: '${shape%%\\n*} / ${shape#*\\n}'"
@@ -416,7 +427,8 @@ done
 # A priority heading closed with nothing under it: its finding went into the
 # heading or bold label that closed it, which no reader takes as P1's.
 for shape in '### P1\n### ロールバックが無い\n- 根拠' '**P1**\n#### P2 との境界\n- 根拠' \
-  '**P1**\n### P3 に近い\n- 根拠' '### P1\n**P2**\n- 根拠' '**P1**\n**P2**\n- 根拠' '### P1'; do
+  '**P1**\n### P3 に近い\n- 根拠' '### P1\n**P2**\n- 根拠' '**P1**\n**P2**\n- 根拠' '### P1' \
+  '### P1\n   \n### ロールバックが無い\n- 根拠'; do
   new_run clean-doc-no-false-p1 "$req"
   grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
   expect_fail "clean: a priority heading with nothing under it fails the contract: '$shape'" \
