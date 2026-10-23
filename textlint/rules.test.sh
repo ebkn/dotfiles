@@ -16,8 +16,8 @@
 # the repro in textlintrc.yml was checked against the real toolchain.
 #
 # Of ja-no-ai-phrase it pins the sentence anchoring -- an opening or closing
-# formula is found in any sentence of a paragraph, not only the first, and not
-# mid-sentence -- one report where two patterns overlap, and no fixer. Which
+# formula anchored with ^ or $ is found in any sentence of a paragraph, not
+# only the first, and not mid-sentence -- one report where two patterns overlap, and no fixer. Which
 # patterns are worth carrying is a measurement on real text, not a test: see
 # bin/textlint-docs.md.
 #

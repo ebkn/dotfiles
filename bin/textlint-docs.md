@@ -63,9 +63,10 @@ its literal sense throughout. Measured 2026-10-23: 6 findings in yomiyasu's
 26 raw AI documents, 1 in its 16 human ones (an essay's 結論から言うと), 0 in
 this repo's 117 Markdown files. A `Str` node holds a whole paragraph, so the rule
 splits it into sentences (on 。！？!?) and matches every pattern per sentence;
-the openings and closings say so with `^` and `$` in the pattern itself, and
-nothing else marks them. Matching the paragraph instead would silently drop
-every opening and closing but the first and last.
+the patterns that hold only at a sentence's start or end say so with `^` and
+`$` in the pattern itself, and nothing else marks them. Matching the
+paragraph instead would silently drop every such opening and closing but the
+first and last.
 
 <!-- textlint-enable ja-no-ai-phrase -->
 
