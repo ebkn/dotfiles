@@ -1,5 +1,7 @@
 ---
 name: clean-doc-no-false-p1-en
+allowed_tools: Skill
+skills: lint-docs
 budget_usd: 2
 # clean-doc-no-false-p1 in English, request and doc alike: the same grader
 # plus one check that the report followed the language.

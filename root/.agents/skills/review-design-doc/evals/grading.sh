@@ -136,6 +136,77 @@ rdd_has_no_kana() {
   ! rdd_has_kana "$1"
 }
 
+# rdd_is_japanese <text>
+# Written in Japanese, not merely holding some: an English review of a
+# Japanese doc quotes it, so kana alone would pass one. Quoted spans (code,
+# 「」, 『』, "", “”, `>` lines) and paths are dropped, and what is left must
+# hold at least as many kana as ASCII words -- a Japanese review still says P1
+# and Webhook, an English one is mostly words.
+rdd_is_japanese() {
+  jq -nre --arg t "$1" '
+    $t
+    | gsub("`[^`\n]*`"; "") | gsub("「[^」]*」"; "") | gsub("『[^』]*』"; "")
+    | gsub("\"[^\"\n]*\""; "") | gsub("“[^”]*”"; "") | gsub("(^|\n)>[^\n]*"; "")
+    | gsub("[A-Za-z0-9_-]*([./:][A-Za-z0-9_-]+)+"; "")
+    | ([scan("[\\x{3040}-\\x{30ff}]")] | length) as $kana
+    | ([scan("[A-Za-z]+")] | length) as $words
+    | $kana > 0 and $kana >= $words
+  ' >/dev/null
+}
+
+# rdd_check_language <ja|en> <report>
+# The review answers in the doc's language. Every Japanese case's doc is
+# Japanese, whatever the request was written in (answers-in-doc-language asks
+# in English); the English cases' are English.
+rdd_check_language() {
+  case "$1" in
+    ja) check "answered in Japanese, the doc's language" rdd_is_japanese "$2" ;;
+    en) check "wrote no Japanese into an English review" rdd_has_no_kana "$2" ;;
+  esac
+}
+
+# rdd_lint_after_review
+# lint-docs started after the last round of the review. The review leaves the
+# readability of Japanese prose to lint-docs rather than ranking it next to
+# missing decisions, and lints the text the review is done changing. A case
+# started by name has no Skill call of the review to order against (the slash
+# command expands in place), so there any call of lint-docs counts.
+rdd_lint_after_review() {
+  local last
+  last="$(transcript_skill_rounds review-design-doc | jq -s 'last.index // -1')"
+  transcript_skill_rounds lint-docs | jq -se --argjson a "$last" 'any(.[]; .index > $a)' >/dev/null
+}
+
+# rdd_check_lint <ja|en>
+# A Japanese doc goes to lint-docs; an English one does not, since lint-docs'
+# rules are for Japanese prose and turn to noise on English (its own SKILL.md).
+# The cases carry lint-docs (`skills: lint-docs`) either way, so that leaving
+# it out of an English doc is a choice the run made.
+rdd_check_lint() {
+  case "$1" in
+    ja) check "handed Japanese readability to lint-docs, after the review" rdd_lint_after_review ;;
+    en) check_eq "left lint-docs out of an English doc" "0" "$(transcript_skill_uses lint-docs)" ;;
+  esac
+}
+
+# rdd_last_round_report
+# The last round's report as the forked review handed it back: the review's
+# own words, whatever language the caller then writes its summary in.
+rdd_last_round_report() {
+  transcript_skill_rounds review-design-doc | jq -rs 'last.report // ""'
+}
+
+# rdd_changed_paths
+# Every path that differs from the fixture, committed or not, untracked
+# included. A run that commits its doc and one that leaves it in the tree
+# then read the same.
+rdd_changed_paths() {
+  {
+    git diff --name-only eval-base
+    git ls-files --others --exclude-standard
+  } | sort -u
+}
+
 # rdd_writes
 # Edit and Write calls together.
 rdd_writes() {
@@ -143,22 +214,27 @@ rdd_writes() {
 }
 
 # rdd_check_read_only
-# A requested review is report-only, through the caller's part too: the doc
-# records its author's decisions, and a run that "fixed" it would be writing
-# decisions nobody made.
+# A requested review is report-only, through the caller's part too: the doc is
+# the user's and records their decisions, and a run that "fixed" it would be
+# writing decisions nobody made. Only a doc the agent wrote itself is fixed
+# (proactive-after-writing-doc).
 rdd_check_read_only() {
   check_eq "used neither Edit nor Write" "0" "$(rdd_writes)"
   check_eq "left the tree as it was" "" "$(git status --porcelain)"
   check_eq "committed nothing" "0" "$(git rev-list --count eval-base..HEAD)"
 }
 
-# rdd_check_requested <path regex>
+# rdd_check_requested <ja|en> <path regex>
 # The checks every case shares whose review was asked for: a report the user
-# sees, naming the doc, from a run that changed nothing and was refused
-# nothing.
+# sees, naming the doc, in the doc's language, with the prose handed to
+# lint-docs when it is Japanese, from a run that changed nothing and was
+# refused nothing. lint-docs started this way only inspects: the doc is not
+# one the agent wrote.
 rdd_check_requested() {
-  check "reported under the review heading, naming the doc" rdd_has_heading "$(rdd_report)" "$1"
+  check "reported under the review heading, naming the doc" rdd_has_heading "$(rdd_report)" "$2"
   check "ranks findings under priority headings, not inline" rdd_ranks_under_headings "$(rdd_report)"
+  rdd_check_language "$1" "$(rdd_report)"
+  rdd_check_lint "$1"
   rdd_check_read_only
   check_eq "no command was refused" "0" "$(transcript_denials)"
 }
@@ -190,16 +266,4 @@ rdd_started_after_writing() {
   skill_at="$(rdd_skill_index)"
   write_at="$(rdd_write_indexes "$1" | head -n 1)"
   [ -n "$skill_at" ] && [ -n "$write_at" ] && [ "$skill_at" -gt "$write_at" ]
-}
-
-# rdd_untouched_after_review <path regex>
-# Nothing wrote the doc after the skill started: report-only holds for a doc
-# the agent itself wrote, since what a review finds missing is a decision the
-# notes did not make. False when the skill never started.
-rdd_untouched_after_review() {
-  local skill_at last_write
-  skill_at="$(rdd_skill_index)"
-  [ -n "$skill_at" ] || return 1
-  last_write="$(rdd_write_indexes "$1" | tail -n 1)"
-  [ -z "$last_write" ] || [ "$last_write" -lt "$skill_at" ]
 }

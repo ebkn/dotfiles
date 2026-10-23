@@ -408,6 +408,10 @@ DOC
 }
 
 # The discussion notes the proactive case asks the agent to turn into a doc.
+# They say nothing about how the change is released or turned back: the gap a
+# review of the doc should find, and one the notes cannot fill. Fixing it means
+# naming it as a decision still open, not inventing a staged rollout nobody
+# agreed to.
 rdd_write_notes_ja() {
   mkdir -p "$(dirname "$1")"
   cat >"$1" <<'DOC'
@@ -424,7 +428,6 @@ rdd_write_notes_ja() {
 - SQS の遅延配信: 最大 15 分、オンプレに閉じている → 却下
 - 何もしない: 請求イベントで会計がずれる → 却下
 - 署名とタイムスタンプは送るたびに作り直す
-- フィーチャーフラグで 5% → 50% → 全体。フラグを切れば元に戻る
 - 未決: デッドレターの手動再送 UI を入れるか
 DOC
 }

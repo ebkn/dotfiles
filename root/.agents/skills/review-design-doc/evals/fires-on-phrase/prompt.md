@@ -1,7 +1,8 @@
 ---
 name: fires-on-phrase
 allowed_tools: Skill
-budget_usd: 2
+skills: lint-docs
+budget_usd: 3
 # Asked in words, without the skill's name or the word "design doc" spelt the
 # way a description would quote it: a pass that only matched quoted trigger
 # phrases would not predict real use.

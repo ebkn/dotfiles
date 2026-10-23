@@ -8,7 +8,7 @@ source "$SKILL_EVAL_REPO_ROOT/root/.agents/skills/review-design-doc/evals/gradin
 
 report="$(rdd_report)"
 
-rdd_check_requested 'webhook-retry\.md'
+rdd_check_requested ja 'webhook-retry\.md'
 # The whole report, not P1/P2 alone: whether the platform team agreed is a
 # fact outside the doc, so a question to the author is as good an answer as a
 # ranked finding -- and the better one, if the skill files it that way.

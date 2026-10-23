@@ -9,7 +9,7 @@ source "$SKILL_EVAL_REPO_ROOT/root/.agents/skills/review-design-doc/evals/gradin
 report="$(rdd_report)"
 open="$(rdd_open_text "$report")"
 
-rdd_check_requested 'cache-ttl\.md'
+rdd_check_requested ja 'cache-ttl\.md'
 check_eq "raised no P1" "0" "$(rdd_count "$report" P1)"
 # A P2 is allowed, as long as it is about this change. With nothing under P1
 # or P2 there is nothing to judge, and the case has passed on that count.

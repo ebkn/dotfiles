@@ -1,6 +1,8 @@
 ---
 name: strawman-alternatives
-budget_usd: 2
+allowed_tools: Skill
+skills: lint-docs
+budget_usd: 3
 # Started by name, so the case measures what the review finds, not whether it
 # starts (fires-on-phrase measures that). The second line stands in for the
 # caller's conventions, as in the other skills' cases.

@@ -6,7 +6,7 @@ source "$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh"
 # shellcheck source=../grading.sh
 source "$SKILL_EVAL_REPO_ROOT/root/.agents/skills/review-design-doc/evals/grading.sh"
 
-rdd_check_requested 'webhook-retry\.md'
+rdd_check_requested ja 'webhook-retry\.md'
 rdd_check_flags "P1/P2: the problem and the cost are claimed without numbers" \
   "claims about the size of the problem or the cost of the change are not backed by numbers or data -- such as failures being 'very many', most failures being transient, or the added database load being 'small enough' -- and figures are needed."
 

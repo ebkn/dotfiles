@@ -1,6 +1,8 @@
 ---
 name: unsupported-claims
-budget_usd: 2
+allowed_tools: Skill
+skills: lint-docs
+budget_usd: 3
 # Started by name; see strawman-alternatives.
 ---
 /review-design-doc docs/design/webhook-retry.md

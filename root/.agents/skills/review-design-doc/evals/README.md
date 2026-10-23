@@ -27,12 +27,31 @@ What `SKILL.md` must keep, because `grading.sh` reads it:
   "ranks findings under priority headings", since the parser cannot see it.
 - **The report reaches the user**: it is graded on the run's final response,
   so a forked skill's report left in its tool result is not one.
-- **Report-only, all the way through.** No Edit, no Write, no commit, a clean
-  tree, for a requested review. For a doc the agent itself wrote, nothing
-  edits it after the review starts. A design doc records its author's
+- **A doc someone asked to have reviewed is only reported on.** No Edit, no
+  Write, no commit, a clean tree. It is the user's doc and records their
   decisions; a run that filled in a missing alternative or rollback plan would
   be writing decisions nobody made.
-- **The report follows the language** of the request and the doc.
+- **A doc the agent wrote itself goes through review-test's loop**: the review
+  starts unasked once the doc is written, the agent fixes the P1 and P2
+  findings, reviews again in a fresh run, and stops on a round with neither
+  (`review_loop_checks`). A gap its sources cannot fill is fixed by naming it
+  as an open decision in the doc and telling the user, not by inventing the
+  answer: the notes behind `proactive-after-writing-doc` say nothing about the
+  release, and a doc that states a staged rollout as settled fails. So
+  `SKILL.md` must not rank again a gap the doc already lists as open, or that
+  loop never ends.
+- **The report is in the doc's language**, whatever the request was written
+  in (`answers-in-doc-language`). Judged on the review's own report: for the
+  loop, the last round's, since the caller's summary may follow a `CLAUDE.md`
+  asking for English. "Japanese" means more kana than ASCII words once quotes
+  and paths are dropped (`rdd_is_japanese`), so an English review quoting the
+  doc does not pass.
+- **The readability of a Japanese doc goes to `lint-docs`**, started after the
+  review's last round, so it lints text the review is done changing. On a
+  user's doc it only inspects (its own boundary); on the agent's it fixes. An
+  English doc is not handed over: lint-docs' rules turn to noise on English.
+  Every case carries lint-docs (`skills: lint-docs`), so leaving it out is a
+  choice the run made.
 
 ## Where the cases come from
 
@@ -64,8 +83,10 @@ finding there cannot be traced to one change.
 | each defect case / `clean-doc-no-false-p1` | one planted defect; for `implementation-manual`, the whole doc (`assert.test.sh` checks the doc differs) |
 | `mini-doc-no-template-demands` / `clean-doc-no-false-p1` | a small doc without the large one's sections |
 | `missing-rollback` / `missing-rollback-en` | language, and asked by phrase instead of by name |
+| `missing-rollback` / `answers-in-doc-language` | the request's language alone (the doc stays Japanese), and asked by phrase |
 | `clean-doc-no-false-p1` / `clean-doc-no-false-p1-en` | language |
 | `proactive-after-writing-doc` / `no-fire-readme-edit` | the document written is a design doc, or a README |
+| `proactive-after-writing-doc` / `proactive-with-claude-md` | `root/CLAUDE.md` brought in, where review-test's auto-start rule lives and this skill's is to |
 | `fires-on-phrase` / `no-fire-code-design-request` | "review my design doc", or "review the design" of a commit that adds code (`review-design`'s request, with a design doc lying nearby) |
 
 The defect cases are started by name (`/review-design-doc <path>`), so they
@@ -94,6 +115,8 @@ Whether each rubric is right only real runs can tell.
   costs. The judge is told only to look for the finding.
 - A doc whose stated status asks for one kind of feedback ("only the rollout
   risk") -- Squarespace's point that the review should match the stage.
-- Proactive starting with `root/CLAUDE.md` brought in: it says nothing about
-  this skill yet, so there is no pair to compare.
+- Whether the review keeps Japanese wording out of its own P1/P2 once
+  lint-docs has it. Only that lint-docs ran is checked.
+- Whether a fix the loop made is right, beyond the one gap the notes leave:
+  the judge reads the doc for an invented release plan and nothing else.
 - A design doc in a format other than Markdown in the repository.

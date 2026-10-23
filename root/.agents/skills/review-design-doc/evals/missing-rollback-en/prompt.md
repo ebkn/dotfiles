@@ -1,6 +1,7 @@
 ---
 name: missing-rollback-en
 allowed_tools: Skill
+skills: lint-docs
 budget_usd: 2
 # missing-rollback in English, asked for in words rather than by name: the
 # trigger in English, the finding and the report's language in one case.

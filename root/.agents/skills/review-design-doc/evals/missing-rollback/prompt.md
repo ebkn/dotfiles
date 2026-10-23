@@ -1,6 +1,8 @@
 ---
 name: missing-rollback
-budget_usd: 2
+allowed_tools: Skill
+skills: lint-docs
+budget_usd: 3
 # Started by name; see strawman-alternatives. missing-rollback-en asks for the
 # same finding in English, by phrase.
 ---
