@@ -34,8 +34,10 @@ rdd_has_heading() {
 #
 # Read wide on purpose. The clean cases grade "no P1" on this, so a P1 the
 # parser misses is a false alarm graded clean: a heading is any `#` line or a
-# line that is bold and nothing else (`**P1**`), and it is that priority's when
-# the label appears in it as a word (`### 🔴 P1`, `### 重大 (P1)`). Every
+# line that is bold and nothing else and names a priority (`**P1**`), and it is
+# that priority's when the label appears in it as a word (`### 🔴 P1`,
+# `### 重大 (P1)`). A bold line naming none is a finding's title, not a heading:
+# taking it for one closed the P1 section above it on a real run. Every
 # non-blank line under it is kept, bullet or paragraph.
 #
 # The one line dropped is an item that says there is nothing and nothing more
@@ -52,7 +54,7 @@ rdd_has_heading() {
 # Widening it instead would change review-test's and review-design's grading.
 rdd_section() {
   printf '%s\n' "$1" | awk -v p="$2" '
-    /^#+/ || /^[[:space:]]*\*\*[^*]+\*\*[[:space:]:：]*$/ {
+    /^#+/ || /^[[:space:]]*\*\*([^*]*[^A-Za-z0-9*])?P[123]([^0-9][^*]*)?\*\*[[:space:]:：]*$/ {
       sec = ($0 ~ ("(^|[^A-Za-z0-9])" p "([^0-9]|$)"))
       next
     }

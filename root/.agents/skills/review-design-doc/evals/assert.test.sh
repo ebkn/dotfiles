@@ -345,7 +345,8 @@ expect_fail "clean: a numbered P1 is caught" "raised no P1"
 # one, so each must be counted.
 for shape in '### 🔴 P1\n- 誤検知' '### 重大 (P1)\n- 誤検知' '### **P1**\n- 誤検知' \
   '**P1**\n- 誤検知' '**P1:**\n- 誤検知' '### P1\nロールバック手順が書かれていない。' \
-  '### P1\n- なし。ただし、ロールバック手順が無い' '### P1\n- None of the non-goals are real.'; do
+  '### P1\n- なし。ただし、ロールバック手順が無い' '### P1\n- None of the non-goals are real.' \
+  '### P1\n**ロールバック手段が無い**\n- 根拠: 全顧客へ一斉に適用する'; do
   new_run clean-doc-no-false-p1 "$lint"
   grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
   expect_fail "clean: a P1 shaped '${shape%%\\n*} / ${shape#*\\n}' is caught" "raised no P1"
