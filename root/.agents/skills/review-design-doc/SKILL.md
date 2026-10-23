@@ -82,7 +82,7 @@ Ask what a reader would need to agree, and check the doc gives it. Read these in
 
 ### Phase 3: Report
 
-Write the full report as your final message, in the doc's language, in this format. Translate the headings, but **lead each priority heading with its label as a Markdown `#` heading** — `### P1`, `### P1（重大）` — never a bold line like `**P1**`, a label at the end of the heading, or a priority written inline in a list item or a table cell: the caller decides whether to go on fixing by reading those headings. Outside those headings, write no priority in bold and start no line with one: "この文書に P1 に当たる問題はありません", not "P1 に当たる問題はありません".
+Write the full report as your final message, in the doc's language, in this format. Translate the headings, but **lead each priority heading with its label as a Markdown `#` heading** — `### P1`, `### P1（重大）` — never a bold line like `**P1**`, a label at the end of the heading, or a priority written inline in a list item or a table cell: the caller decides whether to go on fixing by reading those headings. Outside those headings, name no priority at all — not in a bracket, a bold label, a table, or prose such as "上の P2 で指摘した": refer to a finding by its title instead ("上の「再送間隔の数字が合わない」で指摘した"). A priority anywhere else reads as a finding ranked where the caller cannot see it.
 
 ```
 ## Design doc review: <path>
