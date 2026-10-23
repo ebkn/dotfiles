@@ -29,8 +29,9 @@ What `SKILL.md` must keep, because `grading.sh` reads it:
   which reads only label-first headings and takes a section opening with
   "なし" as closed. A `### 重大 (P1)` round would count as clean.
   **Ranking inline is a contract failure**: a list item that leads with its
-  priority (`- **P1**: …`, `- [P2] …`), a `| P1 |` table cell, or a bold line
-  leading with one that is not the bare label (`**P1: 重大**`, `**🔴 P1**`) fails
+  priority (`- **P1**: …`, `- [P2] …`), a `| P1 |` table cell, a line leading
+  with one (`P1: …`, `[P1] …`), or any bold span naming one but the bare
+  `**P1**` label (`**P1: 重大**`, `🔴 **P1**`) fails
   "ranks findings under priority headings", since the parser cannot see it.
 - **A requested review's report reaches the user**: it is graded on the run's
   final response, so a forked skill's report left in its tool result is not

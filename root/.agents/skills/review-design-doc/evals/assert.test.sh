@@ -363,7 +363,6 @@ for shape in '### 🔴 P1\n- 誤検知' '### 重大 (P1)\n- 誤検知' '### **P1
   '**P1**\n- 誤検知' '**P1:**\n- 誤検知' '### P1\nロールバック手順が書かれていない。' \
   '### P1\n- なし。ただし、ロールバック手順が無い' '### P1\n- None of the non-goals are real.' \
   '### P1\n**ロールバック手段が無い**\n- 根拠: 全顧客へ一斉に適用する' \
-  '**P1（重大）**\n- 誤検知' \
   '### P1\n- なし\n\n**著者への質問**\n- 基盤チームは合意していますか'; do
   new_run clean-doc-no-false-p1 "$req"
   grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
@@ -372,7 +371,7 @@ done
 
 # And shapes that are not a P1.
 for shape in '### P1\nなし' '### P1\n- None.' '### P12\n- 番号違い' '### P2\n- これは P1 ではない' \
-  '**P1 のつもりの太字** を含む文\n- 本文'; do
+  'P1 に当たる問題は無い\n- 本文' '**P12** は番号違い\n- 本文'; do
   new_run clean-doc-no-false-p1 "$req"
   grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
   expect_pass "clean: not a P1: '${shape%%\\n*} / ${shape#*\\n}'"
@@ -388,12 +387,16 @@ for shape in '### Findings\n- **P1**: ロールバックが無い' '### Findings
     "ranks findings under priority headings, not inline"
 done
 
-# Bold labels rdd_section does not read as headings. Their findings are unseen,
-# so the report fails the contract; a P1 under them would otherwise grade as
-# none. A bold finding title that leads with a priority fails it too -- a
-# spurious FAIL, accepted: SKILL.md puts titles in list items.
+# Priorities rdd_section does not read: any bold span naming one, and a line
+# leading with one and a colon or bracket. Their findings are unseen, so the
+# report fails the contract; a P1 under them would otherwise grade as none. A
+# bold finding title naming a priority fails it too -- a spurious FAIL,
+# accepted: SKILL.md writes no priority in bold.
 for shape in '**P1: 重大**\n- 誤検知' '**P1 — Critical**\n- 誤検知' '**🔴 P1**\n- 誤検知' \
-  '**P1**（重大）\n- 誤検知' '**P1** (Critical)\n- 誤検知'; do
+  '**P1**（重大）\n- 誤検知' '**P1** (Critical)\n- 誤検知' '**P1（重大）**\n- 誤検知' \
+  '🔴 **P1**\n- 誤検知' '> **P1**\n- 誤検知' '**重大度が高い指摘 (P1)**\n- 誤検知' \
+  'P1: ロールバックが無い' 'P1：ロールバックが無い' '[P1] ロールバックが無い' \
+  '**P1 のつもりの太字** を含む文\n- 本文'; do
   new_run clean-doc-no-false-p1 "$req"
   grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
   expect_fail "clean: a bold label not read as a heading is caught: '${shape%%\\n*}'" \
@@ -539,6 +542,32 @@ for fn in rdd_check_language rdd_check_lint; do
     ok "$fn: an unknown language fails"
   else
     bad "$fn: an unknown language fails"
+  fi
+done
+
+# The priority readers in the C locale as well as the inherited one: CI sets
+# none, and a container has lacked a UTF-8 locale before. Each P1 shape is
+# either counted or fails the contract; prose is neither.
+for loc in C ''; do
+  for shape in '**P1**\n- x' '**P1:**\n- x' '### 重大 (P1)\n- x' '### P1（重大）\n- x'; do
+    if (export LC_ALL="$loc" && . "$evals_dir/grading.sh" && [ "$(rdd_count "$(printf %b "$shape")" P1)" -gt 0 ]); then
+      ok "locale '${loc:-inherited}': '${shape%%\\n*}' is counted"
+    else
+      bad "locale '${loc:-inherited}': '${shape%%\\n*}' is counted"
+    fi
+  done
+  for shape in '**P1（重大）**\n- x' '**優先度 P1**\n- x' '**重大度が高い指摘 (P1)**\n- x' \
+    '🔴 **P1**\n- x' 'P1：x'; do
+    if (export LC_ALL="$loc" && . "$evals_dir/grading.sh" && ! rdd_ranks_under_headings "$(printf %b "$shape")"); then
+      ok "locale '${loc:-inherited}': '${shape%%\\n*}' fails the contract"
+    else
+      bad "locale '${loc:-inherited}': '${shape%%\\n*}' fails the contract"
+    fi
+  done
+  if (export LC_ALL="$loc" && . "$evals_dir/grading.sh" && rdd_ranks_under_headings 'P1 に当たる問題は無い'); then
+    ok "locale '${loc:-inherited}': prose naming P1 passes the contract"
+  else
+    bad "locale '${loc:-inherited}': prose naming P1 passes the contract"
   fi
 done
 

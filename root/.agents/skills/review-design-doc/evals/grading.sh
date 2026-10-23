@@ -35,15 +35,15 @@ rdd_has_heading() {
 # Read wide on purpose. The clean cases grade "no P1" on this, so a P1 the
 # parser misses is a false alarm graded clean: a heading is any `#` line, and
 # it is that priority's when the label appears in it as a word (`### 🔴 P1`,
-# `### 重大 (P1)`). A bold-only line is a heading only when it is the label
-# and nothing more than a colon or a gloss in brackets (`**P1**`, `**P1:**`,
-# `**P1（重大）**`). Any other bold line is a finding's title and stays in the
-# section: taking every bold line for a heading closed the P1 section at its
-# own finding on a real run, and a title that merely names a priority
-# (`**P2 との境界が曖昧**`) would move its P1 under P2. The cost, pinned in
-# assert.test.sh, is that a bold label such as `**著者への質問**` after P1 reads
-# as part of P1 -- a false alarm on a clean doc, not a missed P1. Every
-# non-blank line in a section is kept, bullet or paragraph.
+# `### 重大 (P1)`). A bold-only line is a heading only when it is the bare
+# label (`**P1**`, `**P1:**`, RDD_BOLD_HEADING). Any other bold line is a
+# finding's title and stays in the section: taking every bold line for a
+# heading closed the P1 section at its own finding on a real run. Every other
+# bold shape that names a priority fails rdd_ranks_under_headings instead, so
+# it is never a P1 read as none. The cost, pinned in assert.test.sh, is that a
+# bold label such as `**著者への質問**` after P1 reads as part of P1 -- a false
+# alarm on a clean doc, not a missed P1. Every non-blank line in a section is
+# kept, bullet or paragraph.
 #
 # The one line dropped is an item that says there is nothing and nothing more
 # ("なし", "- None."). "なし。ただし…" or "None of the goals …" is a finding
@@ -57,9 +57,12 @@ rdd_has_heading() {
 # grade; for the proactive pair it is what review_loop_checks grades the loop
 # on, which is why evals/README.md asks SKILL.md for label-first headings.
 # Widening it instead would change review-test's and review-design's grading.
-# A bold-only line rdd_section takes for a priority heading. Shared with
-# rdd_ranks_under_headings, which fails any other bold line leading with one.
-RDD_BOLD_HEADING='^[[:space:]]*\*\*[[:space:]]*P[123][[:space:]]*([(（][^)）*]*[)）])?[[:space:]:：]*\*\*[[:space:]:：]*$'
+
+# The bold-only line rdd_section takes for a priority heading. ASCII alone, so
+# what it matches does not change with the locale (a full-width bracket or
+# colon in a bracket expression does). Shared with rdd_ranks_under_headings,
+# which fails every other bold shape naming a priority.
+RDD_BOLD_HEADING='^[[:space:]]*\*\*P[123]:?\*\*:?[[:space:]]*$'
 
 rdd_section() {
   printf '%s\n' "$1" | bold="$RDD_BOLD_HEADING" awk -v p="$2" '
@@ -82,15 +85,28 @@ rdd_section() {
 # enforced. Prose that merely mentions a priority ("P1 はありません") is not a
 # ranking and passes.
 #
-# A bold line that leads with a priority but is not the bare label rdd_section
-# reads as a heading (`**P1: 重大**`, `**🔴 P1**`, `**P1** (Critical)`) fails
-# here too: rdd_section would not see the findings under it, and on a clean
-# doc an unseen P1 grades as none.
+# Outside `#` headings and the bare bold label rdd_section reads, two more
+# shapes fail, whatever surrounds them, rather than a list of shapes that each
+# round of review found one more of:
+# - a bold span naming a priority anywhere on the line (`**P1: 重大**`,
+#   `🔴 **P1**`, `> **P1**`, `**P1** (Critical)`, `**重大度 (P1)**`)
+# - a line that leads with a priority and a colon or bracket (`P1: …`,
+#   `[P1] …`)
+# rdd_section sees neither, so either would be a P1 graded as none on a clean
+# doc. The cost is a spurious fail for a finding title that names a priority
+# (`**P2 との境界が曖昧**`), accepted: SKILL.md writes no priority in bold.
+# The classes are ASCII ranges, which read a multibyte character the same way
+# in every locale.
+RDD_INLINE_RANK='^[[:space:]>]*([-*]|[0-9]+\.)[[:space:]]+(\*\*|\[|`)?P[123]([^0-9]|$)'
+RDD_INLINE_RANK+='|\|[[:space:]]*(\*\*)?P[123]([^0-9]|$)'
+RDD_INLINE_RANK+='|\*\*([^*]*[^A-Za-z0-9*])?P[123]([^0-9*][^*]*)?\*\*'
+RDD_INLINE_RANK+='|^[[:space:]>]*\[?P[123]([]:)]|：|[[:space:]]+(:|：))'
 rdd_ranks_under_headings() {
-  local text
-  text="$(printf '%s\n' "$1" | grep -vE "$RDD_BOLD_HEADING" || true)"
-  ! printf '%s\n' "$text" |
-    grep -qE '^[[:space:]]*([-*]|[0-9]+\.)[[:space:]]+(\*\*|\[|`)?P[123]([^0-9]|$)|\|[[:space:]]*(\*\*)?P[123]([^0-9]|$)|^[[:space:]]*\*\*[^*]{0,8}P[123]([^0-9*][^*]*)?\*\*[[:space:]:：]*$|^[[:space:]]*\*\*[^*]{0,8}P[123][[:space:]:：]*\*\*'
+  local body
+  # Filtered first, not piped into grep -q: its early exit can kill the
+  # writer, and under pipefail that would read as "nothing found".
+  body="$(printf '%s\n' "$1" | grep -vE "^[[:space:]]*#|$RDD_BOLD_HEADING" || true)"
+  ! grep -qE "$RDD_INLINE_RANK" <<<"$body"
 }
 
 # rdd_count <report> <P1|P2|P3>
