@@ -59,18 +59,29 @@ rdd_has_heading() {
 # on, which is why evals/README.md asks SKILL.md for label-first headings.
 # Widening it instead would change review-test's and review-design's grading.
 
+# rdd_digits <P1|P2|P3>
+# The spellings of that priority's digit, as alternatives. The one home of
+# the digits, as rdd_label is of the letters.
+rdd_digits() {
+  case "$1" in
+    P1) printf '1|１' ;;
+    P2) printf '2|２' ;;
+    P3) printf '3|３' ;;
+    *) return 1 ;;
+  esac
+}
+
 # rdd_label <digit alternatives>
 # The pattern of a priority label as a word: P, p, Ｐ or ｐ before one of the
-# digits given. Literal alternatives, never a class holding a multibyte
-# character, so the locale does not decide; the boundary class is ASCII for
-# the same reason. Every reader builds its label here, so a spelling added
-# reaches them all.
+# digits given (rdd_digits). Literal alternatives, never a class holding a
+# multibyte character, so the locale does not decide; the boundary class is
+# ASCII for the same reason.
 rdd_label() {
   printf '(^|[^A-Za-z0-9])(P|p|Ｐ|ｐ)(%s)([^0-9]|$)' "$1"
 }
 
-# Any priority, in either width.
-RDD_LABEL="$(rdd_label '1|2|3|１|２|３')"
+# Any priority, in any spelling.
+RDD_LABEL="$(rdd_label "$(rdd_digits P1)|$(rdd_digits P2)|$(rdd_digits P3)")"
 
 # Indentation before a heading: a space or a literal tab, never [[:space:]],
 # which takes in U+3000 under a UTF-8 locale -- and in macOS grep but not its
@@ -91,12 +102,7 @@ RDD_BOLD_HEADING="^$RDD_INDENT"'\*\*P[123]:?\*\*:?'"$RDD_INDENT"'$'
 # section and any other heading closes it.
 rdd_section() {
   local digits
-  case "$2" in
-    P1) digits='1|１' ;;
-    P2) digits='2|２' ;;
-    P3) digits='3|３' ;;
-    *) return 1 ;;
-  esac
+  digits="$(rdd_digits "$2")" || return 1
   printf '%s\n' "$1" | bold="$RDD_BOLD_HEADING" heading="^$RDD_INDENT#" any="$RDD_LABEL" \
     me="$(rdd_label "$digits")" awk '
     BEGIN { any = ENVIRON["any"]; me = ENVIRON["me"] }
