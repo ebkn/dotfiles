@@ -153,15 +153,29 @@ t("an opening filler after a period", ["重要なのは、"], aiTexts("手順は
 t("an opening filler mid-sentence is not one", [], aiTexts("最も重要なのは順番だと書いた。"));
 t("a closing formula before another sentence", ["いかがでしたか？"], aiTexts("いかがでしたか？次の節へ進みます。"));
 t("a closing formula mid-sentence is not one", [], aiTexts("いかがでしたかと聞かれた。"));
+// A wrapped paragraph puts a newline after the period; the sentence starts
+// after it, or ^ never holds and the filler is missed without a word.
+t("an opening filler after a line break", ["重要なのは、"], aiTexts("手順は三つある。\n重要なのは、順番だ。"));
+t("a sentence ends at a half-width ?", ["重要なのは、"], aiTexts("順番は守れていますか?重要なのは、順番だ。"));
+t("a sentence ends at !", ["重要なのは、"], aiTexts("できた！重要なのは、順番だ。"));
 
 // --- one report where patterns overlap ---
 // 「データが静かに壊れ」 is matched by two patterns; two reports of one phrase
 // would read as two problems.
 t("overlapping patterns are one report", ["データが静かに壊れ"], aiTexts("データが静かに壊れる。"));
+// ... and only overlapping ones: separate phrases in one paragraph are each
+// reported, in PATTERNS order.
+t("separate phrases in one node are each reported", ["時間を溶かさ", "重要なのは、", "いかがでしたか？"],
+  aiTexts("重要なのは、時間を溶かさないことです。いかがでしたか？"));
 
 // --- what it leaves alone ---
 t("the literal verb", [], aiTexts("時計が壊れた。ジャガイモを潰す。"));
-t("a quote is not the writer's text", 0, lint(ai, withLocator, str("いかがでしたか？", ["Paragraph", "BlockQuote"])).length);
+// The skip list is this module's own copy, so the redundant-phrase cases above
+// do not cover it.
+for (const ancestors of [["Paragraph", "BlockQuote"], ["Link", "Paragraph"], ["LinkReference", "Paragraph"], ["Image", "Paragraph"]]) {
+  t(`nothing inside ${ancestors[ancestors.length - 1] === "Paragraph" ? ancestors[0] : ancestors[1]}`, 0,
+    lint(ai, withLocator, str("いかがでしたか？", ancestors)).length);
+}
 t("reported inside a list item", 1, lint(ai, withLocator, str("いかがでしたか？", ["ListItem", "List"])).length);
 
 // --- no fixer: every rewrite needs the sentence's meaning ---
@@ -173,6 +187,7 @@ t("each node is matched from its start", ["時間を溶かし", "時間を溶か
 
 // --- older textlint, without locator ---
 t("without locator the index is passed", [6], lint(ai, null, str("手順は三つ。重要なのは、順番だ。")).map((r) => r.at));
+t("the index skips the line break", [7], lint(ai, null, str("手順は三つ。\n重要なのは、順番だ。")).map((r) => r.at));
 
 if (fails > 0) {
   console.log(`\n${fails} failure(s)`);
