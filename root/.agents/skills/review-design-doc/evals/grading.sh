@@ -45,9 +45,11 @@ rdd_has_heading() {
 # This differs on purpose from transcript_skill_rounds' open_findings, which
 # the runner prints as `round: open=N` for every skill: that reader takes only
 # label-first headings, treats a section opening with "なし…" as closed, and
-# reads the Skill's tool_result rather than the final response. Here its
-# number is informational; this reader decides the grade. Widening it instead
-# would change review-test's and review-design's grading.
+# reads the Skill's tool_result rather than the final response. For a
+# requested review its number is informational and this reader decides the
+# grade; for the proactive pair it is what review_loop_checks grades the loop
+# on, which is why evals/README.md asks SKILL.md for label-first headings.
+# Widening it instead would change review-test's and review-design's grading.
 rdd_section() {
   printf '%s\n' "$1" | awk -v p="$2" '
     /^#+/ || /^[[:space:]]*\*\*[^*]+\*\*[[:space:]:：]*$/ {
@@ -162,6 +164,9 @@ rdd_check_language() {
   case "$1" in
     ja) check "answered in Japanese, the doc's language" rdd_is_japanese "$2" ;;
     en) check "wrote no Japanese into an English review" rdd_has_no_kana "$2" ;;
+    # Fail closed: a typo or a call without the language would otherwise
+    # skip the check and pass.
+    *) check "language is ja or en, not '$1'" false ;;
   esac
 }
 
@@ -186,6 +191,7 @@ rdd_check_lint() {
   case "$1" in
     ja) check "handed Japanese readability to lint-docs, after the review" rdd_lint_after_review ;;
     en) check_eq "left lint-docs out of an English doc" "0" "$(transcript_skill_uses lint-docs)" ;;
+    *) check "language is ja or en, not '$1'" false ;;
   esac
 }
 
@@ -237,7 +243,9 @@ rdd_check_read_only() {
 # sees, naming the doc, in the doc's language, with the prose handed to
 # lint-docs when it is Japanese, from a run that changed nothing and was
 # refused nothing. lint-docs started this way only inspects: the doc is not
-# one the agent wrote.
+# one the agent wrote. Heading and language are read off the final response,
+# which with lint-docs after the review puts the report after lint-docs
+# (evals/README.md).
 rdd_check_requested() {
   check "reported under the review heading, naming the doc" rdd_has_heading "$(rdd_report)" "$2"
   check "ranks findings under priority headings, not inline" rdd_ranks_under_headings "$(rdd_report)"

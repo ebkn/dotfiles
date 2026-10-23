@@ -470,6 +470,23 @@ new_run answers-in-doc-language "rec_skill; $lint"
 grade "$(report "$doc" 'JUDGE_FAIL')"
 expect_fail "doc-language: the judge reads P1" "P1/P2: no staged rollout and no rollback"
 
+# An unknown language fails rather than skipping its check.
+for fn in rdd_check_language rdd_check_lint; do
+  if (
+    # shellcheck source=../../../../../bin/skill-eval-assert.sh
+    . "$repo_root/bin/skill-eval-assert.sh"
+    # shellcheck source=./grading.sh
+    . "$evals_dir/grading.sh"
+    SKILL_EVAL_FAILED=0
+    "$fn" jp 'テキスト' >/dev/null
+    [ "$SKILL_EVAL_FAILED" = 1 ]
+  ); then
+    ok "$fn: an unknown language fails"
+  else
+    bad "$fn: an unknown language fails"
+  fi
+done
+
 # The language rule itself, on the shapes a report takes. The backticks in
 # these are Markdown code, not commands.
 # shellcheck disable=SC2016
