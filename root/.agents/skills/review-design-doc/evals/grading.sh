@@ -11,7 +11,8 @@
 
 # The report's own heading line, not a mention of a review: "設計ドキュメントを
 # レビューします" has no colon after the title, and must not count as having
-# reported. `##` or bold, since the model varies how it sets the line.
+# reported. Any `#` level, bold, or neither, since the model varies how it sets
+# the line.
 #
 # Two engines read it: jq over the whole text (rdd_has_heading), which is what
 # `(^|\n)` is for, and awk a line at a time (rdd_review_part). Keep it to the
@@ -372,7 +373,7 @@ rdd_check_requested() {
 # of its own reads as lint-docs'. Colons as alternatives, not a class, so the
 # locale does not decide.
 #
-# A review heading (RDD_REPORT_HEADING: bold or any `#` level) ends it too,
+# A review heading (RDD_REPORT_HEADING) ends it too,
 # so a review placed after it is checked however its heading is set.
 rdd_review_part() {
   printf '%s\n' "$1" | review="$RDD_REPORT_HEADING" awk '
