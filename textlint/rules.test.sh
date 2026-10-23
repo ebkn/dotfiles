@@ -146,9 +146,9 @@ t("a closing formula", ["いかがでしたか？"], aiTexts("いかがでした
 t("a chat-reply remnant", ["ご質問ありがとうございます"], aiTexts("ご質問ありがとうございます。"));
 
 // --- sentence anchors ---
-// The filler patterns hold only at the start or end of a sentence, and a Str
-// node is a whole paragraph: anchoring to the node instead would miss every
-// sentence but the first, and nothing would say so.
+// The patterns with ^ or $ hold only at the start or end of a sentence, and a
+// Str node is a whole paragraph: matching the node instead would find only the
+// first sentence's opening and the last one's closing, and nothing would say so.
 t("an opening filler after a period", ["重要なのは、"], aiTexts("手順は三つある。重要なのは、順番を守ることだ。"));
 t("an opening filler mid-sentence is not one", [], aiTexts("最も重要なのは順番だと書いた。"));
 t("a closing formula before another sentence", ["いかがでしたか？"], aiTexts("いかがでしたか？次の節へ進みます。"));
