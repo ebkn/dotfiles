@@ -644,8 +644,21 @@ expect_fail "proactive: leaving lint-docs out is caught" \
 
 new_run proactive-after-writing-doc "rec_edit Write $doc; $lint; $pro_rounds" "$write_doc"
 grade "$pro_done"
+expect_fail "proactive: lint-docs before the review is caught" \
+  "handed Japanese readability to lint-docs, after the review"
+
+# Between rounds is too early: the fix and round 2 still change the text.
+# shellcheck disable=SC2016
+new_run proactive-after-writing-doc "rec_edit Write $doc; rec_round \"\$found\"; $lint; rec_edit Edit $doc; rec_round \"\$clean\"" "$write_doc"
+grade "$pro_done"
 expect_fail "proactive: lint-docs before the review's last round is caught" \
   "handed Japanese readability to lint-docs, after the review"
+
+# The caller's own summary may be English (proactive-with-claude-md's
+# CLAUDE.md asks for it); only the review's rounds decide the language.
+new_run proactive-after-writing-doc "$pro_good" "$write_doc"
+grade "Wrote the doc. The review's P2 (no release or rollback plan) is now an open question in it, and round 2 had no P1 or P2. How to release and roll back is still undecided: that is yours to decide."
+expect_pass "proactive: an English summary over Japanese rounds passes"
 
 # --- the request itself ---
 new_run proactive-after-writing-doc "$pro_good" \
