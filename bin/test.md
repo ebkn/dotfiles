@@ -183,8 +183,10 @@ by itself. Add a line when you add a suite.
   context under node. CI installs no textlint, so this is the only automated
   check of them: that `ja-no-redundant-phrase` matches inside one `Str` node
   (the upstream rule it replaces corrupts text by joining paragraphs), skips
-  quotes and links, and has no fixer. Skipped, its regressions show only as
-  fewer findings.
+  quotes and links, and has no fixer; and that `ja-no-ai-phrase` matches
+  every sentence of a paragraph, so an opening or closing formula is found
+  past the first, counts overlapping patterns once, and has the same skips and
+  no fixer. Skipped, its regressions show only as fewer findings.
 - **`read-doc.test.sh`** — read-doc renders untrusted documents: the page must
   load nothing, and an image may only come from the document's own tree.
 - **`tmux-test-guard.test.sh`** — every tmux suite must refuse a developer
