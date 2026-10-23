@@ -400,7 +400,9 @@ done
 # A priority anywhere outside a heading and the bare bold label is one
 # rdd_section cannot read, so the report fails the contract: a P1 there would
 # otherwise grade as none. Inline rankings, bold labels, brackets, emoji,
-# labels at the end of a line, full-width indents alike.
+# labels at the end of a line, full-width indents alike. The backticks are
+# Markdown code, not commands.
+# shellcheck disable=SC2016
 for shape in '### Findings\n- **P1**: ロールバックが無い' '### Findings\n- [P1] ロールバックが無い' \
   '### 指摘\n1. P1 ロールバックが無い' '| 優先度 | 指摘 |\n|---|---|\n| P1 | ロールバックが無い |' \
   '| 🔴 P1 | ロールバックが無い |' \
@@ -584,9 +586,12 @@ done
 # runner and the container set a UTF-8 locale today, but nothing requires it,
 # and a container has lacked one before. Each P1 shape is either counted or
 # fails the contract, and a number that only starts with P1 does neither.
+# in_grading runs one grading.sh function in a subshell; called with an
+# LC_ALL= prefix, the locale holds for that call alone.
+in_grading() { (. "$evals_dir/grading.sh" && "$@"); }
 for loc in C ''; do
   for shape in '**P1**\n- x' '**P1:**\n- x' '### 重大 (P1)\n- x' '### P1（重大）\n- x'; do
-    if (export LC_ALL="$loc" && . "$evals_dir/grading.sh" && [ "$(rdd_count "$(printf %b "$shape")" P1)" -gt 0 ]); then
+    if [ "$(LC_ALL="$loc" in_grading rdd_count "$(printf %b "$shape")" P1)" -gt 0 ]; then
       ok "locale '${loc:-inherited}': '${shape%%\\n*}' is counted"
     else
       bad "locale '${loc:-inherited}': '${shape%%\\n*}' is counted"
@@ -595,13 +600,13 @@ for loc in C ''; do
   for shape in '**P1（重大）**\n- x' '**優先度 P1**\n- x' '**重大度が高い指摘 (P1)**\n- x' \
     '🔴 **P1**\n- x' 'P1：x' '【P1】x' '- 【P1】x' '・P1 x' '指摘【P1】x' \
     '　P1 x' '　- **P1**: x' '「P1」x' '•P1 x' '（P1）x' '- x（P1）' 'この文書に P1 は無い'; do
-    if (export LC_ALL="$loc" && . "$evals_dir/grading.sh" && ! rdd_ranks_under_headings "$(printf %b "$shape")"); then
+    if ! LC_ALL="$loc" in_grading rdd_ranks_under_headings "$(printf %b "$shape")"; then
       ok "locale '${loc:-inherited}': '${shape%%\\n*}' fails the contract"
     else
       bad "locale '${loc:-inherited}': '${shape%%\\n*}' fails the contract"
     fi
   done
-  if (export LC_ALL="$loc" && . "$evals_dir/grading.sh" && rdd_ranks_under_headings '番号違いの P12 と　P13'); then
+  if LC_ALL="$loc" in_grading rdd_ranks_under_headings '番号違いの P12 と　P13'; then
     ok "locale '${loc:-inherited}': P12 passes the contract"
   else
     bad "locale '${loc:-inherited}': P12 passes the contract"
