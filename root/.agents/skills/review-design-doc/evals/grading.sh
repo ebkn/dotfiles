@@ -30,7 +30,8 @@ rdd_has_heading() {
 }
 
 # rdd_section <report> <P1|P2|P3>
-# The lines under that priority's heading, up to the next heading.
+# The lines under that priority's heading, up to the next heading at its
+# level or above, or one naming a priority.
 #
 # Read wide on purpose. The clean cases grade "no P1" on this, so a P1 the
 # parser misses is a false alarm graded clean: a heading is any `#` line, and
@@ -69,10 +70,24 @@ RDD_INDENT=$'[ \t]*'
 # which fails every other bold shape naming a priority.
 RDD_BOLD_HEADING="^$RDD_INDENT"'\*\*P[123]:?\*\*:?'"$RDD_INDENT"'$'
 
+# A heading ends a priority's section only at its own level or above, or by
+# naming a priority: a finding written as a sub-heading (`### P1` then
+# `#### タイトル`) stays in it. A bold label heading sits below every `#`
+# level. The label is matched in any case and in full width (`p1`, `Ｐ１`),
+# as literal alternatives so that the locale does not decide.
 rdd_section() {
   printf '%s\n' "$1" | bold="$RDD_BOLD_HEADING" heading="^$RDD_INDENT#" awk -v p="$2" '
+    BEGIN {
+      n = substr(p, 2)
+      me = "(^|[^A-Za-z0-9])[Pp]" n "([^0-9]|$)|Ｐ" (n == 1 ? "１" : n == 2 ? "２" : "３")
+      any = "(^|[^A-Za-z0-9])[Pp][123]([^0-9]|$)|Ｐ(１|２|３)"
+    }
     $0 ~ ENVIRON["heading"] || $0 ~ ENVIRON["bold"] {
-      sec = ($0 ~ ("(^|[^A-Za-z0-9])" p "([^0-9]|$)"))
+      if ($0 ~ ENVIRON["bold"]) lvl = 7
+      else { match($0, /#+/); lvl = RLENGTH }
+      if ($0 ~ me) { sec = 1; slvl = lvl; next }
+      if ($0 ~ any || !sec || lvl <= slvl) { sec = 0; next }
+      print
       next
     }
     /^[[:space:]]*$/ { next }
@@ -93,8 +108,9 @@ rdd_section() {
 # no shapes in it closes that. The cost, pinned in assert.test.sh, is that
 # prose cannot name a priority ("上の P2 で指摘した"): SKILL.md tells the
 # review to refer to a finding by its title. The class is ASCII, which reads
-# a multibyte character the same way in every locale.
-RDD_INLINE_RANK='(^|[^A-Za-z0-9])P[123]([^0-9]|$)'
+# a multibyte character the same way in every locale; `p1` and a full-width
+# `Ｐ１` (a literal, not a class) are labels too.
+RDD_INLINE_RANK='(^|[^A-Za-z0-9])[Pp][123]([^0-9]|$)|Ｐ(１|２|３)'
 rdd_ranks_under_headings() {
   local body
   # Filtered first, not piped into grep -q: its early exit can kill the

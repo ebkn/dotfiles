@@ -356,15 +356,19 @@ grade "$(printf '## 設計ドキュメントレビュー: %s\n\n### P1\n1. 誤�
 expect_fail "clean: a numbered P1 is caught" "raised no P1"
 
 # Shapes a real P1 can take. "raised no P1" fails open if the parser misses
-# one, so each must be counted. The last is not a P1 but is read as one, on
-# purpose: a bold label after the P1 section stays in it (rdd_section), a false
-# alarm accepted so that a bold finding title never ends its section.
+# one, so each must be counted. Two are not a P1 but are read as one, on
+# purpose: a bold label after the P1 section, and a sub-heading under it, stay
+# in it (rdd_section) -- false alarms accepted so that a finding written as a
+# bold title or a sub-heading never ends its own section.
 for shape in '### 🔴 P1\n- 誤検知' '### 重大 (P1)\n- 誤検知' '### **P1**\n- 誤検知' \
   '**P1**\n- 誤検知' '**P1:**\n- 誤検知' '### P1\nロールバック手順が書かれていない。' \
   '### P1\n- なし。ただし、ロールバック手順が無い' '### P1\n- None of the non-goals are real.' \
   '### P1\n**ロールバック手段が無い**\n- 根拠: 全顧客へ一斉に適用する' \
   '### P1\n- なし\n\n**著者への質問**\n- 基盤チームは合意していますか' \
-  '   ### P1\n- 誤検知' '\t### P1\n- 誤検知' '**P1**:\n- 誤検知'; do
+  '   ### P1\n- 誤検知' '\t### P1\n- 誤検知' '**P1**:\n- 誤検知' \
+  '### P1\n#### ロールバックが無い\n- 根拠' '## P1\n### タイトル\n本文' \
+  '### P1\n#### 1. ロールバックが無い' '### p1\n- 誤検知' '### Ｐ１\n- 誤検知' \
+  '### P1\nなし\n#### 補足\n### P2\n- 指摘'; do
   new_run clean-doc-no-false-p1 "$req"
   grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
   expect_fail "clean: a P1 shaped '${shape%%\\n*} / ${shape#*\\n}' is caught" "raised no P1"
@@ -372,7 +376,9 @@ done
 
 # And shapes that are not a P1 at all: nothing names P1, P2 or P3 as a word.
 for shape in '### P1\nなし' '### P1\n- None.' '### P12\n- 番号違い' \
-  '**P12** は番号違い\n- 本文' 'P12 番号違い' '| P12 | 番号違い |'; do
+  '**P12** は番号違い\n- 本文' 'P12 番号違い' '| P12 | 番号違い |' \
+  '### P1\nなし\n### 著者への質問\n- 合意は?' '### P1\nなし\n### P2\n- 指摘' \
+  '## P1\nなし\n## 確認したこと\n### 節ごと\n- 読んだ'; do
   new_run clean-doc-no-false-p1 "$req"
   grade "$(printf "## 設計ドキュメントレビュー: %s\n\n$shape\n" "$doc")"
   expect_pass "clean: not a P1: '${shape%%\\n*} / ${shape#*\\n}'"
@@ -395,6 +401,7 @@ for shape in '### Findings\n- **P1**: ロールバックが無い' '### Findings
   '「P1」ロールバックが無い' '•P1 ロールバックが無い' '(P1) ロールバックが無い' \
   '（P1）ロールバックが無い' '🔴 P1 ロールバックが無い' '■ P1 ロールバックが無い' \
   'a) P1 ロールバックが無い' '①P1 ロールバックが無い' '　P1 ロールバックが無い' \
+  '- p1: ロールバックが無い' '- Ｐ１ ロールバックが無い' \
   '- ロールバックが無い（P1）' '- ロールバックが無い [P1]' \
   '__P1__\n- 誤検知' '*P1*\n- 誤検知' 'P1\n---\n- 誤検知' '　### P1\n- 誤検知'; do
   new_run clean-doc-no-false-p1 "$req"
