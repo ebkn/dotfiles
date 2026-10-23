@@ -15,6 +15,12 @@
 # conjugation. What it cannot pin is how textlint's Markdown parser cuts nodes;
 # the repro in textlintrc.yml was checked against the real toolchain.
 #
+# Of ja-no-ai-phrase it pins the sentence anchoring -- an opening or closing
+# formula is found in any sentence of a paragraph, not only the first, and not
+# mid-sentence -- one report where two patterns overlap, and no fixer. Which
+# patterns are worth carrying is a measurement on real text, not a test: see
+# bin/textlint-docs.md.
+#
 # The test lives outside textlint/rules/ on purpose: --rulesdir loads every .js
 # file there as a rule.
 set -uo pipefail
@@ -126,7 +132,47 @@ const twice = lint(redundant, withLocator, str("読むことができる。"), s
 t("each node is matched from its start", ["ことができ", "ことができ"], texts(twice));
 
 // --- older textlint, without locator ---
-t("without locator the index is passed", [2], lint(redundant, null,str("読むことができる。")).map((r) => r.at));
+t("without locator the index is passed", [2], lint(redundant, null, str("読むことができる。")).map((r) => r.at));
+
+// ===== ja-no-ai-phrase =====
+const ai = load("ja-no-ai-phrase");
+const aiTexts = (...values) => texts(lint(ai, withLocator, ...values.map((v) => str(v))));
+
+// --- what it reports: one of each kind ---
+t("a figurative verb", ["時間を溶かし"], aiTexts("調査で時間を溶かした。"));
+t("a translated idiom", ["黙って無視"], aiTexts("設定は黙って無視される。"));
+t("an opening filler", ["重要なのは、"], aiTexts("重要なのは、順番を守ることです。"));
+t("a closing formula", ["いかがでしたか？"], aiTexts("いかがでしたか？"));
+t("a chat-reply remnant", ["ご質問ありがとうございます"], aiTexts("ご質問ありがとうございます。"));
+
+// --- sentence anchors ---
+// The filler patterns hold only at the start or end of a sentence, and a Str
+// node is a whole paragraph: anchoring to the node instead would miss every
+// sentence but the first, and nothing would say so.
+t("an opening filler after a period", ["重要なのは、"], aiTexts("手順は三つある。重要なのは、順番を守ることだ。"));
+t("an opening filler mid-sentence is not one", [], aiTexts("最も重要なのは順番だと書いた。"));
+t("a closing formula before another sentence", ["いかがでしたか？"], aiTexts("いかがでしたか？次の節へ進みます。"));
+t("a closing formula mid-sentence is not one", [], aiTexts("いかがでしたかと聞かれた。"));
+
+// --- one report where patterns overlap ---
+// 「データが静かに壊れ」 is matched by two patterns; two reports of one phrase
+// would read as two problems.
+t("overlapping patterns are one report", ["データが静かに壊れ"], aiTexts("データが静かに壊れる。"));
+
+// --- what it leaves alone ---
+t("the literal verb", [], aiTexts("時計が壊れた。ジャガイモを潰す。"));
+t("a quote is not the writer's text", 0, lint(ai, withLocator, str("いかがでしたか？", ["Paragraph", "BlockQuote"])).length);
+t("reported inside a list item", 1, lint(ai, withLocator, str("いかがでしたか？", ["ListItem", "List"])).length);
+
+// --- no fixer: every rewrite needs the sentence's meaning ---
+t("no report carries a fix", 0,
+  lint(ai, withLocator, str("重要なのは、時間を溶かさないことです。いかがでしたか？")).filter((r) => "fix" in r.error).length);
+
+// --- state between nodes ---
+t("each node is matched from its start", ["時間を溶かし", "時間を溶かし"], aiTexts("時間を溶かした。", "時間を溶かした。"));
+
+// --- older textlint, without locator ---
+t("without locator the index is passed", [6], lint(ai, null, str("手順は三つ。重要なのは、順番だ。")).map((r) => r.at));
 
 if (fails > 0) {
   console.log(`\n${fails} failure(s)`);

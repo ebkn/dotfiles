@@ -48,6 +48,21 @@ contain and its `--fix` corrupts words. The local rule matches inside one
 `Str` node and has no fixer, since "読み込むことができる → 読み込める"
 depends on conjugation, which string replacement cannot produce.
 
+`ja-no-ai-phrase` (stock openings and closings, figurative verbs, report
+only) fills a gap in `@textlint-ja/preset-ai-writing`: that preset's hype list
+is translated English marketing copy and matches none of 時間を溶かす, 側に倒す,
+重要なのは、 or いかがでしたか. Its patterns are ported from
+[yomiyasu](https://github.com/nanaism/yomiyasu)'s lint (MIT, notice in the
+rule file). Only the patterns whose shape alone decides them came over. yomiyasu
+judges 効く and its bare word lists (解像度, 土台, 実測) by context, and as lint
+errors they would flag legitimate prose. This repo's own documents use 実測 in
+its literal sense throughout. Measured 2026-10-23: 6 findings in yomiyasu's
+26 raw AI documents, 1 in its 16 human ones (an essay's 結論から言うと), 0 in
+this repo's 117 Markdown files. The opening and closing patterns are anchored
+to a sentence, and a `Str` node holds a whole paragraph, so the rule splits on
+。！？ first. Anchoring to the node would silently drop every sentence but the
+first.
+
 ## The dictionary is split for portability
 
 `prh.yml` has a universal section and a project-dependent one (katakana
