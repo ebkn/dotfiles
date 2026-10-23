@@ -59,6 +59,11 @@ rdd_has_heading() {
 # on, which is why evals/README.md asks SKILL.md for label-first headings.
 # Widening it instead would change review-test's and review-design's grading.
 
+# A priority label as a word: P, p, Ｐ or ｐ before 1-3 in either width.
+# Literal alternatives, never a class holding a multibyte character, so the
+# locale does not decide; the boundary class is ASCII for the same reason.
+RDD_LABEL='(^|[^A-Za-z0-9])(P|p|Ｐ|ｐ)(1|2|3|１|２|３)([^0-9]|$)'
+
 # Indentation before a heading: a space or a literal tab, never [[:space:]],
 # which takes in U+3000 under a UTF-8 locale -- and in macOS grep but not its
 # awk, so the two readers below would disagree about the same line.
@@ -70,24 +75,26 @@ RDD_INDENT=$'[ \t]*'
 # which fails every other bold shape naming a priority.
 RDD_BOLD_HEADING="^$RDD_INDENT"'\*\*P[123]:?\*\*:?'"$RDD_INDENT"'$'
 
-# A heading ends a priority's section only at its own level or above, or by
-# naming a priority: a finding written as a sub-heading (`### P1` then
-# `#### タイトル`) stays in it. A bold label heading sits below every `#`
-# level. The label is matched in any case and in full width (`p1`, `Ｐ１`),
-# as literal alternatives so that the locale does not decide.
+# Inside an open section, a heading deeper than the one that opened it is
+# its content, whatever it names: a finding written as a sub-heading
+# (`### P1` then `#### タイトル`, or `#### P2 との境界`) stays in it. Under a
+# bold label, which has no level, a `#` heading stays in it unless it names a
+# priority. Otherwise a heading naming this priority opens the section and
+# any other heading closes it. The label is any of P, p, Ｐ, ｐ before a digit
+# of either width, as literal alternatives so that the locale does not decide.
 rdd_section() {
-  printf '%s\n' "$1" | bold="$RDD_BOLD_HEADING" heading="^$RDD_INDENT#" awk -v p="$2" '
+  printf '%s\n' "$1" | bold="$RDD_BOLD_HEADING" heading="^$RDD_INDENT#" label="$RDD_LABEL" awk -v p="$2" '
     BEGIN {
       n = substr(p, 2)
-      me = "(^|[^A-Za-z0-9])[Pp]" n "([^0-9]|$)|Ｐ" (n == 1 ? "１" : n == 2 ? "２" : "３")
-      any = "(^|[^A-Za-z0-9])[Pp][123]([^0-9]|$)|Ｐ(１|２|３)"
+      me = "(^|[^A-Za-z0-9])(P|p|Ｐ|ｐ)(" n "|" (n == 1 ? "１" : n == 2 ? "２" : "３") ")([^0-9]|$)"
+      any = ENVIRON["label"]
     }
     $0 ~ ENVIRON["heading"] || $0 ~ ENVIRON["bold"] {
-      if ($0 ~ ENVIRON["bold"]) lvl = 7
-      else { match($0, /#+/); lvl = RLENGTH }
-      if ($0 ~ me) { sec = 1; slvl = lvl; next }
-      if ($0 ~ any || !sec || lvl <= slvl) { sec = 0; next }
-      print
+      isbold = ($0 ~ ENVIRON["bold"])
+      if (!isbold) { match($0, /#+/); lvl = RLENGTH }
+      if (sec && !isbold && (sbold ? $0 !~ any : lvl > slvl)) { print; next }
+      sec = ($0 ~ me)
+      if (sec) { sbold = isbold; slvl = lvl }
       next
     }
     /^[[:space:]]*$/ { next }
@@ -107,10 +114,9 @@ rdd_section() {
 # missed (`🔴 P1`, `（P1）`, `- … [P1]`, a full-width indent); only a rule with
 # no shapes in it closes that. The cost, pinned in assert.test.sh, is that
 # prose cannot name a priority ("上の P2 で指摘した"): SKILL.md tells the
-# review to refer to a finding by its title. The class is ASCII, which reads
-# a multibyte character the same way in every locale; `p1` and a full-width
-# `Ｐ１` (a literal, not a class) are labels too.
-RDD_INLINE_RANK='(^|[^A-Za-z0-9])[Pp][123]([^0-9]|$)|Ｐ(１|２|３)'
+# review to refer to a finding by its title. The label is RDD_LABEL, in any
+# case and width.
+RDD_INLINE_RANK="$RDD_LABEL"
 rdd_ranks_under_headings() {
   local body
   # Filtered first, not piped into grep -q: its early exit can kill the
