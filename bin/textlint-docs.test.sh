@@ -7,7 +7,7 @@
 # finished one, which ignore list it hands textlint, and that textlint's exit
 # status is the script's. The ignore choice is the one that fails silently --
 # a wrong list skips files with no message at all -- so it gets a case per
-# branch.
+# branch. One dictionary invariant lint-docs depends on is pinned at the end.
 #
 # npm is a stub that "installs" a textlint which prints the arguments it got,
 # so nothing is downloaded and no rule runs. Whether the RULES say the right
@@ -157,6 +157,19 @@ t "flags reach textlint as given" "--fix" "$(td --fix doc.md | grep -x -- '--fix
 td >/dev/null
 t "no target is a usage error, exit 2" "2" "$?"
 t "with the usage on stderr" "1" "$(grep -c '^usage: textlint-docs' "$TMP/err")"
+
+# --- the dictionary -------------------------------------------------------------
+# lint-docs tells a section B rule from a section A one by the `prh:` note textlint
+# prints with the finding, never by opening prh.yml (outside the target repo, a
+# read nobody can approve in a headless run). A section B rule without the note
+# reads as section A, and its direction is applied unmeasured.
+dict="$(dirname "$TD")/../textlint/prh.yml"
+section_b=$(awk '/# セクション B:/ { b = 1 } b' "$dict")
+t "every section B rule carries its prh note" \
+  "$(grep -c '^  - expected:' <<<"$section_b")" \
+  "$(grep -c '^    prh: セクション B' <<<"$section_b")"
+t "and no section A rule does" "0" \
+  "$(awk '/# セクション B:/ { exit } /^    prh: セクション B/' "$dict" | grep -c .)"
 
 if [ "$fails" -eq 0 ]; then
   echo "PASS"
