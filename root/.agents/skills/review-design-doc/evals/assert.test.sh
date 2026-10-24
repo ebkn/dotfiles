@@ -499,6 +499,12 @@ for loc in '' C; do
   done
 done
 
+# What the caller writes above the review heading is not the review: lint-docs'
+# findings without their heading, or a line of its own, may name a priority.
+new_run clean-doc-no-false-p1 "$req"
+grade "$(printf 'lint-docs の検査結果です。\n\n- 9 行目: レビューの P2 と同じ問題\n\n## 設計ドキュメントレビュー: %s\n\n### P2\n- x\n' "$doc")"
+expect_pass "clean: a priority above the review heading passes the contract"
+
 # lint-docs' report first: only it is dropped, not the review after it.
 new_run clean-doc-no-false-p1 "$req"
 grade "$(printf '## ドキュメント検査: %s\n\n- 9 行目: 冗長\n\n## 設計ドキュメントレビュー: %s\n\n- 【P1】ロールバックが無い\n' "$doc" "$doc")"

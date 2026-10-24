@@ -373,10 +373,17 @@ rdd_check_requested() {
 # of its own reads as lint-docs'. Colons as alternatives, not a class, so the
 # locale does not decide.
 #
-# A review heading (RDD_REPORT_HEADING) ends it too,
-# so a review placed after it is checked however its heading is set.
+# A review heading (RDD_REPORT_HEADING) ends it too, so a review placed after
+# it is checked however its heading is set.
+#
+# Nothing above the first review heading is the review either: the caller's
+# message carries lint-docs' findings there, with or without lint-docs'
+# heading. A report with no review heading at all leaves nothing here, and
+# fails "reported under the review heading" instead.
 rdd_review_part() {
   printf '%s\n' "$1" | review="$RDD_REPORT_HEADING" awk '
+    !seen && $0 !~ ENVIRON["review"] { next }
+    { seen = 1 }
     /^#+[ \t]*ドキュメント検査[ \t]*(:|：)/ { match($0, /#+/); llvl = RLENGTH; lint = 1; next }
     lint && $0 ~ ENVIRON["review"] { lint = 0 }
     lint && /^[ \t]*#/ { match($0, /#+/); if (RLENGTH <= llvl) lint = 0 }
