@@ -213,8 +213,8 @@ transcript_skill_uses() {
 #                null means "not recorded", never zero
 #
 # `open` counts list items under a heading naming P1 or P2 ("### P1 (Critical)",
-# "### P2"), skipping an item that says there is nothing ("なし", "None"). Both
-# skills drop an empty priority section, so a clean round has no such heading
+# "### P2"), skipping an item that says there is nothing ("なし", "None"). The
+# review skills drop an empty priority section, so a clean round has no such heading
 # at all; the skip is for a run that kept the heading anyway. Only an item that
 # is nothing else is skipped: "テストなし" ("no test for ...") is how a P1 gap
 # is naturally written, and skipping it would grade an open P1 as clean.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Design Doc"
+  short_description: "Review a design doc for weak or missing points, in its own language (read-only)"
+  default_prompt: "Use $review-design-doc to review the design doc at docs/design/."

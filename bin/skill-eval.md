@@ -78,9 +78,9 @@ Functions available to `assert.sh`: `check`, `check_eq`, `check_match`,
 `review_loop_rerun_checks <skill>`, `review_loop_checks <skill>`,
 `check_llm <label> <rubric> [<text>]`.
 
-**The review loop is graded per round, not by a count.** `review-test` and
-`review-design` both fix their P1 and P2 findings and review again until a
-round reports none. Two Skill calls are the same number whether the second
+**The review loop is graded per round, not by a count.** `review-test`,
+`review-design` and `review-design-doc` (on a doc the agent wrote) all fix
+their P1 and P2 findings and review again until a round reports none. Two Skill calls are the same number whether the second
 followed a fix or was the same review started twice, so
 `transcript_skill_rounds` takes each call apart: its brief, the report it handed
 back (the forked `tool_result`, which the caller may never have written out),
@@ -350,8 +350,14 @@ that one), `review-design/evals/assert.test.sh` for all eight of its, and
 `create-pr/evals/assert.test.sh` for `create-pr`'s and `update-pr`'s, which
 share their graders, and `lint-docs/evals/assert.test.sh` for all nine of
 `lint-docs`'s — which cannot pin that each planted finding is one textlint
-reports, since CI has no textlint (see that skill's `evals/README.md`). A case there is graded on the transcript as much as on the tree, so it
-writes synthetic transcripts, and two things about them are worth copying:
+reports, since CI has no textlint (see that skill's `evals/README.md`) — and
+`review-design-doc/evals/assert.test.sh` for all seventeen of
+`review-design-doc`'s, written before the skill itself, so the cases are its
+specification; it reads the report from the final response, not from the
+Skill's `tool_result`. Each of these suites is graded on the transcript as much
+as on the tree, so it writes synthetic transcripts, and two things about them
+are worth copying — the first is the forked shape review-test's and
+review-design's cases model:
 
 - **A synthetic transcript carries the loaded SKILL.md.** The Skill tool puts
   the skill's body into the conversation, report template included, so a check
