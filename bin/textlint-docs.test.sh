@@ -166,7 +166,7 @@ t "with the usage on stderr" "1" "$(grep -c '^usage: textlint-docs' "$TMP/err")"
 dict="$(dirname "$TD")/../textlint/prh.yml"
 section_b=$(awk '/# セクション B:/ { b = 1 } b' "$dict")
 t "every section B rule carries its prh note" \
-  "$(grep -c '^  - expected:' <<<"$section_b")" \
+  "$(grep -c '^  - ' <<<"$section_b")" \
   "$(grep -c '^    prh: セクション B' <<<"$section_b")"
 t "and no section A rule does" "0" \
   "$(awk '/# セクション B:/ { exit } /^    prh: セクション B/' "$dict" | grep -c .)"
