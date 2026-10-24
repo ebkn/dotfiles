@@ -70,10 +70,11 @@ What `SKILL.md` must keep, because `grading.sh` reads it:
   message after lint-docs returns**: only the final response is graded, so a
   report written out before lint-docs -- the "report first" habit of
   review-test and review-design -- is an intermediate message and fails the
-  heading check in every Japanese requested case. SKILL.md asks for the
-  report alone in that message, with lint-docs' findings in one before it:
-  on the 3-run pass, callers that wrote their own summary or lint notes beside
-  the report put priorities and bold labels where the contract reads.
+  heading check in every Japanese requested case. SKILL.md asks for one final
+  message: lint-docs' findings, then the report copied exactly, nothing else.
+  A message of its own for lint-docs ends the turn before the report (seen on
+  real runs). The contract reads from the review heading on, without
+  lint-docs' section (`rdd_review_part`).
 
 ## Where the cases come from
 
