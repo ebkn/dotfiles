@@ -363,23 +363,21 @@ rdd_check_requested() {
 }
 
 # rdd_review_part <report>
-# The final response without lint-docs' own report: from the heading
-# lint-docs fixes (`## ドキュメント検査: …`, its SKILL.md) up to the next
-# heading at its level or above, whatever that heading says. That part is
-# lint-docs', not the review's: on real runs the caller wrote "レビューの
-# P2「…」と同じ問題" there however SKILL.md asked, and a cross-reference is not
-# a ranking. A review or a closing section after it stays checked. The limit,
-# pinned in assert.test.sh: prose after lint-docs' findings with no heading
-# of its own reads as lint-docs'. Colons as alternatives, not a class, so the
+# The review's part of the final response: from the first review heading on,
+# without lint-docs' own section. The caller's message carries lint-docs'
+# findings too, and they cite the review's priorities ("レビューの P2「…」と
+# 同じ問題" on real runs; SKILL.md lets them), which is not a ranking.
+#
+# Above the first review heading is the caller's, with or without lint-docs'
+# heading. A report with no review heading leaves nothing here and fails
+# "reported under the review heading" instead.
+#
+# Below it, lint-docs' section runs from the heading lint-docs fixes
+# (`## ドキュメント検査: …`, its SKILL.md) to the next heading at its level or
+# above, or a review heading (RDD_REPORT_HEADING), however set. The limit,
+# pinned in assert.test.sh: prose after lint-docs' findings with no heading of
+# its own reads as lint-docs'. Colons as alternatives, not a class, so the
 # locale does not decide.
-#
-# A review heading (RDD_REPORT_HEADING) ends it too, so a review placed after
-# it is checked however its heading is set.
-#
-# Nothing above the first review heading is the review either: the caller's
-# message carries lint-docs' findings there, with or without lint-docs'
-# heading. A report with no review heading at all leaves nothing here, and
-# fails "reported under the review heading" instead.
 rdd_review_part() {
   printf '%s\n' "$1" | review="$RDD_REPORT_HEADING" awk '
     !seen && $0 !~ ENVIRON["review"] { next }

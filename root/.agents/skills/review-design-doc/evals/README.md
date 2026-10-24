@@ -11,7 +11,8 @@ real model (sonnet, one run per case) failed every Japanese requested case
 on lint-docs -- the slash-command start, below -- and a correct P1 written
 under a bold title; the second, after those fixes, passed 16 of 17. The
 grader's section readers were tightened over the rounds of review that
-followed, so earlier runs are not comparable with later ones.
+followed, and c01753f loosened one (text above the review heading is no longer
+read), so runs from before and after a grader change are not comparable.
 
 ## The contract the cases read
 
@@ -35,8 +36,8 @@ What `SKILL.md` must keep, because `grading.sh` reads it:
   **A priority named anywhere else is a contract failure**: outside `#`
   headings and the bare `**P1**` label, any whole-word `P1`/`P2`/`P3` -- a
   list item (`- **P1**: …`), a `| P1 |` cell, `【P1】`, `🔴 P1`, `… (P1)`, even
-  prose ("上の P2 で指摘した") -- outside lint-docs' own section
-  (`rdd_review_part` says where it ends) fails
+  prose ("上の P2 で指摘した") -- in the review part, from the first review
+  heading on without lint-docs' section (`rdd_review_part`), fails
   "ranks findings under priority headings", since the parser cannot see it.
 - **A requested review's report reaches the user**: it is graded on the run's
   final response, so a forked skill's report left in its tool result is not
@@ -145,3 +146,6 @@ Whether each rubric is right only real runs can tell.
 - Whether a fix the loop made is right, beyond the one gap the notes leave:
   the judge reads the doc for an invented release plan and nothing else.
 - A design doc in a format other than Markdown in the repository.
+- Whether the caller adds words of its own above the report. SKILL.md forbids
+  it, but `rdd_review_part` starts at the review heading, so a summary above it
+  ("P1 はなく、P2 が 4 件です") passes every check unless it hides the heading.
