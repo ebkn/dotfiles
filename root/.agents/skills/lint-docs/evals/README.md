@@ -78,8 +78,8 @@ written-a-document trigger in the description and "## いつ起動するか":
 | `no-fire-small-ja-edit` | 3/3 | |
 
 The description alone carries the written-a-document trigger: `root/CLAUDE.md`
-was not needed, unlike `review-test`'s auto-start. Section A against B is still
-open, as below.
+was not needed, unlike `review-test`'s auto-start. Section A against B was
+still open then, as below.
 
 **Before them, 2026-10-20, sonnet, four runs per case** (one, then three):
 
@@ -106,8 +106,11 @@ What the numbers say about the skill, not the harness:
   `fires-*` runs read in full flagged `ことができる` by eye; the four
   `/lint-docs` runs relayed textlint and nothing else. SKILL.md asks for no
   reading beyond the tool, so the description's 冗長表現 rests on chance.
-- **Section A and B cannot be told apart.** Step 4 adopts section A as-is,
-  but neither textlint's output nor SKILL.md says which section a rule is in.
+- **Section A and B could not be told apart.** Step 4 adopts section A as-is,
+  but neither textlint's output nor SKILL.md said which section a rule is in.
+  Since 1f0890d every section B rule carries a `prh:` note textlint prints with
+  the finding, and step 4 reads it and never opens `prh.yml`; not re-measured
+  here since.
   `再試行` (section A) was counted and then held back as if it were B in
   three of five runs whose report was read; one run tried to read `prh.yml`
   to find out, through a guessed `~/.local/bin/../../dotfiles/textlint/prh.yml`,
