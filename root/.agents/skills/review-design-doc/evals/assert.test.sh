@@ -488,12 +488,12 @@ for loc in '' C; do
   expect_pass "clean: lint-docs' heading with a full-width colon is dropped (locale '${loc:-inherited}')"
 done
 
-# A review heading after lint-docs' report ends it whatever its level or
-# bold form, in both locales.
+# Inside the review, a review heading after lint-docs' section ends it
+# whatever its level or bold form, in both locales.
 for loc in '' C; do
   for heading in '**設計ドキュメントレビュー:**' '### 設計ドキュメントレビュー：'; do
     new_run clean-doc-no-false-p1 "$req"
-    LC_ALL="$loc" grade "$(printf '## ドキュメント検査: %s\n\n- 冗長\n\n%s %s\n\n- 【P1】ロールバックが無い\n' "$doc" "$heading" "$doc")"
+    LC_ALL="$loc" grade "$(printf '## 設計ドキュメントレビュー: %s\n\n### P2\n- x\n\n## ドキュメント検査: %s\n\n- 冗長\n\n%s %s\n\n- 【P1】ロールバックが無い\n' "$doc" "$doc" "$heading" "$doc")"
     expect_fail "clean: a priority under '$heading' after lint-docs' report fails the contract (locale '${loc:-inherited}')" \
       "ranks findings under priority headings, not inline"
   done
@@ -505,7 +505,8 @@ new_run clean-doc-no-false-p1 "$req"
 grade "$(printf 'lint-docs の検査結果です。\n\n- 9 行目: レビューの P2 と同じ問題\n\n## 設計ドキュメントレビュー: %s\n\n### P2\n- x\n' "$doc")"
 expect_pass "clean: a priority above the review heading passes the contract"
 
-# lint-docs' report first: only it is dropped, not the review after it.
+# lint-docs' report first, as SKILL.md asks: it sits above the review heading
+# and is dropped with everything there, while the review after it is read.
 new_run clean-doc-no-false-p1 "$req"
 grade "$(printf '## ドキュメント検査: %s\n\n- 9 行目: 冗長\n\n## 設計ドキュメントレビュー: %s\n\n- 【P1】ロールバックが無い\n' "$doc" "$doc")"
 expect_fail "clean: a priority in a review after lint-docs' report fails the contract" \
