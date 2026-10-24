@@ -54,7 +54,7 @@
 - It runs in a forked, fresh context: pass the doc's path, that you wrote it, the sources you wrote it from, and on a later round what the last one fixed.
 - Fix the P1 and P2 findings without asking, from the sources only. A gap they cannot fill is a decision nobody made: name it in the doc's open questions and tell the user, never invent the answer. Re-run until a round reports no P1 and no P2, with no round cap; P3 is reported, never auto-fixed.
 - For a Japanese doc, start `lint-docs` once the loop ends, not between rounds. Open the closing message with the review's conclusion and every decision left open for the user.
-- A design doc the user asks to have reviewed is only reported on: change nothing; for a Japanese doc start `lint-docs` first, then write the report out as the final message.
+- A design doc the user asks to have reviewed is only reported on: change nothing; for a Japanese doc start `lint-docs` first and write its findings in a message of their own; then the final message is the report, copied exactly, and nothing else.
 
 # Commits
 

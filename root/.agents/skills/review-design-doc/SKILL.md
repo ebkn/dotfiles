@@ -48,7 +48,8 @@ This skill changes no files while it runs. When it ran forked, its report arrive
 
 1. Change nothing: no Edit, no Write, no commit. Questions the review raises are the user's to answer.
 2. If the doc is in Japanese, start `lint-docs` on it, which only inspects a doc the caller did not write. An English doc is not handed over: lint-docs' rules turn to noise on English.
-3. Then write the review's report out to the user in full, in the doc's language, **as the final message** — after lint-docs, never before it. Pass it on as it stands, from its `## ` heading line to its last section, without the `Caller:` line that is addressed to you. Copy it exactly: no translation — it is already in the doc's language, whatever language you are working in — no new title, no preamble above the heading, no rewording or reshaping of its findings. A summary does not count. Add lint-docs' findings below the report if it had any, and name no priority in them either: refer to a finding by its title.
+3. Write lint-docs' findings out in a message of their own, before the report, naming no priority in them: refer to a review finding by its title.
+4. Then make **your final message the review's report and nothing else** — after lint-docs, never before it. Copy it exactly, from its `## ` heading line to its last section, without the `Caller:` line that is addressed to you: no translation — it is already in the doc's language, whatever language you are working in — no title, preamble or summary of your own above it, nothing after it, no rewording or reshaping of its findings. Your own words go in the message before it. On real runs a caller that wrote a line of its own beside the report ("P1 はなく、P2 が 4 件です") or retitled it handed the user something that was no longer the review.
 
 **A doc the caller wrote** — review-test's loop:
 
@@ -107,10 +108,12 @@ Write the full report as your final message, in the doc's language, in this form
 ### Decisions the doc leaves open
 - <each open question the doc names, and what hinges on it>
 
-Caller: the user may not see this result. If the user asked for this review, change nothing; for a Japanese doc start lint-docs first, then write this report out to the user in full, in the doc's language, as your final message: copied exactly from its heading line, untranslated and unreworded, leaving this Caller line out, with lint-docs' findings below it — which name no P-label. If you wrote the doc, fix every P1 and P2 from your sources — a gap they cannot fill goes into the doc's open questions, never an invented answer — and run this skill again with what you fixed, until a round reports no P1 and no P2; then lint-docs for a Japanese doc, and open your closing message with this review's conclusion and every decision left open for the user. Details: "After the review" in ${CLAUDE_SKILL_DIR}/SKILL.md.
+Caller: the user may not see this result. If the user asked for this review, change nothing; for a Japanese doc start lint-docs first and write its findings in a message of their own, naming no P-label; then your final message is this report and nothing else: copied exactly from its heading line, untranslated and unreworded, leaving this Caller line out, with no words of yours above or below it. If you wrote the doc, fix every P1 and P2 from your sources — a gap they cannot fill goes into the doc's open questions, never an invented answer — and run this skill again with what you fixed, until a round reports no P1 and no P2; then lint-docs for a Japanese doc, and open your closing message with this review's conclusion and every decision left open for the user. Details: "After the review" in ${CLAUDE_SKILL_DIR}/SKILL.md.
 ```
 
 Drop any section with nothing in it, the priority sections included. If there is nothing to fix before the doc goes round, say so in one line under the decision, without naming a priority ("合意を妨げる問題は見当たりません" / "Nothing stands in the way of agreeing."), and list under `### Checked` what you looked at — "no findings" alone cannot tell a sound doc from an unread one. Keep the `Caller:` line last and untranslated: a forked caller never read this file, and that line is how it learns its part.
+
+Before you finish, read your report once for `P1`, `P2` or `P3` outside the priority headings — in the decision, the questions, the open decisions, a closing remark — and replace each with the finding's title. On real runs that is where they crept in ("the schedule mismatch described in the first P2 finding").
 
 ## How to assign priority
 
