@@ -505,6 +505,21 @@ new_run clean-doc-no-false-p1 "$req"
 grade "$(printf 'lint-docs の検査結果です。\n\n- 9 行目: レビューの P2 と同じ問題\n\n## 設計ドキュメントレビュー: %s\n\n### P2\n- x\n' "$doc")"
 expect_pass "clean: a priority above the review heading passes the contract"
 
+# The head-skip sees every heading spelling the heading check accepts: a review
+# under any of them is read, so an inline priority in it fails. Missed, the
+# whole report would be skipped and graded clean.
+# shellcheck disable=SC2016
+for loc in '' C; do
+  for heading in '**Design doc review:** docs/design/webhook-retry.md' \
+    '# 設計書レビュー：docs/design/webhook-retry.md' \
+    '## Design Document Review: `docs/design/webhook-retry.md`'; do
+    new_run clean-doc-no-false-p1 "$req"
+    LC_ALL="$loc" grade "$(printf '%s\n\n- 【P1】ロールバックが無い\n' "$heading")"
+    expect_fail "clean: a priority under '$heading' is read (locale '${loc:-inherited}')" \
+      "ranks findings under priority headings, not inline"
+  done
+done
+
 # lint-docs' report first, as SKILL.md asks: it sits above the review heading
 # and is dropped with everything there, while the review after it is read.
 new_run clean-doc-no-false-p1 "$req"
