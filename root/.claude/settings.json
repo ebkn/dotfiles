@@ -1,5 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
+  },
   "attribution": {
     "commit": "",
     "pr": ""
@@ -410,6 +413,7 @@
     ],
     "defaultMode": "auto"
   },
+  "model": "opus",
   "hooks": {
     "PreToolUse": [
       {
@@ -592,9 +596,6 @@
       }
     ]
   },
-  "env": {
-    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
-  },
   "worktree": {
     "baseRef": "fresh"
   },
@@ -606,17 +607,20 @@
     "playwright@claude-plugins-official": false,
     "typescript-lsp@claude-plugins-official": false,
     "figma@claude-plugins-official": false,
-    "slack@claude-plugins-official": true,
+    "slack@claude-plugins-official": false,
+    "slack@ebkn-pinned": true,
+    "sentry@ebkn-pinned": true,
+    "frontend-design@ebkn-pinned": true,
     "vercel@claude-plugins-official": false,
     "gopls-lsp@claude-plugins-official": false,
-    "sentry@claude-plugins-official": true,
+    "sentry@claude-plugins-official": false,
     "rust-analyzer-lsp@claude-plugins-official": false,
     "coderabbit@claude-plugins-official": false,
     "swift-lsp@claude-plugins-official": false,
     "semgrep@claude-plugins-official": false,
     "chrome-devtools-mcp@claude-plugins-official": false,
     "skill-creator@claude-plugins-official": false,
-    "frontend-design@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": false,
     "legal@synced": false,
     "design@synced": false,
     "engineering@synced": false,
@@ -634,12 +638,48 @@
         "source": "git",
         "url": "https://github.com/anthropics/claude-plugins-official.git"
       }
+    },
+    "ebkn-pinned": {
+      "source": {
+        "source": "settings",
+        "name": "ebkn-pinned",
+        "plugins": [
+          {
+            "name": "slack",
+            "source": {
+              "source": "url",
+              "url": "https://github.com/slackapi/slack-mcp-plugin.git",
+              "sha": "b073ebc2fc500b52e781f5fd17ebb9ad462363dc"
+            }
+          },
+          {
+            "name": "sentry",
+            "source": {
+              "source": "url",
+              "url": "https://github.com/getsentry/plugin-claude.git",
+              "sha": "73e53541d7af21672e27428c7067f4264b8a3d65"
+            }
+          },
+          {
+            "name": "frontend-design",
+            "source": {
+              "source": "git-subdir",
+              "url": "https://github.com/anthropics/claude-plugins-official.git",
+              "path": "plugins/frontend-design",
+              "sha": "44490cccaf6d9f82fdeec9416fbf7c9bd72575dc"
+            }
+          }
+        ],
+        "owner": {
+          "name": "ebkn"
+        }
+      }
     }
   },
   "effortLevel": "medium",
   "fastMode": true,
   "askUserQuestionTimeout": "never",
-  "autoUpdatesChannel": "latest",
+  "autoUpdatesChannel": "stable",
   "tui": "fullscreen",
   "voice": {
     "enabled": true,
@@ -666,6 +706,5 @@
   "voiceEnabled": true,
   "feedbackSurveyState": {
     "lastShownTime": 1754086109501
-  },
-  "model": "opus"
+  }
 }

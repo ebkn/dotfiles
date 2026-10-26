@@ -313,6 +313,49 @@ the same way.
 
 Run `root/.claude/hooks/agent-model-guard.test.sh` after touching it.
 
+## Claude Code and its plugins update on a delay
+
+Everything else this repo installs waits 7 days before taking a release
+([bin/init/pins.md](../bin/init/pins.md)). Claude Code and its plugins would
+otherwise be the exception, and they are the most privileged code on the
+machine: a plugin's hooks and MCP servers run with the session's rights.
+
+- **`autoUpdatesChannel` is `"stable"`**, which follows a build [typically
+  about a week old that skips releases with major
+  regressions](https://code.claude.com/docs/en/settings-reference#autoupdateschannel).
+  The hooks here depend on Claude Code internals read out of specific builds
+  (`agent-state.md`, `git-guard.sh`'s `onFailure` needs ≥ 2.1.295). A feature
+  that lands on `latest` reaches this machine about a week later.
+- **Enabled plugins come from `ebkn-pinned`**, an inline (`"source":
+  "settings"`) marketplace in `extraKnownMarketplaces`. Each one names a
+  commit `sha`. They are not enabled from `claude-plugins-official`
+  because that marketplace is a git clone of its default branch: it
+  auto-updates, and every installed plugin moves with it. A relative-path
+  plugin such as `frontend-design` moves with every commit to that branch.
+  A marketplace source cannot be pinned instead: its `ref` takes a branch or
+  tag, [not a
+  commit](https://code.claude.com/docs/en/plugins/marketplace-reference.md#fields-by-type).
+  The official marketplace stays registered for browsing, with its plugins
+  set to `false`.
+
+**To add or bump a plugin**, copy its entry's `source` from the official
+`marketplace.json`, read the diff, and pin a commit at least 7 days old. A
+relative path there becomes a `git-subdir` source pinned to the last commit
+that touched the plugin's directory:
+
+```sh
+gh api repos/anthropics/claude-plugins-official/contents/.claude-plugin/marketplace.json \
+  -H 'Accept: application/vnd.github.raw' --jq '.plugins[] | select(.name=="<name>") | .source'
+gh api "repos/anthropics/claude-plugins-official/commits?path=plugins/<name>&until=<7 days ago>&per_page=1" \
+  --jq '.[0].sha'
+```
+
+Then enable `<name>@ebkn-pinned` and run `claude plugin install
+<name>@ebkn-pinned`. On a new machine the first session registers the
+marketplace, but in a headless session (2.1.310) it installed nothing from
+it, so run the install there too. Check the result in
+`~/.claude/plugins/installed_plugins.json`: `gitCommitSha` must equal the pin.
+
 ## Codex prefix rules
 
 `root/.codex/rules/default.rules` is linked to `~/.codex/rules` and is the Codex

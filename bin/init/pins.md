@@ -25,7 +25,7 @@ whether a pin exists checks for an empty result, not the status.
 | `VOLTA_*` | the release tarball | — |
 | `NODE_VERSION` | the default node | Volta does not check node against a checksum; HTTPS from nodejs.org only |
 | `GCLOUD_*` | the SDK tarball; `update-all` updates components to the same version | components' own downloads (checked by gcloud against its manifest) |
-| `CLAUDE_*` | the first install | Claude Code updates itself afterwards. `claude install <version>` may fetch that version again from Anthropic's server, checked against its manifest, not against `pins.sh` |
+| `CLAUDE_*` | the first install | Claude Code updates itself afterwards, on the `stable` channel (about a week behind; `autoUpdatesChannel` in `root/.claude/settings.json`). `claude install <version>` may fetch that version again from Anthropic's server, checked against its manifest, not against `pins.sh` |
 | `DOCKER_APT_KEY_SHA256` | the apt signing key | — apt checks every Docker package against the key |
 
 ## Bumping
