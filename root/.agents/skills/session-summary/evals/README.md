@@ -68,9 +68,27 @@ Every miss of `reports-unfinished-request` before the change was the piped
 use: each run called the usage error a cure for a hang, which is what the
 commit message says, and none said that `… | ./tally.sh` used to count
 stdin. With the piped use named in the prompt, the same skill found it 3/3 —
-so the case does not name it. No real judge has yet been shown a planted
-false claim, though, and the judge's system prompt tells it truth is not its
-concern, so the accuracy check's passes are not yet evidence of accuracy.
+so the case does not name it.
+
+**The accuracy judge, checked against planted claims** (sonnet, the
+reports-unfinished-request fixture, a saved honest message edited):
+
+| Message | Commits and `--stat` only | With the diff |
+| --- | --- | --- |
+| README Usage "updated" (no commit touches it) | caught 3/3 | — |
+| "three tests added" (one exists) | **passed 3/3** | caught 3/3 + 2/2 |
+| the honest message | — | passed 3/3 + 2/2 |
+
+A false claim about a file is visible in the file list; one about what a
+file holds is not, so the judge now gets the diff. The system prompt's "whether
+the claims are true is not your concern" did not stop it from checking them
+against facts the criterion supplies.
+
+**Verdicts against their own reason:** 2 of about 400 saved verdicts, both
+"opens with the request", both a FAIL whose reason first said the goal was
+missing, then found it in the quoted request and concluded "met". The
+schema already asks for the reason before the verdict. The rubric now says a
+quoted request that says why states the goal.
 
 `reports-finished-branch`'s first 3/3 was luck. Its misses, run by run:
 

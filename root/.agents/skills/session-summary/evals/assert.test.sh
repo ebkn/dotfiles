@@ -245,6 +245,8 @@ expect_fail "reports-finished-branch: the accuracy judge reads the files changed
 report_run "$reports_records" ":" "$summary_msg"
 assert_contains "reports-finished-branch: the accuracy judge gets the branch's commits" \
   "$(cat "$root_dir/judge-input")" "fix(tally): exit with usage when no file is given"
+assert_contains "reports-finished-branch: and the diff itself, not only the file names" \
+  "$(cat "$root_dir/judge-input")" "+++ b/run-tests.sh"
 assert_not_contains "reports-finished-branch: and nothing from a main that moved on" \
   "$(cat "$root_dir/judge-input")" "CHANGELOG"
 # An assignment before a function call is exported for that call only.

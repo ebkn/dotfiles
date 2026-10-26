@@ -27,6 +27,9 @@ summary_eval_check_read_only() {
 # of agent-written PR descriptions is a change described but never made
 # (Gong et al., arXiv 2601.04886), and only a judge given the commits can see
 # one: a rubric written in advance knows only the fixture's intended state.
+# The diff itself, not only the file names: given messages and --stat alone,
+# the judge passed "three tests added" where one was, 3 runs of 3. Plain
+# unified diff, since a user's diff.external would otherwise reformat it.
 summary_eval_check_accurate() {
   local SKILL_EVAL_JUDGE_MODEL="${SKILL_EVAL_JUDGE_MODEL:-sonnet}"
   check_llm "reports nothing the commits do not hold" \
@@ -36,7 +39,10 @@ Commits:
 $(git log --format='- %s%n%b' main..HEAD)
 
 Files changed:
-$(git diff --stat main...HEAD)" \
+$(git diff --stat main...HEAD)
+
+The changes themselves:
+$(git diff --no-ext-diff --no-color main...HEAD)" \
     "$(transcript_result_text)"
 }
 

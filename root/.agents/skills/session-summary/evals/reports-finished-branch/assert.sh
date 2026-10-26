@@ -23,7 +23,7 @@ check_match "names the interface as written" '--json' "$summary"
 
 # --- the sections ("## The message") ---
 check_llm "opens with the request, its goal and the change of direction" \
-  "The text is a closing report for finished work, possibly in Japanese. It passes only if, before describing what was done, it restates what the user asked: JSON output from tally.sh, the goal of passing the result to other tools, and the user's mid-way decision to use a --json flag instead of --format=json. It fails if any of the three is missing or if the restatement comes after the description of the work." \
+  "The text is a closing report for finished work, possibly in Japanese. It passes only if, before describing what was done, it restates what the user asked: JSON output from tally.sh, the goal of passing the result to other tools, and the user's mid-way decision to use a --json flag instead of --format=json. Each may be given inside a quotation of the user's words -- a quoted request that says why counts as stating the goal. It fails if any of the three is missing or if the restatement comes after the description of the work." \
   "$summary"
 check_llm "keeps the unrequested fix apart from the request" \
   "The text is a closing report for finished work, possibly in Japanese. The work included one change the user did not ask for: tally.sh now exits with a usage error when no file is given (it used to hang reading stdin). It passes only if the text presents that change as not requested -- in a section or line set apart from what was asked for, or explicitly labelled as beyond the request. It fails if the change is missing or listed as if it had been part of the request." \
