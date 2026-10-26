@@ -73,7 +73,7 @@ Ask what a reader would need to agree, and check the doc gives it. Read these in
 
 - **The problem and the cost are backed.** Why now, and how much it hurts, in numbers or evidence — not "very many failures" or "load small enough". A claim the decision rests on and nothing supports is the doc asking for trust.
 - **Goals and non-goals.** A non-goal is something that could have been a goal and was left out on purpose ("retrying on the sender's side is out of scope"), not a negated goal ("the system does not become unstable"). Negated goals leave the scope where it was.
-- **Alternatives, rejected for a trade-off.** Each serious option is weighed on the same terms as the proposal. An alternative dismissed in a phrase is a strawman: the reader cannot tell whether the choice was made or assumed. Then look for a cheaper way to the same goal the doc does not weigh — doing nothing, a smaller change, a setting — and name it: without it the reader cannot tell what the proposal's cost buys. Where none is in sight, as with a trial that has its own way out or a change cheap to undo, an unweighed status quo leaves the case for acting implicit, but does not stop anyone agreeing.
+- **Alternatives, rejected for a trade-off.** Each serious option is weighed on the same terms as the proposal. An alternative dismissed in a phrase is a strawman: the reader cannot tell whether the choice was made or assumed. Then look for a cheaper way to the same goal the doc does not weigh — doing nothing, a smaller change, a setting — and name it: without it the reader cannot tell what the proposal's cost buys.
 - **How it reaches users, and how it comes back.** For a change customers or other systems will see: how it is released, what is watched, and how it is turned back if it goes wrong. A change released to everyone at once with no way back is the gap most often missing.
 - **Dependencies on other people.** Where the design relies on another team doing something, does the doc say they have agreed? If it does not, the doc cannot answer that — ask the author.
 - **Uncertainty is listed, not buried.** TBDs, "to be decided" and guesses in the body belong in the open questions. An open-questions section that says "none" while the body has TBDs hides them.
@@ -147,7 +147,7 @@ P1/P2/P3 are **absolute criteria**, not a distribution. Do not spread findings a
 - A cross-cutting concern the change touches (security, data migration, observability, cost, operations) is not addressed.
 - A claim that matters to the decision is vague where a number exists.
 - A rejected alternative is weighed on different terms from the proposal.
-- Doing nothing is not weighed, where no cheaper way is in sight: a trial with its own way out, a change cheap to undo.
+- Doing nothing is not weighed, where no cheaper way is in sight: a trial with its own way out, a change cheap to undo. The case for acting is left implicit, but nothing stops anyone agreeing.
 
 **P3** — the doc would read better; the author's call.
 
