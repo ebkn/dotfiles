@@ -33,7 +33,7 @@ summary_eval_check_read_only() {
 summary_eval_check_accurate() {
   local SKILL_EVAL_JUDGE_MODEL="${SKILL_EVAL_JUDGE_MODEL:-sonnet}"
   check_llm "reports nothing the commits do not hold" \
-    "The text is the closing report of a coding session, possibly in Japanese. Below are the commits the work made, with their messages, and the files they changed. It fails if the text reports as done a change, file, test or behaviour these commits do not contain -- a document updated that no commit touched, a test added that is not there -- or if it says something was left undone that the commits show was done. Restating what the user asked for, and items reported as not done or left open, are not claims of work done. Otherwise it passes.
+    "The text is the closing report of a coding session, possibly in Japanese. Below are the commits the work made, with their messages, the files they changed, and the diff itself. It fails if the text reports as done a change, file, test or behaviour these commits do not contain -- a document updated that no commit touched, a test added that is not there -- or if it says something was left undone that the commits show was done. Restating what the user asked for, and items reported as not done or left open, are not claims of work done. Otherwise it passes.
 
 Commits:
 $(git log --format='- %s%n%b' main..HEAD)
