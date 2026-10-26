@@ -742,14 +742,27 @@ done
 # ones a drifting model might, against what is not a label. Each passing case
 # is named for what it shows; "name::text".
 ja_full='## 設計ドキュメントレビュー: docs/a.md\n\n### 判断の対象\nx\n\n### P1（重大）\n- **x** — 「y」（z）\n  - なぜ問題か: z\n  - 提案: w\n\n### 作者への質問\n- x\n\n### ドキュメントが未決としている事項\n- x\n\n### 確認した観点\n- x\n\nCaller: the user may not see this result. If you wrote the doc, fix every P1 and P2.'
+# The backticks are Markdown code, not commands.
+# shellcheck disable=SC2016
 for entry in "a full report in SKILL.md's Japanese format, Caller line included::$ja_full" \
   'a label word mid-line is not a label::指摘への提案。 Suggestion: none.' \
   'a label quoted in 「」 is not a label::- 「Why it matters」に当たる節が無い' \
+  'a label in inline code is not a label::- `Why it matters:` が英語のまま' \
+  'a label on a > quote line is not a label::> - Why it matters: x' \
+  'a label in a fenced block is not a label::引用:\n```\n## Design doc review: docs/a.md\n- Why it matters: x\n```\n以上' \
   'a bare line saying Checked is prose::Checked\n- x'; do
   if in_grading rdd_labels_translated "$(printf %b "${entry#*::}")"; then
     ok "labels: ${entry%%::*} passes"
   else
     bad "labels: ${entry%%::*} passes"
+  fi
+done
+# The case folding holds in the C locale too (the comment's claim).
+for text in '### QUESTIONS FOR THE AUTHOR\n- x' '- **why it matters:** x'; do
+  if LC_ALL=C in_grading rdd_labels_translated "$(printf %b "$text")"; then
+    bad "labels: '${text%%\\n*}' is caught in the C locale"
+  else
+    ok "labels: '${text%%\\n*}' is caught in the C locale"
   fi
 done
 for text in '## Design doc review: docs/a.md' '**Design Document Review:** docs/a.md' \

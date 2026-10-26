@@ -267,11 +267,12 @@ rdd_is_japanese() {
 # shape too: with or without a list marker (numbered included) or bold, a
 # trailing colon or words after a section name. A section name needs a `#` or
 # bold in front, so a bare line that happens to say "Checked" is prose. A
-# label quoted inside a sentence, or the Caller line (English on purpose), is
-# not one. jq, not grep, so the case folding holds in any locale.
+# label quoted -- inside a sentence, in code, a `>` line or a fenced block --
+# or the Caller line (English on purpose), is not one. jq, not grep, so the
+# case folding holds in any locale.
 rdd_labels_translated() {
   jq -nre --arg t "$1" '
-    $t | split("\n")
+    $t | gsub("```[^`]*```"; "") | split("\n")
     | any(.[];
         test("^[ \t]*(#+[ \t]*)?(\\*\\*)?design doc(ument)? review[ \t]*(\\*\\*)?[ \t]*[:：]"; "i")
         or test("^[ \t]*(#+[ \t]*(\\*\\*)?|\\*\\*)(the decision|questions for the author|decisions the doc leaves open|checked)\\b"; "i")
