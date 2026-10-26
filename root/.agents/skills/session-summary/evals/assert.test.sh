@@ -111,6 +111,11 @@ assert_contains "finished branch: a two-dot diff would show it, which is the tra
   "$(git -C "$work" diff --name-only main..feat/json-output)" "CHANGELOG.md"
 assert_eq "finished branch: the --json test passes" "ok" "$(cd "$work" && ./run-tests.sh 2>&1)"
 assert_status "finished branch: no file is a usage error" 2 bash -c "cd '$work' && ./tally.sh"
+# Faults a careful summary would report as open, so they must not be there.
+assert_status "finished branch: --json with no file is a usage error too" 2 bash -c "cd '$work' && ./tally.sh --json"
+printf 'x\n' >"$root_dir/a\"b"
+assert_eq "finished branch: a quote in a path still makes valid JSON" "a\"b" \
+  "$(cd "$root_dir" && "$work/tally.sh" --json 'a"b' | jq -r '.files[0].path')"
 
 # ============================================================
 # reports-finished-branch

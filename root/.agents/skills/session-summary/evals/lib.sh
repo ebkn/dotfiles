@@ -81,7 +81,8 @@ if [ "$json" = true ]; then
   for f in "$@"; do
     n=$(wc -l <"$f" | tr -d ' ')
     total=$((total + n))
-    printf '%s{"path":"%s","lines":%s}' "$sep" "$f" "$n"
+    p=$(printf '%s' "$f" | sed 's/[\\"]/\\&/g')
+    printf '%s{"path":"%s","lines":%s}' "$sep" "$p" "$n"
     sep=","
   done
   printf '],"total":%s}\n' "$total"
@@ -90,7 +91,7 @@ else
 fi
 EOF
   git commit -qam "feat(tally): add --json output for other tools to read" \
-    -m "The flag is --json, not --format=json: only one other format is planned."
+    -m "The flag is --json, not --format=json: no other format is planned."
 
   cat >run-tests.sh <<'EOF'
 #!/bin/bash
@@ -108,8 +109,10 @@ EOF
   git add run-tests.sh
   git commit -qm "test(tally): pin the --json output"
 
-  # A line inserted in place: BSD sed takes no \n in a replacement.
-  awk '/^json=false$/ { print "[ $# -gt 0 ] || { echo \"usage: tally.sh [--json] FILE...\" >&2; exit 2; }" } { print }' \
+  # Inserted after the flag is consumed, so `--json` alone is a usage error
+  # too: a fixture a careful reader can fault puts that fault in the report.
+  # awk, because BSD sed takes no \n in a replacement.
+  awk '{ print } /^fi$/ && !done { print "[ $# -gt 0 ] || { echo \"usage: tally.sh [--json] FILE...\" >&2; exit 2; }"; done = 1 }' \
     tally.sh >tally.tmp
   mv tally.tmp tally.sh
   chmod +x tally.sh

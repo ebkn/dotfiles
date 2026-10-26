@@ -32,10 +32,10 @@ check_llm "shows the interface a reviewer needs" \
   "The text is a closing report for finished work, possibly in Japanese. It passes only if it shows how to call the new --json flag of tally.sh or what its output looks like (the JSON shape with files, path, lines and total), so that a reviewer can check the interface without opening the code. It fails if it only says that a --json flag was added." \
   "$summary"
 check_llm "says what is left and that there is no PR" \
-  "The text is a closing report for finished work, possibly in Japanese. It passes only if it ends with what is left for the user -- at least that the commits are local or that there is no pull request -- in a few lines. It fails if nothing tells the user what state the work was left in." \
+  "The text is a closing report for finished work, possibly in Japanese. It passes only if it ends with a section on what is left for the user that says at least that the commits are local or that there is no pull request. It fails if nothing tells the user what state the work was left in." \
   "$summary"
 check_llm "keeps to what a reviewer needs" \
-  "The text is a closing report for finished work, possibly in Japanese. It passes only if it is concise: no preamble or closing pleasantries, no step-by-step narration of the commands that were run, no section that only says there is nothing to report, and no point repeated across sections. Roughly 40 lines or fewer, code blocks included. It fails on any of these." \
+  "The text is a closing report for finished work, possibly in Japanese. Its format is fixed: it must first restate what the user asked (that section is required, not a recap to cut), then what was done, what went beyond the request, how it is built (the interface, which may repeat a flag named earlier), and what is left. Judge only whether it is concise within that format: no preamble or closing pleasantries, no step-by-step narration of the commands that were run, no section that only says there is nothing to report, and no explanation written out twice in full (naming the same flag, file or usage line in several sections, or adding a detail in a later section, is not repetition). Roughly 40 lines or fewer, code blocks included. It fails on any of these." \
   "$summary"
 
 skill_eval_finish
