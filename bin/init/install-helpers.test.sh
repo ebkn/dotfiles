@@ -292,7 +292,14 @@ VOLTA_SHA=$(shasum -a 256 "$FIX/volta.tar.gz" | cut -d' ' -f1)
 GCLOUD_SHA=$(shasum -a 256 "$FIX/gcloud.tar.gz" | cut -d' ' -f1)
 export MARK="$TEST_TMPDIR/mark" HOMEBREW_INSTALL_COMMIT=c0ffee \
   CLAUDE_VERSION=1.0.0 VOLTA_VERSION=2.2.2 GCLOUD_VERSION=9.9.9
-INSTALLER_PATH="$CURL:$UNAME:/usr/bin:/bin"
+# Only the tools the installers use, not all of /usr/bin: a runner that ships
+# gcloud (GitHub's Ubuntu image does) would make its installer return early.
+TOOLS="$TEST_TMPDIR/tools"
+mkdir -p "$TOOLS"
+for t in sh cat cp cut chmod dirname gzip ls mkdir mktemp mv rm tar sha256sum shasum; do
+  if p=$(command -v "$t"); then ln -s "$p" "$TOOLS/$t"; fi
+done
+INSTALLER_PATH="$CURL:$UNAME:$TOOLS"
 
 # installer <served file> <function> -- run one installer on a fresh fixture
 # home as Linux x86_64; prints its status. Pins go in the environment.
