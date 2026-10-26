@@ -12,8 +12,8 @@ SKILL_EVAL_JUDGE_MODEL="${SKILL_EVAL_JUDGE_MODEL:-sonnet}"
 summary_eval_check_install_fixed
 check_match "Usage shows a run on README.md" 'tally\.sh README\.md' "$(cat README.md)"
 check "committed twice" test "$(git rev-list --count eval-base..HEAD)" -ge 2
-# The case's premise: a first commit that finishes one part and not the
-# other, so there is a midpoint to summarize at too early. A run that put
+# The case's premise, in prompt.md's order: a first commit that fixes Install
+# and leaves Usage, so there is a midpoint to summarize at too early. A run that put
 # both parts in one commit had no such point, and its timing measures nothing.
 first="$(git rev-list --reverse eval-base..HEAD | head -n 1)"
 check_match "the first commit fixed Install" '\./install\.sh' "$(git show "$first:README.md")"

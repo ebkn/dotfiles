@@ -448,6 +448,9 @@ both_then_empty='sed "s#make install#./install.sh#" README.md >R.tmp; mv R.tmp R
 multi_run "$two_commits; rec_skill session-summary" "$both_then_empty" "$proactive_msg"
 expect_fail "proactive-multi-step: both parts in the first commit" "and left Usage to a later one"
 assert_eq "proactive-multi-step: and nothing else failed" "1" "$(grep -c '^FAIL' <<<"$out")"
+multi_run "$two_commits; rec_skill session-summary" "git commit -q --allow-empty -m x; $fix_readme; $add_usage" "$proactive_msg"
+expect_fail "proactive-multi-step: a first commit that does not fix Install" "the first commit fixed Install"
+assert_eq "proactive-multi-step: and nothing else failed (Install first)" "1" "$(grep -c '^FAIL' <<<"$out")"
 multi_run "$two_commits; rec_skill session-summary" "$fix_readme; $add_usage" "$proactive_msg JUDGE_FAIL"
 expect_fail "proactive-multi-step: the judge reads the closing message" "reports nothing the commits do not hold"
 assert_eq "proactive-multi-step: every judged check asks sonnet by default" "sonnet" \
