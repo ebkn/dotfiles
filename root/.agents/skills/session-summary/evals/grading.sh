@@ -12,6 +12,8 @@
 summary_eval_check_proactive() {
   local summary last_commit skill_index
   summary="$(transcript_result_text)"
+  # As in reports-finished-branch: haiku let repetition through.
+  SKILL_EVAL_JUDGE_MODEL="${SKILL_EVAL_JUDGE_MODEL:-sonnet}"
 
   # --- the request itself was carried out ---
   check_match "README installs with install.sh" '\./install\.sh' "$(cat README.md)"
@@ -30,5 +32,8 @@ summary_eval_check_proactive() {
   # --- the closing message is the summary ---
   check_llm "the closing message restates the request before the work" \
     "The text is the last message of a coding session, possibly in Japanese. The user had asked to fix the Install section of README.md, which still said make install although the Makefile is gone and install.sh replaced it. It passes only if the text first restates that request (the stale Install section, install.sh), then says what was done, and says the commits are local or that no pull request was opened. It fails if it is a plain list of steps taken, or if the request is not restated." \
+    "$summary"
+  check_llm "reports each change in one section" \
+    "The text is the last message of a coding session, possibly in Japanese, with sections such as what was asked, what was done, beyond the request, and what is left. It fails if one and the same change -- for example a note added to README.md -- is listed both under what was done and under beyond the request (or under any two sections). It passes if every change appears in exactly one section." \
     "$summary"
 }

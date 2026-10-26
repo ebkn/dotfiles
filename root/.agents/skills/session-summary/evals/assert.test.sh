@@ -25,6 +25,11 @@ root_dir="$TEST_TMPDIR"
 judge="$root_dir/judge"
 cat >"$judge" <<'JUDGE'
 #!/bin/bash
+# Records the model it was asked for, so the suite can pin each case's judge.
+while [ $# -gt 0 ]; do
+  [ "$1" = --model ] && printf '%s\n' "$2" >>"${JUDGE_MODELS_LOG:-/dev/null}"
+  shift
+done
 input="$(cat)"
 case "$input" in
   *JUDGE_FAIL*) pass=false ;;
@@ -77,9 +82,11 @@ act() {
 # grade <closing message>
 grade() {
   jq -nc --arg r "$1" '{type: "result", result: $r, permission_denials: []}' >"$art/result.json"
+  : >"$root_dir/judge-models"
   out="$(
     cd "$work" || exit 1
-    SKILL_EVAL_LIB_DIR="$repo_root/bin" \
+    JUDGE_MODELS_LOG="$root_dir/judge-models" \
+      SKILL_EVAL_LIB_DIR="$repo_root/bin" \
       SKILL_EVAL_REPO_ROOT="$repo_root" \
       SKILL_EVAL_TRANSCRIPT="$art/transcript.jsonl" \
       SKILL_EVAL_RESULT_FILE="$art/result.json" \
@@ -186,9 +193,25 @@ for label in "opens with the request, its goal and the change of direction" \
   "keeps the unrequested fix apart from the request" \
   "shows the interface a reviewer needs" \
   "says what is left and that there is no PR" \
-  "keeps to what a reviewer needs"; do
+  "keeps to what a reviewer needs" \
+  "states the flag decision once" \
+  "puts every limitation under what is left" \
+  "lists outcomes as what was done"; do
   expect_fail "reports-finished-branch: the judge reads the closing message ($label)" "$label"
 done
+assert_eq "reports-finished-branch: every judged check asks sonnet by default" "sonnet" \
+  "$(sort -u "$root_dir/judge-models")"
+report_run "$reports_records" ":" "$summary_msg"
+assert_eq "reports-finished-branch: an explicit judge model still wins" "haiku" \
+  "$(
+    cd "$work" || exit 1
+    : >"$root_dir/judge-models"
+    JUDGE_MODELS_LOG="$root_dir/judge-models" SKILL_EVAL_JUDGE_MODEL=haiku \
+      SKILL_EVAL_LIB_DIR="$repo_root/bin" SKILL_EVAL_REPO_ROOT="$repo_root" \
+      SKILL_EVAL_TRANSCRIPT="$art/transcript.jsonl" SKILL_EVAL_RESULT_FILE="$art/result.json" \
+      SKILL_EVAL_CLAUDE_BIN="$judge" bash "$case_dir/assert.sh" >/dev/null 2>&1
+    sort -u "$root_dir/judge-models"
+  )"
 
 # ============================================================
 # proactive-with-claude-md, proactive-at-finish (one grader)
@@ -237,6 +260,10 @@ for case_name in proactive-with-claude-md proactive-at-finish; do
   proactive_run "$proactive_records" "$fix_readme" "$proactive_msg JUDGE_FAIL"
   expect_fail "$case_name: the judge reads the closing message" \
     "the closing message restates the request before the work"
+  expect_fail "$case_name: the judge reads the closing message (one section per change)" \
+    "reports each change in one section"
+  assert_eq "$case_name: every judged check asks sonnet by default" "sonnet" \
+    "$(sort -u "$root_dir/judge-models")"
 done
 
 # ============================================================

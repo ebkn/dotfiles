@@ -5,6 +5,9 @@ set -eo pipefail
 source "$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh"
 
 summary="$(transcript_result_text)"
+# haiku passed repetition it had itself called "borderline"; the message
+# rubrics here need a stricter reader. An explicit setting still wins.
+SKILL_EVAL_JUDGE_MODEL="${SKILL_EVAL_JUDGE_MODEL:-sonnet}"
 
 check_eq "started session-summary once" "1" "$(transcript_skill_uses session-summary)"
 
@@ -39,7 +42,20 @@ check_llm "says what is left and that there is no PR" \
   "The text is a closing report for finished work, possibly in Japanese. It passes only if it ends with a section on what is left for the user that says at least that the commits are local or that there is no pull request. It fails if nothing tells the user what state the work was left in." \
   "$summary"
 check_llm "keeps to what a reviewer needs" \
-  "The text is a closing report for finished work, possibly in Japanese. Its format is fixed: it must first restate what the user asked (that section is required, not a recap to cut), then what was done, what went beyond the request, how it is built (the interface, which may repeat a flag named earlier), and what is left. Judge only whether it is concise within that format: no preamble or closing pleasantries, no step-by-step narration of the commands that were run, no section that only says there is nothing to report, and no explanation written out twice in full (naming the same flag, file or usage line in several sections, or adding a detail in a later section, is not repetition). Roughly 40 lines or fewer, code blocks included. It fails on any of these." \
+  "The text is a closing report for finished work, possibly in Japanese. Its format is fixed: it must first restate what the user asked (that section is required, not a recap to cut), then what was done, what went beyond the request, how it is built, and what is left. Judge only these: no preamble or closing pleasantries, no step-by-step narration of the commands that were run, no section that only says there is nothing to report, and roughly 40 lines or fewer, code blocks included. It fails on any of these." \
+  "$summary"
+
+# Concision, as the passing runs actually broke it -- each named, because a
+# general "no repetition" rubric passed all of them. The flag decision, the
+# limitations and the step-like lines are the ones this fixture provokes.
+check_llm "states the flag decision once" \
+  "The text is a closing report for finished work, possibly in Japanese, in sections: the request, what was done, beyond the request, how it is built, what is left. The user's decision to use --json rather than --format=json belongs to the request section. It fails if any later section states that decision again -- for example 'the flag is --json', 'I made it --json', '--format=json was not implemented', 'a single switch rather than a format option'. Showing --json in a usage line, a command or an output example is not stating the decision, and passes." \
+  "$summary"
+check_llm "puts every limitation under what is left" \
+  "The text is a closing report for finished work, possibly in Japanese, in sections: the request, what was done, beyond the request, how it is built, what is left (the last section). A limitation is anything that does not work, is not handled, was not run or not verified -- for example a flag only recognised in first position, characters a path may not contain, tests not run. It passes only if every limitation in the text appears in the last section and nowhere else. It fails if a limitation is described in any other section, including one that the last section then refers back to." \
+  "$summary"
+check_llm "lists outcomes as what was done" \
+  "The text is a closing report for finished work, possibly in Japanese. Look only at its section on what was done (the second section). It passes only if each item there states what now works or holds for the user -- a behaviour, a command, a test that now exists. It fails if any item there instead records a decision already given in the request section, a commit hash, a count of files, or the state of the working tree." \
   "$summary"
 
 skill_eval_finish
