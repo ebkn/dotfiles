@@ -767,22 +767,26 @@ for text in '### QUESTIONS FOR THE AUTHOR\n- x' '- **why it matters:** x'; do
     ok "labels: '${text%%\\n*}' is caught in the C locale"
   fi
 done
-# The backticks are Markdown, not commands.
-# shellcheck disable=SC2016
 for text in '## Design doc review: docs/a.md' '**Design Document Review:** docs/a.md' \
   '### The decision\nx' '### Questions for the author\n- x' \
   '### Decisions the doc leaves open\n- x' '### Checked\n- x' \
   '### Questions for the author:\n- x' '### Checked (sections)\n- x' '**The decision**\nx' \
   '  - Why it matters: x' '  - **Suggestion**: x' '- suggestion： x' \
   '- **Why it matters:** x' '- **Suggestion:** x' '**Why it matters:** x' \
-  'Why it matters: x' '1. **Suggestion:** x' '#### Why it matters\nx' \
-  '- 「x」の ``` を参照\n- Why it matters: y\n- ``` 終わり'; do
+  'Why it matters: x' '1. **Suggestion:** x' '#### Why it matters\nx'; do
   if in_grading rdd_labels_translated "$(printf %b "$text")"; then
     bad "labels: '${text%%\\n*}' is caught"
   else
     ok "labels: '${text%%\\n*}' is caught"
   fi
 done
+# The backticks are Markdown, not commands.
+# shellcheck disable=SC2016
+if in_grading rdd_labels_translated "$(printf %b '- 「x」の ``` を参照\n- Why it matters: y\n- ``` 終わり')"; then
+  bad 'labels: a ``` mentioned mid-line moves no fence, so the label between is caught'
+else
+  ok 'labels: a ``` mentioned mid-line moves no fence, so the label between is caught'
+fi
 
 # ============================================================
 # mini-doc-no-template-demands
