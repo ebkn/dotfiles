@@ -95,6 +95,15 @@ the architecture, the one difference chosen on purpose:
   starts a stale one. Switching back was a cache hit on Docker Desktop
   (measured 2026-10: a full native run with its build, 9.5 s, right after an
   amd64 one). The first build compiles tmux and takes a while.
+- **The base image at a digest**, not the bare `ubuntu:24.04` tag, which
+  Docker Hub re-points every few weeks: an image nobody chose would run the
+  suites. The digest is the multi-arch index, so the native and the amd64
+  build both resolve from it. To bump, pick an image whose
+  `org.opencontainers.image.created` is at least 7 days old, the window the
+  other cooldowns use:
+  `docker buildx imagetools inspect ubuntu:24.04` prints the index `Digest:`
+  and each platform's creation date. The runner image is not pinned the same
+  way; GitHub moves `ubuntu-latest` on its own schedule.
 - **A non-root user.** As root the kernel ignores a `chmod 500`, and a permission
   case reports a bug that does not exist.
 - **`LANG=C.UTF-8`**, or tmux renders every wide glyph as `_`.

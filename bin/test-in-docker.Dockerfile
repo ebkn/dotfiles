@@ -7,7 +7,13 @@
 # Apple silicon made the tmux suites take ~60 s against ~8 s. So the
 # downloaded binaries below carry a checksum for each of amd64 and arm64; the
 # amd64 one is the workflow's.
-FROM ubuntu:24.04
+#
+# The base is held at a digest, like the tools below at a checksum: the tag is
+# re-pushed every few weeks, and the image is what runs the suites against a
+# mounted checkout. The digest is the multi-arch index, so amd64 and arm64
+# both resolve from it. Bump it by hand to an image at least 7 days old
+# (bin/test-in-docker.md has the command).
+FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
 
 # Set by BuildKit to the platform being built: amd64 or arm64.
 ARG TARGETARCH
