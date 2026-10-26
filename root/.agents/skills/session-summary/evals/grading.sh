@@ -22,6 +22,24 @@ summary_eval_check_read_only() {
     "$(git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/tags)"
 }
 
+# summary_eval_check_accurate
+# Nothing reported as done that the branch does not hold. The commonest fault
+# of agent-written PR descriptions is a change described but never made
+# (Gong et al., arXiv 2601.04886), and only a judge given the commits can see
+# one: a rubric written in advance knows only the fixture's intended state.
+summary_eval_check_accurate() {
+  local SKILL_EVAL_JUDGE_MODEL="${SKILL_EVAL_JUDGE_MODEL:-sonnet}"
+  check_llm "reports nothing the commits do not hold" \
+    "The text is the closing report of a coding session, possibly in Japanese. Below are the commits the work made, with their messages, and the files they changed. It fails if the text reports as done a change, file, test or behaviour these commits do not contain -- a document updated that no commit touched, a test added that is not there -- or if it says something was left undone that the commits show was done. Restating what the user asked for, and items reported as not done or left open, are not claims of work done. Otherwise it passes.
+
+Commits:
+$(git log --format='- %s%n%b' main..HEAD)
+
+Files changed:
+$(git diff --stat main...HEAD)" \
+    "$(transcript_result_text)"
+}
+
 # summary_eval_check_proactive
 # The README fix done and committed, then session-summary started -- once,
 # after the last commit -- and its message is the closing one.
@@ -53,4 +71,5 @@ summary_eval_check_proactive() {
   check_llm "reports each change in one section" \
     "The text is the last message of a coding session, possibly in Japanese, with sections such as what was asked, what was done, beyond the request, and what is left. It fails if one and the same change -- for example a note added to README.md -- is listed both under what was done and under beyond the request (or under any two sections). It passes if every change appears in exactly one section." \
     "$summary"
+  summary_eval_check_accurate
 }

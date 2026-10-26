@@ -8,6 +8,7 @@ Run with `bin/skill-eval session-summary` ([bin/skill-eval.md](../../../../../bi
 | Case | Measures |
 | --- | --- |
 | `reports-finished-branch` | the message itself, started by name on a finished branch: the request and its change of direction first, the unrequested fix kept apart, the interface shown, what is left at the end, and no file from a main that moved on after the branch split off |
+| `reports-unfinished-request` | the same branch, with a request it does not fully meet: Usage in README.md was asked for and no commit touches it, and the unrequested usage-error fix breaks the user's `generate-report \| ./tally.sh`. The prompt calls neither a problem; the message has to find both from git |
 | `proactive-with-claude-md` / `proactive-at-finish` | whether it starts by itself after the last commit, with `root/CLAUDE.md` or with the description alone — same prompt, fixture and grader |
 | `no-fire-question` | that it stays out of an answered question |
 
@@ -16,6 +17,15 @@ request comes before the work". What can be stated deterministically is
 checked directly: the skill started once, nothing was written (tree, HEAD,
 and every branch and tag by value), and `CHANGELOG.md` — on main only — is
 never named.
+
+Every case that writes a summary is also graded for **accuracy against the
+commits**: the judge is handed `git log main..HEAD` and the merge-base
+`--stat`, and fails a message that reports as done what no commit holds. A
+rubric written beforehand knows only the fixture's intended state, and the
+commonest fault of agent-written PR descriptions is exactly that — "describes
+a change that was never made", 45% of the inconsistent ones, with those PRs
+accepted 28% of the time against 80% (Gong et al., [arXiv
+2601.04886](https://arxiv.org/abs/2601.04886)).
 
 ## Measured
 

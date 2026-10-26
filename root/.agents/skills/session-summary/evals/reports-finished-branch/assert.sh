@@ -50,5 +50,6 @@ check_llm "puts every limitation under what is left, once" \
 check_llm "lists outcomes as what was done" \
   "The text is a closing report for finished work, possibly in Japanese. Look only at its section on what was done (the second section). It passes only if each item there states what now works or holds for the user -- a behaviour, a command, a test that now exists. It fails if any item there instead records a decision already given in the request section, a commit hash, a count of files, or the state of the working tree." \
   "$summary"
+summary_eval_check_accurate
 
 skill_eval_finish

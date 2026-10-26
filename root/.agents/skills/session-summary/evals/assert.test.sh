@@ -35,6 +35,8 @@ while [ $# -gt 0 ]; do
   shift
 done
 input="$(cat)"
+# And what it was handed, so the suite can see what reached a rubric.
+printf '%s\n' "$input" >>"${JUDGE_INPUT_LOG:-/dev/null}"
 case "$input" in
   *JUDGE_FAIL*) pass=false ;;
   *) pass=true ;;
@@ -87,9 +89,11 @@ act() {
 grade() {
   jq -nc --arg r "$1" '{type: "result", result: $r, permission_denials: []}' >"$art/result.json"
   : >"$root_dir/judge-models"
+  : >"$root_dir/judge-input"
   out="$(
     cd "$work" || exit 1
     JUDGE_MODELS_LOG="$root_dir/judge-models" \
+      JUDGE_INPUT_LOG="$root_dir/judge-input" \
       SKILL_EVAL_LIB_DIR="$repo_root/bin" \
       SKILL_EVAL_REPO_ROOT="$repo_root" \
       SKILL_EVAL_TRANSCRIPT="$art/transcript.jsonl" \
@@ -132,6 +136,20 @@ assert_status "finished branch: --json with no file is a usage error too" 2 bash
 printf 'x\n' >"$root_dir/a\"b"
 assert_eq "finished branch: a quote in a path still makes valid JSON" "a\"b" \
   "$(cd "$root_dir" && "$work/tally.sh" --json 'a"b' | jq -r '.files[0].path')"
+# What reports-unfinished-request's message has to find, so it must be there.
+assert_status "finished branch: piping into tally.sh is now a usage error" 2 \
+  bash -c "cd '$work' && printf 'a\n' | ./tally.sh"
+assert_eq "finished branch: piping worked on main" "1" \
+  "$(cd "$work" && git show main:tally.sh >"$root_dir/tally-main.sh" && printf 'a\n' | bash "$root_dir/tally-main.sh" | tr -d ' ')"
+assert_eq "finished branch: no commit touches README.md" "" \
+  "$(git -C "$work" diff --name-only main...feat/json-output -- README.md)"
+
+# A commit or file planted after the scaffold, with run-start and the
+# recorded refs moved along, so only the accuracy check can see it.
+# shellcheck disable=SC2016  # expanded inside act
+plant_commit='git commit -q --allow-empty -m "chore: x" -m JUDGE_FAIL; git tag -f run-start; git for-each-ref --format="%(refname) %(objectname)" refs/heads refs/tags >.git/refs-at-start'
+# shellcheck disable=SC2016  # expanded inside act
+plant_file='echo x >JUDGE_FAIL.txt; git add JUDGE_FAIL.txt; git commit -qm "chore: x"; git tag -f run-start; git for-each-ref --format="%(refname) %(objectname)" refs/heads refs/tags >.git/refs-at-start'
 
 # ============================================================
 # reports-finished-branch
@@ -200,15 +218,68 @@ for label in "opens with the request, its goal and the change of direction" \
   "keeps to what a reviewer needs" \
   "states the flag decision once" \
   "puts every limitation under what is left, once" \
-  "lists outcomes as what was done"; do
+  "lists outcomes as what was done" \
+  "reports nothing the commits do not hold"; do
   expect_fail "reports-finished-branch: the judge reads the closing message ($label)" "$label"
 done
 assert_eq "reports-finished-branch: every judged check asks sonnet by default" "sonnet" \
   "$(sort -u "$root_dir/judge-models")"
+report_run "$reports_records" "$plant_commit" "$summary_msg"
+expect_fail "reports-finished-branch: the accuracy judge reads the commit messages" \
+  "reports nothing the commits do not hold"
+assert_eq "reports-finished-branch: and nothing else failed" "1" "$(grep -c '^FAIL' <<<"$out")"
+report_run "$reports_records" "$plant_file" "$summary_msg"
+expect_fail "reports-finished-branch: the accuracy judge reads the files changed" \
+  "reports nothing the commits do not hold"
+report_run "$reports_records" ":" "$summary_msg"
+assert_contains "reports-finished-branch: the accuracy judge gets the branch's commits" \
+  "$(cat "$root_dir/judge-input")" "fix(tally): exit with usage when no file is given"
+assert_not_contains "reports-finished-branch: and nothing from a main that moved on" \
+  "$(cat "$root_dir/judge-input")" "CHANGELOG"
 # An assignment before a function call is exported for that call only.
 SKILL_EVAL_JUDGE_MODEL=haiku grade "$summary_msg"
 assert_eq "reports-finished-branch: an explicit judge model still wins" "haiku" \
   "$(sort -u "$root_dir/judge-models")"
+
+# ============================================================
+# reports-unfinished-request
+# ============================================================
+# shellcheck disable=SC2016  # markdown backticks, not a command
+unfinished_msg='### 依頼内容
+tally.sh に JSON 出力を追加し、README の Usage に使い方を書く。フラグは `--json` に変更。
+### 対応したこと
+- `./tally.sh --json FILE...` が JSON を出す
+- README の Usage は更新していません
+### 依頼外の対応
+- ファイル未指定で usage を出して終了
+### 残っていること
+- ファイルなしの `generate-report | ./tally.sh` は usage エラーで止まるようになりました
+- コミットはローカルです'
+unfinished_run() {
+  new_run reports-unfinished-request || return 1
+  act "$1" "$2"
+  grade "$3"
+}
+unfinished_run "$reports_records" ":" "$unfinished_msg"
+expect_pass "reports-unfinished-request: a summary naming both passes"
+unfinished_run "rec_bash \"git log main..HEAD\"" ":" "$unfinished_msg"
+expect_fail "reports-unfinished-request: written without the skill" "started session-summary once"
+unfinished_run "$reports_records; rec_tool Write '{\"file_path\":\"notes.md\"}'" ":" "$unfinished_msg"
+expect_fail "reports-unfinished-request: the read-only checks run" "wrote no file"
+unfinished_run "$reports_records" ":" "${unfinished_msg//README/Usage 節}"
+expect_fail "reports-unfinished-request: README.md not named" "names README.md"
+unfinished_run "$reports_records" ":" "$unfinished_msg JUDGE_FAIL"
+for label in "says the README part of the request was not done" \
+  "warns that piping into tally.sh now fails" \
+  "reports nothing the commits do not hold"; do
+  expect_fail "reports-unfinished-request: the judge reads the closing message ($label)" "$label"
+done
+assert_eq "reports-unfinished-request: every judged check asks sonnet by default" "sonnet" \
+  "$(sort -u "$root_dir/judge-models")"
+unfinished_run "$reports_records" "$plant_commit" "$unfinished_msg"
+expect_fail "reports-unfinished-request: the accuracy judge reads the commits" \
+  "reports nothing the commits do not hold"
+assert_eq "reports-unfinished-request: and nothing else failed" "1" "$(grep -c '^FAIL' <<<"$out")"
 
 # ============================================================
 # proactive-with-claude-md, proactive-at-finish (one grader)
@@ -259,6 +330,12 @@ for case_name in proactive-with-claude-md proactive-at-finish; do
     "the closing message restates the request before the work"
   expect_fail "$case_name: the judge reads the closing message (one section per change)" \
     "reports each change in one section"
+  expect_fail "$case_name: the judge reads the closing message (accuracy)" \
+    "reports nothing the commits do not hold"
+  proactive_run "$proactive_records" "${fix_readme/-qam \"docs: install with install.sh\"/-qam \"docs: install with install.sh\" -m JUDGE_FAIL}" "$proactive_msg"
+  expect_fail "$case_name: the accuracy judge reads the commit messages" \
+    "reports nothing the commits do not hold"
+  assert_eq "$case_name: and nothing else failed" "1" "$(grep -c '^FAIL' <<<"$out")"
   assert_eq "$case_name: every judged check asks sonnet by default" "sonnet" \
     "$(sort -u "$root_dir/judge-models")"
   SKILL_EVAL_JUDGE_MODEL=haiku grade "$proactive_msg"
