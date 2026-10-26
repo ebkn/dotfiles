@@ -74,7 +74,7 @@ This section describes what the change is, not where it falls short. A rule of t
 
 ### 5. Left open
 
-Always present, one line per item: the PR URL (or that the commits are local), and anything the user must decide, verify or run themselves — a test that could not run here, a P3 finding, an open question, a gap noticed while gathering the facts, and **anything that worked before and no longer does** (found under "Gather the facts"), with who may rely on it — a fact of its own, not a consequence of the change that ended it, so that change's line in section 2 or 3 does not mention it. **Every limitation lives here and only here**: what does not work, is not handled, was not run or not verified, stated in full rather than pointed to. If nothing is left but the review, that one line is the section.
+Always present, one line per item: the PR URL (or that the commits are local), and anything the user must decide, verify or run themselves — a test that could not run here, a P3 finding, an open question, a gap noticed while gathering the facts, and **anything that worked before and no longer does** (found under "Gather the facts"), with who may rely on it — a fact of its own, not a consequence of the change that ended it, so neither that change's line in section 2 or 3 nor the interface in section 4 mentions it, and the item here names what used to work and who relies on it rather than restating the new behaviour. **Every limitation lives here and only here**: what does not work, is not handled, was not run or not verified, stated in full rather than pointed to. If nothing is left but the review, that one line is the section.
 
 ## Style
 
@@ -89,5 +89,5 @@ Read the draft once against this list, and fix what fails:
 1. Does any later section repeat a decision from section 1?
 2. Does any line of section 2 give a decision, a commit hash, a file count or the tree's state instead of an outcome?
 3. Is any change listed in both section 2 and section 3?
-4. Does any point — or its consequence — appear in both section 4 and section 5?
+4. Does any point — or its consequence — appear in both section 4 and section 5? (What a change ends is its own point, in section 5 only.)
 5. For each change to existing behaviour in sections 2 and 3, does section 5 say what used to work and no longer does — or is it true that nothing did?
