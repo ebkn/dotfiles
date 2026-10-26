@@ -200,26 +200,38 @@ assert_eq "update_homebrew: a failed update fails, checking and upgrading nothin
 
 # fetch_verified: what is downloaded is kept only when it hashes to the pin.
 # file:// keeps it off the network; curl and the hasher are the real ones.
+# The digest of "payload\n" is written out, not computed with the same hasher.
 printf 'payload\n' >"$TEST_TMPDIR/payload"
 PAYLOAD_URL="file://$TEST_TMPDIR/payload"
-PAYLOAD_SHA=$(shasum -a 256 "$TEST_TMPDIR/payload" | cut -d' ' -f1)
+PAYLOAD_SHA=d4e4877bac978b7952f0d544fc52ebff5411d351d129f1f056fa43f11da9af2b
+WRONG_SHA=0000000000000000000000000000000000000000000000000000000000000000
+# absent <path> -- "absent" when neither <path> nor its .part exists.
+absent() { [ -e "$1" ] || [ -e "$1.part" ] || echo absent; }
+
 st=$(helper "/usr/bin:/bin" fetch_verified "$PAYLOAD_URL" "$PAYLOAD_SHA" "$TEST_TMPDIR/got")
 assert_eq "fetch_verified: a matching download is kept" \
   "0 payload" "$st $(cat "$TEST_TMPDIR/got" 2>/dev/null)"
 
-st=$(helper "/usr/bin:/bin" fetch_verified "$PAYLOAD_URL" "$(printf '0%.0s' {1..64})" "$TEST_TMPDIR/bad")
+st=$(helper "/usr/bin:/bin" fetch_verified "$PAYLOAD_URL" "$WRONG_SHA" "$TEST_TMPDIR/bad")
 assert_eq "fetch_verified: a mismatching download fails" "1" "$st"
-assert_eq "  ... and leaves nothing at the destination" "absent" \
-  "$([ -e "$TEST_TMPDIR/bad" ] || [ -e "$TEST_TMPDIR/bad.part" ] || echo absent)"
+assert_eq "  ... and leaves nothing at the destination" "absent" "$(absent "$TEST_TMPDIR/bad")"
 assert_contains "  ... saying why" "$(cat "$TEST_TMPDIR/err")" "checksum mismatch"
 
-st=$(helper "/usr/bin:/bin" fetch_verified "$PAYLOAD_URL" "" "$TEST_TMPDIR/nopin")
-assert_eq "fetch_verified: an empty pin fails rather than accepting anything" \
-  "1" "$st"
-assert_eq "  ... and downloads nothing" "absent" \
-  "$([ -e "$TEST_TMPDIR/nopin" ] || echo absent)"
+printf 'kept\n' >"$TEST_TMPDIR/existing"
+helper "/usr/bin:/bin" fetch_verified "$PAYLOAD_URL" "$WRONG_SHA" "$TEST_TMPDIR/existing" >/dev/null
+assert_eq "fetch_verified: a mismatch leaves a file already there untouched" \
+  "kept" "$(cat "$TEST_TMPDIR/existing")"
 
-# pinned_sha256: the checksum for this OS and architecture, per uname.
+st=$(helper "/usr/bin:/bin" fetch_verified "$PAYLOAD_URL" "" "$TEST_TMPDIR/nopin")
+assert_eq "fetch_verified: an empty pin fails rather than accepting anything" "1" "$st"
+assert_eq "  ... and downloads nothing" "absent" "$(absent "$TEST_TMPDIR/nopin")"
+assert_contains "  ... saying so" "$(cat "$TEST_TMPDIR/err")" "no checksum pinned"
+
+st=$(helper "/usr/bin:/bin" fetch_verified "file://$TEST_TMPDIR/missing" "$PAYLOAD_SHA" "$TEST_TMPDIR/gone")
+assert_eq "fetch_verified: a failed download fails" "1" "$st"
+assert_eq "  ... and leaves nothing behind" "absent" "$(absent "$TEST_TMPDIR/gone")"
+
+# pinned_sha256: the checksum for this OS and architecture, per a stub uname.
 UNAME="$TEST_TMPDIR/uname"
 mkdir -p "$UNAME"
 cat >"$UNAME/uname" <<'EOF'
@@ -227,16 +239,68 @@ cat >"$UNAME/uname" <<'EOF'
 case "$1" in -s) echo "$UNAME_S" ;; -m) echo "$UNAME_M" ;; esac
 EOF
 chmod +x "$UNAME/uname"
-export TOOL_SHA256_DARWIN_ARM64=da TOOL_SHA256_DARWIN_X64=dx \
-  TOOL_SHA256_LINUX_X64=lx TOOL_SHA256_LINUX_ARM64=la
-for case in "Darwin arm64 da" "Darwin x86_64 dx" "Linux x86_64 lx" "Linux aarch64 la"; do
+# pinned <uname -s> <uname -m> -- "<status> <output>" of `pinned_sha256 TOOL`,
+# with TOOL pinned for three of the four platforms; stderr in $TEST_TMPDIR/err.
+pinned() {
+  local out st
+  out=$(UNAME_S=$1 UNAME_M=$2 PATH="$UNAME:/usr/bin:/bin" \
+    TOOL_SHA256_DARWIN_ARM64=da TOOL_SHA256_DARWIN_X64=dx TOOL_SHA256_LINUX_X64=lx \
+    bash -c '. "$1"; pinned_sha256 TOOL' _ "$COMMON" 2>"$TEST_TMPDIR/err")
+  st=$?
+  echo "$st $out"
+}
+for case in "Darwin arm64 da" "Darwin x86_64 dx" "Linux x86_64 lx" "Linux amd64 lx"; do
   read -r s m want <<<"$case"
-  out=$(UNAME_S=$s UNAME_M=$m PATH="$UNAME:/usr/bin:/bin" bash -c \
-    '. "$1"; pinned_sha256 TOOL' _ "$COMMON" 2>/dev/null)
-  assert_eq "pinned_sha256: $s $m picks its own checksum" "$want" "$out"
+  assert_eq "pinned_sha256: $s $m picks its own checksum" "0 $want" "$(pinned "$s" "$m")"
 done
-UNAME_S=FreeBSD UNAME_M=amd64 PATH="$UNAME:/usr/bin:/bin" bash -c \
-  '. "$1"; pinned_sha256 TOOL' _ "$COMMON" >/dev/null 2>&1
-assert_eq "pinned_sha256: an unpinned platform fails" "1" "$?"
+assert_eq "pinned_sha256: a known platform with no pin yields an empty pin" \
+  "0 " "$(pinned Linux aarch64)"
+for case in "FreeBSD amd64" "Linux riscv64"; do
+  read -r s m <<<"$case"
+  assert_eq "pinned_sha256: $s $m, a platform nobody pinned, fails" "1 " "$(pinned "$s" "$m")"
+  assert_contains "  ... naming it" "$(cat "$TEST_TMPDIR/err")" "no TOOL checksum is pinned for $s $m"
+done
+
+# The installers: a download is run only after it passes its check. A stub
+# curl serves a script that marks that it ran; uname is the stub above.
+CURL="$TEST_TMPDIR/curl"
+mkdir -p "$CURL"
+cat >"$CURL/curl" <<'EOF'
+#!/bin/sh
+echo "curl $*" >>"$LOG"
+while [ $# -gt 0 ]; do
+  [ "$1" = -o ] && printf '#!/bin/sh\necho ran >>"$MARK"\n' >"$2"
+  shift
+done
+EOF
+chmod +x "$CURL/curl"
+SERVED_SHA=5716500c1dbfacbfeb3704dedd8db1a553e51e098cb4cd134b97c49ab37cfe25
+export MARK="$TEST_TMPDIR/mark" UNAME_S=Linux UNAME_M=x86_64 \
+  HOMEBREW_INSTALL_COMMIT=c0ffee CLAUDE_VERSION=1.0.0
+INSTALLER_PATH="$CURL:$UNAME:/usr/bin:/bin"
+
+: >"$MARK"
+st=$(HOMEBREW_INSTALL_SHA256=$SERVED_SHA helper "$INSTALLER_PATH" install_homebrew)
+assert_eq "install_homebrew: a verified installer runs" "0 ran" "$st $(cat "$MARK")"
+
+: >"$MARK"
+st=$(HOMEBREW_INSTALL_SHA256=$WRONG_SHA helper "$INSTALLER_PATH" install_homebrew)
+assert_eq "install_homebrew: an installer failing its check is not run" "1 " "$st $(cat "$MARK")"
+assert_contains "  ... because of the check" "$(cat "$TEST_TMPDIR/err")" "checksum mismatch"
+
+: >"$MARK"
+st=$(CLAUDE_SHA256_LINUX_X64=$SERVED_SHA helper "$INSTALLER_PATH" install_or_upgrade_claude)
+assert_eq "claude: a verified binary is run" "0 ran" "$st $(cat "$MARK")"
+
+: >"$MARK"
+st=$(CLAUDE_SHA256_LINUX_X64=$WRONG_SHA helper "$INSTALLER_PATH" install_or_upgrade_claude)
+assert_eq "claude: a binary failing its check is not run" "1 " "$st $(cat "$MARK")"
+assert_contains "  ... because of the check" "$(cat "$TEST_TMPDIR/err")" "checksum mismatch"
+
+: >"$MARK"
+: >"$LOG"
+st=$(CLAUDE_SHA256_LINUX_X64='' helper "$INSTALLER_PATH" install_or_upgrade_claude)
+assert_eq "claude: with no pin for this platform it fails" "1 " "$st $(cat "$MARK")"
+assert_eq "  ... downloading nothing" "" "$(cat "$LOG")"
 
 test_summary
