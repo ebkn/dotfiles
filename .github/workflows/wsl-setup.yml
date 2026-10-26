@@ -36,6 +36,13 @@ jobs:
             exit 1
           fi
 
+      # See ubuntu-setup.yml: wsl.sh does not run link_dotfiles either.
+      - name: The package manager cooldown configs are linked
+        run: |
+          for f in .yarnrc.yml .config/pnpm/config.yaml .config/pip/pip.conf .config/uv/uv.toml; do
+            [ -L "$HOME/$f" ] || { echo "not linked: ~/$f"; exit 1; }
+          done
+
       # See ubuntu-setup.yml: relink must be linked and run to its prompt.
       - name: relink is linked and runs
         run: |

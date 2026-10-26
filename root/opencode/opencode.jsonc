@@ -13,9 +13,8 @@
     // days, the window npm's min-release-age and the cooldowns use. Raise the
     // pin by hand to a release at least that old.
     // root/uv.toml sets the same window for every uv command, and this flag
-    // overrides it: change both together. Kept anyway, because ubuntu.sh and
-    // wsl.sh link this file at init but uv.toml only through relink, so until
-    // the first update-all the flag is the only hold on Linux.
+    // overrides it: change both together. Kept anyway, so the hold does not
+    // depend on uv.toml being linked: this config travels on its own link.
     "aws-mcp": {
       "type": "local",
       "command": [
