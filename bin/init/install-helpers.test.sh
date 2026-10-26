@@ -261,46 +261,115 @@ for case in "FreeBSD amd64" "Linux riscv64"; do
   assert_contains "  ... naming it" "$(cat "$TEST_TMPDIR/err")" "no TOOL checksum is pinned for $s $m"
 done
 
-# The installers: a download is run only after it passes its check. A stub
-# curl serves a script that marks that it ran; uname is the stub above.
+# The installers: a download is unpacked or run only after it passes its
+# check, and is fetched at its pin. A stub curl logs its arguments and serves
+# $SERVE; the served script records that it ran, with its arguments, and
+# exits $SERVED_EXIT. HOME, VOLTA_HOME and TMPDIR are fixtures, so nothing
+# reaches the real home, and an empty TMPDIR afterwards shows the temporary
+# directory was removed.
 CURL="$TEST_TMPDIR/curl"
 mkdir -p "$CURL"
 cat >"$CURL/curl" <<'EOF'
 #!/bin/sh
 echo "curl $*" >>"$LOG"
 while [ $# -gt 0 ]; do
-  [ "$1" = -o ] && printf '#!/bin/sh\necho ran >>"$MARK"\n' >"$2"
+  [ "$1" = -o ] && cp "$SERVE" "$2"
   shift
 done
 EOF
 chmod +x "$CURL/curl"
-SERVED_SHA=5716500c1dbfacbfeb3704dedd8db1a553e51e098cb4cd134b97c49ab37cfe25
-export MARK="$TEST_TMPDIR/mark" UNAME_S=Linux UNAME_M=x86_64 \
-  HOMEBREW_INSTALL_COMMIT=c0ffee CLAUDE_VERSION=1.0.0
+FIX="$TEST_TMPDIR/fixture"
+mkdir -p "$FIX/volta" "$FIX/gcloud/google-cloud-sdk"
+# shellcheck disable=SC2016 # expanded by the served script, not here
+printf '#!/bin/sh\necho "ran $*" >>"$MARK"\nexit "${SERVED_EXIT:-0}"\n' >"$FIX/script"
+chmod +x "$FIX/script"
+SCRIPT_SHA=$(shasum -a 256 "$FIX/script" | cut -d' ' -f1)
+cp "$FIX/script" "$FIX/volta/volta"
+cp "$FIX/script" "$FIX/gcloud/google-cloud-sdk/install.sh"
+tar -czf "$FIX/volta.tar.gz" -C "$FIX/volta" volta
+tar -czf "$FIX/gcloud.tar.gz" -C "$FIX/gcloud" google-cloud-sdk
+VOLTA_SHA=$(shasum -a 256 "$FIX/volta.tar.gz" | cut -d' ' -f1)
+GCLOUD_SHA=$(shasum -a 256 "$FIX/gcloud.tar.gz" | cut -d' ' -f1)
+export MARK="$TEST_TMPDIR/mark" HOMEBREW_INSTALL_COMMIT=c0ffee \
+  CLAUDE_VERSION=1.0.0 VOLTA_VERSION=2.2.2 GCLOUD_VERSION=9.9.9
 INSTALLER_PATH="$CURL:$UNAME:/usr/bin:/bin"
 
-: >"$MARK"
-st=$(HOMEBREW_INSTALL_SHA256=$SERVED_SHA helper "$INSTALLER_PATH" install_homebrew)
-assert_eq "install_homebrew: a verified installer runs" "0 ran" "$st $(cat "$MARK")"
+# installer <served file> <function> -- run one installer on a fresh fixture
+# home as Linux x86_64; prints its status. Pins go in the environment.
+installer() {
+  : >"$MARK"
+  : >"$LOG"
+  rm -rf "${TEST_TMPDIR:?}/home" "${TEST_TMPDIR:?}/t"
+  mkdir -p "$TEST_TMPDIR/home" "$TEST_TMPDIR/t"
+  SERVE=$1 UNAME_S=Linux UNAME_M=x86_64 HOME="$TEST_TMPDIR/home" \
+    VOLTA_HOME="$TEST_TMPDIR/home/.volta" TMPDIR="$TEST_TMPDIR/t" \
+    helper "$INSTALLER_PATH" "$2"
+}
+# left_behind -- what the installer left in the fixture TMPDIR.
+left_behind() { ls -A "$TEST_TMPDIR/t"; }
 
-: >"$MARK"
-st=$(HOMEBREW_INSTALL_SHA256=$WRONG_SHA helper "$INSTALLER_PATH" install_homebrew)
+st=$(HOMEBREW_INSTALL_SHA256=$SCRIPT_SHA installer "$FIX/script" install_homebrew)
+assert_eq "install_homebrew: a verified installer runs" "0 ran " "$st $(cat "$MARK")"
+assert_contains "  ... fetched at the pinned commit" "$(cat "$LOG")" \
+  "https://raw.githubusercontent.com/Homebrew/install/c0ffee/install.sh"
+assert_eq "  ... and its temporary directory is removed" "" "$(left_behind)"
+
+st=$(HOMEBREW_INSTALL_SHA256=$WRONG_SHA installer "$FIX/script" install_homebrew)
 assert_eq "install_homebrew: an installer failing its check is not run" "1 " "$st $(cat "$MARK")"
 assert_contains "  ... because of the check" "$(cat "$TEST_TMPDIR/err")" "checksum mismatch"
+assert_eq "  ... and its temporary directory is removed" "" "$(left_behind)"
 
-: >"$MARK"
-st=$(CLAUDE_SHA256_LINUX_X64=$SERVED_SHA helper "$INSTALLER_PATH" install_or_upgrade_claude)
-assert_eq "claude: a verified binary is run" "0 ran" "$st $(cat "$MARK")"
+st=$(HOMEBREW_INSTALL_SHA256='' installer "$FIX/script" install_homebrew)
+assert_eq "install_homebrew: with no pin it fails, downloading nothing" \
+  "1  " "$st $(cat "$MARK") $(cat "$LOG")"
 
-: >"$MARK"
-st=$(CLAUDE_SHA256_LINUX_X64=$WRONG_SHA helper "$INSTALLER_PATH" install_or_upgrade_claude)
+st=$(SERVED_EXIT=3 HOMEBREW_INSTALL_SHA256=$SCRIPT_SHA installer "$FIX/script" install_homebrew)
+assert_eq "install_homebrew: a verified installer that fails passes its status on" "3" "$st"
+
+st=$(CLAUDE_SHA256_LINUX_X64=$SCRIPT_SHA installer "$FIX/script" install_or_upgrade_claude)
+assert_eq "claude: a verified binary installs the pinned version" \
+  "0 ran install 1.0.0" "$st $(cat "$MARK")"
+assert_contains "  ... fetched for this version and platform" "$(cat "$LOG")" \
+  "https://downloads.claude.ai/claude-code-releases/1.0.0/linux-x64/claude"
+
+st=$(CLAUDE_SHA256_LINUX_X64=$WRONG_SHA installer "$FIX/script" install_or_upgrade_claude)
 assert_eq "claude: a binary failing its check is not run" "1 " "$st $(cat "$MARK")"
 assert_contains "  ... because of the check" "$(cat "$TEST_TMPDIR/err")" "checksum mismatch"
 
-: >"$MARK"
-: >"$LOG"
-st=$(CLAUDE_SHA256_LINUX_X64='' helper "$INSTALLER_PATH" install_or_upgrade_claude)
-assert_eq "claude: with no pin for this platform it fails" "1 " "$st $(cat "$MARK")"
-assert_eq "  ... downloading nothing" "" "$(cat "$LOG")"
+st=$(CLAUDE_SHA256_LINUX_X64='' installer "$FIX/script" install_or_upgrade_claude)
+assert_eq "claude: with no pin for this platform it fails, downloading nothing" \
+  "1  " "$st $(cat "$MARK") $(cat "$LOG")"
+
+st=$(SERVED_EXIT=3 CLAUDE_SHA256_LINUX_X64=$SCRIPT_SHA installer "$FIX/script" install_or_upgrade_claude)
+assert_eq "claude: a verified binary that fails passes its status on" "3" "$st"
+
+st=$(VOLTA_SHA256_LINUX_X64=$VOLTA_SHA installer "$FIX/volta.tar.gz" install_or_upgrade_volta)
+assert_eq "volta: a verified tarball is unpacked into VOLTA_HOME/bin" "0 yes" \
+  "$st $([ -x "$TEST_TMPDIR/home/.volta/bin/volta" ] && echo yes)"
+assert_contains "  ... fetched at the pinned release" "$(cat "$LOG")" \
+  "https://github.com/volta-cli/volta/releases/download/v2.2.2/volta-2.2.2-linux.tar.gz"
+assert_eq "  ... and its temporary directory is removed" "" "$(left_behind)"
+
+st=$(VOLTA_SHA256_LINUX_X64=$WRONG_SHA installer "$FIX/volta.tar.gz" install_or_upgrade_volta)
+assert_eq "volta: a tarball failing its check is not unpacked" "1 absent" \
+  "$st $(absent "$TEST_TMPDIR/home/.volta/bin/volta")"
+
+st=$(VOLTA_SHA256_LINUX_X64='' installer "$FIX/volta.tar.gz" install_or_upgrade_volta)
+assert_eq "volta: with no pin it fails, downloading nothing" "1 " "$st $(cat "$LOG")"
+
+st=$(GCLOUD_SHA256_LINUX_X64=$GCLOUD_SHA installer "$FIX/gcloud.tar.gz" install_or_upgrade_gcloud)
+assert_eq "gcloud: a verified tarball is unpacked and its installer run" \
+  "0 ran --quiet --usage-reporting=false --path-update=false --command-completion=false" \
+  "$st $(cat "$MARK")"
+assert_contains "  ... fetched at the pinned release" "$(cat "$LOG")" \
+  "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-9.9.9-linux-x86_64.tar.gz"
+assert_eq "  ... and its temporary directory is removed" "" "$(left_behind)"
+
+st=$(GCLOUD_SHA256_LINUX_X64=$WRONG_SHA installer "$FIX/gcloud.tar.gz" install_or_upgrade_gcloud)
+assert_eq "gcloud: a tarball failing its check is neither unpacked nor run" "1 absent" \
+  "$st $(cat "$MARK")$(absent "$TEST_TMPDIR/home/google-cloud-sdk")"
+
+st=$(GCLOUD_SHA256_LINUX_X64='' installer "$FIX/gcloud.tar.gz" install_or_upgrade_gcloud)
+assert_eq "gcloud: with no pin it fails, downloading nothing" "1 " "$st $(cat "$LOG")"
 
 test_summary
