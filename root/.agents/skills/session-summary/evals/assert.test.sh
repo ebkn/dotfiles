@@ -22,6 +22,10 @@ repo_root="$(cd "$evals_dir/../../../../.." && pwd)"
 test_tmpdir
 root_dir="$TEST_TMPDIR"
 
+# A judge model or cost file exported for real eval runs would reach the
+# graders here, and the default-model assertions would grade the shell.
+unset SKILL_EVAL_JUDGE_MODEL SKILL_EVAL_JUDGE_COST_FILE
+
 judge="$root_dir/judge"
 cat >"$judge" <<'JUDGE'
 #!/bin/bash
@@ -201,17 +205,10 @@ for label in "opens with the request, its goal and the change of direction" \
 done
 assert_eq "reports-finished-branch: every judged check asks sonnet by default" "sonnet" \
   "$(sort -u "$root_dir/judge-models")"
-report_run "$reports_records" ":" "$summary_msg"
+# An assignment before a function call is exported for that call only.
+SKILL_EVAL_JUDGE_MODEL=haiku grade "$summary_msg"
 assert_eq "reports-finished-branch: an explicit judge model still wins" "haiku" \
-  "$(
-    cd "$work" || exit 1
-    : >"$root_dir/judge-models"
-    JUDGE_MODELS_LOG="$root_dir/judge-models" SKILL_EVAL_JUDGE_MODEL=haiku \
-      SKILL_EVAL_LIB_DIR="$repo_root/bin" SKILL_EVAL_REPO_ROOT="$repo_root" \
-      SKILL_EVAL_TRANSCRIPT="$art/transcript.jsonl" SKILL_EVAL_RESULT_FILE="$art/result.json" \
-      SKILL_EVAL_CLAUDE_BIN="$judge" bash "$case_dir/assert.sh" >/dev/null 2>&1
-    sort -u "$root_dir/judge-models"
-  )"
+  "$(sort -u "$root_dir/judge-models")"
 
 # ============================================================
 # proactive-with-claude-md, proactive-at-finish (one grader)
@@ -263,6 +260,9 @@ for case_name in proactive-with-claude-md proactive-at-finish; do
   expect_fail "$case_name: the judge reads the closing message (one section per change)" \
     "reports each change in one section"
   assert_eq "$case_name: every judged check asks sonnet by default" "sonnet" \
+    "$(sort -u "$root_dir/judge-models")"
+  SKILL_EVAL_JUDGE_MODEL=haiku grade "$proactive_msg"
+  assert_eq "$case_name: an explicit judge model still wins" "haiku" \
     "$(sort -u "$root_dir/judge-models")"
 done
 
