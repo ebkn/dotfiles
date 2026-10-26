@@ -98,7 +98,7 @@ done <<<"$tracked"
 # discovery above cannot find them. Each declares `# shellcheck shell=bash`
 # instead, and must be named here -- a new fragment left out is checked by
 # nobody, which lint-shell.test.sh's "every sourced fragment" case catches.
-sh_targets+=(bin/init/common.sh bin/init/links.sh bin/pr-review-common.sh bin/tmux-test-guard.sh bin/test-lib.sh)
+sh_targets+=(bin/init/common.sh bin/init/homebrew-env.sh bin/init/links.sh bin/pr-review-common.sh bin/tmux-test-guard.sh bin/test-lib.sh)
 sh_targets+=(bin/skill-eval-assert.sh bin/skill-eval-scaffold.sh bin/skill-eval-github.sh)
 sh_targets+=(root/.claude/hooks/segment-scan.lib.sh root/.claude/hooks/git-workdir.lib.sh root/.claude/hooks/git-rules.lib.sh)
 sh_targets+=(root/.agents/skills/review-test/evals/lib.sh root/.agents/skills/review-test/evals/grading.sh)
