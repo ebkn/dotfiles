@@ -331,9 +331,11 @@ assert_eq "claude: a verified binary installs the pinned version" \
   "0 ran install 1.0.0" "$st $(cat "$MARK")"
 assert_contains "  ... fetched for this version and platform" "$(cat "$LOG")" \
   "https://downloads.claude.ai/claude-code-releases/1.0.0/linux-x64/claude"
+assert_eq "  ... and its temporary directory, binary included, is removed" "" "$(left_behind)"
 
 st=$(CLAUDE_SHA256_LINUX_X64=$WRONG_SHA installer "$FIX/script" install_or_upgrade_claude)
 assert_eq "claude: a binary failing its check is not run" "1 " "$st $(cat "$MARK")"
+assert_eq "  ... and its temporary directory is removed" "" "$(left_behind)"
 assert_contains "  ... because of the check" "$(cat "$TEST_TMPDIR/err")" "checksum mismatch"
 
 st=$(CLAUDE_SHA256_LINUX_X64='' installer "$FIX/script" install_or_upgrade_claude)
@@ -353,6 +355,7 @@ assert_eq "  ... and its temporary directory is removed" "" "$(left_behind)"
 st=$(VOLTA_SHA256_LINUX_X64=$WRONG_SHA installer "$FIX/volta.tar.gz" install_or_upgrade_volta)
 assert_eq "volta: a tarball failing its check is not unpacked" "1 absent" \
   "$st $(absent "$TEST_TMPDIR/home/.volta/bin/volta")"
+assert_eq "  ... and its temporary directory is removed" "" "$(left_behind)"
 
 st=$(VOLTA_SHA256_LINUX_X64='' installer "$FIX/volta.tar.gz" install_or_upgrade_volta)
 assert_eq "volta: with no pin it fails, downloading nothing" "1 " "$st $(cat "$LOG")"
@@ -368,6 +371,7 @@ assert_eq "  ... and its temporary directory is removed" "" "$(left_behind)"
 st=$(GCLOUD_SHA256_LINUX_X64=$WRONG_SHA installer "$FIX/gcloud.tar.gz" install_or_upgrade_gcloud)
 assert_eq "gcloud: a tarball failing its check is neither unpacked nor run" "1 absent" \
   "$st $(cat "$MARK")$(absent "$TEST_TMPDIR/home/google-cloud-sdk")"
+assert_eq "  ... and its temporary directory is removed" "" "$(left_behind)"
 
 st=$(GCLOUD_SHA256_LINUX_X64='' installer "$FIX/gcloud.tar.gz" install_or_upgrade_gcloud)
 assert_eq "gcloud: with no pin it fails, downloading nothing" "1 " "$st $(cat "$LOG")"
