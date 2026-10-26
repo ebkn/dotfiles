@@ -2,26 +2,29 @@
 # required for shellcheck to accept the file at all.
 # shellcheck shell=bash
 
-# link_dotfiles — create the platform-common $HOME symlinks that are safe to
-# re-run at any time (order-independent, no side effects beyond the link).
-#
 # Sourced by:
-#   - bin/init/macos.sh : during initial setup
-#   - bin/relink        : drift re-sync invoked from `update-all`, so links
-#                         added to the repo after a machine was provisioned get
-#                         created without re-running the full init script.
+#   - bin/init/macos.sh   : during initial setup
+#   - bin/init/ubuntu.sh,
+#     bin/init/wsl.sh     : for link_package_manager_configs only; their other
+#                           links are still inline (not yet migrated)
+#   - bin/relink          : drift re-sync invoked from `update-all`, so links
+#                           added to the repo after a machine was provisioned
+#                           get created without re-running the full init script.
 #
 # Links that must run at a specific point (.zshrc/.zshenv before shell packages,
 # .npmrc before npm) or that are wrapped in special logic (.ssh/config Include,
 # sudo diff-highlight, CI-only gitconfig tweaks) stay inline in the init script
-# and are intentionally NOT re-synced here.
+# and are intentionally NOT re-synced here. The exception is a link that must
+# come early but is safe to re-sync: it goes in link_package_manager_configs,
+# which a platform script calls before its first install and link_dotfiles
+# calls again.
 #
 # Requires: DOTFILES_DIR, HOME, and link_with_backup/backup_path (from common.sh).
 # Honors LINK_CHECK=1 via link_with_backup (report drift instead of mutating).
 
-# link_package_manager_configs -- the yarn, pnpm, pip and uv configs, apart from
-# the rest of link_dotfiles so a platform script can link them before its first
-# install.
+# link_package_manager_configs -- the yarn, pnpm, pip and uv configs, which
+# carry the 7-day cooldown and so must be in place before anything installs.
+# The setup workflows check this list after a Linux run (LINK_CHECK=1).
 link_package_manager_configs() {
   # Supply-chain cooldown: refuse npm package versions younger than 7 days.
   # Keeps yarn/pnpm in lockstep with npm's min-release-age=7 (.npmrc). yarn Berry
@@ -39,6 +42,8 @@ link_package_manager_configs() {
   link_with_backup "${DOTFILES_DIR}/root/uv.toml" "${HOME}/.config/uv/uv.toml"
 }
 
+# link_dotfiles — create the platform-common $HOME symlinks that are safe to
+# re-run at any time (order-independent, no side effects beyond the link).
 link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/.gitignore_global" "${HOME}/.gitignore_global"
   link_with_backup "${DOTFILES_DIR}/.bash_profile" "${HOME}/.bash_profile"

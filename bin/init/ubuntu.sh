@@ -79,7 +79,8 @@ install_or_upgrade_git_repo "https://github.com/ebkn/dotfiles" "$DOTFILES_DIR"
 
 log_step "Linking package manager configs"
 # Before the first install, so the 7-day cooldowns hold from the start. The
-# rest of link_dotfiles reaches this machine only through relink (CLAUDE.md).
+# other links are made inline below (not yet migrated onto link_dotfiles;
+# CLAUDE.md), and relink adds any they miss.
 link_package_manager_configs
 
 log_step "Installing Homebrew"
