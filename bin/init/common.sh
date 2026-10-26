@@ -251,6 +251,9 @@ pin_platform() {
 }
 
 # pinned_sha256 <TOOL> -- the value of <TOOL>_SHA256_<platform> from pins.sh.
+# Fails only on a platform pin_platform does not know; a known platform with
+# no pin prints an empty line and succeeds, and fetch_verified refuses that.
+# <TOOL> goes through eval, so callers pass a literal name, never input.
 pinned_sha256() {
   local platform
   platform="$(pin_platform)" || {
@@ -631,7 +634,14 @@ install_or_upgrade_claude() {
   fi
 
   local platform sha tmp rc=0
-  platform="$(pin_platform | tr 'A-Z_' 'a-z-')"
+  # Anthropic's release directory names, mapped one by one like the other
+  # installers' assets, so renaming a pin_platform suffix cannot change a URL.
+  case "$(pin_platform)" in
+    DARWIN_ARM64) platform=darwin-arm64 ;;
+    DARWIN_X64) platform=darwin-x64 ;;
+    LINUX_X64) platform=linux-x64 ;;
+    LINUX_ARM64) platform=linux-arm64 ;;
+  esac
   sha="$(pinned_sha256 CLAUDE)" || return 1
 
   # What claude.ai/install.sh does, minus its first step: it always fetches
