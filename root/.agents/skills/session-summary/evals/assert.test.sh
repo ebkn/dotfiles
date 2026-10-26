@@ -195,7 +195,7 @@ for label in "opens with the request, its goal and the change of direction" \
   "says what is left and that there is no PR" \
   "keeps to what a reviewer needs" \
   "states the flag decision once" \
-  "puts every limitation under what is left" \
+  "puts every limitation under what is left, once" \
   "lists outcomes as what was done"; do
   expect_fail "reports-finished-branch: the judge reads the closing message ($label)" "$label"
 done
