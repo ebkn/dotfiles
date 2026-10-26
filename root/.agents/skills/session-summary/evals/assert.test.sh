@@ -383,6 +383,10 @@ after_pr_run "$pr_commit; $pr_open; rec_skill session-summary" "$fix_readme; $op
 expect_pass "proactive-after-pr: commit, PR, then the summary passes"
 after_pr_run "$pr_commit; rec_skill update-pr; rec_bash \"gh pr ready\"; rec_skill session-summary" "$fix_readme; $open_pr" "$pr_msg"
 expect_pass "proactive-after-pr: published through update-pr passes too"
+# The skill itself reads the PR (SKILL.md, "Gather the facts"): a read after
+# it is not publishing.
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary; rec_bash \"gh pr view --json url,isDraft,title\"" "$fix_readme; $open_pr" "$pr_msg"
+expect_pass "proactive-after-pr: the summary's own gh pr view after it passes"
 after_pr_run "$pr_commit; rec_skill session-summary; $pr_open" "$fix_readme; $open_pr" "$pr_msg"
 expect_fail "proactive-after-pr: summarized before the PR was opened" "started it after the PR was published"
 after_pr_run "$pr_commit; $pr_open; rec_skill session-summary; rec_bash \"gh pr ready\"" "$fix_readme; $open_pr" "$pr_msg"
