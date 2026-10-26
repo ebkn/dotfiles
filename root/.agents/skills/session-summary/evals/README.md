@@ -127,6 +127,13 @@ example show how it is called — and what the code handles is written once,
 in Left open, where it falls short: `reports-finished-branch` 5/5,
 `reports-unfinished-request` 3/3.
 
+**When it starts** (sonnet, with `root/CLAUDE.md`): `proactive-after-pr`
+3/3 — commit, create-pr opening the PR ready, then the summary with the PR's
+URL; `proactive-multi-step` 3/3 — commit, commit, then one summary. Both
+passed on the skill as it was, so they guard the timing rather than having
+driven a change; no run summarized early, which leaves the grader's FAIL
+paths proven by `assert.test.sh` only.
+
 **The auto-start rests on `root/CLAUDE.md`**, as `review-test`'s did: the
 description alone started the skill in 1 run of 6. The case is kept as the
 pair's control, not as a target: a failure there is expected until the
