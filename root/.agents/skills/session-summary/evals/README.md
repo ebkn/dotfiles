@@ -19,8 +19,10 @@ and every branch and tag by value), and `CHANGELOG.md` — on main only — is
 never named.
 
 Every case that writes a summary is also graded for **accuracy against the
-commits**: the judge is handed `git log main..HEAD` and the merge-base
-`--stat`, and fails a message that reports as done what no commit holds. A
+commits**: the judge is handed `git log main..HEAD`, the merge-base
+`--stat` and the merge-base diff itself (plain: `--no-ext-diff --no-color`;
+why the diff, under "The accuracy judge, checked against planted claims"
+below), and fails a message that reports as done what no commit holds. A
 rubric written beforehand knows only the fixture's intended state, and the
 commonest fault of agent-written PR descriptions is exactly that — "describes
 a change that was never made", 45% of the inconsistent ones, with those PRs
