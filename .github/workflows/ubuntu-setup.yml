@@ -36,7 +36,7 @@ jobs:
             exit 1
           fi
 
-      # ubuntu.sh does not run link_dotfiles, so these four reached a Linux
+      # ubuntu.sh does not run link_dotfiles, so the cooldown configs reached a Linux
       # machine only at its first update-all: until then pip, uv, pnpm and
       # yarn installed with no 7-day cooldown. Nothing failed while they were
       # missing, so only their presence can show it. The function itself is
