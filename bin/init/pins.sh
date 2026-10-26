@@ -2,12 +2,15 @@
 # outside a package manager. Each one used to be `curl … | bash` of whatever
 # the server returned that minute: no version, no checksum, and none of the
 # 7-day holds the package managers have (bin/init/pins.md). Sourced by
-# common.sh and zsh/update.zsh, so plain assignments only: bash and zsh both
-# read them.
+# bin/init/{macos,ubuntu,wsl}.sh next to common.sh, whose installers read it,
+# and by zsh/update.zsh, so plain assignments only: bash and zsh both read
+# them. common.sh does not source it itself, so a test can set pins in the
+# environment without this file overwriting them.
 #
 # Bumping: pick a release at least 7 days old, as the cooldowns do, and replace
 # every checksum of that tool in the same commit. bin/init/pins.md has the
-# command that produces each one.
+# command that produces each one; the URLs there are the ones the installers
+# in common.sh fetch, and change with them.
 # shellcheck shell=bash
 # shellcheck disable=SC2034 # read by common.sh and zsh/update.zsh
 

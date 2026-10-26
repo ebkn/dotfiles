@@ -41,9 +41,9 @@ through `_lazy_restore` in `zsh/update.zsh`, which reads the lockfile first and
 puts it back if the restore changed it. The pins that passed stay recorded,
 and the next `update-all` applies them.
 
-`update-all` also names, at its end, each of `zinit-cooldown`,
-`lazy-cooldown`, the restore, `go-cooldown` and `go-tools-install` that
-failed. Their own lines scroll away under brew and npm output. A failure never
+`update-all` also names, at its end, each pin step that failed: the
+`failed+=` lines in `zsh/update.zsh`, this cooldown and the restore among
+them. Their own lines scroll away under brew and npm output. A failure never
 stops the run: what the cooldown did decide is still applied.
 
 ## The rule

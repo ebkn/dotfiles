@@ -12,7 +12,10 @@ Each one is now a version and a sha256 in `pins.sh`. `fetch_verified` in
 `common.sh` downloads beside the destination and keeps the file only when it
 hashes to the pin; an empty pin fails, so a missing line never means
 "unchecked". `pinned_sha256 <TOOL>` picks `<TOOL>_SHA256_<OS>_<ARCH>` for this
-machine and refuses a platform with no pin.
+machine. It fails on a platform `pin_platform` does not know; for a known
+platform with no line here it prints nothing and succeeds, and
+`fetch_verified` then refuses the empty pin. A caller that needs to know
+whether a pin exists checks for an empty result, not the status.
 
 ## What each pin covers, and what it does not
 
@@ -31,6 +34,12 @@ Pick a release **at least 7 days old**, matching the other cooldowns. Replace
 every checksum of that tool in the same commit: a version with an old checksum
 fails setup loudly, which is the point, but on the next new machine instead of
 in review.
+
+The URLs and asset names below are the ones the installers in `common.sh`
+fetch (`install_homebrew`, `install_or_upgrade_volta`,
+`install_or_upgrade_gcloud`, `install_or_upgrade_claude`, and
+`install_or_upgrade_docker_repo` in `ubuntu.sh`). Change both together, or a
+bump hashes a different file from the one setup downloads.
 
 ```sh
 # Homebrew/install: a commit, then the script's hash
@@ -56,6 +65,9 @@ The Claude checksums come from Anthropic's own manifest, so they are only as
 good as that server at the moment you read it; download one binary and hash it
 yourself if a bump looks surprising.
 
-The setup workflows exercise the `LINUX_X64` and `DARWIN_ARM64` pins on every
-push. The other platforms' checksums are checked only on a machine of that
-kind.
+The setup workflows run on Linux x64 and macOS arm64, but an installer returns
+early when its tool is already there, and the runner images ship Homebrew and,
+on Ubuntu, the Google Cloud CLI. So CI downloads and checks a pin only where
+the image lacks the tool; the rest, and every other platform's checksum, are
+checked on the next machine set up. `bin/init/install-helpers.test.sh` covers
+the checking itself, against stubs.
