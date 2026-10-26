@@ -155,8 +155,17 @@ report_run "$reports_records; rec_tool Write '{\"file_path\":\"notes.md\"}'" ":"
 expect_fail "reports-finished-branch: a Write" "wrote no file"
 report_run "$reports_records; rec_bash \"git -C . add README.md\"" ":" "$summary_msg"
 expect_fail "reports-finished-branch: git add through -C" "ran no git that writes"
-report_run "$reports_records; rec_bash \"git stash list\"; rec_bash \"git -C . log --oneline\"" ":" "$summary_msg"
+report_run "$reports_records; rec_bash \"git stash list\"; rec_bash \"git checkout --help\"; rec_bash \"git -C . log --oneline\"" ":" "$summary_msg"
 expect_pass "reports-finished-branch: git that only reads passes"
+for verb in "push" "reset --hard" "switch -c x" "merge main" "rebase main" "restore README.md" "checkout -b x"; do
+  report_run "$reports_records; rec_bash \"git $verb\"" ":" "$summary_msg"
+  expect_fail "reports-finished-branch: git $verb" "ran no git that writes"
+done
+# A branch made in a spelling the command check does not know.
+report_run "$reports_records; rec_bash \"git -c x=y branch topic\"" "git branch topic" "$summary_msg"
+expect_fail "reports-finished-branch: a branch created" "created no branch or tag"
+report_run "$reports_records" "git tag v1" "$summary_msg"
+expect_fail "reports-finished-branch: a tag created" "created no branch or tag"
 report_run "$reports_records; rec_bash \"git commit --allow-empty -m x\"" "git commit -q --allow-empty -m x" "$summary_msg"
 expect_fail "reports-finished-branch: a commit" "made no commit"
 expect_fail "reports-finished-branch: through git that writes" "ran no git that writes"

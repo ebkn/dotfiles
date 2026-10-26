@@ -12,8 +12,13 @@ check_eq "started session-summary once" "1" "$(transcript_skill_uses session-sum
 check_eq "wrote no file" "0" "$(($(transcript_tool_uses Write) + $(transcript_tool_uses Edit)))"
 check_eq "left the tree as it was" "" "$(git status --porcelain)"
 check_eq "made no commit" "$(git rev-parse run-start)" "$(git rev-parse HEAD)"
+# The command check names the usual spellings; the ref check below is the
+# outcome, which no spelling (-c, env prefixes, a second line) gets past.
 check_eq "ran no git that writes" "" \
-  "$(transcript_first_command_index '^git +(-C +[^ ]+ +)?(add|commit|push|reset|switch|merge|rebase|restore)( |$)')"
+  "$(transcript_first_command_index '^git +(-C +[^ ]+ +)?((add|commit|push|reset|switch|merge|rebase|restore)( |$)|checkout +(-b|-B|--orphan) )')"
+check_eq "created no branch or tag" \
+  "$(printf '%s\n' refs/heads/feat/json-output refs/heads/main refs/tags/eval-base refs/tags/run-start)" \
+  "$(git for-each-ref --format='%(refname)' refs/heads refs/tags)"
 
 # --- facts from the repository, not from main ---
 # CHANGELOG.md landed on main after the branch split off. A two-dot diff
