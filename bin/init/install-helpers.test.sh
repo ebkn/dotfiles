@@ -84,27 +84,33 @@ assert_eq "  ... and installs nothing" "" "$(cat "$LOG")"
 # finds no GitHub credentials, so update_homebrew must have them before its
 # first `brew upgrade`. brew and gh are stubs in directories of their own:
 # PATH holds nothing else, because a runner ships a real gh in /usr/bin.
-# `brew install gh` puts the gh stub into $GH_INSTALL_TO; `gh auth token`
-# succeeds only when $GH_AUTHED is set.
+# `brew install gh` puts the gh stub into $GH_INSTALL_TO; a brew subcommand
+# named in $BREW_FAIL fails. `gh auth token` succeeds when $GH_AUTHED is set or
+# a login has happened: `gh auth login` leaves $GH_MARK behind when
+# $GH_LOGIN_WORKS is set.
 BREW="$TEST_TMPDIR/brew"
 GH_SRC="$TEST_TMPDIR/gh-src"
 mkdir -p "$BREW" "$GH_SRC"
 cat >"$BREW/brew" <<'EOF'
 #!/bin/sh
 echo "brew $*" >>"$LOG"
+[ "$1" = "${BREW_FAIL:-}" ] && exit 1
 if [ "$*" = "install gh" ] && [ -n "${GH_INSTALL_TO:-}" ]; then
   /bin/cp "$GH_SRC/gh" "$GH_INSTALL_TO/gh"
 fi
+exit 0
 EOF
 cat >"$GH_SRC/gh" <<'EOF'
 #!/bin/sh
 echo "gh $*" >>"$LOG"
-[ "$*" = "auth token" ] && { [ -n "${GH_AUTHED:-}" ]; exit; }
-exit 0
+case "$*" in
+  "auth token") [ -n "${GH_AUTHED:-}" ] || [ -e "$GH_MARK" ] ;;
+  "auth login"*) [ -z "${GH_LOGIN_WORKS:-}" ] || : >"$GH_MARK" ;;
+esac
 EOF
 chmod +x "$BREW/brew" "$GH_SRC/gh"
-export GH_SRC
-unset HOMEBREW_GITHUB_API_TOKEN GH_AUTHED GH_INSTALL_TO
+export GH_SRC GH_MARK="$TEST_TMPDIR/gh-logged-in"
+unset HOMEBREW_GITHUB_API_TOKEN GH_AUTHED GH_INSTALL_TO BREW_FAIL GH_LOGIN_WORKS
 WITH_GH="$TEST_TMPDIR/with-gh"
 mkdir -p "$WITH_GH"
 cp "$GH_SRC/gh" "$WITH_GH/gh"
@@ -131,6 +137,51 @@ assert_eq "  ... without trying to log in" "gh auth token" "$(cat "$LOG")"
 assert_contains "  ... naming the way out" "$(cat "$TEST_TMPDIR/err")" \
   "HOMEBREW_GITHUB_API_TOKEN"
 
+# An empty token is what `${{ secrets.X }}` gives for a missing secret.
+: >"$LOG"
+st=$(HOMEBREW_GITHUB_API_TOKEN='' GH_AUTHED=1 helper "$BREW:$WITH_GH" ensure_homebrew_github_auth)
+assert_eq "auth: an empty HOMEBREW_GITHUB_API_TOKEN counts as none" \
+  "0 gh auth token" "$st $(cat "$LOG")"
+
+: >"$LOG"
+st=$(BREW_FAIL=install GH_AUTHED=1 GH_INSTALL_TO="$BREW" helper "$BREW" ensure_homebrew_github_auth)
+assert_eq "auth: a failed gh install fails, and gh is not run" \
+  "1 brew install gh" "$st $(cat "$LOG")"
+rm -f "$BREW/gh"
+
+# The login is offered only on a terminal, which `helper` never gives, so these
+# run under script(1). Its arguments differ between BSD (macOS:
+# `script -q <file> <cmd...>`) and util-linux (CI: `script -qec "<cmd>"
+# <file>`); probed, as the tmux suites do.
+cat >"$TEST_TMPDIR/in-tty" <<EOF
+#!/bin/bash
+PATH=\$1
+shift
+. "$COMMON"
+"\$@" >/dev/null 2>"$TEST_TMPDIR/err"
+echo \$? >"$TEST_TMPDIR/st"
+EOF
+chmod +x "$TEST_TMPDIR/in-tty"
+if script -q /dev/null echo probe 2>/dev/null | grep -q probe; then
+  in_tty() { script -q /dev/null "$TEST_TMPDIR/in-tty" "$@" </dev/null >/dev/null 2>&1; }
+else
+  in_tty() { script -qec "$TEST_TMPDIR/in-tty $*" /dev/null </dev/null >/dev/null 2>&1; }
+fi
+
+: >"$LOG"
+rm -f "$GH_MARK" "$TEST_TMPDIR/st"
+GH_LOGIN_WORKS=1 in_tty "$BREW:$WITH_GH" ensure_homebrew_github_auth
+assert_eq "auth: on a terminal, a login is offered and then used" \
+  "0 gh auth token|gh auth login --hostname github.com --git-protocol ssh|gh auth token" \
+  "$(cat "$TEST_TMPDIR/st" 2>/dev/null) $(tr '\n' '|' <"$LOG" | sed 's/|$//')"
+
+: >"$LOG"
+rm -f "$GH_MARK" "$TEST_TMPDIR/st"
+in_tty "$BREW:$WITH_GH" ensure_homebrew_github_auth
+assert_eq "auth: a login that leaves no token fails" "1" "$(cat "$TEST_TMPDIR/st" 2>/dev/null)"
+assert_contains "  ... naming the way out" "$(cat "$TEST_TMPDIR/err")" \
+  "HOMEBREW_GITHUB_API_TOKEN"
+
 : >"$LOG"
 st=$(GH_AUTHED=1 helper "$BREW:$WITH_GH" update_homebrew)
 assert_eq "update_homebrew: credentials are checked between update and upgrade" \
@@ -140,5 +191,10 @@ assert_eq "update_homebrew: credentials are checked between update and upgrade" 
 st=$(helper "$BREW:$WITH_GH" update_homebrew)
 assert_eq "update_homebrew: without credentials it fails" "1" "$st"
 assert_not_contains "  ... before upgrading anything" "$(cat "$LOG")" "brew upgrade"
+
+: >"$LOG"
+st=$(BREW_FAIL=update GH_AUTHED=1 helper "$BREW:$WITH_GH" update_homebrew)
+assert_eq "update_homebrew: a failed update fails, checking and upgrading nothing" \
+  "1 brew update" "$st $(cat "$LOG")"
 
 test_summary
