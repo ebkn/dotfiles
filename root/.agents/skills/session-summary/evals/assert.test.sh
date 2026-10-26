@@ -387,6 +387,12 @@ after_pr_run "$pr_commit; rec_skill session-summary; $pr_open" "$fix_readme; $op
 expect_fail "proactive-after-pr: summarized before the PR was opened" "started it after the PR was published"
 after_pr_run "$pr_commit; $pr_open; rec_skill session-summary; rec_bash \"gh pr ready\"" "$fix_readme; $open_pr" "$pr_msg"
 expect_fail "proactive-after-pr: a gh pr ready after the summary" "started it after the PR was published"
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary; rec_bash \"gh pr edit --body b\"" "$fix_readme; $open_pr" "$pr_msg"
+expect_fail "proactive-after-pr: a gh pr edit after the summary" "started it after the PR was published"
+# No gh recorded after update-pr, so only the last publishing skill can
+# place it after the summary: the first one is before.
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary; rec_skill update-pr" "$fix_readme; $open_pr" "$pr_msg"
+expect_fail "proactive-after-pr: an update-pr after the summary" "started it after the PR was published"
 after_pr_run "$pr_commit; rec_bash \"gh pr create --title t --body b\"; rec_skill session-summary" "$fix_readme; $open_pr" "$pr_msg"
 expect_fail "proactive-after-pr: a PR opened by hand" "published the PR through create-pr or update-pr"
 after_pr_run "$pr_commit; $pr_open; rec_skill session-summary" "$fix_readme; $open_pr" "$proactive_msg"
