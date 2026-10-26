@@ -787,6 +787,14 @@ if in_grading rdd_labels_translated "$(printf %b '- 「x」の ``` を参照\n- 
 else
   ok 'labels: a ``` mentioned mid-line moves no fence, so the label between is caught'
 fi
+# A closing fence ends the quote: a check that never closed would let every
+# English label after a quoted block through, silently.
+# shellcheck disable=SC2016
+if in_grading rdd_labels_translated "$(printf %b '引用:\n```\nx\n```\n- Why it matters: y')"; then
+  bad 'labels: a label after a closed fence is caught'
+else
+  ok 'labels: a label after a closed fence is caught'
+fi
 
 # ============================================================
 # mini-doc-no-template-demands
