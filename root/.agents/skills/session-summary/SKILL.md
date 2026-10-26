@@ -29,7 +29,7 @@ This condition lives here as well as in the caller's configuration, because host
 The conversation is the main source: what the user asked, in their words, and every change of direction since. Then check what was actually delivered against the repository, not against memory of the session:
 
 1. The base: `git rev-parse --abbrev-ref origin/HEAD` (strip `origin/`), falling back to `main`.
-2. `git log <base>..HEAD` with full messages, and `git diff --stat <base>..HEAD`. On the default branch, take the commits this request made.
+2. `git log <base>..HEAD` with full messages, and `git diff --stat <base>...HEAD` — three dots, from the merge-base: two dots compare against the base's current tree, so once the base has moved on its newer changes show up as if this branch had reverted them. On the default branch, take the commits this request made.
 3. `git status --short` — anything uncommitted is reported, not hidden.
 4. `gh pr view --json url,isDraft,title` when the branch has a PR.
 
