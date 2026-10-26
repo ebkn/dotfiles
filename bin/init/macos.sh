@@ -11,7 +11,11 @@ BACKUP_DIR="${HOME}/backup"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 . "${SCRIPT_DIR}/common.sh"
+# Before anything runs brew: setup is not an interactive shell, so path.zsh,
+# which reads this for every other brew command, has not run.
+. "${SCRIPT_DIR}/homebrew-env.sh"
 . "${SCRIPT_DIR}/links.sh"
+. "${SCRIPT_DIR}/pins.sh"
 
 install_or_upgrade_fzf_shell_integration() {
   local fzf_install
@@ -73,7 +77,7 @@ defaults write com.apple.finder AppleShowAllFiles TRUE
 
 log_step "Installing HomeBrew"
 if ! command -v brew 2> /dev/null; then
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  install_homebrew
 fi
 export PATH="/usr/local/bin:$PATH"
 export PATH="/opt/homebrew/sbin:$PATH"

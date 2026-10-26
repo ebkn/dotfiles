@@ -1,25 +1,7 @@
 export PATH="$PATH:/usr/local/sbin"
 
-# Homebrew packages managed outside Homebrew (Volta/official installers).
-export HOMEBREW_FORBIDDEN_FORMULAE="node npm pnpm yarn claude"
-
-# Supply-chain hardening for Homebrew.
-# Verify Sigstore attestations on bottles to ensure they were built by
-# Homebrew's official CI rather than tampered with downstream.
-export HOMEBREW_VERIFY_ATTESTATIONS=1
-# Refuse HTTP-to-HTTPS redirects during downloads.
-export HOMEBREW_NO_INSECURE_REDIRECT=1
-# Not HOMEBREW_ALLOWED_TAPS: it did refuse third-party taps, but Homebrew
-# deprecated it with no replacement (7c2a921, 2026-09-13), so it warns on every
-# brew command and will later be ignored without a word. HOMEBREW_FORBIDDEN_TAPS
-# is a denylist, which cannot name a tap not yet seen. No tap is in use
-# (brewfiles/ has no `tap` line); keeping it that way is left to review
-# (2026-10).
-# Not HOMEBREW_CASK_OPTS=--require-sha: it has no per-cask exemption, and 4 of
-# brewfiles/Brewfile-cask (google-chrome, google-drive, google-japanese-ime,
-# spotify) are `sha256 :no_check`, so they would fail to install or upgrade. The
-# other checksums are taken by Homebrew's autobump from the vendor's own file,
-# so they catch a CDN swap after the bump, not a compromised vendor (2026-10).
+# Homebrew's supply-chain settings, in a file the init scripts read too.
+source "$DOTFILES/bin/init/homebrew-env.sh"
 
 # User-local scripts PATH and VOLTA_HOME are set in .zshenv
 

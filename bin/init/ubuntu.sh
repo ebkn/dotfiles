@@ -14,6 +14,11 @@ install_or_upgrade_apt_packages() {
   sudo apt install -y "$@"
 }
 . "${SCRIPT_DIR}/common.sh"
+# Before anything runs brew: setup is not an interactive shell, so path.zsh,
+# which reads this for every other brew command, has not run.
+. "${SCRIPT_DIR}/homebrew-env.sh"
+. "${SCRIPT_DIR}/links.sh"
+. "${SCRIPT_DIR}/pins.sh"
 
 install_or_upgrade_fzf_shell_integration() {
   local fzf_install
@@ -41,9 +46,18 @@ install_or_upgrade_fzf_shell_integration() {
 }
 
 install_or_upgrade_docker_repo() {
+  local tmp
   sudo install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo tee /etc/apt/keyrings/docker.asc >/dev/null
-  sudo chmod a+r /etc/apt/keyrings/docker.asc
+  # apt trusts every package this key signs, so it is checked against pins.sh
+  # before apt sees it.
+  tmp="$(mktemp -d)"
+  if ! fetch_verified https://download.docker.com/linux/ubuntu/gpg \
+    "$DOCKER_APT_KEY_SHA256" "${tmp}/docker.asc"; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  sudo install -m 0644 "${tmp}/docker.asc" /etc/apt/keyrings/docker.asc
+  rm -rf "$tmp"
   echo \
     "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
     $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
@@ -72,6 +86,12 @@ ensure_locale "en_US.UTF-8"
 
 log_step "Cloning or updating dotfiles"
 install_or_upgrade_git_repo "https://github.com/ebkn/dotfiles" "$DOTFILES_DIR"
+
+log_step "Linking package manager configs"
+# Before the first install, so the 7-day cooldowns hold from the start. The
+# other links are made inline below (not yet migrated onto link_dotfiles;
+# CLAUDE.md), and relink adds any they miss.
+link_package_manager_configs
 
 log_step "Installing Homebrew"
 install_or_upgrade_homebrew_linux

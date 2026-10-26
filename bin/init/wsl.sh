@@ -14,6 +14,11 @@ install_or_upgrade_apt_packages() {
   sudo apt install -y "$@"
 }
 . "${SCRIPT_DIR}/common.sh"
+# Before anything runs brew: setup is not an interactive shell, so path.zsh,
+# which reads this for every other brew command, has not run.
+. "${SCRIPT_DIR}/homebrew-env.sh"
+. "${SCRIPT_DIR}/links.sh"
+. "${SCRIPT_DIR}/pins.sh"
 
 # Verify WSL environment (skip check on CI where we test on plain Ubuntu).
 if [ "${CI:-}" != "true" ] && ! is_wsl; then
@@ -128,6 +133,12 @@ ensure_locale "en_US.UTF-8"
 
 log_step "Cloning or updating dotfiles"
 install_or_upgrade_git_repo "https://github.com/ebkn/dotfiles" "$DOTFILES_DIR"
+
+log_step "Linking package manager configs"
+# Before the first install, so the 7-day cooldowns hold from the start. The
+# other links are made inline below (not yet migrated onto link_dotfiles;
+# CLAUDE.md), and relink adds any they miss.
+link_package_manager_configs
 
 log_step "Installing Homebrew"
 install_or_upgrade_homebrew_linux

@@ -26,6 +26,10 @@ jobs:
         run: bash bin/init/bootstrap-ubuntu.sh 2>&1 | tee "$RUNNER_TEMP/setup.log"
         env:
           DOTFILES_SKIP_UPDATE: '1'
+          # See macos-setup.yml: setup requires GitHub credentials, and CI
+          # skips attestation checks, whose API calls exhaust the token.
+          HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
+          HOMEBREW_NO_VERIFY_ATTESTATIONS: '1'
 
       # See macos-setup.yml: a missing link source is a warning and exit 0.
       - name: No link was skipped for a missing source
@@ -33,6 +37,20 @@ jobs:
           if grep -n 'missing source for link' "$RUNNER_TEMP/setup.log"; then
             exit 1
           fi
+
+      # ubuntu.sh does not run link_dotfiles, so the cooldown configs reached a Linux
+      # machine only at its first update-all: until then pip, uv, pnpm and
+      # yarn installed with no 7-day cooldown. Nothing failed while they were
+      # missing, so only their presence can show it. The function itself is
+      # asked, in check mode, so a config added to it is checked here too.
+      - name: The package manager cooldown configs are linked
+        run: |
+          DOTFILES_DIR="$HOME/dotfiles"
+          . bin/init/common.sh
+          . bin/init/links.sh
+          out=$(LINK_CHECK=1 link_package_manager_configs)
+          printf '%s\n' "$out"
+          [ -z "$out" ]
 
       # update-all re-syncs links only through relink, and only if it is on
       # PATH. ubuntu.sh links inline rather than through link_dotfiles, so relink

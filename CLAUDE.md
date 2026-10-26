@@ -31,7 +31,7 @@ Claude Code loads these from `.claude/rules/` when a matching file is touched. C
 
 ## Conventions
 
-- **New `$HOME` link**: add a `link_with_backup` line to `link_dotfiles()` in `bin/init/links.sh`, so `bin/init/macos.sh` and `relink` both pick it up (`ubuntu.sh`/`wsl.sh`: inline, not yet migrated). Order-sensitive links (`.zshrc`/`.zshenv`, `.npmrc`) stay inline in the platform script. `relink` reports drift and asks before fixing; `update-all` runs it at the end.
+- **New `$HOME` link**: add a `link_with_backup` line to `link_dotfiles()` in `bin/init/links.sh`, so `bin/init/macos.sh` and `relink` both pick it up (`ubuntu.sh`/`wsl.sh`: inline, not yet migrated). Order-sensitive links (`.zshrc`/`.zshenv`, `.npmrc`) stay inline in the platform script. The yarn/pnpm/pip/uv cooldown configs are `link_package_manager_configs`, which `link_dotfiles` calls and `ubuntu.sh`/`wsl.sh` call before their first install. `relink` reports drift and asks before fixing; `update-all` runs it at the end.
 - **Executables live in `bin/`, never at the repo root.** Moving a `bin/` script leaves `~/.local/bin/<name>` dangling until `relink` runs, and callers discard stderr, so the only symptom is a feature quietly not happening.
 - **Everything clones over SSH.** `.gitconfig` rewrites every `https://github.com/…` URL to SSH, zinit's included, so a new machine fetches nothing from GitHub until it has an SSH key, and changing a URL here to HTTPS does nothing. Check with `GIT_SSH_COMMAND=false git ls-remote https://github.com/…`; only `GIT_CONFIG_GLOBAL=/dev/null` neutralises the rewrite.
 - **This repository is public.** `root/.claude/settings.json` collects machine-local state from `/config` and private-repo profiles in `autoMode.environment`; read [root/README.md](root/README.md) before staging it.
@@ -59,6 +59,7 @@ Claude Code loads these from `.claude/rules/` when a matching file is touched. C
 | Skill evals (`skill-eval`)                       | [bin/skill-eval.md](bin/skill-eval.md) |
 | Neovim plugin cooldown (`lazy-lock.json`)        | [bin/lazy-cooldown.md](bin/lazy-cooldown.md) |
 | Go tool versions and their cooldown (`go-tools.txt`) | [bin/go-cooldown.md](bin/go-cooldown.md) |
+| Installer pins: Homebrew, Volta, node, gcloud, Claude Code, Docker key (`bin/init/pins.sh`) | [bin/init/pins.md](bin/init/pins.md) |
 | tmux plugin pins (`tmux-plugins.txt`)            | [bin/tmux-plugins-install.md](bin/tmux-plugins-install.md) |
 | zsh plugin pins and their cooldown               | [zsh/README.md](zsh/README.md#zinit-and-every-plugin-are-pinned-to-a-commit), [bin/zinit-pins.md](bin/zinit-pins.md), [bin/zinit-cooldown.md](bin/zinit-cooldown.md) |
 | Session retrospective (`/retrospective`)         | [root/.agents/skills/retrospective/NOTES.md](root/.agents/skills/retrospective/NOTES.md) |

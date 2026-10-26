@@ -26,6 +26,10 @@ jobs:
         run: bash bin/init/bootstrap-wsl.sh 2>&1 | tee "$RUNNER_TEMP/setup.log"
         env:
           DOTFILES_SKIP_UPDATE: '1'
+          # See macos-setup.yml: setup requires GitHub credentials, and CI
+          # skips attestation checks, whose API calls exhaust the token.
+          HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
+          HOMEBREW_NO_VERIFY_ATTESTATIONS: '1'
 
       # See macos-setup.yml: a missing link source is a warning and exit 0.
       - name: No link was skipped for a missing source
@@ -33,6 +37,16 @@ jobs:
           if grep -n 'missing source for link' "$RUNNER_TEMP/setup.log"; then
             exit 1
           fi
+
+      # See ubuntu-setup.yml: wsl.sh does not run link_dotfiles either.
+      - name: The package manager cooldown configs are linked
+        run: |
+          DOTFILES_DIR="$HOME/dotfiles"
+          . bin/init/common.sh
+          . bin/init/links.sh
+          out=$(LINK_CHECK=1 link_package_manager_configs)
+          printf '%s\n' "$out"
+          [ -z "$out" ]
 
       # See ubuntu-setup.yml: relink must be linked and run to its prompt.
       - name: relink is linked and runs
