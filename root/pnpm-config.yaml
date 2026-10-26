@@ -3,9 +3,15 @@
 #   Linux -> ~/.config/pnpm/config.yaml
 # unless $XDG_CONFIG_HOME is set, in which case pnpm uses $XDG_CONFIG_HOME/pnpm/).
 #
-# Supply-chain hardening: minimum release age (pnpm >= 10.16). Refuse to install
-# any npm package version published less than 7 days ago, matching the npm
-# min-release-age=7 (~/.npmrc) and yarn npmMinimalAgeGate (~/.yarnrc.yml) windows.
+# Supply-chain hardening: minimum release age. Refuse to install any npm package
+# version published less than 7 days ago, matching the npm min-release-age=7
+# (~/.npmrc) and yarn npmMinimalAgeGate (~/.yarnrc.yml) windows.
+#
+# Not every pnpm reads this file, and one that does not says nothing. pnpm
+# 10.17.0 ignored it -- `pnpm config get minimumReleaseAge` printed undefined
+# and a 1-day-old release installed -- while 12.14.0 reads it and refuses that
+# release with ERR_PNPM_NO_MATURE_MATCHING_VERSION (2026-10). After installing
+# or bumping pnpm, check `pnpm config get minimumReleaseAge` prints 10080.
 #
 # Unit is MINUTES: 10080 = 7 days. Use minimumReleaseAgeExclude (names, globs, or
 # specific versions) to exempt a package when a fresh release is genuinely needed.
