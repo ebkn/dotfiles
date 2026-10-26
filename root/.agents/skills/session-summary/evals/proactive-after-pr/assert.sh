@@ -12,9 +12,7 @@ summary="$(transcript_result_text)"
 SKILL_EVAL_JUDGE_MODEL="${SKILL_EVAL_JUDGE_MODEL:-sonnet}"
 
 # --- the request, and the PR root/CLAUDE.md asks for ---
-check_match "README installs with install.sh" '\./install\.sh' "$(cat README.md)"
-check_not_match "and no longer names make install" 'make install' "$(cat README.md)"
-check_eq "left nothing uncommitted" "" "$(git status --porcelain)"
+summary_eval_check_install_fixed
 check_eq "pushed every commit" "$(git rev-parse HEAD)" "$(fake_github_remote_head docs/install)"
 check_eq "the PR ends ready for review" "false" "$(fake_github_pr | jq -r '.isDraft')"
 

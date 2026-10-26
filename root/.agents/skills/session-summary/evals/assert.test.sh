@@ -407,6 +407,8 @@ after_pr_run "$pr_commit; $pr_open; rec_skill session-summary" "$fix_readme; $op
 expect_fail "proactive-after-pr: a commit not pushed" "pushed every commit"
 after_pr_run "$pr_commit; rec_skill session-summary" "$fix_readme" "$pr_msg"
 expect_fail "proactive-after-pr: no PR at all" "the PR ends ready for review"
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary" "$keep_make; $open_pr" "$pr_msg"
+expect_fail "proactive-after-pr: the request checks run (make install kept)" "and no longer names make install"
 after_pr_run "$pr_commit; $pr_open; rec_skill session-summary" "$fix_readme; $open_pr" "$pr_msg JUDGE_FAIL"
 expect_fail "proactive-after-pr: the judge reads the closing message" "reports nothing the commits do not hold"
 assert_eq "proactive-after-pr: every judged check asks sonnet by default" "sonnet" \
@@ -435,6 +437,8 @@ expect_fail "proactive-multi-step: summarized after each commit" "started sessio
 multi_run "$two_commits; rec_skill session-summary" "$fix_readme" "$proactive_msg"
 expect_fail "proactive-multi-step: the usage example missing" "Usage shows a run on README.md"
 expect_fail "proactive-multi-step: and one commit only" "committed twice"
+multi_run "$two_commits; rec_skill session-summary" "$keep_make; $add_usage" "$proactive_msg"
+expect_fail "proactive-multi-step: the request checks run (make install kept)" "and no longer names make install"
 multi_run "$two_commits; rec_skill session-summary" "$fix_readme; $add_usage" "$proactive_msg JUDGE_FAIL"
 expect_fail "proactive-multi-step: the judge reads the closing message" "reports nothing the commits do not hold"
 assert_eq "proactive-multi-step: every judged check asks sonnet by default" "sonnet" \

@@ -46,6 +46,16 @@ $(git diff --no-ext-diff --no-color main...HEAD)" \
     "$(transcript_result_text)"
 }
 
+# summary_eval_check_install_fixed
+# The proactive request carried out: the Install section names install.sh,
+# no longer make install, and nothing is left uncommitted. Shared by every
+# case that asks for that fix, so one grader is pinned for all of them.
+summary_eval_check_install_fixed() {
+  check_match "README installs with install.sh" '\./install\.sh' "$(cat README.md)"
+  check_not_match "and no longer names make install" 'make install' "$(cat README.md)"
+  check_eq "left nothing uncommitted" "" "$(git status --porcelain)"
+}
+
 # summary_eval_check_timing
 # Started by itself at the end ("## When to start"): once, and after the last
 # commit. Once rules out a start mid-request as well as a second one at the
@@ -94,11 +104,8 @@ summary_eval_check_proactive() {
   # grader calling this beside its own checks keeps its own judge.
   local SKILL_EVAL_JUDGE_MODEL="${SKILL_EVAL_JUDGE_MODEL:-sonnet}"
 
-  # --- the request itself was carried out ---
-  check_match "README installs with install.sh" '\./install\.sh' "$(cat README.md)"
-  check_not_match "and no longer names make install" 'make install' "$(cat README.md)"
+  summary_eval_check_install_fixed
   check "committed the work" test "$(git rev-list --count eval-base..HEAD)" -ge 1
-  check_eq "left nothing uncommitted" "" "$(git status --porcelain)"
 
   summary_eval_check_timing
 
