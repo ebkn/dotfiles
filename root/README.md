@@ -425,7 +425,7 @@ that absence of a prompt is not permission. Frontmatter alone is a Claude-only
 guarantee.
 
 This applies to `review-test`, `review-design`, `review-design-doc`, `review-support`,
-`check-production-readiness`, and `retrospective`. Of these, `review-design` is
+`check-production-readiness`, `retrospective`, and `session-summary`. Of these, `review-design` is
 the one whose `allowed-tools` pre-approves git — the reading commands only, since the
 range under review is the input of every run — so its body also forbids
 `--output`, the flag that makes `git diff` and `git log` write a file.

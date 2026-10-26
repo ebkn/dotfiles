@@ -1,0 +1,4 @@
+interface:
+  display_name: "Session Summary"
+  short_description: "Hand finished work back: what was asked, done, added and built (read-only)"
+  default_prompt: "Use $session-summary to summarize the work just finished for my review."
