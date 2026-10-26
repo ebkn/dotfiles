@@ -39,12 +39,16 @@ jobs:
       # ubuntu.sh does not run link_dotfiles, so these four reached a Linux
       # machine only at its first update-all: until then pip, uv, pnpm and
       # yarn installed with no 7-day cooldown. Nothing failed while they were
-      # missing, so only their presence can show it.
+      # missing, so only their presence can show it. The function itself is
+      # asked, in check mode, so a config added to it is checked here too.
       - name: The package manager cooldown configs are linked
         run: |
-          for f in .yarnrc.yml .config/pnpm/config.yaml .config/pip/pip.conf .config/uv/uv.toml; do
-            [ -L "$HOME/$f" ] || { echo "not linked: ~/$f"; exit 1; }
-          done
+          DOTFILES_DIR="$HOME/dotfiles"
+          . bin/init/common.sh
+          . bin/init/links.sh
+          out=$(LINK_CHECK=1 link_package_manager_configs)
+          printf '%s\n' "$out"
+          [ -z "$out" ]
 
       # update-all re-syncs links only through relink, and only if it is on
       # PATH. ubuntu.sh links inline rather than through link_dotfiles, so relink
