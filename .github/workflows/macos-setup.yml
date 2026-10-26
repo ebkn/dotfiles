@@ -22,6 +22,14 @@ jobs:
       - name: Place the checkout at ~/dotfiles
         run: ln -s "$GITHUB_WORKSPACE" "$HOME/dotfiles"
 
+      # The runner image ships ruby@3.4 plus RubyGems ri docs that no keg owns
+      # (written by a `gem update --system` while building the image). The
+      # next ruby@3.4 bottle carries the same paths, so `brew upgrade` cannot
+      # link it and setup stops, failing on the image rather than on this repo.
+      # Only generated docs live there; a real machine has no such leftovers.
+      - name: Remove the runner's unowned RubyGems docs
+        run: rm -rf "$(brew --prefix)"/lib/ruby/gems/*/doc
+
       # Teed so the steps below can read it. `shell: bash` for pipefail: the
       # default shell would report tee's status and hide a failed bootstrap.
       - name: Run install script
