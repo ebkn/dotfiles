@@ -1,6 +1,6 @@
 ---
 name: session-summary
-description: Write the closing message that hands finished work back to the user — what they asked for and why, what was done, what was done beyond the request, and, where it helps the review, the shape of what was built (files, interfaces, system design, UI output). Use it proactively, without being asked, as the last step of a request that changed files: once its commits are made, review-test and review-design have run with their fixes committed, and update-pr has marked the PR ready (or the commits are reported as local), so that all that is left is for the user to check the work. It replaces the free-form wrap-up summary. Not mid-request, not for a question answered or an investigation reported with nothing committed. On request too — "まとめて", "何をやったか教えて", "summarize what you did", "wrap up" — or via the /session-summary command.
+description: Write the closing message that hands finished work back to the user — what they asked for and why, what was done, what was done beyond the request, and, where it helps the review, the shape of what was built (files, interfaces, system design, UI output). Use it proactively, without being asked, as the last step of a request that changed files: once its commits are made, review-test and review-design have run with their fixes committed, and update-pr has marked the PR ready (or, with no PR to open, the commits are left local), so that all that is left is for the user to check the work. It replaces the free-form wrap-up summary. Not mid-request, not for a question answered or an investigation reported with nothing committed. On request too — "まとめて", "何をやったか教えて", "summarize what you did", "wrap up" — or via the /session-summary command.
 allowed-tools: Bash(git status *), Bash(git log *), Bash(git diff *), Bash(git rev-parse *), Bash(gh pr view *), Read, Glob, Grep
 ---
 
@@ -66,7 +66,7 @@ Skip the section entirely for a change whose shape the first two sections alread
 
 ### 5. Left open
 
-One to three lines, always present: the PR URL (or that the commits are local), and anything the user must decide, verify or run themselves — a test that could not run here, a P3 finding, an open question. If nothing is left but the review, say only where to review it.
+Always present, one line per item: the PR URL (or that the commits are local), and anything the user must decide, verify or run themselves — a test that could not run here, a P3 finding, an open question, a gap noticed while gathering the facts. If nothing is left but the review, that one line is the section.
 
 ## Style
 
