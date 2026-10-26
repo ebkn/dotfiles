@@ -37,7 +37,9 @@ Read a changed file only when the commit messages do not tell you its interface 
 
 ## The message
 
-Write in the language the conversation runs in under the user's instructions. Keep each section to what a reviewer needs; cut anything that restates another section. Omit a section marked *(if any)* when it would be empty — do not write "none".
+Write in the language the conversation runs in under the user's instructions. Keep each section to what a reviewer needs. Omit a section marked *(if any)* when it would be empty — do not write "none".
+
+**Every fact goes in exactly one section.** A decision the user made belongs to section 1, a change to section 2 or 3, a limitation to section 5 — and nowhere else, not even as a reminder or a pointer back ("the two points above"). Before sending, check each line against the others: a line that says again what one elsewhere says goes.
 
 If `review-test` or `review-design` ran in this request, their reports keep the place those skills give them, at the top of the closing message; this message follows them.
 
@@ -47,11 +49,13 @@ Two to four lines. The request as the user put it — quote their key words — 
 
 ### 2. What was done
 
-A short list, one line per outcome, written as what the user can now do or what now holds — not as the steps taken. Map each line back to the request. Anything asked for but not done, or done differently, goes here too, stated plainly with the reason.
+A short list, one line per outcome, written as what the user can now do or what now holds — a behaviour, a command, a test that now exists — not as the steps taken. Map each line back to the request. Anything asked for but not done, or done differently, goes here too, stated plainly with the reason.
+
+Not here: a decision section 1 already gives ("the setting is called X" after the user chose X), commit hashes, a count of files, the state of the working tree. None of them is something the user can now do.
 
 ### 3. Beyond the request *(if any)*
 
-What was not asked for: fixes from the reviews, docs brought in line, refactors, a bug noticed on the way, a dependency added. One line each, with why. This is the section a reviewer checks hardest, because nobody asked for it.
+What was not asked for: fixes from the reviews, docs brought in line, refactors, a bug noticed on the way, a dependency added, a sentence added to a doc. One line each, with why. This is the section a reviewer checks hardest, because nobody asked for it — so an unrequested change goes here only, never also under section 2.
 
 ### 4. How it is built *(if any)*
 
@@ -59,14 +63,14 @@ Only what the user needs to review the change without opening every file. Pick t
 
 - **Files**: a tree of the added and changed files only, each with a few words on its role. Skip it for a one- or two-file change.
 - **Interfaces**: the signatures, commands and flags, config keys, file formats or endpoints that callers see — exactly as written in the code, in a code block.
-- **Design**: how the pieces connect, in a few lines or a small ASCII diagram, and the one or two decisions that shaped it, with the alternative turned down.
+- **Design**: how the pieces connect, in a few lines or a small ASCII diagram, and the one or two decisions made during the work that shaped it, with the alternative turned down — not the ones the user gave, which section 1 holds.
 - **Frontend**: what the user will see — a screenshot path or URL if one was taken, otherwise where and how to look at it.
 
-Skip the section entirely for a change whose shape the first two sections already make obvious.
+This section describes what the change is, not where it falls short. A rule of the interface — which argument comes first, which values it accepts — is part of the interface and is stated here, once; section 5 does not repeat it. Something that does not work, is not handled or was not verified is a limitation, and goes to section 5 only. Skip the section entirely for a change whose shape the first two sections already make obvious.
 
 ### 5. Left open
 
-Always present, one line per item: the PR URL (or that the commits are local), and anything the user must decide, verify or run themselves — a test that could not run here, a P3 finding, an open question, a gap noticed while gathering the facts. If nothing is left but the review, that one line is the section.
+Always present, one line per item: the PR URL (or that the commits are local), and anything the user must decide, verify or run themselves — a test that could not run here, a P3 finding, an open question, a gap noticed while gathering the facts. **Every limitation lives here and only here**: what does not work, is not handled, was not run or not verified, stated in full rather than pointed to. If nothing is left but the review, that one line is the section.
 
 ## Style
 
