@@ -9,10 +9,10 @@
 #
 # Bumping: pick a release at least 7 days old, as the cooldowns do, and replace
 # every checksum of that tool in the same commit. bin/init/pins.md has the
-# command that produces each one; the URLs there are the ones the installers
-# in common.sh fetch, and change with them.
+# command that produces each one, and names the installers that fetch those
+# URLs, which change with them.
 # shellcheck shell=bash
-# shellcheck disable=SC2034 # read by common.sh and zsh/update.zsh
+# shellcheck disable=SC2034 # read by bin/init and zsh/update.zsh
 
 # Homebrew/install at a commit, not HEAD. The script clones Homebrew itself
 # at its latest tag; from then on `brew update` moves it, like any machine.
