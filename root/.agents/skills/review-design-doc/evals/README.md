@@ -20,7 +20,9 @@ What `SKILL.md` must keep, because `grading.sh` reads it:
 
 - **A report heading with a colon, naming the doc**: `## Design doc review: <path>`,
   translated (`設計ドキュメントレビュー:`, `設計書レビュー:` and `Design Document Review:`
-  are accepted too). A preamble without the colon does not count.
+  are accepted too). A preamble without the colon does not count. On a
+  Japanese doc an English spelling is still found, and fails the labels
+  check below.
 - **Findings under headings naming `P1`, `P2`, `P3`**; an empty one is dropped or says
   "なし" / "None" and nothing more. A judged finding counts only under P1 or
   P2: a mention under P3, or in passing, is not a finding raised. The parser
@@ -61,7 +63,10 @@ What `SKILL.md` must keep, because `grading.sh` reads it:
   loop, every round's, since the caller's summary may follow a `CLAUDE.md`
   asking for English. "Japanese" means at least as many kana as ASCII words once quotes
   and paths are dropped (`rdd_is_japanese`), so an English review quoting the
-  doc does not pass.
+  doc does not pass. Nor do Japanese findings under the template's English
+  labels -- `Design doc review:`, `Why it matters:`, `Questions for the author`
+  and the rest (`rdd_labels_translated`), the shape three of five reviews of
+  real Japanese docs took; only the `Caller:` line stays English.
 - **The readability of a Japanese doc goes to `lint-docs`**, started after the
   review's last round, so it lints text the review is done changing. On a
   user's doc it only inspects (its own boundary); on the agent's it fixes. An

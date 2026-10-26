@@ -286,7 +286,7 @@ for entry in \
   new_run "$c" "$req"
   grade "$(en_report "$doc")"
   expect_fail "$c: an English report on a Japanese doc is caught" \
-    "answered in Japanese, the doc's language"
+    "answered in Japanese, the doc's language" "wrote the report's labels in Japanese too"
 
   new_run "$c" 'rec_skill'
   grade "$(report "$doc" '見つけた問題')"
@@ -324,7 +324,12 @@ for heading in '**Design doc review:** docs/design/webhook-retry.md' \
   '## Design Document Review: `docs/design/webhook-retry.md`'; do
   new_run strawman-alternatives "$req"
   grade "$(report "$doc" '見つけた問題' | sed "1s|^.*\$|$heading|")"
-  expect_pass "heading: $heading"
+  # Every spelling is read as the heading; on this Japanese doc an English one
+  # fails only the labels check.
+  case "$heading" in
+    *[Dd]esign\ [Dd]oc*) expect_fail "heading: $heading" "wrote the report's labels in Japanese too" ;;
+    *) expect_pass "heading: $heading" ;;
+  esac
 done
 
 # ============================================================
@@ -515,8 +520,17 @@ for loc in '' C; do
     '## Design Document Review: `docs/design/webhook-retry.md`'; do
     new_run clean-doc-no-false-p1 "$req"
     LC_ALL="$loc" grade "$(printf '%s\n\n- 【P1】ロールバックが無い\n' "$heading")"
-    expect_fail "clean: a priority under '$heading' is read (locale '${loc:-inherited}')" \
-      "ranks findings under priority headings, not inline"
+    # An English heading also fails the Japanese doc's labels.
+    case "$heading" in
+      *[Dd]esign\ [Dd]oc*)
+        expect_fail "clean: a priority under '$heading' is read (locale '${loc:-inherited}')" \
+          "ranks findings under priority headings, not inline" "wrote the report's labels in Japanese too"
+        ;;
+      *)
+        expect_fail "clean: a priority under '$heading' is read (locale '${loc:-inherited}')" \
+          "ranks findings under priority headings, not inline"
+        ;;
+    esac
   done
 done
 
@@ -628,7 +642,16 @@ expect_pass "doc-language: a Japanese report passes every assertion"
 new_run answers-in-doc-language "rec_skill; $lint"
 grade "$(en_report "$doc")"
 expect_fail "doc-language: answering in the request's language is caught" \
-  "answered in Japanese, the doc's language"
+  "answered in Japanese, the doc's language" "wrote the report's labels in Japanese too"
+
+# Japanese findings under the template's English labels: the shape three of
+# five reviews of real Japanese docs took.
+ja_labels_en="$(report "$doc" 'ロールバックの手段が無い')
+  - Why it matters: 戻せない"
+new_run answers-in-doc-language "rec_skill; $lint"
+grade "${ja_labels_en/設計ドキュメントレビュー/Design doc review}"
+expect_fail "doc-language: English labels on Japanese findings are caught" \
+  "wrote the report's labels in Japanese too"
 
 new_run answers-in-doc-language "$lint"
 grade "$(report "$doc" 'ロールバックの手段が無い')"
@@ -712,6 +735,29 @@ for text in 'The 「検討した代替案」 section and `何もしない` are t
     bad "is_japanese: '${text%%\\n*}' is not Japanese"
   else
     ok "is_japanese: '${text%%\\n*}' is not Japanese"
+  fi
+done
+
+# The template's English labels, in the shapes real runs wrote them, and the
+# Caller line, which stays English on purpose.
+for text in '### P1\n- **x** — 「y」\n  - なぜ問題か: z\n  - 提案: w' \
+  '### 作者への質問\n- x' '### 確認した観点\n- x' \
+  'Caller: the user may not see this result. Suggestion: none.' \
+  '- 「Why it matters」に当たる節が無い'; do
+  if in_grading rdd_labels_translated "$(printf %b "$text")"; then
+    ok "labels: '${text%%\\n*}' passes"
+  else
+    bad "labels: '${text%%\\n*}' passes"
+  fi
+done
+for text in '## Design doc review: docs/a.md' '**Design Document Review:** docs/a.md' \
+  '### The decision\nx' '### Questions for the author\n- x' \
+  '### Decisions the doc leaves open\n- x' '### Checked\n- x' \
+  '  - Why it matters: x' '  - **Suggestion**: x' '- suggestion： x'; do
+  if in_grading rdd_labels_translated "$(printf %b "$text")"; then
+    bad "labels: '${text%%\\n*}' is caught"
+  else
+    ok "labels: '${text%%\\n*}' is caught"
   fi
 done
 
@@ -851,6 +897,16 @@ expect_fail "proactive: the judges read the final response" \
 new_run proactive-after-writing-doc "rec_edit Write $doc; rec_round \"\$found\"; rec_edit Edit $doc; rec_round \"\$clean_en_round\"; $lint" "$write_doc"
 grade "$pro_done"
 expect_fail "proactive: an English review of the Japanese doc is caught" \
+  "answered in Japanese, the doc's language, in every round"
+
+# A Japanese round under the template's English labels is not one in the
+# doc's language either: on real runs the labels were all that stayed English.
+# shellcheck disable=SC2016,SC2034
+clean_labels_en="${clean/設計ドキュメントレビュー/Design doc review}"
+# shellcheck disable=SC2016
+new_run proactive-after-writing-doc "rec_edit Write $doc; rec_round \"\$found\"; rec_edit Edit $doc; rec_round \"\$clean_labels_en\"; $lint" "$write_doc"
+grade "$pro_done"
+expect_fail "proactive: a round under English labels is caught" \
   "answered in Japanese, the doc's language, in every round"
 
 # Every round, not only the last: an English first round is one the user may

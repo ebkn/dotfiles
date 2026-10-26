@@ -21,7 +21,7 @@ $ARGUMENTS
 
 Wherever the steps below say "the brief", they mean this text. A bare path is a brief too: a requested review of that doc. With no path at all, look for the doc the request names under `docs/`, `design/`, `rfcs/` or `adr/` (Glob); if more than one could be meant, ask for it in your report rather than guessing. Where this skill says "the caller", it means the agent that invoked you; "After the review" is its part, not yours.
 
-**Write in the doc's language**, whatever language the request or the brief is in: the doc's readers are the ones who act on the review. A Japanese doc gets a Japanese report — headings, findings and reasons alike — even when the request was in English, and even when a `CLAUDE.md` asks for English. Judge the language from the doc's prose, not from code, identifiers or the English terms it borrows. Quote the doc, file paths and code verbatim.
+**Write in the doc's language**, whatever language the request or the brief is in: the doc's readers are the ones who act on the review. A Japanese doc gets a Japanese report — the report heading, every section heading, the labels inside a finding, the findings and reasons alike — even when the request was in English, and even when a `CLAUDE.md` asks for English. For a Japanese doc use the Japanese labels under the format in Phase 3, word for word; on real runs the English template's labels were what stayed English. Judge the language from the doc's prose, not from code, identifiers or the English terms it borrows. Quote the doc, file paths and code verbatim.
 
 **Boundary of this skill: reading only.** Never edit a file, never run a command, never run git or `gh`. Fixing the doc happens outside the skill, and only for a doc the caller wrote (see "After the review").
 
@@ -110,6 +110,19 @@ Write the full report as your final message, in the doc's language, in this form
 
 Caller: the user may not see this result. If the user asked for this review, change nothing; for a Japanese doc start lint-docs first; then write one final message — lint-docs' findings under its own heading, then this report copied exactly from its heading line, untranslated and unreworded, leaving this Caller line out — with no words of yours besides. If you wrote the doc, fix every P1 and P2 from your sources — a gap they cannot fill goes into the doc's open questions, never an invented answer — and run this skill again with what you fixed, until a round reports no P1 and no P2; then lint-docs for a Japanese doc, and open your closing message with this review's conclusion and every decision left open for the user. Details: "After the review" in ${CLAUDE_SKILL_DIR}/SKILL.md.
 ```
+
+For a Japanese doc, these labels replace the English ones, word for word, so that nothing but the `Caller:` line stays English:
+
+| English | Japanese |
+| --- | --- |
+| `## Design doc review: <path>` | `## 設計ドキュメントレビュー: <path>` |
+| `### The decision` | `### 判断の対象` |
+| `### P1` / `### P2` / `### P3` | `### P1（重大）` / `### P2（要確認）` / `### P3（任意）` |
+| `Why it matters:` | `なぜ問題か:` |
+| `Suggestion:` | `提案:` |
+| `### Questions for the author` | `### 作者への質問` |
+| `### Decisions the doc leaves open` | `### ドキュメントが未決としている事項` |
+| `### Checked` | `### 確認した観点` |
 
 Drop any section with nothing in it, the priority sections included. If there is nothing to fix before the doc goes round, say so in one line under the decision, without naming a priority ("合意を妨げる問題は見当たりません" / "Nothing stands in the way of agreeing."), and list under `### Checked` what you looked at — "no findings" alone cannot tell a sound doc from an unread one. **Always end with the `Caller:` line, untranslated, whatever else you drop**: a forked caller never read this file, and that line is how it learns its part. On a real run a report that ended at its questions, without it, was summarized by the caller and lint-docs never ran.
 

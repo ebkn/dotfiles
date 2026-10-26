@@ -258,13 +258,33 @@ rdd_is_japanese() {
   ' >/dev/null
 }
 
+# rdd_labels_translated <text>
+# None of SKILL.md's English template labels stands as a label: a report
+# heading, a section heading, or a finding's "Why it matters:"/"Suggestion:".
+# rdd_is_japanese counts words, so Japanese findings under English labels pass
+# it -- the shape three of five reviews of real Japanese docs took. A label
+# quoted inside a sentence, or the Caller line (English on purpose), is not
+# one. jq, not grep, so the case folding holds in any locale.
+rdd_labels_translated() {
+  jq -nre --arg t "$1" '
+    $t | split("\n")
+    | any(.[];
+        test("^[ \t]*(#+[ \t]*)?(\\*\\*)?(design doc(ument)? review[ \t]*[:：]|(the decision|questions for the author|decisions the doc leaves open|checked)[ \t]*(\\*\\*)?[ \t]*$)"; "i")
+        or test("^[ \t]*[-*][ \t]+(\\*\\*)?(why it matters|suggestion)(\\*\\*)?[ \t]*[:：]"; "i"))
+    | not
+  ' >/dev/null
+}
+
 # rdd_check_language <ja|en> <report>
 # The review answers in the doc's language. Every Japanese case's doc is
 # Japanese, whatever the request was written in (answers-in-doc-language asks
 # in English); the English cases' are English.
 rdd_check_language() {
   case "$1" in
-    ja) check "answered in Japanese, the doc's language" rdd_is_japanese "$2" ;;
+    ja)
+      check "answered in Japanese, the doc's language" rdd_is_japanese "$2"
+      check "wrote the report's labels in Japanese too" rdd_labels_translated "$2"
+      ;;
     en) check "wrote no Japanese into an English review" rdd_has_no_kana "$2" ;;
     # Fail closed: a typo or a call without the language would otherwise
     # skip the check and pass.
@@ -301,17 +321,19 @@ rdd_check_lint() {
 }
 
 # rdd_every_round_japanese
-# Every round's report, as the forked review handed it back, is Japanese: each
-# is the review's own words, whatever language the caller then writes its
-# summary in, and a round in the wrong language is one the user may be shown.
-# False with no round at all.
+# Every round's report, as the forked review handed it back, is Japanese,
+# labels included: each is the review's own words, whatever language the
+# caller then writes its summary in, and a round in the wrong language is one
+# the user may be shown. False with no round at all.
 rdd_every_round_japanese() {
-  local rounds n k
+  local rounds n k r
   rounds="$(transcript_skill_rounds review-design-doc)"
   n="$(jq -s 'length' <<<"$rounds")"
   [ "$n" -gt 0 ] || return 1
   for ((k = 0; k < n; k++)); do
-    rdd_is_japanese "$(jq -rs --argjson k "$k" '.[$k].report' <<<"$rounds")" || return 1
+    r="$(jq -rs --argjson k "$k" '.[$k].report' <<<"$rounds")"
+    rdd_is_japanese "$r" || return 1
+    rdd_labels_translated "$r" || return 1
   done
 }
 
