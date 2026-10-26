@@ -750,6 +750,8 @@ for entry in "a full report in SKILL.md's Japanese format, Caller line included:
   'a label in inline code is not a label::- `Why it matters:` が英語のまま' \
   'a label on a > quote line is not a label::> - Why it matters: x' \
   'a label in a fenced block is not a label::引用:\n```\n## Design doc review: docs/a.md\n- Why it matters: x\n```\n以上' \
+  'a fenced block holding inline code is still a quote::引用:\n```markdown\n## Design doc review: `docs/a.md`\n- `Why it matters`: x\n```\n以上' \
+  'a label in a ~~~ block is not a label::~~~\n- Why it matters: x\n~~~' \
   'a bare line saying Checked is prose::Checked\n- x'; do
   if in_grading rdd_labels_translated "$(printf %b "${entry#*::}")"; then
     ok "labels: ${entry%%::*} passes"
@@ -765,13 +767,16 @@ for text in '### QUESTIONS FOR THE AUTHOR\n- x' '- **why it matters:** x'; do
     ok "labels: '${text%%\\n*}' is caught in the C locale"
   fi
 done
+# The backticks are Markdown, not commands.
+# shellcheck disable=SC2016
 for text in '## Design doc review: docs/a.md' '**Design Document Review:** docs/a.md' \
   '### The decision\nx' '### Questions for the author\n- x' \
   '### Decisions the doc leaves open\n- x' '### Checked\n- x' \
   '### Questions for the author:\n- x' '### Checked (sections)\n- x' '**The decision**\nx' \
   '  - Why it matters: x' '  - **Suggestion**: x' '- suggestion： x' \
   '- **Why it matters:** x' '- **Suggestion:** x' '**Why it matters:** x' \
-  'Why it matters: x' '1. **Suggestion:** x' '#### Why it matters\nx'; do
+  'Why it matters: x' '1. **Suggestion:** x' '#### Why it matters\nx' \
+  '- 「x」の ``` を参照\n- Why it matters: y\n- ``` 終わり'; do
   if in_grading rdd_labels_translated "$(printf %b "$text")"; then
     bad "labels: '${text%%\\n*}' is caught"
   else
