@@ -1,0 +1,55 @@
+# session-summary evals
+
+Run with `bin/skill-eval session-summary` ([bin/skill-eval.md](../../../../../bin/skill-eval.md)).
+`assert.test.sh` pins the graders without calling the API; CI runs it.
+
+## The cases
+
+| Case | Measures |
+| --- | --- |
+| `reports-finished-branch` | the message itself, started by name on a finished branch: the request and its change of direction first, the unrequested fix kept apart, the interface shown, what is left at the end, and no file from a main that moved on after the branch split off |
+| `proactive-with-claude-md` / `proactive-at-finish` | whether it starts by itself after the last commit, with `root/CLAUDE.md` or with the description alone — same prompt, fixture and grader |
+| `no-fire-question` | that it stays out of an answered question |
+
+The message is graded mostly by `check_llm`, because no regex can say "the
+request comes before the work". What can be stated deterministically is
+checked directly: the skill started once, nothing was written (tree, HEAD,
+and every branch and tag by value), and `CHANGELOG.md` — on main only — is
+never named.
+
+## Measured
+
+2026-10-26, sonnet, judge haiku.
+
+| Case | Passed | Notes |
+| --- | --- | --- |
+| `reports-finished-branch` | 1/4, then 3/3 and 2/2 | the misses were the fixture and the rubrics, not the skill (below) |
+| `proactive-with-claude-md` | 2/4, then 5/5 and 2/2 | after the `root/CLAUDE.md` wording fix (below) |
+| `proactive-at-finish` | 1/3 | the description alone does not carry the auto-start |
+| `no-fire-question` | 3/3 | |
+
+**The auto-start rests on `root/CLAUDE.md`**, as `review-test`'s did: the
+description alone started the skill in 1 run of 3. The case is kept as the
+pair's control, not as a target: a failure there is expected until the
+description changes.
+
+## What the evals taught
+
+- **A rule elsewhere in CLAUDE.md can end the request first.** The misses in
+  `proactive-with-claude-md` all found no `origin` and wrote their own report
+  at once: the PR rule said "say in the report that the commits are local",
+  and Reporting Back's "the commits reported as local" read as if that report
+  were the finish. Both now name `session-summary` as the writer of the
+  closing message.
+- **A fixture a careful summary can fault puts the fault in the message.**
+  `--json` alone skipped the usage check, a quote in a path broke the JSON,
+  and a commit message contradicted the request; runs reported each under
+  Left open, which made it long, and the judge failed it. `assert.test.sh`
+  pins the fixture free of all three.
+- **A rubric must not be stricter than the skill.** "Concise" first counted
+  the required restatement of the request as filler, then a flag named in two
+  sections as repetition; "Left open in a few lines" failed a list of real
+  open items. Each rubric now states the format it judges within.
+- **Trying it found a bug before any case did:** a two-dot diff against a
+  main that moved on listed main's new files as this branch's.
+  `reports-finished-branch` is built around that trap.
