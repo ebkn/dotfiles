@@ -28,9 +28,12 @@ jobs:
       # upgrade` cannot link it and setup stops, failing on the image rather
       # than on this repo. No Brewfile installs ruby, so it goes, with the
       # gem tree; if a runner formula needs it, the upgrade pours it fresh.
+      # Guarded, so an image that no longer ships it does not fail here.
       - name: Remove the runner's ruby@3.4 and its unowned gems
         run: |
-          brew uninstall --ignore-dependencies --force ruby@3.4
+          if brew list --versions ruby@3.4 >/dev/null; then
+            brew uninstall --ignore-dependencies --force ruby@3.4
+          fi
           rm -rf "$(brew --prefix)"/lib/ruby/gems/3.4.0
 
       # Teed so the steps below can read it. `shell: bash` for pipefail: the
