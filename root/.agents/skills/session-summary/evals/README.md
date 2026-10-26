@@ -74,8 +74,8 @@ concern, so the accuracy check's passes are not yet evidence of accuracy.
 
 `reports-finished-branch`'s first 3/3 was luck. Its misses, run by run:
 
-- re-run of the same skill: two the section 4/5 repetition (escaping in how
-  it is built, the control-character gap in Left open); one a judge verdict
+- re-run of the same skill: two the section 4/5 repetition (escaping once,
+  `--json`-first once); one a judge verdict
   of FAIL on "opens with the request" whose reason ends in "met".
 - exception in the core rule: all three the 4/5 repetition (escaping twice,
   `--json`-first once), one also the judge contradicting itself again.
