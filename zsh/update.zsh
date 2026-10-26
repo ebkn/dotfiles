@@ -124,7 +124,12 @@ update-all() {
   if [ -f package-lock.json ]; then
     npm audit || true
   fi
-  gcloud components update --quiet
+  # To the release bin/init/pins.sh names, not the newest: a bare `components
+  # update` installs whatever was published that minute. Read in a subshell,
+  # so the pins do not leak into this shell.
+  gcloud components update --quiet \
+    --version="$(source "$DOTFILES/bin/init/pins.sh"; print -r -- "$GCLOUD_VERSION")" \
+    || failed+=('gcloud components update')
   # After all package updates, re-sync dotfiles symlinks so links added to the
   # repo since this machine was provisioned get created (reports drift, then
   # asks before changing anything). See bin/relink.
