@@ -77,6 +77,13 @@ long-vowel notation, where the `expected` side is just one repo's measured
 majority). The skill measures the target repo before applying the latter, and
 that split is the whole reason the dictionary is portable.
 
+Every project-dependent rule carries a `prh:` note, which textlint prints under
+the finding. That is how lint-docs tells the two sections apart: it never opens
+`prh.yml`, which sits outside the target repo, where a read needs approval that
+a headless run cannot give (an eval run of review-design-doc was refused this
+way). A rule without the note counts as universal, so `textlint-docs.test.sh`
+checks that every section B rule has one.
+
 Bump versions in `textlint/package.json`, then regenerate the lockfile with
 `npm install --prefix textlint --package-lock-only`.
 
