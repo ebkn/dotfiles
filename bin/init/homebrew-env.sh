@@ -14,6 +14,8 @@ export HOMEBREW_FORBIDDEN_FORMULAE="node npm pnpm yarn claude"
 # credentials (HOMEBREW_GITHUB_API_TOKEN, a `gh` login or the macOS Keychain)
 # every bottle but gh's then fails to install, rather than going unverified;
 # setup asks for a gh login first (ensure_homebrew_github_auth in common.sh).
+# The setup workflows alone switch it off with HOMEBREW_NO_VERIFY_ATTESTATIONS,
+# which Homebrew lets win: one API call per bottle exhausts CI's token.
 export HOMEBREW_VERIFY_ATTESTATIONS=1
 # Refuse HTTP-to-HTTPS redirects during downloads.
 export HOMEBREW_NO_INSECURE_REDIRECT=1

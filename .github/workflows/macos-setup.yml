@@ -43,11 +43,18 @@ jobs:
         run: zsh bin/init/bootstrap-macos.sh 2>&1 | tee "$RUNNER_TEMP/setup.log"
         env:
           DOTFILES_SKIP_UPDATE: '1'
-          # Setup verifies every bottle's attestation, which needs GitHub
-          # credentials and has no terminal here to log in from. This
-          # read-only token is enough for the attestations API, and without
-          # it setup stops before its first install (bin/init/common.sh).
+          # Setup requires GitHub credentials before its first install
+          # (bin/init/common.sh) and has no terminal here to log in from;
+          # this read-only token satisfies that.
           HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
+          # CI only: no bottle attestation checks. Each bottle costs one API
+          # call on this token, whose ~1,000/hour quota is shared by every
+          # job in the repo; three setup jobs of ~100 bottles each exhausted
+          # it within a few pushes and failed every bottle with HTTP 403.
+          # homebrew-env.sh still turns verification on; Homebrew lets this
+          # NO_ variable override it (env_config.rb, `disabled_by`), so real
+          # machines keep verifying and only CI skips it.
+          HOMEBREW_NO_VERIFY_ATTESTATIONS: '1'
 
       # Exit 0 says the install steps worked; it says nothing about the links.
       # A missing link source is a warning and exit 0, so a typo in links.sh or
