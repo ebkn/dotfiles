@@ -96,7 +96,7 @@ finding there cannot be traced to one change.
 
 | Case | What it plants | Principle |
 | --- | --- | --- |
-| `strawman-alternatives` | alternatives dismissed in a phrase, no "do nothing" | alternatives are rejected for a trade-off, and the status quo is one |
+| `strawman-alternatives` | alternatives dismissed in a phrase, no "do nothing" | alternatives are rejected for a trade-off; a cheaper way in sight, the status quo among them, is weighed (a status quo left unweighed with nothing cheaper in sight is a P2) |
 | `negated-non-goals` | non-goals like "the system becomes unstable" | non-goals are things that could be goals and were left out, not negated goals |
 | `missing-rollback` | released to everyone at once, no way back | the cross-cutting concern most often missing |
 | `unsupported-claims` | "very many failures", "load small enough" | the problem and the cost are backed by numbers |
