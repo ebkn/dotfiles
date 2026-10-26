@@ -35,6 +35,8 @@ The conversation is the main source: what the user asked, in their words, and ev
 
 Read a changed file only when the commit messages do not tell you its interface or role.
 
+Then look for what the change ends. For every commit that changes existing behaviour — a fix included — read its diff (`git diff <base>...HEAD -- <file>`) and ask what worked before that does not now: an input, a call, an exit status or output that a caller, a script or the user may rely on. A commit message says what a change fixes, rather than what it takes away. This is the review fact the author is least likely to volunteer and the reviewer least likely to find alone.
+
 ## The message
 
 Write in the language the conversation runs in under the user's instructions, headings included — the headings below name the sections, they are not text to copy. Keep each section to what a reviewer needs. Omit a section marked *(if any)* when it would be empty — do not write "none".
@@ -72,7 +74,7 @@ This section describes what the change is, not where it falls short. A rule of t
 
 ### 5. Left open
 
-Always present, one line per item: the PR URL (or that the commits are local), and anything the user must decide, verify or run themselves — a test that could not run here, a P3 finding, an open question, a gap noticed while gathering the facts. **Every limitation lives here and only here**: what does not work, is not handled, was not run or not verified, stated in full rather than pointed to. If nothing is left but the review, that one line is the section.
+Always present, one line per item: the PR URL (or that the commits are local), and anything the user must decide, verify or run themselves — a test that could not run here, a P3 finding, an open question, a gap noticed while gathering the facts, and **anything that worked before and no longer does** (found under "Gather the facts"), with who may rely on it. **Every limitation lives here and only here**: what does not work, is not handled, was not run or not verified, stated in full rather than pointed to. If nothing is left but the review, that one line is the section.
 
 ## Style
 
@@ -88,3 +90,4 @@ Read the draft once against this list, and fix what fails:
 2. Does any line of section 2 give a decision, a commit hash, a file count or the tree's state instead of an outcome?
 3. Is any change listed in both section 2 and section 3?
 4. Does any point — or its consequence — appear in both section 4 and section 5?
+5. For each change to existing behaviour in sections 2 and 3, does section 5 say what used to work and no longer does — or is it true that nothing did?
