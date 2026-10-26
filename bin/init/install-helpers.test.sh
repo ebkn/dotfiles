@@ -5,7 +5,8 @@
 # ~/.npmrc's ignore-scripts=true (zsh/README.md), install_go_tools passes
 # its arguments to bin/go-tools-install (bin/go-cooldown.md), or fails when go
 # is missing, and update_homebrew has GitHub credentials before it upgrades
-# anything (bin/init/homebrew-env.sh). npm, go and go-tools-install are stubs
+# anything (bin/init/homebrew-env.sh), and fetch_verified keeps a download only
+# when it hashes to its pin (bin/init/pins.md). npm, go and go-tools-install are stubs
 # that log their arguments; PATH holds only the stubs and the system
 # directories, so no real npm or go is found.
 #
@@ -196,5 +197,46 @@ assert_not_contains "  ... before upgrading anything" "$(cat "$LOG")" "brew upgr
 st=$(BREW_FAIL=update GH_AUTHED=1 helper "$BREW:$WITH_GH" update_homebrew)
 assert_eq "update_homebrew: a failed update fails, checking and upgrading nothing" \
   "1 brew update" "$st $(cat "$LOG")"
+
+# fetch_verified: what is downloaded is kept only when it hashes to the pin.
+# file:// keeps it off the network; curl and the hasher are the real ones.
+printf 'payload\n' >"$TEST_TMPDIR/payload"
+PAYLOAD_URL="file://$TEST_TMPDIR/payload"
+PAYLOAD_SHA=$(shasum -a 256 "$TEST_TMPDIR/payload" | cut -d' ' -f1)
+st=$(helper "/usr/bin:/bin" fetch_verified "$PAYLOAD_URL" "$PAYLOAD_SHA" "$TEST_TMPDIR/got")
+assert_eq "fetch_verified: a matching download is kept" \
+  "0 payload" "$st $(cat "$TEST_TMPDIR/got" 2>/dev/null)"
+
+st=$(helper "/usr/bin:/bin" fetch_verified "$PAYLOAD_URL" "$(printf '0%.0s' {1..64})" "$TEST_TMPDIR/bad")
+assert_eq "fetch_verified: a mismatching download fails" "1" "$st"
+assert_eq "  ... and leaves nothing at the destination" "absent" \
+  "$([ -e "$TEST_TMPDIR/bad" ] || [ -e "$TEST_TMPDIR/bad.part" ] || echo absent)"
+assert_contains "  ... saying why" "$(cat "$TEST_TMPDIR/err")" "checksum mismatch"
+
+st=$(helper "/usr/bin:/bin" fetch_verified "$PAYLOAD_URL" "" "$TEST_TMPDIR/nopin")
+assert_eq "fetch_verified: an empty pin fails rather than accepting anything" \
+  "1" "$st"
+assert_eq "  ... and downloads nothing" "absent" \
+  "$([ -e "$TEST_TMPDIR/nopin" ] || echo absent)"
+
+# pinned_sha256: the checksum for this OS and architecture, per uname.
+UNAME="$TEST_TMPDIR/uname"
+mkdir -p "$UNAME"
+cat >"$UNAME/uname" <<'EOF'
+#!/bin/sh
+case "$1" in -s) echo "$UNAME_S" ;; -m) echo "$UNAME_M" ;; esac
+EOF
+chmod +x "$UNAME/uname"
+export TOOL_SHA256_DARWIN_ARM64=da TOOL_SHA256_DARWIN_X64=dx \
+  TOOL_SHA256_LINUX_X64=lx TOOL_SHA256_LINUX_ARM64=la
+for case in "Darwin arm64 da" "Darwin x86_64 dx" "Linux x86_64 lx" "Linux aarch64 la"; do
+  read -r s m want <<<"$case"
+  out=$(UNAME_S=$s UNAME_M=$m PATH="$UNAME:/usr/bin:/bin" bash -c \
+    '. "$1"; pinned_sha256 TOOL' _ "$COMMON" 2>/dev/null)
+  assert_eq "pinned_sha256: $s $m picks its own checksum" "$want" "$out"
+done
+UNAME_S=FreeBSD UNAME_M=amd64 PATH="$UNAME:/usr/bin:/bin" bash -c \
+  '. "$1"; pinned_sha256 TOOL' _ "$COMMON" >/dev/null 2>&1
+assert_eq "pinned_sha256: an unpinned platform fails" "1" "$?"
 
 test_summary

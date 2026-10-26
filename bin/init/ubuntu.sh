@@ -18,6 +18,7 @@ install_or_upgrade_apt_packages() {
 # which reads this for every other brew command, has not run.
 . "${SCRIPT_DIR}/homebrew-env.sh"
 . "${SCRIPT_DIR}/links.sh"
+. "${SCRIPT_DIR}/pins.sh"
 
 install_or_upgrade_fzf_shell_integration() {
   local fzf_install
@@ -45,9 +46,18 @@ install_or_upgrade_fzf_shell_integration() {
 }
 
 install_or_upgrade_docker_repo() {
+  local tmp
   sudo install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo tee /etc/apt/keyrings/docker.asc >/dev/null
-  sudo chmod a+r /etc/apt/keyrings/docker.asc
+  # apt trusts every package this key signs, so it is checked against pins.sh
+  # before apt sees it.
+  tmp="$(mktemp -d)"
+  if ! fetch_verified https://download.docker.com/linux/ubuntu/gpg \
+    "$DOCKER_APT_KEY_SHA256" "${tmp}/docker.asc"; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  sudo install -m 0644 "${tmp}/docker.asc" /etc/apt/keyrings/docker.asc
+  rm -rf "$tmp"
   echo \
     "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
     $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null

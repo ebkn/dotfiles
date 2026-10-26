@@ -18,6 +18,7 @@ install_or_upgrade_apt_packages() {
 # which reads this for every other brew command, has not run.
 . "${SCRIPT_DIR}/homebrew-env.sh"
 . "${SCRIPT_DIR}/links.sh"
+. "${SCRIPT_DIR}/pins.sh"
 
 # Verify WSL environment (skip check on CI where we test on plain Ubuntu).
 if [ "${CI:-}" != "true" ] && ! is_wsl; then

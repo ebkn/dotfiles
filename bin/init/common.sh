@@ -232,15 +232,90 @@ activate_brew_shellenv() {
   eval "$("$brew_bin" shellenv)"
 }
 
+# pin_platform -- this machine as the suffix bin/init/pins.sh names its
+# checksums with (DARWIN_ARM64, LINUX_X64, ...). Fails on anything else, so a
+# platform nobody pinned is refused rather than given another's binary.
+pin_platform() {
+  local os arch
+  case "$(uname -s)" in
+    Darwin) os=DARWIN ;;
+    Linux) os=LINUX ;;
+    *) return 1 ;;
+  esac
+  case "$(uname -m)" in
+    arm64 | aarch64) arch=ARM64 ;;
+    x86_64 | amd64) arch=X64 ;;
+    *) return 1 ;;
+  esac
+  printf '%s_%s\n' "$os" "$arch"
+}
+
+# pinned_sha256 <TOOL> -- the value of <TOOL>_SHA256_<platform> from pins.sh.
+pinned_sha256() {
+  local platform
+  platform="$(pin_platform)" || {
+    printf "error: no %s checksum is pinned for %s %s\n" "$1" "$(uname -s)" "$(uname -m)" >&2
+    return 1
+  }
+  eval "printf '%s\n' \"\${${1}_SHA256_${platform}:-}\""
+}
+
+# fetch_verified <url> <sha256> <dest> -- download to <dest> only if the bytes
+# hash to the pin. The download lands beside <dest> first, so a mismatch
+# leaves nothing behind for a later step to run. An empty pin is an error,
+# not a pass: a checksum missing from pins.sh must not mean "unchecked".
+fetch_verified() {
+  local url sha dest actual
+  url="$1"
+  sha="$2"
+  dest="$3"
+
+  if [ -z "$sha" ]; then
+    printf "error: no checksum pinned for %s\n" "$url" >&2
+    return 1
+  fi
+  if ! command -v curl >/dev/null 2>&1; then
+    printf "warning: curl is not installed yet (cannot fetch %s)\n" "$url" >&2
+    return 1
+  fi
+
+  curl -fsSL -o "${dest}.part" "$url" || {
+    rm -f "${dest}.part"
+    return 1
+  }
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "${dest}.part" | cut -d' ' -f1)"
+  else
+    actual="$(shasum -a 256 "${dest}.part" | cut -d' ' -f1)"
+  fi
+  if [ "$actual" != "$sha" ]; then
+    rm -f "${dest}.part"
+    printf "error: checksum mismatch for %s\n  want %s\n  got  %s\n" "$url" "$sha" "$actual" >&2
+    return 1
+  fi
+  mv "${dest}.part" "$dest"
+}
+
+# install_homebrew -- run Homebrew's installer at the commit pins.sh names.
+# NONINTERACTIVE so CI and a fresh Linux box do not stop at its prompt; a Mac
+# keeps the prompt, which is where it asks for the sudo password.
+install_homebrew() {
+  local tmp rc=0
+  tmp="$(mktemp -d)"
+  if fetch_verified \
+    "https://raw.githubusercontent.com/Homebrew/install/${HOMEBREW_INSTALL_COMMIT}/install.sh" \
+    "$HOMEBREW_INSTALL_SHA256" "${tmp}/install.sh"; then
+    /bin/bash "${tmp}/install.sh" || rc=$?
+  else
+    rc=1
+  fi
+  rm -rf "$tmp"
+  return "$rc"
+}
+
 install_or_upgrade_homebrew_linux() {
   if ! detect_brew_bin >/dev/null 2>&1; then
-    if ! command -v curl >/dev/null 2>&1; then
-      printf "warning: curl is not installed yet (cannot install homebrew)\n" >&2
-      return 1
-    fi
-
-    # Ubuntu CI and fresh machines should install non-interactively.
-    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    NONINTERACTIVE=1 install_homebrew || return 1
   fi
 
   activate_brew_shellenv
@@ -350,13 +425,28 @@ install_or_upgrade_volta() {
     return 0
   fi
 
-  if ! command -v curl >/dev/null 2>&1; then
-    printf "warning: curl is not installed yet (cannot install volta)\n" >&2
-    return 1
-  fi
+  local asset sha tmp rc=0
+  case "$(pin_platform)" in
+    DARWIN_*) asset=macos ;; # one universal tarball
+    LINUX_X64) asset=linux ;;
+    LINUX_ARM64) asset=linux-arm ;;
+  esac
+  sha="$(pinned_sha256 VOLTA)" || return 1
 
-  # Avoid modifying symlinked shell rc files; PATH is managed in dotfiles.
-  curl -fsSL https://get.volta.sh | bash -s -- --skip-setup
+  # The release tarball holds only the binaries, so unpacking it is all
+  # get.volta.sh --skip-setup did; no rc file is touched, as PATH is managed
+  # in dotfiles.
+  tmp="$(mktemp -d)"
+  if fetch_verified \
+    "https://github.com/volta-cli/volta/releases/download/v${VOLTA_VERSION}/volta-${VOLTA_VERSION}-${asset}.tar.gz" \
+    "$sha" "${tmp}/volta.tar.gz"; then
+    mkdir -p "$(dirname "$volta_bin")"
+    tar -xzf "${tmp}/volta.tar.gz" -C "$(dirname "$volta_bin")" || rc=$?
+  else
+    rc=1
+  fi
+  rm -rf "$tmp"
+  return "$rc"
 }
 
 install_or_upgrade_node_with_volta() {
@@ -364,13 +454,13 @@ install_or_upgrade_node_with_volta() {
   volta_cmd="${VOLTA_HOME:-${HOME}/.volta}/bin/volta"
 
   if command -v volta >/dev/null 2>&1; then
-    volta install node
+    volta install "node@${NODE_VERSION}"
     return $?
   fi
 
   # init runs before a new shell picks up PATH changes from dotfiles.
   if [ -x "$volta_cmd" ]; then
-    "$volta_cmd" install node
+    "$volta_cmd" install "node@${NODE_VERSION}"
     return $?
   fi
 
@@ -422,13 +512,29 @@ install_or_upgrade_gcloud() {
     return 0
   fi
 
-  if ! command -v curl >/dev/null 2>&1; then
-    printf "warning: curl is not installed yet (cannot install gcloud)\n" >&2
-    return 1
-  fi
+  local asset sha tmp rc=0
+  case "$(pin_platform)" in
+    DARWIN_ARM64) asset=darwin-arm ;;
+    DARWIN_X64) asset=darwin-x86_64 ;;
+    LINUX_X64) asset=linux-x86_64 ;;
+    LINUX_ARM64) asset=linux-arm ;;
+  esac
+  sha="$(pinned_sha256 GCLOUD)" || return 1
 
-  # zsh/lang.zsh lazy-loads the SDK from ~/google-cloud-sdk.
-  curl -fsSL https://sdk.cloud.google.com | bash -s -- --disable-prompts --install-dir="${HOME}"
+  # zsh/lang.zsh lazy-loads the SDK from ~/google-cloud-sdk. The flags are
+  # what sdk.cloud.google.com's --disable-prompts did: no rc edits, no prompts.
+  tmp="$(mktemp -d)"
+  if fetch_verified \
+    "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-${GCLOUD_VERSION}-${asset}.tar.gz" \
+    "$sha" "${tmp}/gcloud.tar.gz" &&
+    tar -xzf "${tmp}/gcloud.tar.gz" -C "$HOME"; then
+    "${HOME}/google-cloud-sdk/install.sh" --quiet --usage-reporting=false \
+      --path-update=false --command-completion=false || rc=$?
+  else
+    rc=1
+  fi
+  rm -rf "$tmp"
+  return "$rc"
 }
 
 is_wsl() {
@@ -524,11 +630,23 @@ install_or_upgrade_claude() {
     return 0
   fi
 
-  if ! command -v curl >/dev/null 2>&1; then
-    printf "warning: curl is not installed yet (cannot install claude)\n" >&2
-    return 1
-  fi
+  local platform sha tmp rc=0
+  platform="$(pin_platform | tr 'A-Z_' 'a-z-')"
+  sha="$(pinned_sha256 CLAUDE)" || return 1
 
-  # Use the official installer; ~/.claude config is linked separately by init.
-  curl -fsSL https://claude.ai/install.sh | bash
+  # What claude.ai/install.sh does, minus its first step: it always fetches
+  # the newest build and checks it only against a manifest from the same
+  # server. Here the binary is the pinned one, checked against pins.sh, and
+  # installs itself. ~/.claude config is linked separately by init.
+  tmp="$(mktemp -d)"
+  if fetch_verified \
+    "https://downloads.claude.ai/claude-code-releases/${CLAUDE_VERSION}/${platform}/claude" \
+    "$sha" "${tmp}/claude"; then
+    chmod +x "${tmp}/claude"
+    "${tmp}/claude" install "$CLAUDE_VERSION" || rc=$?
+  else
+    rc=1
+  fi
+  rm -rf "$tmp"
+  return "$rc"
 }
