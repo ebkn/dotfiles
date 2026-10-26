@@ -242,11 +242,16 @@ assert_eq "reports-finished-branch: and nothing else failed" "1" "$(grep -c '^FA
 report_run "$reports_records" "$plant_file" "$summary_msg"
 expect_fail "reports-finished-branch: the accuracy judge reads the files changed" \
   "reports nothing the commits do not hold"
-report_run "$reports_records" ":" "$summary_msg"
+# An external diff and forced colour in the fixture's own config, which
+# outranks the host's: the diff must reach the judge as a plain patch
+# wherever this runs, not only on a machine whose diff.external is set.
+report_run "$reports_records" "git config diff.external false; git config color.diff always" "$summary_msg"
 assert_contains "reports-finished-branch: the accuracy judge gets the branch's commits" \
   "$(cat "$root_dir/judge-input")" "fix(tally): exit with usage when no file is given"
-assert_contains "reports-finished-branch: and the diff itself, not only the file names" \
+assert_contains "reports-finished-branch: and the diff itself, as a plain patch despite diff.external" \
   "$(cat "$root_dir/judge-input")" "+++ b/run-tests.sh"
+assert_not_contains "reports-finished-branch: and without colour codes despite color.diff" \
+  "$(cat "$root_dir/judge-input")" $'\e['
 assert_not_contains "reports-finished-branch: and nothing from a main that moved on" \
   "$(cat "$root_dir/judge-input")" "CHANGELOG"
 # An assignment before a function call is exported for that call only.

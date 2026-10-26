@@ -39,7 +39,7 @@ Commits:
 $(git log --format='- %s%n%b' main..HEAD)
 
 Files changed:
-$(git diff --stat main...HEAD)
+$(git diff --no-color --stat main...HEAD)
 
 The changes themselves:
 $(git diff --no-ext-diff --no-color main...HEAD)" \
