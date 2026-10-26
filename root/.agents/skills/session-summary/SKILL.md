@@ -74,7 +74,7 @@ This section describes what the change is, not where it falls short. A rule of t
 
 ### 5. Left open
 
-Always present, one line per item: the PR URL (or that the commits are local), and anything the user must decide, verify or run themselves — a test that could not run here, a P3 finding, an open question, a gap noticed while gathering the facts, and **anything that worked before and no longer does** (found under "Gather the facts"), with who may rely on it. **Every limitation lives here and only here**: what does not work, is not handled, was not run or not verified, stated in full rather than pointed to. If nothing is left but the review, that one line is the section.
+Always present, one line per item: the PR URL (or that the commits are local), and anything the user must decide, verify or run themselves — a test that could not run here, a P3 finding, an open question, a gap noticed while gathering the facts, and **anything that worked before and no longer does** (found under "Gather the facts"), with who may rely on it — a fact of its own, not a consequence of the change that ended it, so that change's line in section 2 or 3 does not mention it. **Every limitation lives here and only here**: what does not work, is not handled, was not run or not verified, stated in full rather than pointed to. If nothing is left but the review, that one line is the section.
 
 ## Style
 

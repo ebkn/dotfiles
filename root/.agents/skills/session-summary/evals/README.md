@@ -59,14 +59,23 @@ judged by sonnet):
 | Skill | `reports-unfinished-request` | `reports-finished-branch` |
 | --- | --- | --- |
 | before | 0/3 — every miss the piped use | 2/2 |
-| looks for what worked before and no longer does | 3/3 | 3/3 |
+| looks for what worked before and no longer does | 3/3 | 3/3, then 0/3 re-run |
+| and calls what it ends a fact of its own (review-design P1) | 3/3 | 1/3 |
 
-The accuracy check and the unfinished README passed every run of both, so
-the skill did not invent work here; what it missed was the cost of a fix.
+The accuracy check and the unfinished README passed every run of both —
+though no real judge has yet been shown a planted false claim, and the
+judge's system prompt tells it truth is not its concern. What the runs
+missed was the cost of a fix.
 Every run called the usage error a cure for a hang, which is what the commit
 message says, and none said that `… | ./tally.sh` used to count stdin. With
 the piped use named in the prompt, the same skill found it 3/3 — so the case
 does not name it.
+
+`reports-finished-branch` at 3/3 was luck: the same skill re-run went 0/3,
+so it sits near half, every miss the section 4/5 repetition above (escaping
+in how it is built, the control-character gap in Left open). Its judge also
+twice failed "opens with the request" with a reason that ends in "met" — the
+verdict and the reasoning disagree, and the verdict is what counts.
 
 **The auto-start rests on `root/CLAUDE.md`**, as `review-test`'s did: the
 description alone started the skill in 1 run of 6. The case is kept as the
