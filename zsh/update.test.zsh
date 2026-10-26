@@ -20,6 +20,9 @@
 set -u
 
 source "${0:A:h}/update.zsh"
+# update-all reads the gcloud pin from bin/init/pins.sh under $DOTFILES.
+DOTFILES=${0:A:h:h}
+GCLOUD_PIN=$(source "$DOTFILES/bin/init/pins.sh"; print -r -- $GCLOUD_VERSION)
 
 typeset -i failures=0
 
@@ -228,7 +231,7 @@ check '  ... leaving install scripts to ~/.npmrc' '' "${(M)${(f)out}:#npm *ignor
 # be applied: the restore runs anyway, and the failure is named at the end,
 # where the scroll of brew and go output does not bury it.
 # update_with <zinit-cooldown> <lazy-cooldown> <restore> <go-cooldown>
-# <go-tools-install> [<tmux-plugins-install>] — run update-all with those
+# <go-tools-install> [<tmux-plugins-install>] [<gcloud>] — run update-all with those
 # exiting with the given
 # statuses and everything else succeeding; prints what it printed.
 # OSTYPE=linux keeps the uptime warning silent, so the list, when there is
@@ -237,7 +240,7 @@ update_with() {
   print -r -- $LOCKED > $LOCK
   (
     OSTYPE=linux
-    typeset -g ZC=$1 LC=$2 RS=$3 GC=$4 GI=$5 TP=${6:-0}
+    typeset -g ZC=$1 LC=$2 RS=$3 GC=$4 GI=$5 TP=${6:-0} GU=${7:-0}
     relink() { :; }
     zinit-cooldown() { return $ZC; }
     zinit() { :; }
@@ -245,6 +248,7 @@ update_with() {
     go-cooldown() { print -r -- go-cooldown; return $GC; }
     go-tools-install() { print -r -- go-tools-install; return $GI; }
     tmux-plugins-install() { return $TP; }
+    gcloud() { print -r -- "gcloud ${(qq)@}"; return $GU; }
     go() { print -r -- "go ${(qq)@}"; }
     nvim() {
       print -r -- "nvim ${(qq)@}"
@@ -291,9 +295,20 @@ check 'a failed go-tools-install is named, alone' 'update-all: go-tools-install 
 out=$(update_with 0 0 0 0 0 1)
 check 'a failed tmux-plugins-install is named, alone' 'update-all: tmux-plugins-install failed;*' "$(lists)"
 
-out=$(update_with 1 1 1 1 1 1)
-check 'all six failing are named on one line, in order' \
-  'update-all: zinit-cooldown, lazy-cooldown, Lazy! restore, go-cooldown, go-tools-install, tmux-plugins-install failed;*' "$(lists)"
+# gcloud components move to the release bin/init/pins.sh names, never to the
+# newest; a bare `components update` would undo the pin setup installed.
+out=$(update_with 0 0 0 0 0)
+check 'update-all updates gcloud components to the pinned release' \
+  "*gcloud 'components' 'update' '--quiet' '--version=$GCLOUD_PIN'*" "$out"
+check '  ... and the pin is a version' '<->.<->.<->' "$GCLOUD_PIN"
+
+out=$(update_with 0 0 0 0 0 0 1)
+check 'a failed gcloud components update is named, alone' \
+  'update-all: gcloud components update failed;*' "$(lists)"
+
+out=$(update_with 1 1 1 1 1 1 1)
+check 'all seven failing are named on one line, in order' \
+  'update-all: zinit-cooldown, lazy-cooldown, Lazy! restore, go-cooldown, go-tools-install, tmux-plugins-install, gcloud components update failed;*' "$(lists)"
 
 # --- The restore guard ------------------------------------------------------
 
