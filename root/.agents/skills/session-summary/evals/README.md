@@ -10,6 +10,8 @@ Run with `bin/skill-eval session-summary` ([bin/skill-eval.md](../../../../../bi
 | `reports-finished-branch` | the message itself, started by name on a finished branch: the request and its change of direction first, the unrequested fix kept apart, the interface shown, what is left at the end, and no file from a main that moved on after the branch split off |
 | `reports-unfinished-request` | the same branch, with a request it does not fully meet: Usage in README.md was asked for and no commit touches it, and the unrequested usage-error fix ends `… \| ./tally.sh`, which used to count stdin. The prompt names neither; the message has to find both from git |
 | `proactive-with-claude-md` / `proactive-at-finish` | whether it starts by itself after the last commit, with `root/CLAUDE.md` or with the description alone — same prompt, fixture and grader |
+| `proactive-after-pr` | the same request with a GitHub origin (the fake one): the summary starts only after create-pr / update-pr has left the PR ready, and names it by URL |
+| `proactive-multi-step` | one request asked for in two commits: not after the first, once after the second |
 | `no-fire-question` | that it stays out of an answered question |
 
 The message is graded mostly by `check_llm`, because no regex can say "the

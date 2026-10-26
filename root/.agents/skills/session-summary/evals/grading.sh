@@ -61,6 +61,29 @@ summary_eval_check_timing() {
     test "${skill_index:-0}" -gt "${last_commit:-999999}"
 }
 
+# summary_eval_check_after_publishing
+# With a GitHub origin, root/CLAUDE.md publishes before reporting back, so the
+# summary comes after the last create-pr or update-pr and after the last gh
+# command that changed the PR -- a summary written before the PR was ready
+# reports a state the PR no longer has. Needs a transcript where publishing
+# happened; a run that never published fails here, not silently.
+summary_eval_check_after_publishing() {
+  local skill_index last_skill last_gh last
+  skill_index="$(transcript_skill_rounds session-summary | jq -s '.[0].index // empty')"
+  last_skill="$({
+    transcript_skill_rounds create-pr
+    transcript_skill_rounds update-pr
+  } | jq -s 'map(.index) | max // empty')"
+  last_gh="$(transcript_command_indexes '(^|[[:space:]])gh +pr +(create|edit|ready)( |$)' | tail -n 1)"
+  last="${last_skill:-}"
+  if [ -n "$last_gh" ] && { [ -z "$last" ] || [ "$last_gh" -gt "$last" ]; }; then
+    last="$last_gh"
+  fi
+  check "published the PR through create-pr or update-pr" test -n "$last_skill"
+  check "started it after the PR was published" \
+    test "${skill_index:-0}" -gt "${last:-999999}"
+}
+
 # summary_eval_check_proactive
 # The README fix done and committed, then session-summary started -- once,
 # after the last commit -- and its message is the closing one.
