@@ -18,6 +18,27 @@
 #
 # Requires: DOTFILES_DIR, HOME, and link_with_backup/backup_path (from common.sh).
 # Honors LINK_CHECK=1 via link_with_backup (report drift instead of mutating).
+
+# link_package_manager_configs -- the yarn, pnpm, pip and uv configs, apart from
+# the rest of link_dotfiles so a platform script can link them before its first
+# install.
+link_package_manager_configs() {
+  # Supply-chain cooldown: refuse npm package versions younger than 7 days.
+  # Keeps yarn/pnpm in lockstep with npm's min-release-age=7 (.npmrc). yarn Berry
+  # reads ~/.yarnrc.yml; pnpm's global config path is platform-specific (macOS
+  # keeps it under ~/Library/Preferences, Linux/WSL under ~/.config).
+  link_with_backup "${DOTFILES_DIR}/root/.yarnrc.yml" "${HOME}/.yarnrc.yml"
+  if [ "$(uname)" = "Darwin" ]; then
+    link_with_backup "${DOTFILES_DIR}/root/pnpm-config.yaml" "${HOME}/Library/Preferences/pnpm/config.yaml"
+  else
+    link_with_backup "${DOTFILES_DIR}/root/pnpm-config.yaml" "${HOME}/.config/pnpm/config.yaml"
+  fi
+  # The same 7 days for PyPI. pip reads ~/.config/pip/pip.conf on both
+  # platforms.
+  link_with_backup "${DOTFILES_DIR}/root/pip.conf" "${HOME}/.config/pip/pip.conf"
+  link_with_backup "${DOTFILES_DIR}/root/uv.toml" "${HOME}/.config/uv/uv.toml"
+}
+
 link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/.gitignore_global" "${HOME}/.gitignore_global"
   link_with_backup "${DOTFILES_DIR}/.bash_profile" "${HOME}/.bash_profile"
@@ -83,20 +104,7 @@ link_dotfiles() {
   # ~/.agents/skills and ~/.claude/skills, so it needs no skills dir of its own.
   link_with_backup "${DOTFILES_DIR}/root/opencode/opencode.jsonc" "${HOME}/.config/opencode/opencode.jsonc"
 
-  # Supply-chain cooldown: refuse npm package versions younger than 7 days.
-  # Keeps yarn/pnpm in lockstep with npm's min-release-age=7 (.npmrc). yarn Berry
-  # reads ~/.yarnrc.yml; pnpm's global config path is platform-specific (macOS
-  # keeps it under ~/Library/Preferences, Linux/WSL under ~/.config).
-  link_with_backup "${DOTFILES_DIR}/root/.yarnrc.yml" "${HOME}/.yarnrc.yml"
-  if [ "$(uname)" = "Darwin" ]; then
-    link_with_backup "${DOTFILES_DIR}/root/pnpm-config.yaml" "${HOME}/Library/Preferences/pnpm/config.yaml"
-  else
-    link_with_backup "${DOTFILES_DIR}/root/pnpm-config.yaml" "${HOME}/.config/pnpm/config.yaml"
-  fi
-  # The same 7 days for PyPI. pip reads ~/.config/pip/pip.conf on both
-  # platforms.
-  link_with_backup "${DOTFILES_DIR}/root/pip.conf" "${HOME}/.config/pip/pip.conf"
-  link_with_backup "${DOTFILES_DIR}/root/uv.toml" "${HOME}/.config/uv/uv.toml"
+  link_package_manager_configs
 
   # others
   link_with_backup "${DOTFILES_DIR}/.rgignore" "${HOME}/.rgignore"
