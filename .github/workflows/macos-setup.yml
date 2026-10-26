@@ -29,6 +29,11 @@ jobs:
         run: zsh bin/init/bootstrap-macos.sh 2>&1 | tee "$RUNNER_TEMP/setup.log"
         env:
           DOTFILES_SKIP_UPDATE: '1'
+          # Setup verifies every bottle's attestation, which needs GitHub
+          # credentials and has no terminal here to log in from. This
+          # read-only token is enough for the attestations API, and without
+          # it setup stops before its first install (bin/init/common.sh).
+          HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
 
       # Exit 0 says the install steps worked; it says nothing about the links.
       # A missing link source is a warning and exit 0, so a typo in links.sh or

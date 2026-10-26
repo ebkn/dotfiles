@@ -26,6 +26,8 @@ jobs:
         run: bash bin/init/bootstrap-ubuntu.sh 2>&1 | tee "$RUNNER_TEMP/setup.log"
         env:
           DOTFILES_SKIP_UPDATE: '1'
+          # See macos-setup.yml: attestation checks need GitHub credentials.
+          HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
 
       # See macos-setup.yml: a missing link source is a warning and exit 0.
       - name: No link was skipped for a missing source

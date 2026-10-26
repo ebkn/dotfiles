@@ -249,9 +249,49 @@ install_or_upgrade_homebrew_linux() {
 # Refresh Homebrew itself before touching any formula. CI runners ship a
 # preinstalled Homebrew with auto-update disabled, and a Homebrew older than the
 # formula JSON API's schema aborts mid-pour with "unknown install step: run".
+#
+# Credentials are ensured between the two: after the update, so gh is poured by
+# a current Homebrew, and before the upgrade, the first command that pours a
+# verified bottle. Every init script comes through here before its first
+# install, which is why the check lives here and not in each script.
 update_homebrew() {
-  brew update
+  brew update || return 1
+  ensure_homebrew_github_auth || return 1
   brew upgrade
+}
+
+# ensure_homebrew_github_auth -- make sure Homebrew will find GitHub
+# credentials. With HOMEBREW_VERIFY_ATTESTATIONS=1 (homebrew-env.sh) and none,
+# every bottle but gh's fails to install ("could not be verified ... missing
+# GitHub API token"); Homebrew does not fall back to installing unverified. gh
+# itself is exempt from verification, so it can be installed to log in with.
+# A login needs a terminal: without one -- CI, a piped run -- this fails and
+# says how to pass a token instead. Homebrew also reads macOS Keychain
+# credentials, which this does not look for; a machine relying on those alone
+# is asked to log in anyway.
+ensure_homebrew_github_auth() {
+  if [ -n "${HOMEBREW_GITHUB_API_TOKEN:-}" ]; then
+    return 0
+  fi
+
+  if ! command -v gh >/dev/null 2>&1; then
+    brew install gh || return 1
+  fi
+  if gh auth token >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [ -t 0 ]; then
+    printf "Homebrew verifies bottle attestations, which needs a GitHub login.\n"
+    if gh auth login --hostname github.com --git-protocol ssh &&
+      gh auth token >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  printf "error: Homebrew found no GitHub credentials, so no bottle can be verified.\n" >&2
+  printf "  Run 'gh auth login', or set HOMEBREW_GITHUB_API_TOKEN, and re-run.\n" >&2
+  return 1
 }
 
 install_or_upgrade_brew_formula() {

@@ -19,6 +19,11 @@ bash <(curl -fsSL -H 'Accept: application/vnd.github.raw' https://api.github.com
 bash <(curl -fsSL -H 'Accept: application/vnd.github.raw' https://api.github.com/repos/ebkn/dotfiles/contents/bin/init/bootstrap-wsl.sh)
 ```
 
+The three scripts above ask for a GitHub login (`gh auth login`) before
+Homebrew installs anything: they verify every bottle's build attestation, and
+Homebrew cannot do that without GitHub credentials. Setting
+`HOMEBREW_GITHUB_API_TOKEN` beforehand skips the prompt.
+
 ```powershell
 # Windows (GUI apps via winget — run in PowerShell on the Windows host)
 powershell.exe -ExecutionPolicy Bypass -File ~/dotfiles/bin/init/windows.ps1

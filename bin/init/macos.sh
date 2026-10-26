@@ -11,6 +11,9 @@ BACKUP_DIR="${HOME}/backup"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 . "${SCRIPT_DIR}/common.sh"
+# Before anything runs brew: setup is not an interactive shell, so path.zsh,
+# which reads this for every other brew command, has not run.
+. "${SCRIPT_DIR}/homebrew-env.sh"
 . "${SCRIPT_DIR}/links.sh"
 
 install_or_upgrade_fzf_shell_integration() {

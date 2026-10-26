@@ -1,4 +1,6 @@
-# Sourced by zsh/path.zsh, so every interactive shell runs brew with these.
+# Sourced by zsh/path.zsh, so every interactive shell runs brew with these,
+# and by bin/init/{macos,ubuntu,wsl}.sh, which run before any such shell
+# exists: a fresh machine's brew bundle is the largest install it ever does.
 # Plain POSIX sh, no shebang: one file, so the hardening cannot drift between
 # the shells that read it.
 # shellcheck shell=bash
@@ -10,7 +12,8 @@ export HOMEBREW_FORBIDDEN_FORMULAE="node npm pnpm yarn claude"
 # Verify Sigstore attestations on bottles to ensure they were built by
 # Homebrew's official CI rather than tampered with downstream. With no GitHub
 # credentials (HOMEBREW_GITHUB_API_TOKEN, a `gh` login or the macOS Keychain)
-# every bottle but gh's then fails to install, rather than going unverified.
+# every bottle but gh's then fails to install, rather than going unverified;
+# setup asks for a gh login first (ensure_homebrew_github_auth in common.sh).
 export HOMEBREW_VERIFY_ATTESTATIONS=1
 # Refuse HTTP-to-HTTPS redirects during downloads.
 export HOMEBREW_NO_INSECURE_REDIRECT=1
