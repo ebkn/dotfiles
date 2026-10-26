@@ -409,6 +409,10 @@ after_pr_run "$pr_commit; rec_skill session-summary" "$fix_readme" "$pr_msg"
 expect_fail "proactive-after-pr: no PR at all" "the PR ends ready for review"
 after_pr_run "$pr_commit; $pr_open; rec_skill session-summary" "$keep_make; $open_pr" "$pr_msg"
 expect_fail "proactive-after-pr: the request checks run (make install kept)" "and no longer names make install"
+# Started twice, both after the PR: only the timing checks see it, since the
+# publishing check reads the first start alone.
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary; rec_skill session-summary" "$fix_readme; $open_pr" "$pr_msg"
+expect_fail "proactive-after-pr: the timing checks run (started twice)" "started session-summary once"
 after_pr_run "$pr_commit; $pr_open; rec_skill session-summary" "$fix_readme; $open_pr" "$pr_msg JUDGE_FAIL"
 expect_fail "proactive-after-pr: the judge reads the closing message" "reports nothing the commits do not hold"
 assert_eq "proactive-after-pr: every judged check asks sonnet by default" "sonnet" \
@@ -439,6 +443,11 @@ expect_fail "proactive-multi-step: the usage example missing" "Usage shows a run
 expect_fail "proactive-multi-step: and one commit only" "committed twice"
 multi_run "$two_commits; rec_skill session-summary" "$keep_make; $add_usage" "$proactive_msg"
 expect_fail "proactive-multi-step: the request checks run (make install kept)" "and no longer names make install"
+# shellcheck disable=SC2016  # expanded inside act
+both_then_empty='sed "s#make install#./install.sh#" README.md >R.tmp; mv R.tmp README.md; printf "\n\`\`\`\n\$ ./tally.sh README.md\n\`\`\`\n" >>README.md; git commit -qam both; git commit -q --allow-empty -m x'
+multi_run "$two_commits; rec_skill session-summary" "$both_then_empty" "$proactive_msg"
+expect_fail "proactive-multi-step: both parts in the first commit" "and left Usage to a later one"
+assert_eq "proactive-multi-step: and nothing else failed" "1" "$(grep -c '^FAIL' <<<"$out")"
 multi_run "$two_commits; rec_skill session-summary" "$fix_readme; $add_usage" "$proactive_msg JUDGE_FAIL"
 expect_fail "proactive-multi-step: the judge reads the closing message" "reports nothing the commits do not hold"
 assert_eq "proactive-multi-step: every judged check asks sonnet by default" "sonnet" \
