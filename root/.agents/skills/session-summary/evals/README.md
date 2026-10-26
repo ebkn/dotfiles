@@ -68,25 +68,32 @@ Every miss of `reports-unfinished-request` before the change was the piped
 use: each run called the usage error a cure for a hang, which is what the
 commit message says, and none said that `… | ./tally.sh` used to count
 stdin. With the piped use named in the prompt, the same skill found it 3/3 —
-so the case does not name it. The accuracy check and the unfinished README
-passed in every run in this table, though no real judge has yet been shown a
-planted false claim, and the judge's system prompt tells it truth is not its
-concern.
+so the case does not name it. No real judge has yet been shown a planted
+false claim, though, and the judge's system prompt tells it truth is not its
+concern, so the accuracy check's passes are not yet evidence of accuracy.
 
 `reports-finished-branch`'s first 3/3 was luck. Its misses, run by run:
 
 - re-run of the same skill: two the section 4/5 repetition (escaping in how
   it is built, the control-character gap in Left open); one a judge verdict
   of FAIL on "opens with the request" whose reason ends in "met".
+- exception in the core rule: all three the 4/5 repetition (escaping twice,
+  `--json`-first once), one also the judge contradicting itself again.
+  Discarded because the rule it amended is the one measured before; with
+  the previous skill at 0/3 too, the wording is not shown to be the cause.
 - exception in Left open: both the escaping repetition, one also the
   no-file usage error stated in section 4 and again in Left open — which
   the next row widened the exception for.
 - reaching section 4: one the `--json`-first repetition; one the change in
   beyond the request and what it ends in Left open, read by the judge as one
-  point. The rubric now says that is two, as the skill does.
+  point. The rubric now says that is two, as the skill does, so under it
+  that run would likely pass (not re-judged).
 
-So the case sits near half whatever the wording, and what fails it is the
-4/5 repetition and the judge, not the new item.
+With the final wording the case sits near half, failed by the
+`--json`-first 4/5 repetition and by the judge. The new item did cause one
+4/5 repetition before its exception reached section 4. Three samples per
+row cannot tell the wordings apart beyond that. The accuracy check and the
+README check have no FAIL in any saved run of either case.
 
 **The auto-start rests on `root/CLAUDE.md`**, as `review-test`'s did: the
 description alone started the skill in 1 run of 6. The case is kept as the
