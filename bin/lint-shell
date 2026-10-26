@@ -107,6 +107,7 @@ sh_targets+=(root/.agents/skills/init-project/evals/lib.sh)
 sh_targets+=(root/.agents/skills/create-pr/evals/lib.sh root/.agents/skills/create-pr/evals/grading.sh)
 sh_targets+=(root/.agents/skills/update-pr/evals/lib.sh)
 sh_targets+=(root/.agents/skills/lint-docs/evals/lib.sh root/.agents/skills/lint-docs/evals/grading.sh)
+sh_targets+=(root/.agents/skills/session-summary/evals/lib.sh root/.agents/skills/session-summary/evals/grading.sh)
 
 # -x follows `. "${SCRIPT_DIR}/common.sh"` into the sourced fragment instead of
 # reporting SC1091, so the init scripts are checked against the definitions they
