@@ -37,9 +37,11 @@ Read a changed file only when the commit messages do not tell you its interface 
 
 ## The message
 
-Write in the language the conversation runs in under the user's instructions. Keep each section to what a reviewer needs. Omit a section marked *(if any)* when it would be empty — do not write "none".
+Write in the language the conversation runs in under the user's instructions, headings included — the headings below name the sections, they are not text to copy. Keep each section to what a reviewer needs. Omit a section marked *(if any)* when it would be empty — do not write "none".
 
-**Every fact goes in exactly one section.** A decision the user made belongs to section 1, a change to section 2 or 3, a limitation to section 5 — and nowhere else, not even as a reminder or a pointer back ("the two points above"). Before sending, check each line against the others: a line that says again what one elsewhere says goes.
+**Every fact goes in exactly one section.** A decision the user made belongs to section 1, a change to section 2 or 3, a limitation to section 5 — and nowhere else, not even as a reminder or a pointer back ("the two points above"), and not as its consequence either ("only first" in one section, "elsewhere it is ignored" in another, is one fact).
+
+Draft section 5 before section 4: list every limitation first, then write section 4 without any of them. A sentence in section 4 that says "only", "not", "but" or "does not handle" is usually a limitation that slipped in — move it to section 5, unless it is a rule of the interface, in which case section 5 leaves it out.
 
 If `review-test` or `review-design` ran in this request, their reports keep the place those skills give them, at the top of the closing message; this message follows them.
 
@@ -77,3 +79,12 @@ Always present, one line per item: the PR URL (or that the commits are local), a
 - Lead each line with the point; no preamble, no closing pleasantries, no restating the headings.
 - Name files, commands and identifiers exactly, in backticks; link `file:line` where it saves the reader a search.
 - State results plainly. Do not call something verified unless it was; say how it was verified when that is not obvious.
+
+## Before sending
+
+Read the draft once against this list, and fix what fails:
+
+1. Does any later section repeat a decision from section 1?
+2. Does any line of section 2 give a decision, a commit hash, a file count or the tree's state instead of an outcome?
+3. Is any change listed in both section 2 and section 3?
+4. Does any point — or its consequence — appear in both section 4 and section 5?
