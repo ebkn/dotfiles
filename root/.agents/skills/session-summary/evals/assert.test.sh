@@ -53,6 +53,10 @@ new_run() {
   art="$root_dir/art"
   rm -rf "$work" "$art"
   mkdir -p "$work" "$art"
+  # Cleared so a failed scaffold cannot leave the last run's grade to be
+  # asserted on again.
+  out="scaffold failed"
+  status=1
   (
     cd "$work" || exit 1
     SKILL_EVAL_LIB_DIR="$repo_root/bin" SKILL_EVAL_REPO_ROOT="$repo_root" bash "$case_dir/scaffold.sh"
@@ -110,9 +114,10 @@ assert_eq "finished branch: main moved on with CHANGELOG.md" "CHANGELOG.md" \
 assert_contains "finished branch: a two-dot diff would show it, which is the trap" \
   "$(git -C "$work" diff --name-only main..feat/json-output)" "CHANGELOG.md"
 assert_eq "finished branch: the --json test passes" "ok" "$(cd "$work" && ./run-tests.sh 2>&1)"
-assert_status "finished branch: no file is a usage error" 2 bash -c "cd '$work' && ./tally.sh"
+# </dev/null: without the usage check wc would wait on the terminal.
+assert_status "finished branch: no file is a usage error" 2 bash -c "cd '$work' && ./tally.sh </dev/null"
 # Faults a careful summary would report as open, so they must not be there.
-assert_status "finished branch: --json with no file is a usage error too" 2 bash -c "cd '$work' && ./tally.sh --json"
+assert_status "finished branch: --json with no file is a usage error too" 2 bash -c "cd '$work' && ./tally.sh --json </dev/null"
 printf 'x\n' >"$root_dir/a\"b"
 assert_eq "finished branch: a quote in a path still makes valid JSON" "a\"b" \
   "$(cd "$root_dir" && "$work/tally.sh" --json 'a"b' | jq -r '.files[0].path')"
@@ -145,6 +150,13 @@ expect_fail "reports-finished-branch: started twice" "started session-summary on
 report_run "$reports_records; rec_tool Edit '{\"file_path\":\"README.md\"}'" "echo x >>README.md" "$summary_msg"
 expect_fail "reports-finished-branch: an edit" "wrote no file"
 expect_fail "reports-finished-branch: and the tree changed" "left the tree as it was"
+# Tree unchanged, so each failure belongs to the transcript reader alone.
+report_run "$reports_records; rec_tool Write '{\"file_path\":\"notes.md\"}'" ":" "$summary_msg"
+expect_fail "reports-finished-branch: a Write" "wrote no file"
+report_run "$reports_records; rec_bash \"git -C . add README.md\"" ":" "$summary_msg"
+expect_fail "reports-finished-branch: git add through -C" "ran no git that writes"
+report_run "$reports_records; rec_bash \"git stash list\"; rec_bash \"git -C . log --oneline\"" ":" "$summary_msg"
+expect_pass "reports-finished-branch: git that only reads passes"
 report_run "$reports_records; rec_bash \"git commit --allow-empty -m x\"" "git commit -q --allow-empty -m x" "$summary_msg"
 expect_fail "reports-finished-branch: a commit" "made no commit"
 expect_fail "reports-finished-branch: through git that writes" "ran no git that writes"
@@ -168,6 +180,7 @@ done
 # ============================================================
 # shellcheck disable=SC2016  # expanded inside act
 fix_readme='sed "s#make install#./install.sh#" README.md >R.tmp; mv R.tmp README.md; git commit -qam "docs: install with install.sh"'
+# shellcheck disable=SC2016  # markdown backticks, not a command
 proactive_msg='### 依頼内容
 README の Install 節が make install のままなので install.sh に直す。
 ### 対応したこと
@@ -176,14 +189,25 @@ README の Install 節が make install のままなので install.sh に直す�
 - コミットはローカルです。'
 proactive_records='rec_tool Edit "{\"file_path\":\"README.md\"}"; rec_bash "git commit -m docs"; rec_skill session-summary'
 
+# shellcheck disable=SC2016  # expanded inside act
+keep_make='printf "\n./install.sh\n" >>README.md; git commit -qam "docs: mention install.sh"'
+
+proactive_run() {
+  new_run "$case_name" || return 1
+  act "$1" "$2"
+  grade "$3"
+}
 for case_name in proactive-with-claude-md proactive-at-finish; do
-  proactive_run() {
-    new_run "$case_name" || return 1
-    act "$1" "$2"
-    grade "$3"
-  }
   proactive_run "$proactive_records" "$fix_readme" "$proactive_msg"
   expect_pass "$case_name: a fix, a commit, then the summary passes"
+  proactive_run "${proactive_records//git commit/git -C . commit}" "$fix_readme" "$proactive_msg"
+  expect_pass "$case_name: a commit through git -C counts as the last commit"
+  proactive_run "$proactive_records" "$keep_make" "$proactive_msg"
+  expect_fail "$case_name: install.sh added beside make install" "and no longer names make install"
+  # A commit the transcript does not show -- not as git commit -- leaves the
+  # order unknowable, and an unknown order is not graded as the right one.
+  proactive_run 'rec_tool Edit "{\"file_path\":\"README.md\"}"; rec_skill session-summary' "$fix_readme" "$proactive_msg"
+  expect_fail "$case_name: no commit visible in the transcript" "started it after the last commit"
   proactive_run "$proactive_records" ":" "$proactive_msg"
   expect_fail "$case_name: the README left as it was" "README installs with install.sh"
   expect_fail "$case_name: and nothing committed" "committed the work"
