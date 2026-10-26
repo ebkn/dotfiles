@@ -1,10 +1,26 @@
-# grading.sh — the grader the two proactive cases share. They differ only in
-# whether root/CLAUDE.md is in, so the difference between their results is
-# that file's (see "What the eval can and cannot see" in bin/skill-eval.md).
+# grading.sh — the checks session-summary's cases share. The two proactive
+# cases share all of theirs: they differ only in whether root/CLAUDE.md is in,
+# so the difference between their results is that file's (see "What the eval
+# can and cannot see" in bin/skill-eval.md).
 #
 # Sourced by assert.sh, so it declares no `set -e` / `set -o`.
 #
 # shellcheck shell=bash
+
+# summary_eval_check_read_only
+# Started by name on a finished branch: the skill wrote nothing ("##
+# Boundary"). Needs the scaffold's run-start tag and .git/refs-at-start.
+summary_eval_check_read_only() {
+  check_eq "wrote no file" "0" "$(($(transcript_tool_uses Write) + $(transcript_tool_uses Edit)))"
+  check_eq "left the tree as it was" "" "$(git status --porcelain)"
+  check_eq "made no commit" "$(git rev-parse run-start)" "$(git rev-parse HEAD)"
+  # The command check names the usual spellings; the ref check below is the
+  # outcome, which no spelling (-c, env prefixes, a second line) gets past.
+  check_eq "ran no git that writes" "" \
+    "$(transcript_first_command_index '^git +(-C +[^ ]+ +)?((add|commit|push|reset|switch|merge|rebase|restore)( |$)|checkout +(-b|-B|--orphan) )')"
+  check_eq "left branches and tags as they were" "$(cat .git/refs-at-start)" \
+    "$(git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/tags)"
+}
 
 # summary_eval_check_proactive
 # The README fix done and committed, then session-summary started -- once,

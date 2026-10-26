@@ -3,6 +3,8 @@ set -eo pipefail
 
 # shellcheck source=../../../../../../bin/skill-eval-assert.sh
 source "$SKILL_EVAL_LIB_DIR/skill-eval-assert.sh"
+# shellcheck source=../grading.sh
+source "$SKILL_EVAL_REPO_ROOT/root/.agents/skills/session-summary/evals/grading.sh"
 
 summary="$(transcript_result_text)"
 # haiku passed repetition it had itself called "borderline"; the message
@@ -11,16 +13,7 @@ SKILL_EVAL_JUDGE_MODEL="${SKILL_EVAL_JUDGE_MODEL:-sonnet}"
 
 check_eq "started session-summary once" "1" "$(transcript_skill_uses session-summary)"
 
-# --- reading only ("## Boundary") ---
-check_eq "wrote no file" "0" "$(($(transcript_tool_uses Write) + $(transcript_tool_uses Edit)))"
-check_eq "left the tree as it was" "" "$(git status --porcelain)"
-check_eq "made no commit" "$(git rev-parse run-start)" "$(git rev-parse HEAD)"
-# The command check names the usual spellings; the ref check below is the
-# outcome, which no spelling (-c, env prefixes, a second line) gets past.
-check_eq "ran no git that writes" "" \
-  "$(transcript_first_command_index '^git +(-C +[^ ]+ +)?((add|commit|push|reset|switch|merge|rebase|restore)( |$)|checkout +(-b|-B|--orphan) )')"
-check_eq "left branches and tags as they were" "$(cat .git/refs-at-start)" \
-  "$(git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/tags)"
+summary_eval_check_read_only
 
 # --- facts from the repository, not from main ---
 # CHANGELOG.md landed on main after the branch split off. A two-dot diff
