@@ -91,11 +91,21 @@ print -r -- '# newer' >> $TMP/origin/zinit.zsh
 $git_c -C $TMP/origin commit -qam newer
 NEWER=$(git -C $TMP/origin rev-parse HEAD)
 
+# The zsh start_shell runs, for the completion dump below.
+ZSH_UNDER_TEST=$(zsh -f -c 'print -r -- $ZSH_VERSION')
+
 # home_at <name> <commit> — a $HOME whose zinit is a clone of origin checked
 # out at <commit>, on main when that is main's tip, as a fresh clone is.
+# It holds a .zcompdump for that zsh, as a home in use does, so plugin.zsh
+# takes its `compinit -C` path: with none, plain compinit runs compaudit over
+# the system $fpath, and on the CI runner one of those directories is
+# insecure, so its y/n prompt ("not interactive and can't open terminal")
+# lands in the stderr these cases require to be empty -- noise from the
+# machine, not a warning from the pin.
 home_at() {
   local home=$TMP/$1
   git clone -q $TMP/origin $home/.zinit/bin
+  print -r -- "#files: 0	version: $ZSH_UNDER_TEST" > $home/.zcompdump
   [[ $2 == $NEWER ]] || git -C $home/.zinit/bin checkout -q --detach $2
   print -r -- $home
 }
