@@ -161,11 +161,17 @@ for verb in "push" "reset --hard" "switch -c x" "merge main" "rebase main" "rest
   report_run "$reports_records; rec_bash \"git $verb\"" ":" "$summary_msg"
   expect_fail "reports-finished-branch: git $verb" "ran no git that writes"
 done
-# A branch made in a spelling the command check does not know.
+# Refs changed with no record the command check matches (`-c x=y` before the
+# subcommand, or no record at all), so the ref check is the only reason each
+# fails. A plain `git branch topic` record would not show that.
 report_run "$reports_records; rec_bash \"git -c x=y branch topic\"" "git branch topic" "$summary_msg"
-expect_fail "reports-finished-branch: a branch created" "created no branch or tag"
+expect_fail "reports-finished-branch: a branch created" "left branches and tags as they were"
 report_run "$reports_records" "git tag v1" "$summary_msg"
-expect_fail "reports-finished-branch: a tag created" "created no branch or tag"
+expect_fail "reports-finished-branch: a tag created" "left branches and tags as they were"
+report_run "$reports_records" "git branch -f main feat/json-output" "$summary_msg"
+expect_fail "reports-finished-branch: an existing branch moved" "left branches and tags as they were"
+report_run "$reports_records" "git tag -d eval-base" "$summary_msg"
+expect_fail "reports-finished-branch: a tag deleted" "left branches and tags as they were"
 report_run "$reports_records; rec_bash \"git commit --allow-empty -m x\"" "git commit -q --allow-empty -m x" "$summary_msg"
 expect_fail "reports-finished-branch: a commit" "made no commit"
 expect_fail "reports-finished-branch: through git that writes" "ran no git that writes"

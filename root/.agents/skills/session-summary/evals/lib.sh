@@ -58,7 +58,8 @@ EOF
 # nobody asked for (a usage error with no arguments, where wc used to wait on
 # stdin). Then main moves on with a CHANGELOG.md the branch never saw: a
 # two-dot diff against main would list it as removed by this branch.
-# Tagged `run-start`, so a case can tell whether the run committed anything.
+# Tagged `run-start`, so a case can tell whether the run committed anything,
+# and its refs recorded in .git/refs-at-start.
 summary_eval_finished_branch() {
   summary_eval_project
   git checkout -q -b feat/json-output
@@ -125,6 +126,9 @@ EOF
   git commit -qm "docs: start a CHANGELOG"
   git checkout -q feat/json-output
   git tag run-start
+  # Every branch and tag with its commit, for a grader to compare after the
+  # run. Inside .git/, so the fixture's tree and status never show it.
+  git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/tags >.git/refs-at-start
 }
 
 # summary_eval_docs_branch
