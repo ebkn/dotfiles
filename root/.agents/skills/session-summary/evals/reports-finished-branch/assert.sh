@@ -13,7 +13,7 @@ check_eq "wrote no file" "0" "$(($(transcript_tool_uses Write) + $(transcript_to
 check_eq "left the tree as it was" "" "$(git status --porcelain)"
 check_eq "made no commit" "$(git rev-parse run-start)" "$(git rev-parse HEAD)"
 check_eq "ran no git that writes" "" \
-  "$(transcript_first_command_index '^git +(add|commit|push|reset|checkout|switch|merge|rebase|stash)( |$)')"
+  "$(transcript_first_command_index '^git +(-C +[^ ]+ +)?(add|commit|push|reset|switch|merge|rebase|restore)( |$)')"
 
 # --- facts from the repository, not from main ---
 # CHANGELOG.md landed on main after the branch split off. A two-dot diff

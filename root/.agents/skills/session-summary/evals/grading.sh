@@ -21,7 +21,8 @@ summary_eval_check_proactive() {
 
   # --- starting by itself ("## When to start") ---
   check_eq "started session-summary once" "1" "$(transcript_skill_uses session-summary)"
-  last_commit="$(transcript_command_indexes '^git +commit' | tail -n 1)"
+  # root/CLAUDE.md prefers `git -C <dir> <subcommand>`, so allow a -C.
+  last_commit="$(transcript_command_indexes '^git +(-C +[^ ]+ +)?commit( |$)' | tail -n 1)"
   skill_index="$(transcript_skill_rounds session-summary | jq -s '.[0].index // empty')"
   check "started it after the last commit" \
     test "${skill_index:-0}" -gt "${last_commit:-999999}"
