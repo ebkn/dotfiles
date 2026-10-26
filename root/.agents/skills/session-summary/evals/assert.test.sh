@@ -136,13 +136,24 @@ assert_status "finished branch: --json with no file is a usage error too" 2 bash
 printf 'x\n' >"$root_dir/a\"b"
 assert_eq "finished branch: a quote in a path still makes valid JSON" "a\"b" \
   "$(cd "$root_dir" && "$work/tally.sh" --json 'a"b' | jq -r '.files[0].path')"
-# What reports-unfinished-request's message has to find, so it must be there.
-assert_status "finished branch: piping into tally.sh is now a usage error" 2 \
+
+# What reports-unfinished-request's message has to find, so it must be there
+# -- checked on that case's own scaffold, which may drift from this one.
+new_run reports-unfinished-request
+assert_status "unfinished request: piping into tally.sh is now a usage error" 2 \
   bash -c "cd '$work' && printf 'a\n' | ./tally.sh"
-assert_eq "finished branch: piping worked on main" "1" \
+assert_eq "unfinished request: piping worked on main" "1" \
   "$(cd "$work" && git show main:tally.sh >"$root_dir/tally-main.sh" && printf 'a\n' | bash "$root_dir/tally-main.sh" | tr -d ' ')"
-assert_eq "finished branch: no commit touches README.md" "" \
+assert_eq "unfinished request: no commit touches README.md" "" \
   "$(git -C "$work" diff --name-only main...feat/json-output -- README.md)"
+# Named in the prompt, the piped use was found 3/3 and the case measured the
+# prompt. The body only: the frontmatter comment names it on purpose, and
+# the shell rule's `|` is not a hint.
+unfinished_body="$(awk 'n >= 2; /^---$/ { n++ }' "$evals_dir/reports-unfinished-request/prompt.md")"
+assert_contains "unfinished request: the prompt body is read" "$unfinished_body" "README の Usage"
+for hint in 標準入力 stdin パイプ generate-report '| ./tally'; do
+  assert_not_contains "unfinished request: the prompt does not hint at $hint" "$unfinished_body" "$hint"
+done
 
 # A commit or file planted after the scaffold, with run-start and the
 # recorded refs moved along, so only the accuracy check can see it.
@@ -275,6 +286,9 @@ for label in "says the README part of the request was not done" \
   expect_fail "reports-unfinished-request: the judge reads the closing message ($label)" "$label"
 done
 assert_eq "reports-unfinished-request: every judged check asks sonnet by default" "sonnet" \
+  "$(sort -u "$root_dir/judge-models")"
+SKILL_EVAL_JUDGE_MODEL=haiku grade "$unfinished_msg"
+assert_eq "reports-unfinished-request: an explicit judge model still wins" "haiku" \
   "$(sort -u "$root_dir/judge-models")"
 unfinished_run "$reports_records" "$plant_commit" "$unfinished_msg"
 expect_fail "reports-unfinished-request: the accuracy judge reads the commits" \
