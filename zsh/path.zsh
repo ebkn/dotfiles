@@ -22,8 +22,6 @@ case "$OSTYPE" in
     export MANPATH="$MANPATH:$NVM_DIR/$NODE_DEFAULT/share/man"
     NODE_PATH=$NVM_DIR/$NODE_DEFAULT/lib/node_modules
     export NODE_PATH=${NODE_PATH:A}
-    # VScode
-    export PATH="$PATH:/usr/local/bin/code"
 
     # Go
     export GOPATH=$HOME/go
