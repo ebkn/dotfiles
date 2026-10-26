@@ -12,8 +12,9 @@
 summary_eval_check_proactive() {
   local summary last_commit skill_index
   summary="$(transcript_result_text)"
-  # As in reports-finished-branch: haiku let repetition through.
-  SKILL_EVAL_JUDGE_MODEL="${SKILL_EVAL_JUDGE_MODEL:-sonnet}"
+  # As in reports-finished-branch: haiku let repetition through. Local, so a
+  # grader calling this beside its own checks keeps its own judge.
+  local SKILL_EVAL_JUDGE_MODEL="${SKILL_EVAL_JUDGE_MODEL:-sonnet}"
 
   # --- the request itself was carried out ---
   check_match "README installs with install.sh" '\./install\.sh' "$(cat README.md)"
