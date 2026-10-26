@@ -58,24 +58,35 @@ judged by sonnet):
 
 | Skill | `reports-unfinished-request` | `reports-finished-branch` |
 | --- | --- | --- |
-| before | 0/3 — every miss the piped use | 2/2 |
-| looks for what worked before and no longer does | 3/3 | 3/3, then 0/3 re-run |
-| and calls what it ends a fact of its own (review-design P1) | 3/3 | 1/3 |
+| before | 0/3 | 2/2 |
+| looks for what worked before and no longer does | 3/3 | 3/3, re-run 0/3 |
+| what it ends a fact of its own, exception in the core rule (discarded) | 3/3 | 0/3 |
+| the exception in Left open's text instead | 3/3 | 1/3 |
+| and it reaches section 4 as well | 3/3 | 1/3 |
 
-The accuracy check and the unfinished README passed every run of both —
-though no real judge has yet been shown a planted false claim, and the
-judge's system prompt tells it truth is not its concern. What the runs
-missed was the cost of a fix.
-Every run called the usage error a cure for a hang, which is what the commit
-message says, and none said that `… | ./tally.sh` used to count stdin. With
-the piped use named in the prompt, the same skill found it 3/3 — so the case
-does not name it.
+Every miss of `reports-unfinished-request` before the change was the piped
+use: each run called the usage error a cure for a hang, which is what the
+commit message says, and none said that `… | ./tally.sh` used to count
+stdin. With the piped use named in the prompt, the same skill found it 3/3 —
+so the case does not name it. The accuracy check and the unfinished README
+passed in every run in this table, though no real judge has yet been shown a
+planted false claim, and the judge's system prompt tells it truth is not its
+concern.
 
-`reports-finished-branch` at 3/3 was luck: the same skill re-run went 0/3,
-so it sits near half, every miss the section 4/5 repetition above (escaping
-in how it is built, the control-character gap in Left open). Its judge also
-twice failed "opens with the request" with a reason that ends in "met" — the
-verdict and the reasoning disagree, and the verdict is what counts.
+`reports-finished-branch`'s first 3/3 was luck. Its misses, run by run:
+
+- re-run of the same skill: two the section 4/5 repetition (escaping in how
+  it is built, the control-character gap in Left open); one a judge verdict
+  of FAIL on "opens with the request" whose reason ends in "met".
+- exception in Left open: both the escaping repetition, one also the
+  no-file usage error stated in section 4 and again in Left open — which
+  the next row widened the exception for.
+- reaching section 4: one the `--json`-first repetition; one the change in
+  beyond the request and what it ends in Left open, read by the judge as one
+  point. The rubric now says that is two, as the skill does.
+
+So the case sits near half whatever the wording, and what fails it is the
+4/5 repetition and the judge, not the new item.
 
 **The auto-start rests on `root/CLAUDE.md`**, as `review-test`'s did: the
 description alone started the skill in 1 run of 6. The case is kept as the
