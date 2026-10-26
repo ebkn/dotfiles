@@ -15,7 +15,12 @@ check "committed twice" test "$(git rev-list --count eval-base..HEAD)" -ge 2
 # The case's premise, in prompt.md's order: a first commit that fixes Install
 # and leaves Usage, so there is a midpoint to summarize at too early. A run that put
 # both parts in one commit had no such point, and its timing measures nothing.
-first="$(git rev-list --reverse eval-base..HEAD | head -n 1)"
+# No `| head -n 1`: under pipefail a head that exits first can kill git with
+# SIGPIPE, and set -e then ends the grader before its judged checks -- seen
+# once in CI. Empty (no commit) reads HEAD, not the index `git show :path` is.
+commits="$(git rev-list --reverse eval-base..HEAD)"
+first="${commits%%$'\n'*}"
+first="${first:-HEAD}"
 check_match "the first commit fixed Install" '\./install\.sh' "$(git show "$first:README.md")"
 check_not_match "and left Usage to a later one" 'tally\.sh README\.md' "$(git show "$first:README.md")"
 
