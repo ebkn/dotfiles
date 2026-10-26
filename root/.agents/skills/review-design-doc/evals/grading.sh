@@ -262,15 +262,20 @@ rdd_is_japanese() {
 # None of SKILL.md's English template labels stands as a label: a report
 # heading, a section heading, or a finding's "Why it matters:"/"Suggestion:".
 # rdd_is_japanese counts words, so Japanese findings under English labels pass
-# it -- the shape three of five reviews of real Japanese docs took. A label
-# quoted inside a sentence, or the Caller line (English on purpose), is not
-# one. jq, not grep, so the case folding holds in any locale.
+# it -- the shape three of five reviews of real Japanese docs took. Read wide
+# at the start of a line, since a model drifting from the template drifts in
+# shape too: with or without a list marker (numbered included) or bold, a
+# trailing colon or words after a section name. A section name needs a `#` or
+# bold in front, so a bare line that happens to say "Checked" is prose. A
+# label quoted inside a sentence, or the Caller line (English on purpose), is
+# not one. jq, not grep, so the case folding holds in any locale.
 rdd_labels_translated() {
   jq -nre --arg t "$1" '
     $t | split("\n")
     | any(.[];
-        test("^[ \t]*(#+[ \t]*)?(\\*\\*)?(design doc(ument)? review[ \t]*[:：]|(the decision|questions for the author|decisions the doc leaves open|checked)[ \t]*(\\*\\*)?[ \t]*$)"; "i")
-        or test("^[ \t]*[-*][ \t]+(\\*\\*)?(why it matters|suggestion)(\\*\\*)?[ \t]*[:：]"; "i"))
+        test("^[ \t]*(#+[ \t]*)?(\\*\\*)?design doc(ument)? review[ \t]*(\\*\\*)?[ \t]*[:：]"; "i")
+        or test("^[ \t]*(#+[ \t]*(\\*\\*)?|\\*\\*)(the decision|questions for the author|decisions the doc leaves open|checked)\\b"; "i")
+        or test("^[ \t]*([-*+][ \t]+|[0-9]+[.)][ \t]+)?(#+[ \t]*)?(\\*\\*)?(why it matters|suggestion)[ \t]*(\\*\\*)?[ \t]*([:：]|$)"; "i"))
     | not
   ' >/dev/null
 }

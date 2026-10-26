@@ -738,22 +738,27 @@ for text in 'The 「検討した代替案」 section and `何もしない` are t
   fi
 done
 
-# The template's English labels, in the shapes real runs wrote them, and the
-# Caller line, which stays English on purpose.
-for text in '### P1\n- **x** — 「y」\n  - なぜ問題か: z\n  - 提案: w' \
-  '### 作者への質問\n- x' '### 確認した観点\n- x' \
-  'Caller: the user may not see this result. Suggestion: none.' \
-  '- 「Why it matters」に当たる節が無い'; do
-  if in_grading rdd_labels_translated "$(printf %b "$text")"; then
-    ok "labels: '${text%%\\n*}' passes"
+# The template's English labels, in the shapes real runs wrote them and the
+# ones a drifting model might, against what is not a label. Each passing case
+# is named for what it shows; "name::text".
+ja_full='## 設計ドキュメントレビュー: docs/a.md\n\n### 判断の対象\nx\n\n### P1（重大）\n- **x** — 「y」（z）\n  - なぜ問題か: z\n  - 提案: w\n\n### 作者への質問\n- x\n\n### ドキュメントが未決としている事項\n- x\n\n### 確認した観点\n- x\n\nCaller: the user may not see this result. If you wrote the doc, fix every P1 and P2.'
+for entry in "a full report in SKILL.md's Japanese format, Caller line included::$ja_full" \
+  'a label word mid-line is not a label::指摘への提案。 Suggestion: none.' \
+  'a label quoted in 「」 is not a label::- 「Why it matters」に当たる節が無い' \
+  'a bare line saying Checked is prose::Checked\n- x'; do
+  if in_grading rdd_labels_translated "$(printf %b "${entry#*::}")"; then
+    ok "labels: ${entry%%::*} passes"
   else
-    bad "labels: '${text%%\\n*}' passes"
+    bad "labels: ${entry%%::*} passes"
   fi
 done
 for text in '## Design doc review: docs/a.md' '**Design Document Review:** docs/a.md' \
   '### The decision\nx' '### Questions for the author\n- x' \
   '### Decisions the doc leaves open\n- x' '### Checked\n- x' \
-  '  - Why it matters: x' '  - **Suggestion**: x' '- suggestion： x'; do
+  '### Questions for the author:\n- x' '### Checked (sections)\n- x' '**The decision**\nx' \
+  '  - Why it matters: x' '  - **Suggestion**: x' '- suggestion： x' \
+  '- **Why it matters:** x' '- **Suggestion:** x' '**Why it matters:** x' \
+  'Why it matters: x' '1. **Suggestion:** x' '#### Why it matters\nx'; do
   if in_grading rdd_labels_translated "$(printf %b "$text")"; then
     bad "labels: '${text%%\\n*}' is caught"
   else
