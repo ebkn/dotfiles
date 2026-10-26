@@ -43,7 +43,7 @@ check_llm "told the user the release plan is theirs to decide" \
 # --- the doc's language, and its prose handed to lint-docs ---
 # The review's own reports, as the fork returned them: the caller's summary
 # may follow a CLAUDE.md that asks for English, and that is not the review's.
-check "answered in Japanese, the doc's language, in every round" rdd_every_round_japanese
+check "answered in Japanese, labels included, in every round" rdd_every_round_japanese
 rdd_check_lint ja
 
 skill_eval_finish

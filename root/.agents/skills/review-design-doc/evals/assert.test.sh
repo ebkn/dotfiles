@@ -885,7 +885,7 @@ new_run proactive-after-writing-doc "rec_edit Write $doc; $lint" "$write_doc"
 grade "書きました。"
 expect_fail "proactive: not starting the skill is caught" \
   "started review-design-doc on the doc it wrote" "started it after writing the doc" \
-  "the last round reports no P1 and no P2" "answered in Japanese, the doc's language, in every round" \
+  "the last round reports no P1 and no P2" "answered in Japanese, labels included, in every round" \
   "handed Japanese readability to lint-docs, after the review"
 
 # shellcheck disable=SC2016
@@ -932,7 +932,7 @@ expect_fail "proactive: the judges read the final response" \
 new_run proactive-after-writing-doc "rec_edit Write $doc; rec_round \"\$found\"; rec_edit Edit $doc; rec_round \"\$clean_en_round\"; $lint" "$write_doc"
 grade "$pro_done"
 expect_fail "proactive: an English review of the Japanese doc is caught" \
-  "answered in Japanese, the doc's language, in every round"
+  "answered in Japanese, labels included, in every round"
 
 # A Japanese round under the template's English labels is not one in the
 # doc's language either: on real runs the labels were all that stayed English.
@@ -942,7 +942,7 @@ clean_labels_en="${clean/設計ドキュメントレビュー/Design doc review}
 new_run proactive-after-writing-doc "rec_edit Write $doc; rec_round \"\$found\"; rec_edit Edit $doc; rec_round \"\$clean_labels_en\"; $lint" "$write_doc"
 grade "$pro_done"
 expect_fail "proactive: a round under English labels is caught" \
-  "answered in Japanese, the doc's language, in every round"
+  "answered in Japanese, labels included, in every round"
 
 # Every round, not only the last: an English first round is one the user may
 # have been shown.
@@ -950,7 +950,7 @@ expect_fail "proactive: a round under English labels is caught" \
 new_run proactive-after-writing-doc "rec_edit Write $doc; rec_round \"\$(en_report $doc)\"; rec_edit Edit $doc; rec_round \"\$clean\"; $lint" "$write_doc"
 grade "$pro_done"
 expect_fail "proactive: an English first round is caught" \
-  "answered in Japanese, the doc's language, in every round"
+  "answered in Japanese, labels included, in every round"
 
 new_run proactive-after-writing-doc "rec_edit Write $doc; $pro_rounds" "$write_doc"
 grade "$pro_done"
