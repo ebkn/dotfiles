@@ -68,6 +68,11 @@
 - Before reporting finished work back, call `update-pr` with `ready` as its argument: it pushes what is left, rewrites the title and body for the whole branch, and marks the PR ready for review — or, when the branch has no PR after all, hands over to `create-pr`, which opens one ready. It comes last, after `review-test`, `review-design` and their fix commits. Skip it when nothing was committed since the PR was last written — a question answered, an investigation reported — and mid-request.
 - On the default branch, or with no GitHub `origin`, open no PR and push nothing, and do not create a branch to make one possible: say in the report that the commits are local.
 
+# Reporting Back
+
+- Once a request that changed files is finished — commits made, `review-test` and `review-design` loops over, `update-pr ready` done or the commits reported as local — call the `session-summary` skill and let it write the closing message, without waiting to be asked. Do not write a wrap-up of your own beside it.
+- Skip it mid-request and when nothing was committed — a question answered, an investigation reported.
+
 # Temporary Files
 
 - When creating temporary files or directories for investigation, place them under the current project directory (e.g., `./tmp/`), not `/tmp` or other system-level locations.
