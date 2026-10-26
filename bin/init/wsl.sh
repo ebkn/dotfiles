@@ -244,8 +244,7 @@ install_or_upgrade_claude
 log_step "Installing Node.js toolchain"
 install_or_upgrade_volta
 install_or_upgrade_node_with_volta
-# Link .npmrc before npm runs so min-release-age applies on first install.
-link_with_backup "${DOTFILES_DIR}/.npmrc" "${HOME}/.npmrc"
+# ~/.npmrc, and its min-release-age, came with link_package_manager_configs.
 # Keep this list aligned with zsh/update.zsh:update-all npm global installs.
 install_or_upgrade_npm_global "diagnostic-languageserver"
 install_or_upgrade_npm_global "dockerfile-language-server-nodejs"

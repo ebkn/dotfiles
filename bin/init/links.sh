@@ -11,8 +11,8 @@
 #                           added to the repo after a machine was provisioned
 #                           get created without re-running the full init script.
 #
-# Links that must run at a specific point (.zshrc/.zshenv before shell packages,
-# .npmrc before npm) or that are wrapped in special logic (.ssh/config Include,
+# Links that must run at a specific point (.zshrc/.zshenv before shell packages)
+# or that are wrapped in special logic (.ssh/config Include,
 # sudo diff-highlight, CI-only gitconfig tweaks) stay inline in the init script
 # and are intentionally NOT re-synced here. The exception is a link that must
 # come early but is safe to re-sync: it goes in link_package_manager_configs,
@@ -22,10 +22,14 @@
 # Requires: DOTFILES_DIR, HOME, and link_with_backup/backup_path (from common.sh).
 # Honors LINK_CHECK=1 via link_with_backup (report drift instead of mutating).
 
-# link_package_manager_configs -- the yarn, pnpm, pip and uv configs, which
-# carry the 7-day cooldown and so must be in place before anything installs.
-# The setup workflows check this list after a Linux run (LINK_CHECK=1).
+# link_package_manager_configs -- the npm, yarn, pnpm, pip and uv configs,
+# which carry the 7-day cooldown and so must be in place before anything
+# installs. The setup workflows check this list after a Linux run (LINK_CHECK=1).
 link_package_manager_configs() {
+  # npm's min-release-age=7 and ignore-scripts=true. Once linked inline by each
+  # platform script alone, so relink never restored a missing one, and that
+  # machine's npm installed fresh releases and ran their install scripts.
+  link_with_backup "${DOTFILES_DIR}/.npmrc" "${HOME}/.npmrc"
   # Supply-chain cooldown: refuse npm package versions younger than 7 days.
   # Keeps yarn/pnpm in lockstep with npm's min-release-age=7 (.npmrc). yarn Berry
   # reads ~/.yarnrc.yml; pnpm's global config path is platform-specific (macOS

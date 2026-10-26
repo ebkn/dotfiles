@@ -254,6 +254,10 @@ else
 fi
 eq "holding a link per owned skill" "$REPO/root/.agents/skills/review-test" \
   "$(readlink "$RH/.claude/skills/review-test")"
+# ~/.npmrc carries npm's 7-day cooldown and ignore-scripts, and a machine
+# without it installs with neither, silently. It was linked only inline by the
+# platform scripts, so relink never restored a missing one.
+eq "the npm cooldown config is linked" "$REPO/.npmrc" "$(readlink "$RH/.npmrc")"
 
 # --- relink, over the real link_dotfiles ---------------------------------------
 # launchctl is stubbed to record any call: relink links LaunchAgents but never
