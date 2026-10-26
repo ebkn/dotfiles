@@ -8,7 +8,7 @@ Run with `bin/skill-eval session-summary` ([bin/skill-eval.md](../../../../../bi
 | Case | Measures |
 | --- | --- |
 | `reports-finished-branch` | the message itself, started by name on a finished branch: the request and its change of direction first, the unrequested fix kept apart, the interface shown, what is left at the end, and no file from a main that moved on after the branch split off |
-| `reports-unfinished-request` | the same branch, with a request it does not fully meet: Usage in README.md was asked for and no commit touches it, and the unrequested usage-error fix breaks the user's `generate-report \| ./tally.sh`. The prompt calls neither a problem; the message has to find both from git |
+| `reports-unfinished-request` | the same branch, with a request it does not fully meet: Usage in README.md was asked for and no commit touches it, and the unrequested usage-error fix ends `… \| ./tally.sh`, which used to count stdin. The prompt names neither; the message has to find both from git |
 | `proactive-with-claude-md` / `proactive-at-finish` | whether it starts by itself after the last commit, with `root/CLAUDE.md` or with the description alone — same prompt, fixture and grader |
 | `no-fire-question` | that it stays out of an answered question |
 
