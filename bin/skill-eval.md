@@ -354,7 +354,10 @@ reports, since CI has no textlint (see that skill's `evals/README.md`) — and
 `review-design-doc/evals/assert.test.sh` for all seventeen of
 `review-design-doc`'s, written before the skill itself, so the cases are its
 specification; it reads the report from the final response, not from the
-Skill's `tool_result`. Each of these suites is graded on the transcript as much
+Skill's `tool_result` — and `session-summary/evals/assert.test.sh` for all
+five of `session-summary`'s, whose message is graded mostly by `check_llm`;
+its fixture also pins the trap `reports-finished-branch` is built on, a main
+that moved on after the branch split off. Each of these suites is graded on the transcript as much
 as on the tree, so it writes synthetic transcripts, and two things about them
 are worth copying — the first is the forked shape review-test's and
 review-design's cases model:

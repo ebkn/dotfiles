@@ -1,0 +1,160 @@
+# session-summary evals
+
+Run with `bin/skill-eval session-summary` ([bin/skill-eval.md](../../../../../bin/skill-eval.md)).
+`assert.test.sh` pins the graders without calling the API; CI runs it.
+
+## The cases
+
+| Case | Measures |
+| --- | --- |
+| `reports-finished-branch` | the message itself, started by name on a finished branch: the request and its change of direction first, the unrequested fix kept apart, the interface shown, what is left at the end, and no file from a main that moved on after the branch split off |
+| `reports-unfinished-request` | the same branch, with a request it does not fully meet: Usage in README.md was asked for and no commit touches it, and the unrequested usage-error fix ends `… \| ./tally.sh`, which used to count stdin. The prompt names neither; the message has to find both from git |
+| `proactive-with-claude-md` / `proactive-at-finish` | whether it starts by itself after the last commit, with `root/CLAUDE.md` or with the description alone — same prompt, fixture and grader |
+| `no-fire-question` | that it stays out of an answered question |
+
+The message is graded mostly by `check_llm`, because no regex can say "the
+request comes before the work". What can be stated deterministically is
+checked directly: the skill started once, nothing was written (tree, HEAD,
+and every branch and tag by value), and `CHANGELOG.md` — on main only — is
+never named.
+
+Every case that writes a summary is also graded for **accuracy against the
+commits**: the judge is handed `git log main..HEAD`, the merge-base
+`--stat` and the merge-base diff itself (plain: `--no-ext-diff --no-color`;
+why the diff, under "The accuracy judge, checked against planted claims"
+below), and fails a message that reports as done what no commit holds. A
+rubric written beforehand knows only the fixture's intended state, and the
+commonest fault of agent-written PR descriptions is exactly that — "describes
+a change that was never made", 45% of the inconsistent ones, with those PRs
+accepted 28% of the time against 80% (Gong et al., [arXiv
+2601.04886](https://arxiv.org/abs/2601.04886)).
+
+## Measured
+
+2026-10-26, sonnet. First with the haiku judge and one general concision
+rubric:
+
+| Case | Passed | Notes |
+| --- | --- | --- |
+| `reports-finished-branch` | 1/4, then 3/3 and 2/2 | the misses were the fixture and the rubrics, not the skill (below) |
+| `proactive-with-claude-md` | 2/4, then 5/5 and 2/2 | after the `root/CLAUDE.md` wording fix (below) |
+| `proactive-at-finish` | 1/3 | the description alone does not carry the auto-start |
+| `no-fire-question` | 3/3 | |
+
+Those passes still repeated themselves, which the general rubric let through.
+With one rubric per kind of repetition, judged by sonnet:
+
+| Skill | `reports-finished-branch` | `proactive-with-claude-md` |
+| --- | --- | --- |
+| before (saved runs, re-judged) | 0/5 | 2/4 |
+| every fact in one section | 1/3 | 3/3 and 3/3 |
+| Left open drafted first, check before sending | 3/5 | — |
+
+The 3/5 misses all state an interface rule (`--json` goes first) in how it is
+built and its consequence (elsewhere it is a file name) in Left open — a
+small repetition, left there rather than chased with more wording.
+`proactive-at-finish` went 0/3 in the same round, and `no-fire-question` 3/3.
+
+Then accuracy against the commits, and what the change ends (sonnet,
+judged by sonnet):
+
+| Skill | `reports-unfinished-request` | `reports-finished-branch` |
+| --- | --- | --- |
+| before | 0/3 | 2/2 |
+| looks for what worked before and no longer does | 3/3 | 3/3, re-run 0/3 |
+| what it ends a fact of its own, exception in the core rule (discarded) | 3/3 | 0/3 |
+| the exception in Left open's text instead | 3/3 | 1/3 |
+| and it reaches section 4 as well | 3/3 | 1/3 |
+
+Every miss of `reports-unfinished-request` before the change was the piped
+use: each run called the usage error a cure for a hang, which is what the
+commit message says, and none said that `… | ./tally.sh` used to count
+stdin. With the piped use named in the prompt, the same skill found it 3/3 —
+so the case does not name it.
+
+**The accuracy judge, checked against planted claims** (sonnet, the
+reports-unfinished-request fixture, a saved honest message edited):
+
+| Message | Commits and `--stat` only | With the diff |
+| --- | --- | --- |
+| README Usage "updated" (no commit touches it) | caught 3/3 | — |
+| "three tests added" (one exists) | **passed 3/3** | caught 3/3 + 2/2 |
+| the honest message | — | passed 3/3 + 2/2 |
+
+A false claim about a file is visible in the file list; one about what a
+file holds is not, so the judge now gets the diff. The system prompt's "whether
+the claims are true is not your concern" did not stop it from checking them
+against facts the criterion supplies.
+
+**Verdicts against their own reason:** 2 of about 400 saved verdicts, both
+"opens with the request", both a FAIL whose reason first said the goal was
+missing, then found it in the quoted request and concluded "met". The
+schema already asks for the reason before the verdict. The rubric now says a
+quoted request that says why states the goal.
+
+`reports-finished-branch`'s first 3/3 was luck. Its misses, run by run:
+
+- re-run of the same skill: two the section 4/5 repetition (escaping once,
+  `--json`-first once); one a judge verdict
+  of FAIL on "opens with the request" whose reason ends in "met".
+- exception in the core rule: all three the 4/5 repetition (escaping twice,
+  `--json`-first once), one also the judge contradicting itself again.
+  Discarded because the rule it amended is the one measured before; with
+  the previous skill at 0/3 too, the wording is not shown to be the cause.
+- exception in Left open: both the escaping repetition, one also the
+  no-file usage error stated in section 4 and again in Left open — which
+  the next row widened the exception for.
+- reaching section 4: one the `--json`-first repetition; one the change in
+  beyond the request and what it ends in Left open, read by the judge as one
+  point. The rubric now says that is two, as the skill does, so under it
+  that run would likely pass (not re-judged).
+
+With those wordings the case sat near half, failed by the 4/5 repetition
+and by the judge. The new item did cause one 4/5 repetition before its
+exception reached section 4. Three samples per row cannot tell those
+wordings apart beyond that. The accuracy check and the README check have no
+FAIL in any saved run of either case.
+
+**The 4/5 repetition, fixed by taking the prose out of section 4.** Every
+such miss stated what the code handles in how it is built ("escapes `\` and
+`"`", "`--json` only first") and its complement in Left open ("control
+characters are not", "elsewhere a file name"). Sorting those sentences into
+"rule of the interface" and "limitation" kept failing, because each pair is
+one point. Section 4 is now code and structure only — the usage line and an
+example show how it is called — and what the code handles is written once,
+in Left open, where it falls short: `reports-finished-branch` 5/5,
+`reports-unfinished-request` 3/3.
+
+**The auto-start rests on `root/CLAUDE.md`**, as `review-test`'s did: the
+description alone started the skill in 1 run of 6. The case is kept as the
+pair's control, not as a target: a failure there is expected until the
+description changes.
+
+## What the evals taught
+
+- **A rule elsewhere in CLAUDE.md can end the request first.** The misses in
+  `proactive-with-claude-md` all found no `origin` and wrote their own report
+  at once: the PR rule said "say in the report that the commits are local",
+  and Reporting Back's "the commits reported as local" read as if that report
+  were the finish. Both now name `session-summary` as the writer of the
+  closing message.
+- **A fixture a careful summary can fault puts the fault in the message.**
+  `--json` alone skipped the usage check, a quote in a path broke the JSON,
+  and a commit message contradicted the request; runs reported each under
+  Left open, which made it long, and the judge failed it. `assert.test.sh`
+  pins the fixture free of all three.
+- **A rubric must not be stricter than the skill.** "Concise" first counted
+  the required restatement of the request as filler, then a flag named in two
+  sections as repetition; "Left open in a few lines" failed a list of real
+  open items. Each rubric now states the format it judges within.
+- **A general rubric passes what a named one fails.** "No explanation written
+  out twice" passed every run, though each repeated the user's decision or a
+  limitation; haiku even called one "borderline" and passed it. Re-judging the
+  saved runs against one rubric per observed failure turned them red before
+  the skill changed, which is what made the skill fix measurable.
+- **A rubric's example can be wrong.** The limitation rubric first listed
+  "a flag only recognised in first position" as a limitation; it is how the
+  interface is called. What the runs did wrong was say it twice.
+- **Trying it found a bug before any case did:** a two-dot diff against a
+  main that moved on listed main's new files as this branch's.
+  `reports-finished-branch` is built around that trap.
