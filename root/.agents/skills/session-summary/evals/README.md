@@ -107,11 +107,21 @@ quoted request that says why states the goal.
   point. The rubric now says that is two, as the skill does, so under it
   that run would likely pass (not re-judged).
 
-With the final wording the case sits near half, failed by the
-`--json`-first 4/5 repetition and by the judge. The new item did cause one
-4/5 repetition before its exception reached section 4. Three samples per
-row cannot tell the wordings apart beyond that. The accuracy check and the
-README check have no FAIL in any saved run of either case.
+With those wordings the case sat near half, failed by the 4/5 repetition
+and by the judge. The new item did cause one 4/5 repetition before its
+exception reached section 4. Three samples per row cannot tell those
+wordings apart beyond that. The accuracy check and the README check have no
+FAIL in any saved run of either case.
+
+**The 4/5 repetition, fixed by taking the prose out of section 4.** Every
+such miss stated what the code handles in how it is built ("escapes `\` and
+`"`", "`--json` only first") and its complement in Left open ("control
+characters are not", "elsewhere a file name"). Sorting those sentences into
+"rule of the interface" and "limitation" kept failing, because each pair is
+one point. Section 4 is now code and structure only — the usage line and an
+example show how it is called — and what the code handles is written once,
+in Left open, where it falls short: `reports-finished-branch` 5/5,
+`reports-unfinished-request` 3/3.
 
 **The auto-start rests on `root/CLAUDE.md`**, as `review-test`'s did: the
 description alone started the skill in 1 run of 6. The case is kept as the

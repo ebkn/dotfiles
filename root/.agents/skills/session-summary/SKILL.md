@@ -43,7 +43,7 @@ Write in the language the conversation runs in under the user's instructions, he
 
 **Every fact goes in exactly one section.** A decision the user made belongs to section 1, a change to section 2 or 3, a limitation to section 5 — and nowhere else, not even as a reminder or a pointer back ("the two points above"), and not as its consequence either ("only first" in one section, "elsewhere it is ignored" in another, is one fact).
 
-Draft section 5 before section 4: list every limitation first, then write section 4 without any of them. A sentence in section 4 that says "only", "not", "but" or "does not handle" is usually a limitation that slipped in — move it to section 5, unless it is a rule of the interface, in which case section 5 leaves it out.
+Draft section 5 before section 4: list every limitation first, then write section 4 as code and structure only. A sentence about what the code accepts, escapes or handles ("escapes `\` and `"`", "`--json` is read only in first position") always has a complement ("control characters are not escaped", "elsewhere it is a file name"), and the two are one point: state it once, in section 5, and only where it falls short.
 
 If `review-test` or `review-design` ran in this request, their reports keep the place those skills give them, at the top of the closing message; this message follows them.
 
@@ -70,7 +70,7 @@ Only what the user needs to review the change without opening every file. Pick t
 - **Design**: how the pieces connect, in a few lines or a small ASCII diagram, and the one or two decisions made during the work that shaped it, with the alternative turned down — not the ones the user gave, which section 1 holds.
 - **Frontend**: what the user will see — a screenshot path or URL if one was taken, otherwise where and how to look at it.
 
-This section describes what the change is, not where it falls short. A rule of the interface — which argument comes first, which values it accepts — is part of the interface and is stated here, once; section 5 does not repeat it. Something that does not work, is not handled or was not verified is a limitation, and goes to section 5 only. Skip the section entirely for a change whose shape the first two sections already make obvious.
+This section shows what the change is, not how it behaves at its edges. The usage line and an example show how it is called — which argument comes first is visible there and needs no sentence. Write no prose here about what is accepted, escaped or handled: where it falls short it is a limitation, in section 5; otherwise leave it out. Skip the section entirely for a change whose shape the first two sections already make obvious.
 
 ### 5. Left open
 
@@ -89,5 +89,5 @@ Read the draft once against this list, and fix what fails:
 1. Does any later section repeat a decision from section 1?
 2. Does any line of section 2 give a decision, a commit hash, a file count or the tree's state instead of an outcome?
 3. Is any change listed in both section 2 and section 3?
-4. Does any point — or its consequence — appear in both section 4 and section 5? (What a change ends is its own point, in section 5 only.)
+4. Does section 4 hold a sentence about what the code accepts, escapes or handles? Delete it; if it names a shortfall, section 5 holds that alone. (What a change ends is its own point, in section 5 only.)
 5. For each change to existing behaviour in sections 2 and 3, does section 5 say what used to work and no longer does — or is it true that nothing did?
