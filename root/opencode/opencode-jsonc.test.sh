@@ -10,11 +10,13 @@
 # the JSONC (whole-line // comments and trailing commas are the JSONC
 # extension) and asserts, against the PARSED rules rather than the text, that
 #
-#   - every rule has non-empty string action/resource/effect, and effects
-#     stay in allow -> ask -> deny order (OpenCode matches in order with the
-#     last match winning, so any other order changes what a rule does),
-#   - the last rule is a deny and every sentinel deny/allow/ask is present
-#     (a dropped tripwire or webfetch host is a red suite, not a config),
+#   - the first rule is the { *, *, ask } catch-all and the question allow
+#     follows it (the catch-all is load-bearing for the unmatched-ask
+#     posture; the jsonc header says why),
+#   - denies form a suffix: only deny rules may follow a deny, and the last
+#     rule is a deny -- nothing after them may soften them,
+#   - every sentinel deny/allow/ask is present (a dropped tripwire or
+#     webfetch host is a red suite, not a config),
 #   - mcp.servers carries aws-mcp in the V2 shape (a direct mcp.<name> entry
 #     is schema-deprecated; the comment in the file says why),
 #   - compaction.auto is explicitly false and update is notify.
@@ -47,6 +49,10 @@ if (!Array.isArray(perms) || perms.length === 0) bad.push("permissions array mis
 
 const rank = { allow: 0, ask: 1, deny: 2 };
 let firstDeny = -1;
+// Rule 0 must be the catch-all asking for everything unmatched (the jsonc
+// header explains the two readings of the OpenCode defaults it survives);
+// rule 1 must keep the build agent able to question the user once every
+// other action it takes asks by default.
 perms.forEach((r, i) => {
   for (const k of ["action", "resource", "effect"]) {
     if (typeof r[k] !== "string" || r[k] === "") bad.push(`rule ${i}: ${k} is not a non-empty string`);
@@ -56,6 +62,12 @@ perms.forEach((r, i) => {
   // later narrow rules overriding earlier broad ones (git branch*, the .env
   // asks under read *) is the intended translation; what must hold is that
   // the deny rules form a suffix -- nothing after a deny may soften it.
+  if (i === 0 && !(r.action === "*" && r.resource === "*" && r.effect === "ask")) {
+    bad.push("rule 0 is not the { *, *, ask } catch-all");
+  }
+  if (i === 1 && !(r.action === "question" && r.resource === "*" && r.effect === "allow")) {
+    bad.push("rule 1 is not the { question, *, allow } grant");
+  }
   if (r.effect === "deny" && firstDeny === -1) firstDeny = i;
   else if (firstDeny !== -1 && r.effect !== "deny") {
     bad.push(`rule ${i} (${r.effect} ${r.resource}) follows a deny`);
@@ -118,14 +130,14 @@ if (hosts !== 118) bad.push(`webfetch https rules = ${hosts}, want 118 (59 hosts
 
 const server = (((c.mcp || {}).servers || {})["aws-mcp"] || {});
 if (!Array.isArray(server.command)) bad.push("mcp.servers.aws-mcp.command missing (deprecated direct entry?)");
-if (c.compaction !== undefined && c.compaction.auto !== false) bad.push(`compaction.auto = ${JSON.stringify(c.compaction === undefined ? undefined : c.compaction.auto)}, want false`);
+if (c.compaction?.auto !== false) bad.push(`compaction.auto = ${JSON.stringify(c.compaction?.auto)}, want explicitly false (OpenCode defaults it to true; the jsonc comment explains)`);
 if (c.update !== "notify") bad.push(`update = ${JSON.stringify(c.update)}, want notify`);
 
 if (bad.length > 0) {
   process.stdout.write(bad.join("\n") + "\n");
   process.exit(1);
 }
-console.log(`allowed: 460-rule policy intact (rules: ${perms.length})`);
+console.log(`allowed: policy intact (rules: ${perms.length})`);
 ' "$config"
 
 test_summary

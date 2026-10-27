@@ -20,9 +20,17 @@ The translation is not mechanical, because the matchers differ:
   rules for `git branch -d` sit after the broad `git branch*` allow, the deny
   rules sit last, and nothing matching a deny may follow them.
 - **Unmatched means ask, not a classifier.** Claude's `defaultMode: auto`
-  judged everything not listed; OpenCode asks. Anything the agent must run
-  unattended therefore *needs* an allow rule here, not just absence of a
-  deny rule.
+  judged everything not listed; OpenCode asks — made explicit by the first
+  rule, a `{ "*", "*", ask }` catch-all. It is load-bearing because the
+  OpenCode docs state two different defaults, both current: "If no rule
+  matches, OpenCode uses ask", and, under Defaults, a base policy every agent
+  starts with whose first rule is `{ *, *, allow }`. Under the base-policy
+  reading an unmatched action would run silently, which is not the posture
+  this file carries from Claude; the catch-all asks under either reading and
+  overrides nothing an explicit rule grants. Anything the agent must run
+  unattended therefore *needs* an allow rule here, not just absence of a deny
+  rule. (The `{ question, *, allow }` rule after it keeps the build agent
+  able to ask the user its questions the moment everything else asks.)
 - **WebFetch domains are URL prefix rules, raw string matched** — the same
   lesson as curl: `https://github.com*` would also match
   `https://github.com.evil.com`, so each domain is two no-leak patterns (bare
@@ -53,11 +61,12 @@ translation too.
 
 `root/opencode/opencode-jsonc.test.sh` guards the file against silent loss:
 it parses the JSONC (whole-line comments and trailing commas stripped) and
-asserts in a single pass that every rule is well-formed, the effects stay in
-allow→ask→deny order (last-match-wins would break any other order), the last
-rule is a deny, the sentinel denies and allows are present, the webfetch host
-count is exact, and the `mcp.servers` shape is the V2 one — a parse failure
-or a dropped tripwire is a red suite, not a config OpenCode half-ignores.
+asserts in a single pass that every rule is well-formed, rule 0 is the ask
+catch-all and rule 1 the question allow, the deny rules form a suffix (only
+denies may follow a deny) and the last rule is a deny, the sentinel denies,
+allows and asks are present, the webfetch host count is exact, and the
+`mcp.servers` shape is the V2 one — a parse failure or a dropped tripwire is
+a red suite, not a config OpenCode half-ignores.
 
 ## Global agent instructions: three destinations, all load-bearing
 

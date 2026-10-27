@@ -7,19 +7,33 @@
   // [root/README.md](../../README.md); only what differs here is noted.
   //
   // Structure: Claude's allow/ask/deny object plus defaultMode: auto maps
-  // to ONE ordered array. OpenCode matches rules in order and the LAST
-  // match wins, and Claude's precedence deny > ask > allow is reproduced
-  // by writing allow rules first, then ask, then deny.
+  // to ONE ordered array. Claude's hard precedence deny > ask > allow is
+  // reproduced as three families written in that order, refined inside the
+  // family (the asks for git branch -d follow the broad git branch* allow);
+  // deny rules are the suffix, and nothing after them may soften a deny.
   //
-  // No matching rule → OpenCode asks (build's base policy). Claude's
-  // unmatched Bash fell to the auto-mode classifier instead, so OpenCode
-  // prompts where Claude would have judged: allow rules must list
-  // everything the agent should run unattended, not the exciting extras.
+  // The first rule below asks for anything no later rule matches. It is
+  // load-bearing because the OpenCode docs state two different defaults,
+  // both current (2026-10): "If no rule matches, OpenCode uses ask"
+  // (Permissions, Rules) and, under Defaults, a base policy every agent
+  // starts with whose first rule is { *, *, allow } — "Later global and
+  // agent rules override these defaults". Under the second reading an
+  // unmatched action would land on that star allow and run silently, which
+  // is not the posture this file carries from Claude. The catch-all asks
+  // under either reading and overrides nothing a later explicit rule
+  // grants; it also restores the prompt for project-external paths, which
+  // the permission docs otherwise let through.
   //
   // Fields with no OpenCode equivalent (hooks, statusLine, enabledPlugins,
   // autoMode.soft_deny, ...) are listed in the comment block at the bottom.
 
   "permissions": [
+    // The unmatched default: ask. See the note above — this rule makes the
+    // ask real under either reading of the OpenCode defaults.
+    { "action": "*", "resource": "*", "effect": "ask" },
+    // Claude's build agent could always question the user; keep that grant
+    // explicit so it does not hinge on agent-policy append order.
+    { "action": "question", "resource": "*", "effect": "allow" },
     // ── allow: shell ──────────────────────────────────────────────
     // Read-only inspection commands, translated from Bash(...).
     // OpenCode checks each segment of a compound command separately: an
