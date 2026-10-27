@@ -64,10 +64,13 @@ it parses the JSONC (whole-line comments and trailing commas stripped) and
 asserts in a single pass that every rule is well-formed, rule 0 is the ask
 catch-all and rule 1 the question allow, the deny rules form a suffix (only
 denies may follow a deny) and the last rule is a deny, sentinel denies,
-allows and asks are present, the webfetch host count is exact (a pin that
-stays deliberately behind full parity: a host dropped from BOTH files at
-once would otherwise go unnoticed — update the `118` with the `59` when
-the host list changes), and the `mcp.servers` shape is the V2 one.
+allows and asks are present, the webfetch host count is exact — a pin that
+stays deliberately behind full parity, because checking the SAME rule
+against BOTH files still misses a rule removed from both at once; the
+deny count (119) is pinned for the same reason, so update the `118`/`119`
+deliberately when the lists change — and the `mcp.servers` shape is the
+V2 one, with the `uvx`/`--exclude-newer`/`7 days`/`mcp-proxy-for-aws@`
+hold it documents guarded too.
 It also reads `root/.claude/settings.json` and asserts the FULL parity:
 every rule here is derivable from a Claude rule via the transformation
 recorded in the suite (Bash/Edit/Read strings, WebFetch domains as two

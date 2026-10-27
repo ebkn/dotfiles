@@ -17,8 +17,8 @@
 #     rule is a deny -- nothing after them may soften them,
 #   - every sentinel deny/allow/ask is present (a dropped tripwire or
 #     webfetch host is a red suite, not a config),
-#   - mcp.servers carries aws-mcp in the V2 shape (a direct mcp.<name> entry
-#     is schema-deprecated; the comment in the file says why),
+#   - mcp.servers carries aws-mcp in the V2 shape, with the version pin
+#     and the 7-day hold the file comment relies on,
 #   - compaction.auto is explicitly false and update is notify,
 #   - and the FULL parity with root/.claude/settings.json holds: every rule
 #     here is derivable from a Claude rule via an explicit transformation
@@ -26,7 +26,9 @@
 #     prefixes, LS → glob, Search deduped into Grep, Skill, the Sentry MCP
 #     wildcards), plus the FIVE documented fixture rules OpenCode needs and
 #     Claude never did (catch-all, question, the .env trio). Editing one
-#     side without the other is red, not silently weaker.
+#     side without the other is red, not silently weaker. The deny-rule
+#     (119) and webfetch-host (118) counts stay pinned because removing the
+#     same rule from BOTH files at once is the drift parity cannot see.
 #
 # Run by bin/test (discovery is `git ls-files`, tracked is enough for CI).
 set -eo pipefail
@@ -143,15 +145,26 @@ if (idx("allow")("read", "*.env.example") < idx("ask")("read", "*.env.*")) {
 if (!has("ask")("shell", "git push --force-with-lease*")) bad.push("ask sentinel missing: git push --force-with-lease*");
 if (!has("ask")("shell", "git stash drop*")) bad.push("ask sentinel missing: git stash drop*");
 
-// The webfetch host count is the only pin webfetch parity alone cannot give:
-// if the same host is dropped from BOTH files at once, full parity stays
-// green — dropping a host per-side. This constant turns that shared drop
-// red until the number is deliberately updated.
+// The webfetch host count is the pin for a blind spot full parity and the
+// deny count share: parity alone stays green when the same host is
+// dropped from BOTH files at once — dropped per-side it goes red. These
+// constants turn that shared drop red until the numbers are deliberately
+// updated.
 const hosts = perms.filter((p) => p.effect === "allow" && p.action === "webfetch" && p.resource.startsWith("https://")).length;
 if (hosts !== 118) bad.push(`webfetch https rules = ${hosts}, want 118 (59 hosts, bare + slash)`);
 
 const server = (((c.mcp || {}).servers || {})["aws-mcp"] || {});
 if (!Array.isArray(server.command)) bad.push("mcp.servers.aws-mcp.command missing (deprecated direct entry?)");
+const cmd = (server.command || []).join(" ");
+for (const needle of ["uvx", "--exclude-newer", "7 days", "mcp-proxy-for-aws@"]) {
+  if (!cmd.includes(needle)) bad.push(`mcp.servers.aws-mcp.command lost its ${needle} — the hold the file comment documents`);
+}
+// The deny count is the deny-side pin, for the same reason the webfetch
+// count above spells out: multiset parity cannot see a rule the same
+// commit removes from BOTH files, and a broken deny is the failure that
+// runs. Update the number deliberately.
+const denyCount = perms.filter((p) => p.effect === "deny").length;
+if (denyCount !== 119) bad.push(`deny count = ${denyCount}, want 119 (removals from BOTH files are invisible to parity; update the number on purpose)`);
 if (c.compaction?.auto !== false) bad.push(`compaction.auto = ${JSON.stringify(c.compaction?.auto)}, want explicitly false (OpenCode defaults it to true; the jsonc comment explains)`);
 if (c.update !== "notify") bad.push(`update = ${JSON.stringify(c.update)}, want notify`);
 
