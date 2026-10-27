@@ -12,6 +12,10 @@
 # Written for bash 3.2 (/bin/bash on macOS), as the tool is.
 set -uo pipefail
 . "$(dirname "$0")/test-lib.sh" || exit 2
+# A tmux suite by name, so it is enrolled like the others (bin/test skips it
+# on a host and bin/test-in-docker runs it): the tool it tests writes into
+# ~/.tmux, which no other suite may share.
+. "$(dirname "$0")/tmux-test-guard.sh" || exit 2
 
 BIN="$(cd "$(dirname "$0")" && pwd -P)"
 TOOL="$BIN/tmux-plugins-install"
