@@ -1,0 +1,105 @@
+#!/bin/bash
+# Guards opencode.jsonc against silent loss.
+#
+# Why this exists: the file is hand-maintained and carries the whole OpenCode
+# permission policy (the counterpart of root/.claude/settings.json). Nothing
+# else reads it before OpenCode does, and a config that fails to parse or a
+# rule that lost a character would degrade silently -- an unmatched rule asks,
+# so every removal makes the agent prompt more or, for a broken parse, strips
+# every deny at once. This suite fails closed instead: one node pass parses
+# the JSONC (whole-line // comments and trailing commas are the JSONC
+# extension) and asserts, against the PARSED rules rather than the text, that
+#
+#   - every rule has non-empty string action/resource/effect, and effects
+#     stay in allow -> ask -> deny order (OpenCode matches in order with the
+#     last match winning, so any other order changes what a rule does),
+#   - the last rule is a deny and every sentinel deny/allow/ask is present
+#     (a dropped tripwire or webfetch host is a red suite, not a config),
+#   - mcp.servers carries aws-mcp in the V2 shape (a direct mcp.<name> entry
+#     is schema-deprecated; the comment in the file says why),
+#   - compaction.auto is explicitly false and update is notify.
+#
+# Run by bin/test (discovery is `git ls-files`, tracked is enough for CI).
+set -eo pipefail
+
+# shellcheck source=bin/test-lib.sh
+. "$(dirname "$0")/../../bin/test-lib.sh" || exit 2
+
+config=$(cd "$(dirname "$0")" && pwd)/opencode.jsonc
+
+# The whole policy in one node pass: parsing and checking share one process,
+# and the assertions land on parsed data, not on strings that could also
+# match inside a comment.
+assert_status "opencode.jsonc policy intact" 0 node -e '
+const fs = require("fs");
+const raw = fs.readFileSync(process.argv[1], "utf8");
+// Whole-line // comments only -- this file never comments to the right of a
+// rule; a right-side comment would need a real tokenizer instead.
+let s = raw.split("\n").filter((l) => !/^\s*\/\//.test(l)).join("\n");
+// JSONC allows trailing commas; JSON.parse does not.
+s = s.replace(/,(\s*[\]}])/g, "$1");
+const c = JSON.parse(s);
+
+const bad = [];
+const perms = c.permissions;
+if (!Array.isArray(perms) || perms.length === 0) bad.push("permissions array missing or empty");
+
+const rank = { allow: 0, ask: 1, deny: 2 };
+perms.forEach((r, i) => {
+  for (const k of ["action", "resource", "effect"]) {
+    if (typeof r[k] !== "string" || r[k] === "") bad.push(`rule ${i}: ${k} is not a non-empty string`);
+  }
+  if (!(r.effect in rank)) bad.push(`rule ${i}: unknown effect ${JSON.stringify(r.effect)}`);
+  if (i > 0 && rank[r.effect] < rank[perms[i - 1].effect]) {
+    bad.push(`rule ${i} (${r.effect} ${r.resource}) out of order after (${perms[i - 1].effect} ${perms[i - 1].resource})`);
+  }
+});
+if (perms.length > 0 && perms[perms.length - 1].effect !== "deny") {
+  bad.push(`last rule is ${perms[perms.length - 1].effect}, not deny`);
+}
+
+const has = (eff) =>
+  (action, resource) => perms.some((p) => p.effect === eff && p.action === action && p.resource === resource);
+const deny = has("deny");
+for (const [action, resource] of [
+  ["shell", "rm -rf /"],
+  ["shell", "rm -rf /*"],
+  ["shell", "sudo *"],
+  ["shell", "dd *"],
+  ["shell", "rm ~/.ssh/*_ed25519"],
+  ["shell", "env *"],
+  ["shell", "printenv *"],
+  ["shell", "git push --force"],
+  ["shell", "git push -f*"],
+  ["shell", "git reset --hard *"],
+  ["shell", "git fetch *--upl*"],
+  ["shell", "go test * -exec *"],
+  ["shell", "npm publish *"],
+  ["edit", "/etc*"],
+  ["edit", "/etc/sudoers"],
+]) {
+  if (!deny(action, resource)) bad.push(`deny sentinel missing: ${action} ${resource}`);
+}
+for (const resource of ["git status*", "rg *", "yq *", "gh pr view *", "go test*", "yarn install*"]) {
+  if (!has("allow")("shell", resource)) bad.push(`shell allow sentinel missing: ${resource}`);
+}
+if (!has("allow")("edit")("*")) bad.push("allow sentinel missing: edit *");
+if (!has("ask")("shell", "git push --force-with-lease*")) bad.push("ask sentinel missing: git push --force-with-lease*");
+if (!has("ask")("shell", "git stash drop*")) bad.push("ask sentinel missing: git stash drop*");
+
+const hosts = perms.filter((p) => p.effect === "allow" && p.action === "webfetch" && p.resource.startsWith("https://")).length;
+if (hosts !== 118) bad.push(`webfetch https rules = ${hosts}, want 118 (59 hosts, bare + slash)`);
+
+const server = (((c.mcp || {}).servers || {})["aws-mcp"] || {});
+if (!Array.isArray(server.command)) bad.push("mcp.servers.aws-mcp.command missing (deprecated direct entry?)");
+if (c.compaction !== undefined && c.compaction.auto !== false) bad.push(`compaction.auto = ${JSON.stringify(c.compaction === undefined ? undefined : c.compaction.auto)}, want false`);
+if (c.update !== "notify") bad.push(`update = ${JSON.stringify(c.update)}, want notify`);
+
+if (bad.length > 0) {
+  process.stdout.write(bad.join("\n") + "\n");
+  process.exit(1);
+}
+console.log(`allowed: 460-rule policy intact (rules: ${perms.length})`);
+' "$config"
+
+test_summary

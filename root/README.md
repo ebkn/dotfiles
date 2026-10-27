@@ -26,16 +26,38 @@ The translation is not mechanical, because the matchers differ:
 - **WebFetch domains are URL prefix rules, raw string matched** — the same
   lesson as curl: `https://github.com*` would also match
   `https://github.com.evil.com`, so each domain is two no-leak patterns (bare
-  host, host plus path) instead of a trailing wildcard. Subdomain matching
-  from Claude's `domain:` is not reproduced; the subdomains this repo actually
-  needs are listed as their own hosts.
+  host, host plus path) instead of a trailing wildcard. No subdomain behavior
+  was traded away: Claude's `domain:` rule is also an exact-host match
+  (subdomains need their own `*.host` rule), and the OpenCode list carries the
+  same host entries `settings.json` names.
 - **Claude's `:*` prefix rules** (tmux list-panes) get both spellings:
   `cmd:*` and `cmd *`.
 
 The permission *hooks* still live in Claude only (`root/.claude/hooks/`); in
 OpenCode their equivalent would be a plugin using `permission.evaluate` /
-`shell.create.before` hooks, and until that exists curl and `rm` protection
-rests on the deny literals and the default ask alone.
+`shell.create.before` hooks, and until that exists the losses are concrete:
+
+- **curl and `rm`** lose only the hooks' convenience layer — their guard
+  scripts auto-approved the safe shapes — and protection rests on the deny
+  literals and the default ask, as recorded in the jsonc.
+- **`git -C` loses the deny layer outright.** Claude's git-guard.sh applied
+  deny and ask rules to `git -C x <subcommand>` over the raw string, which no
+  `git <subcommand>` rule matches. The same command in OpenCode matches no
+  rule at all and asks, instead of the refusal Claude gave `git -C x push
+  --force`. A plugin is the only way to restore it.
+
+That last gap is also why the rules are **tripwires, not boundaries**, in both
+tools: the raw-string matchers never understood a path, so `rm /etc/../etc/x`
+with a variable, or a symlinked ancestor, walked past them before this
+translation too.
+
+`root/opencode/opencode-jsonc.test.sh` guards the file against silent loss:
+it parses the JSONC (whole-line comments and trailing commas stripped) and
+asserts in a single pass that every rule is well-formed, the effects stay in
+allow→ask→deny order (last-match-wins would break any other order), the last
+rule is a deny, the sentinel denies and allows are present, the webfetch host
+count is exact, and the `mcp.servers` shape is the V2 one — a parse failure
+or a dropped tripwire is a red suite, not a config OpenCode half-ignores.
 
 ## Global agent instructions: three destinations, all load-bearing
 

@@ -152,9 +152,15 @@
     { "action": "shell", "resource": "yarn codegen*", "effect": "allow" },
     { "action": "shell", "resource": "volta list *", "effect": "allow" },
     { "action": "shell", "resource": "yq *", "effect": "allow" },
-    // git — the -C rules stay away, per README's git section: OpenCode has
-    // no hook to give an allow rule the same effect on `git -C <dir> ...`,
-    // so a git -C outside the project simply asks.
+    // git — the -C rules stay away, per README's git section: no rule may
+    // name -C. In Claude the hooks carried them: git-dash-c-allow.sh
+    // approved `git -C <in-project> <subcommand>` against the matching
+    // allow rule for `git <subcommand>`, and git-guard.sh applied every
+    // deny and ask rule to a git with an option before its subcommand —
+    // `git -C x push --force` under the bare-subcommand rules. OpenCode
+    // has neither hook, and shell resources are raw strings, so the same
+    // command matches NO rule here and falls through to ask: a prompt
+    // where Claude refused outright.
     { "action": "shell", "resource": "git add *", "effect": "allow" },
     { "action": "shell", "resource": "git blame *", "effect": "allow" },
     { "action": "shell", "resource": "git branch*", "effect": "allow" },
@@ -242,9 +248,10 @@
     // the URL matcher is prefix-pattern based, NOT domain-aware:
     // "https://github.com*" would also match "https://github.com.evil.com",
     // the same trap root/README.md records for curl. Exact-host patterns
-    // instead: bare host, then host plus path. Claude's subdomain matching
-    // is not reproduced; the subdomains this repo actually needs
-    // (api., raw., gist., docs.) are each listed as their own host.
+    // instead: bare host, then host plus path. Claude's `domain:` rule is an
+    // exact-host match too (subdomains need their own `*.host` rule), so
+    // this list carries the same host entries settings.json names — no
+    // subdomain behavior was traded away in the translation.
     // http:// and query-string-without-slash forms ask, on purpose.
     { "action": "webfetch", "resource": "https://api.github.com", "effect": "allow" },
     { "action": "webfetch", "resource": "https://api.github.com/*", "effect": "allow" },
@@ -604,27 +611,32 @@
   // anything an installer writes to opencode.json reaches no other machine.
   // The AWS CLI's MCP installer does write there — move the entry here.
   "mcp": {
-    // Signs requests with the local AWS credential chain; with no credentials
-    // the proxy exits at startup and the server simply shows as failed.
-    // Pinned, not @latest (which the installer writes): uvx would otherwise
-    // run a release the moment it is on PyPI. The pin covers the proxy alone;
-    // --exclude-newer holds its 70-odd dependencies to uploads older than 7
-    // days, the window npm's min-release-age and the cooldowns use. Raise the
-    // pin by hand to a release at least that old.
-    // root/uv.toml sets the same window for every uv command, and this flag
-    // overrides it: change both together. Kept anyway, so the hold does not
-    // depend on uv.toml being linked: this config travels on its own link.
-    "aws-mcp": {
-      "type": "local",
-      "command": [
-        "uvx",
-        "--exclude-newer",
-        "7 days",
-        "mcp-proxy-for-aws@1.7.0",
-        "https://aws-mcp.us-east-1.api.aws/mcp",
-        "--metadata",
-        "INSTALL_SOURCE=aws-cli"
-      ]
+    // The V2 shape is mcp.servers.<name> (the config schema marks a direct
+    // mcp.<name> entry deprecated), so keep one nesting level here or the
+    // registry stops reading the entry.
+    "servers": {
+      // Signs requests with the local AWS credential chain; with no credentials
+      // the proxy exits at startup and the server simply shows as failed.
+      // Pinned, not @latest (which the installer writes): uvx would otherwise
+      // run a release the moment it is on PyPI. The pin covers the proxy alone;
+      // --exclude-newer holds its 70-odd dependencies to uploads older than 7
+      // days, the window npm's min-release-age and the cooldowns use. Raise the
+      // pin by hand to a release at least that old.
+      // root/uv.toml sets the same window for every uv command, and this flag
+      // overrides it: change both together. Kept anyway, so the hold does not
+      // depend on uv.toml being linked: this config travels on its own link.
+      "aws-mcp": {
+        "type": "local",
+        "command": [
+          "uvx",
+          "--exclude-newer",
+          "7 days",
+          "mcp-proxy-for-aws@1.7.0",
+          "https://aws-mcp.us-east-1.api.aws/mcp",
+          "--metadata",
+          "INSTALL_SOURCE=aws-cli"
+        ]
+      }
     }
   }
 }
