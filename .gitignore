@@ -11,6 +11,11 @@ brewfiles/*.lock.json
 # against a stray `npm install` inside textlint/ landing in the checkout.
 textlint/node_modules
 
+# OpenCode writes its local server password here. With the per-file links in
+# bin/init/links.sh it lands outside the repo; this guards a machine that still
+# has the old ~/.config/opencode directory symlink, where it would be committed.
+root/opencode/service.json
+
 # bin/skill-eval writes transcripts and grading logs here, and CLAUDE.md sends
 # scratch work here too.
 tmp/
