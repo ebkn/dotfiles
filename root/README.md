@@ -69,8 +69,9 @@ stays deliberately behind full parity, because checking the SAME rule
 against BOTH files still misses a rule removed from both at once; the
 deny count (119) is pinned for the same reason, so update the `118`/`119`
 deliberately when the lists change — and the `mcp.servers` shape is the
-V2 one, with the `uvx`/`--exclude-newer`/`7 days`/`mcp-proxy-for-aws@`
-hold it documents guarded too.
+V2 one, with the `uvx`/`--exclude-newer`/`7 days` hold it documents guarded too, and the
+`mcp-proxy-for-aws@` pin exact — `@latest` is the relaxation the file
+forbids, so the version itself is pinned.
 It also reads `root/.claude/settings.json` and asserts the FULL parity:
 every rule here is derivable from a Claude rule via the transformation
 recorded in the suite (Bash/Edit/Read strings, WebFetch domains as two

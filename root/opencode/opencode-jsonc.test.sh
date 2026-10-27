@@ -17,8 +17,9 @@
 #     rule is a deny -- nothing after them may soften them,
 #   - every sentinel deny/allow/ask is present (a dropped tripwire or
 #     webfetch host is a red suite, not a config),
-#   - mcp.servers carries aws-mcp in the V2 shape, with the version pin
-#     and the 7-day hold the file comment relies on,
+#   - mcp.servers carries aws-mcp in the V2 shape, with the pinned version
+#     (exact: @1.7.0, raising it is a deliberate edit) and the 7-day hold
+#     the file comment rests on,
 #   - compaction.auto is explicitly false and update is notify,
 #   - and the FULL parity with root/.claude/settings.json holds: every rule
 #     here is derivable from a Claude rule via an explicit transformation
@@ -155,9 +156,16 @@ if (hosts !== 118) bad.push(`webfetch https rules = ${hosts}, want 118 (59 hosts
 
 const server = (((c.mcp || {}).servers || {})["aws-mcp"] || {});
 if (!Array.isArray(server.command)) bad.push("mcp.servers.aws-mcp.command missing (deprecated direct entry?)");
-const cmd = (server.command || []).join(" ");
-for (const needle of ["uvx", "--exclude-newer", "7 days", "mcp-proxy-for-aws@"]) {
-  if (!cmd.includes(needle)) bad.push(`mcp.servers.aws-mcp.command lost its ${needle} — the hold the file comment documents`);
+const cmd = server.command.join(" ");
+for (const needle of ["uvx", "--exclude-newer", "7 days"]) {
+  if (!cmd.includes(needle)) bad.push(`mcp.servers.aws-mcp.command lost its ${needle} hold — the window the file comment rests on`);
+}
+if (!server.command.includes("mcp-proxy-for-aws@1.7.0")) {
+  // Exact version on purpose: "mcp-proxy-for-aws@" alone would accept the
+  // @latest an installer writes, the very relaxation this file forbids.
+  // Pointing the pin at a newer release is the one deliberate edit; raise
+  // the version here when you do.
+  bad.push("mcp.servers.aws-mcp.command is not pinned to mcp-proxy-for-aws@1.7.0 (raise the pin deliberately — never @latest, per the file comment)");
 }
 // The deny count is the deny-side pin, for the same reason the webfetch
 // count above spells out: multiset parity cannot see a rule the same
