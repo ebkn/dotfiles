@@ -584,10 +584,13 @@
   //   saved approval never overrides a configured deny).
   // worktree.baseRef: OpenCode's `worktree` config only sets the parent
   //   directory.
-  // statusLine, theme, editorMode, voice, prefersReducedMotion,
-  //   preferredNotifChannel, tui: terminal preferences belong in
+  // statusLine: no OpenCode equivalent — not this file, and not cli.json
+  //   either; nothing renders per-turn status output.
+  // theme, editorMode: terminal preferences live in
   //   ~/.config/opencode/cli.json, not this file (see
   //   https://opencode.ai/v2/docs/cli/config).
+  // voice, prefersReducedMotion, preferredNotifChannel, tui: Claude
+  //   product behavior, not present in OpenCode.
   // enabledPlugins, extraKnownMarketplaces: no plugin-marketplace concept.
   //   MCP servers go under `mcp.servers` here; plugins under `plugins`.
   // fastMode (Opus runs), skipWorkflowUsageWarning, askUserQuestionTimeout,
