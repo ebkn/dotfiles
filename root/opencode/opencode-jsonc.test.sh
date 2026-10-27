@@ -19,7 +19,14 @@
 #     webfetch host is a red suite, not a config),
 #   - mcp.servers carries aws-mcp in the V2 shape (a direct mcp.<name> entry
 #     is schema-deprecated; the comment in the file says why),
-#   - compaction.auto is explicitly false and update is notify.
+#   - compaction.auto is explicitly false and update is notify,
+#   - and the FULL parity with root/.claude/settings.json holds: every rule
+#     here is derivable from a Claude rule via an explicit transformation
+#     (Bash/Edit/Read → shell/edit/read strings, WebFetch domains ×2 URL
+#     prefixes, LS → glob, Search deduped into Grep, Skill, the Sentry MCP
+#     wildcards), plus the FIVE documented fixture rules OpenCode needs and
+#     Claude never did (catch-all, question, the .env trio). Editing one
+#     side without the other is red, not silently weaker.
 #
 # Run by bin/test (discovery is `git ls-files`, tracked is enough for CI).
 set -eo pipefail
@@ -28,12 +35,18 @@ set -eo pipefail
 . "$(dirname "$0")/../../bin/test-lib.sh" || exit 2
 
 config=$(cd "$(dirname "$0")" && pwd)/opencode.jsonc
+# The source of truth this file mirrors: root/.claude/settings.json. The
+# parity check in the node program reads it as argument 2; hardcoding one
+# path (and failing loudly when it moves) beats quietly skipping the whole
+# check.
+claudeSet=$(cd "$(dirname "$0")" && pwd)/../.claude/settings.json
 
 # The whole policy in one node pass: parsing and checking share one process,
 # and the assertions land on parsed data, not on strings that could also
 # match inside a comment.
+# ── run ───────────────────────────────────────────────────────────────
 # shellcheck disable=SC2016  # the single quotes are the node program; inside it $ is JS, not shell
-assert_status "opencode.jsonc policy intact" 0 node -e '
+assert_status "opencode.jsonc policy intact and faithful to settings.json" 0 node -e '
 const fs = require("fs");
 const raw = fs.readFileSync(process.argv[1], "utf8");
 // Whole-line // comments only -- this file never comments to the right of a
@@ -42,6 +55,11 @@ let s = raw.split("\n").filter((l) => !/^\s*\/\//.test(l)).join("\n");
 // JSONC allows trailing commas; JSON.parse does not.
 s = s.replace(/,(\s*[\]}])/g, "$1");
 const c = JSON.parse(s);
+
+// The Claude settings this file mirrors: one shared parser, because the
+// .claude side is plain JSON but the same comment-tolerance cannot hurt.
+// If it ever moves, the suite now fails in exactly one place.
+const cc = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 
 const bad = [];
 const perms = c.permissions;
@@ -133,11 +151,85 @@ if (!Array.isArray(server.command)) bad.push("mcp.servers.aws-mcp.command missin
 if (c.compaction?.auto !== false) bad.push(`compaction.auto = ${JSON.stringify(c.compaction?.auto)}, want explicitly false (OpenCode defaults it to true; the jsonc comment explains)`);
 if (c.update !== "notify") bad.push(`update = ${JSON.stringify(c.update)}, want notify`);
 
+// ── parity: this file mirrors the Claude settings.json rule set ──
+// The sentinels above pin single points; this holds the WHOLE translation
+// to that rule set. Every rule here must be derivable from a Claude rule
+// (or the named fixture below), and every Claude rule must land
+// somewhere: drift in EITHER file is red, instead of the silent
+// weakening the README warns about. The dictionary is the translation
+// record — a Claude form not recognised here fails loudly.
+function toOc(r, eff) {
+  if (r === "WebSearch") return [[eff, "websearch", "*"]];
+  if (r.startsWith("mcp__plugin_sentry_sentry__")) {
+    // OpenCode MCP permission actions are "<server>_<tool>": the plugin
+    // server part is unwritten, so the wildcard stands in for it. Pinned
+    // fixture until the Sentry MCP server is actually registered here.
+    return [[eff, "*" + r.replace("mcp__plugin_sentry_sentry__", "_"), "*"]];
+  }
+  const m = r.match(/^(.*?)\((.*)\)$/);
+  if (m) {
+    const [, tool, raw] = m;
+    const arg = raw.replace(/^domain:/, "");
+    if (tool === "Bash") {
+      // ":*" means a bare prefix too; the space spelling covers it but not
+      // the no-colon one, so BOTH rules go in (tmux list-panes/-sessions).
+      if (arg.endsWith(":*")) return [[eff, "shell", arg], [eff, "shell", arg.slice(0, -2) + " *"]];
+      return [[eff, "shell", arg]];
+    }
+    if (tool === "WebFetch") {
+      // Exact-host, two no-leak patterns: a trailing * on a bare host
+      // would also match https://host.evil.com; /**-style prefixes leak.
+      return [[eff, "webfetch", "https://" + arg], [eff, "webfetch", "https://" + arg + "/*"]];
+    }
+    // The Claude "**" shape (any path) becomes the whole-value "*"; a
+    // "<p>/**" tree becomes "<p>*". The guard clauses keep this honest:
+    // the ONLY two path shapes Claude uses are ** and <p>/**.
+    if (tool === "Edit") return [[eff, "edit", arg === "**" ? "*" : arg.replace(/\/\*\*$/, "*")]];
+    // LS and Search have no OpenCode tools: file discovery is glob ("LS"),
+    // content search is grep — and Search is the same content-search role
+    // Grep already covers, so its rule is not mirrored twice.
+    if (tool === "Read") return [[eff, "read", arg === "**" ? "*" : arg.replace(/\/\*\*$/, "*")]];
+    if (tool === "Grep") return [[eff, "grep", arg === "**" ? "*" : arg.replace(/\/\*\*$/, "*")]];
+    if (tool === "LS") return [[eff, "glob", arg === "**" ? "*" : arg.replace(/\/\*\*$/, "*")]];
+    if (tool === "Search") return [];
+    if (tool === "Skill") return [[eff, "skill", arg]];
+  }
+  throw new Error("unmapped Claude rule " + JSON.stringify(r));
+}
+
+const derived = [];
+for (const kind of ["allow", "ask", "deny"]) {
+  for (const r of cc.permissions[kind] || []) derived.push(...toOc(r, kind));
+}
+// The five rules OpenCode needs and Claude never did — each load-bearing
+// for a companion reason, not filler; the jsonc header documents them.
+derived.push(
+  ["ask", "*", "*"], // catch-all: unmatched asks under either docs reading
+  ["allow", "question", "*"], // the question tool keeps working once catch-all asks
+  ["ask", "read", "*.env"], // base policy restated: the read * allow would silently
+  ["ask", "read", "*.env.*"], // override these...
+  ["allow", "read", "*.env.example"], // ...and this example-file allow cancels them
+);
+const want = {};
+for (const [eff, action, resource] of derived) {
+  const key = `${eff}/${action}/${resource}`;
+  want[key] = (want[key] || 0) + 1;
+}
+const extra = [];
+for (const r of perms) {
+  const key = `${r.effect}/${r.action}/${r.resource}`;
+  if (!want[key]) extra.push(`unmirrored rule: ${key}`);
+  else want[key]--;
+}
+if (extra.length > 0) bad.push(...extra);
+bad.push(...Object.entries(want).filter(([, n]) => n > 0).map(([key, n]) => `not mirrored (x${n}): ${key}`));
+
+
 if (bad.length > 0) {
   process.stdout.write(bad.join("\n") + "\n");
   process.exit(1);
 }
-console.log(`allowed: policy intact (rules: ${perms.length})`);
-' "$config"
+console.log(`allowed: policy intact and faithful (rules: ${perms.length})`);
+' "$config" "$claudeSet"
 
 test_summary

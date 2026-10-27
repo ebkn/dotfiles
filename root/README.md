@@ -63,10 +63,15 @@ translation too.
 it parses the JSONC (whole-line comments and trailing commas stripped) and
 asserts in a single pass that every rule is well-formed, rule 0 is the ask
 catch-all and rule 1 the question allow, the deny rules form a suffix (only
-denies may follow a deny) and the last rule is a deny, the sentinel denies,
-allows and asks are present, the webfetch host count is exact, and the
-`mcp.servers` shape is the V2 one — a parse failure or a dropped tripwire is
-a red suite, not a config OpenCode half-ignores.
+denies may follow a deny) and the last rule is a deny, sentinel denies,
+allows and asks are present, and the `mcp.servers` shape is the V2 one.
+It also reads `root/.claude/settings.json` and asserts the FULL parity:
+every rule here is derivable from a Claude rule via the transformation
+recorded in the suite (Bash/Edit/Read strings, WebFetch domains as two
+URL prefixes, LS→glob, Search deduped into Grep, Skill, the Sentry MCP
+wildcards), plus the five documented rules OpenCode needs and Claude never
+did — so editing one side without the other is a red suite, not silently
+weaker policy.
 
 ## Global agent instructions: three destinations, all load-bearing
 
