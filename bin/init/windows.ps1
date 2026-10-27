@@ -42,8 +42,17 @@ function Install-WingetPackage {
         # run elevated — --scope user alone is not enough. 'user' de-elevates
         # via a temporary scheduled task so the installer sees a standard token.
         [ValidateSet('any', 'user')]
-        [string]$Scope = 'any'
+        [string]$Scope = 'any',
+        # Why the package cannot be installed on the CI runner. Given, the
+        # package is skipped there, with that reason printed; a real machine
+        # still installs it.
+        [string]$SkipOnCI = ''
     )
+
+    if ($SkipOnCI -and $env:GITHUB_ACTIONS -eq 'true') {
+        Write-Host "  skipping $Id on CI ($SkipOnCI)" -ForegroundColor Yellow
+        return
+    }
 
     if ($Scope -eq 'user') {
         $taskName = 'DotfilesWingetInstall'
@@ -124,12 +133,7 @@ Install-WingetPackage 'wez.wezterm'
 # --disable-interactivity: every run since 2026-04 sat on it until the step's
 # 75-minute limit, so nothing after it was ever exercised. Skipped there only;
 # a real machine still installs it.
-if ($env:GITHUB_ACTIONS -eq 'true') {
-    Write-Host '  skipping GnuPG.GnuPG on CI (its installer hangs there)' -ForegroundColor Yellow
-}
-else {
-    Install-WingetPackage 'GnuPG.GnuPG'
-}
+Install-WingetPackage 'GnuPG.GnuPG' -SkipOnCI 'its installer hangs there'
 Install-WingetPackage 'Tailscale.Tailscale'
 
 # ------------------------------------------------------------------
