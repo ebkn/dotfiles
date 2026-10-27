@@ -30,6 +30,7 @@ config=$(cd "$(dirname "$0")" && pwd)/opencode.jsonc
 # The whole policy in one node pass: parsing and checking share one process,
 # and the assertions land on parsed data, not on strings that could also
 # match inside a comment.
+# shellcheck disable=SC2016  # the single quotes are the node program; inside it $ is JS, not shell
 assert_status "opencode.jsonc policy intact" 0 node -e '
 const fs = require("fs");
 const raw = fs.readFileSync(process.argv[1], "utf8");
@@ -45,13 +46,19 @@ const perms = c.permissions;
 if (!Array.isArray(perms) || perms.length === 0) bad.push("permissions array missing or empty");
 
 const rank = { allow: 0, ask: 1, deny: 2 };
+let firstDeny = -1;
 perms.forEach((r, i) => {
   for (const k of ["action", "resource", "effect"]) {
     if (typeof r[k] !== "string" || r[k] === "") bad.push(`rule ${i}: ${k} is not a non-empty string`);
   }
   if (!(r.effect in rank)) bad.push(`rule ${i}: unknown effect ${JSON.stringify(r.effect)}`);
-  if (i > 0 && rank[r.effect] < rank[perms[i - 1].effect]) {
-    bad.push(`rule ${i} (${r.effect} ${r.resource}) out of order after (${perms[i - 1].effect} ${perms[i - 1].resource})`);
+  // Order is semantic under last-match-wins. Within the allow/ask part,
+  // later narrow rules overriding earlier broad ones (git branch*, the .env
+  // asks under read *) is the intended translation; what must hold is that
+  // the deny rules form a suffix -- nothing after a deny may soften it.
+  if (r.effect === "deny" && firstDeny === -1) firstDeny = i;
+  else if (firstDeny !== -1 && r.effect !== "deny") {
+    bad.push(`rule ${i} (${r.effect} ${r.resource}) follows a deny`);
   }
 });
 if (perms.length > 0 && perms[perms.length - 1].effect !== "deny") {
@@ -83,7 +90,26 @@ for (const [action, resource] of [
 for (const resource of ["git status*", "rg *", "yq *", "gh pr view *", "go test*", "yarn install*"]) {
   if (!has("allow")("shell", resource)) bad.push(`shell allow sentinel missing: ${resource}`);
 }
-if (!has("allow")("edit")("*")) bad.push("allow sentinel missing: edit *");
+if (!has("allow")("edit", "*")) bad.push("allow sentinel missing: edit *");
+
+// The broad allow must sit before the narrow ask for the ask to win.
+const idx = (eff) => (action, resource) =>
+  perms.findIndex((p) => p.effect === eff && p.action === action && p.resource === resource);
+for (const [broad, narrow] of [
+  ["git branch*", "git branch -d *"],
+  ["git branch*", "git branch -D *"],
+  ["git stash*", "git stash drop*"],
+  ["git stash*", "git stash clear*"],
+]) {
+  if (idx("ask")("shell", narrow) < idx("allow")("shell", broad)) bad.push(`${narrow} ask sits before ${broad} allow`);
+}
+// The .env asks must come after the broad read allow (to override it) and
+// before the .env.example allow (which cancels them), as the base policy has it.
+if (idx("ask")("read", "*.env") < idx("allow")("read", "*")) bad.push("*.env ask sits before read * allow");
+if (idx("allow")("read", "*.env.example") < idx("ask")("read", "*.env.*")) {
+  bad.push("*.env.example allow sits before the *.env asks");
+}
+
 if (!has("ask")("shell", "git push --force-with-lease*")) bad.push("ask sentinel missing: git push --force-with-lease*");
 if (!has("ask")("shell", "git stash drop*")) bad.push("ask sentinel missing: git stash drop*");
 
