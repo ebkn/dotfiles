@@ -214,6 +214,7 @@ rdd_check_flags() {
   open="$(rdd_open_text "$(rdd_report)")"
   if [ -z "$(printf '%s' "$open" | tr -d '[:space:]')" ]; then
     printf 'FAIL  %s (no P1 or P2 finding)\n' "$1"
+    # shellcheck disable=SC2034  # exit read by skill_eval_finish's exit
     SKILL_EVAL_FAILED=1
     return
   fi
