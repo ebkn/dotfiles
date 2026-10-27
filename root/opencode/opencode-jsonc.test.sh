@@ -143,6 +143,10 @@ if (idx("allow")("read", "*.env.example") < idx("ask")("read", "*.env.*")) {
 if (!has("ask")("shell", "git push --force-with-lease*")) bad.push("ask sentinel missing: git push --force-with-lease*");
 if (!has("ask")("shell", "git stash drop*")) bad.push("ask sentinel missing: git stash drop*");
 
+// The webfetch host count is the only pin webfetch parity alone cannot give:
+// if the same host is dropped from BOTH files at once, full parity stays
+// green — dropping a host per-side. This constant turns that shared drop
+// red until the number is deliberately updated.
 const hosts = perms.filter((p) => p.effect === "allow" && p.action === "webfetch" && p.resource.startsWith("https://")).length;
 if (hosts !== 118) bad.push(`webfetch https rules = ${hosts}, want 118 (59 hosts, bare + slash)`);
 
@@ -181,9 +185,11 @@ function toOc(r, eff) {
       // would also match https://host.evil.com; /**-style prefixes leak.
       return [[eff, "webfetch", "https://" + arg], [eff, "webfetch", "https://" + arg + "/*"]];
     }
-    // The Claude "**" shape (any path) becomes the whole-value "*"; a
-    // "<p>/**" tree becomes "<p>*". The guard clauses keep this honest:
-    // the ONLY two path shapes Claude uses are ** and <p>/**.
+    // There are four Claude path shapes: "**" (any path) becomes the
+    // whole-value "*", a "<p>/**" tree becomes "<p>*", a full path
+    // (/etc/passwd) and the ~/.ssh wildcard patterns pass through
+    // unchanged. An unknown TOOL name is what throws; these path shapes
+    // are all identity or the two wildcard rewrites above.
     if (tool === "Edit") return [[eff, "edit", arg === "**" ? "*" : arg.replace(/\/\*\*$/, "*")]];
     // LS and Search have no OpenCode tools: file discovery is glob ("LS"),
     // content search is grep — and Search is the same content-search role
