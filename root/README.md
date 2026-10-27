@@ -53,9 +53,10 @@ contract into OpenCode's plugin hooks:
   rules see, Claude's `updatedInput` treatment.
 - **The five judgment scripts** run on `permission.evaluate` (the only hook
   allowed to change an effect), one spawn each, concurrent like Claude runs
-  its hooks; deny > ask > allow ranks the verdicts. OpenCode resolves
-  configured deny rules before the hook fires, so nothing here can soften a
-  deny — Claude's hard precedence holds for free.
+  its hooks; deny > ask > allow ranks the verdicts. A configured deny cannot
+  be softened: OpenCode resolves deny rules before the hook fires, and the
+  hook degrades a deny it ever receives to untouchable — Claude's hard
+  precedence holds from both sides.
 
 What OpenCode cannot hand the scripts, the bridge reconstructs, and the
 reconstruction has documented edges:
@@ -67,11 +68,20 @@ reconstruction has documented edges:
   and a resolution from the wrong base can only fail their checks, never
   widen them).
 - **project**: Claude's `CLAUDE_PROJECT_DIR` named the project root; the
-  bridge sets it to the same execution cwd the scripts get for `cwd`. The
-  scripts use it only to fence checks (git `-C` in-project, git-rules' project
-  settings layer), and a narrower project can only fail those checks, never
-  widen them — an unconditional `git -C ..` under a `workdir` loses a Claude
-  approval it could have had, in the ask direction.
+  bridge sets it to the same execution cwd the scripts get for `cwd`, because
+  the execution directory is the only absolute dir the hook layer knows
+  exists. The swap is safe for one consumer and not the other:
+  - the in-project fence (`git -C`, git-workdir.lib.sh) is judged against a
+    root that is at most narrower for a session-internal workdir — a rejected
+    path prompts, the ask direction;
+  - the project settings layer (git-rules.lib.sh reads
+    `$CLAUDE_PROJECT_DIR/.claude/settings*.json`) is **not** a fence: when the
+    execution cwd is not a project root — a `workdir` outside the session, a
+    subdirectory — the layer unhooks, and a project-level deny quietly goes
+    unhonored. Under a matching OpenCode allow rule the command can then run
+    where Claude would have denied it. The deny rules the parity suite pins
+    are user-level, so the common case (cwd = session dir = the project) is
+    unaffected; the edge belongs to workdirs that leave the session.
 - **cd compounds**: Claude edits `updatedInput` per hook in sequence; OpenCode
   runs the hooks concurrently, so the judgment scripts are given the command
   AS WRITTEN (`cd x && curl …`) — the scripts' own bail-outs are mirrored as

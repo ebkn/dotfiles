@@ -215,12 +215,18 @@ export function runHook(file, { stdin, cwd, env, timeoutMs }, spawnImpl = spawn)
     try {
       // The scripts' PATH and HOME come from this process: `env` carries only
       // the hook contract's additions, layered on top. The one such addition
-      // today is CLAUDE_PROJECT_DIR = the execution cwd, not a session-wide
-      // project root: it is the one absolute dir the hook layer knows exists,
-      // and the scripts use it only to fence checks (git -C in-project,
-      // git-rules' project settings layer). A narrow project can only fail
-      // those checks, never widen them -- the same safe direction
-      // resolveExecutionDir takes.
+      // today is CLAUDE_PROJECT_DIR = the execution cwd, not Claude's project
+      // root, because the execution directory is the only absolute dir the
+      // hook layer knows exists. Two consumers, two directions:
+      //   - the in-project fence (git -C, git-workdir.lib.sh) is judged
+      //     against a root that is at most narrower for a session-internal
+      //     workdir: a rejected path prompts -- the safe direction;
+      //   - the project settings layer (git-rules.lib.sh reads
+      //     $CLAUDE_PROJECT_DIR/.claude/settings*.json) is NOT a fence: a
+      //     cwd with no .claude there unhooks the layer, so a project-level
+      //     deny quietly goes unhonored -- the opposite of guard widening,
+      //     and an edge to keep visible when workdirs leave the session.
+      // Full account: root/README.md's project bullet.
       child = spawnImpl(file, [], { cwd, env: { ...process.env, ...env } })
     } catch (error) {
       return once({ failed: true, reason: String(error.message) })
@@ -407,9 +413,9 @@ export async function registerGuardBridge(ctx, deps = {}) {
     const verdict = combineVerdicts(verdicts)
     if (verdict === undefined) return
     // deny/ask/allow rank against the configured effect the way Claude ranks
-    // hook decisions: nothing softens a configured deny (OpenCode already
-    // enforced those before this hook fired), and an approval carries the
-    // reason the script gave.
+    // hook decisions. By this point a configured deny cannot be here: the
+    // guard above left one untouched, and the runtime is documented to have
+    // enforced those anyway. An approval carries the reason the script gave.
     event.effect = verdict.decision
     if (verdict.reason) event.message = verdict.reason
   })
