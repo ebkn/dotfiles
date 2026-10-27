@@ -5,7 +5,7 @@
 //
 // The stage dir holds unit-echo.sh (recites stdin/cwd/env into $PROBE_LOG,
 // stdout is a clean hook JSON), unit-fail.sh (stderr bait, exit 7) and
-// unit-slow.sh (hangs, for the timeout kill).
+// unit-slow.sh (hangs as a sh-builtin loop, killed at the timeout).
 import fs from "node:fs"
 import path from "node:path"
 

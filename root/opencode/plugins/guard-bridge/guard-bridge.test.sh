@@ -68,9 +68,13 @@ for name in approve-multiline-commands git-dash-c-allow curl-guard rm-guard git-
 # Same stdio shape as the ~/.claude hook scripts: one JSON input line on
 # stdin, an optional hookSpecificOutput on stdout, silent exit for no
 # opinion. Behavior comes from the .out file beside this copy:
-#   absent -> silent   | sleep -> hang (the runHook timeout case; hangs
-#                          far past any test timeout so the kill, not the
-#                          exit, is what a timeout scenario settles)
+#   absent -> silent   | sleep -> hang (the runHook timeout case). The
+#                          hang is a sh-builtin loop, deliberately not
+#                          `sleep`: the bridge kills the direct child only,
+#                          and a forked `sleep` surviving it would hold the
+#                          pipe open until its own expiry -- a 60s stall
+#                          here, a duration flake in unit-slow. The loop
+#                          dies with the child, so the kill closes the pipe.
 #   crash -> stderr + exit 7  | otherwise the file is catted verbatim
 IFS=
 line=$(cat)
@@ -85,7 +89,7 @@ if [ -n "${MOCK_LOG:-}" ]; then
 fi
 behavior=$(cat "$(dirname "$0")/$(basename "$0" .sh).out" 2>/dev/null)
 case "$behavior" in
-  sleep) sleep 60 ;;
+  sleep) while :; do :; done ;;
   crash)
     printf 'mock crash from %s\n' "$(basename "$0")" >&2
     exit 7
@@ -120,7 +124,9 @@ exit 7
 UNIT
 cat >"$stage/unit-slow.sh" <<'UNIT'
 #!/bin/sh
-sleep 5
+# Hangs without forking a child: a `sleep` here would survive the runHook
+# kill as an orphan holding the pipe open (the mock's comment explains why).
+while :; do :; done
 UNIT
 chmod +x "$stage/unit-echo.sh" "$stage/unit-fail.sh" "$stage/unit-slow.sh"
 
