@@ -217,6 +217,22 @@ if (group === "rank") {
     check("a lone allow reaches effect", allowEvent.effect === "allow", JSON.stringify(allowEvent))
   })
 
+  await runScenario("an already-deny effect is not softened", async () => {
+    // Claude's openings: deny rules are hard, never softened by a hook
+    // approval. The bridge treats a deny it receives the same way even
+    // though the runtime is documented to have enforced them already.
+    setOut("rm-guard", dec("allow", "rm-guard allow reason"))
+    const reg = await registerForGroup()
+    await beforeOf(reg)({ tool: "shell", messageID: "p1", id: "t1", input: { command: "rm x" } })
+    const event = { sessionID: "s1", action: "shell", resources: [], source: { messageID: "p1", id: "t1" }, effect: "deny" }
+    await evaluateOf(reg)(event)
+    check(
+      "the configured deny stands untouched",
+      event.effect === "deny" && event.message === undefined,
+      JSON.stringify(event),
+    )
+  })
+
   await runScenario("unpaired events fall back to resources", async () => {
     setOut("rm-guard", dec("allow", "rm-guard allow reason"))
     const reg = await registerForGroup()

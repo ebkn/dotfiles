@@ -27,7 +27,8 @@
 //   2. Claude's decision precedence: among the hook scripts, deny > ask >
 //      allow, exactly like Claude ranks permissionDecision values across its
 //      hooks. Nothing in the hook layer may soften a configured deny:
-//      OpenCode resolves deny rules before the evaluate hook fires.
+//      OpenCode resolves deny rules before the evaluate hook fires, and the
+//      evaluate callback treats a deny it receives as untouchable.
 //
 //   3. Claude's failure posture per hook, from its registration in
 //      root/.claude/settings.json: git-guard alone carries `onFailure:
@@ -213,7 +214,13 @@ export function runHook(file, { stdin, cwd, env, timeoutMs }, spawnImpl = spawn)
     let child
     try {
       // The scripts' PATH and HOME come from this process: `env` carries only
-      // the hook contract's additions (CLAUDE_PROJECT_DIR), layered on top.
+      // the hook contract's additions, layered on top. The one such addition
+      // today is CLAUDE_PROJECT_DIR = the execution cwd, not a session-wide
+      // project root: it is the one absolute dir the hook layer knows exists,
+      // and the scripts use it only to fence checks (git -C in-project,
+      // git-rules' project settings layer). A narrow project can only fail
+      // those checks, never widen them -- the same safe direction
+      // resolveExecutionDir takes.
       child = spawnImpl(file, [], { cwd, env: { ...process.env, ...env } })
     } catch (error) {
       return once({ failed: true, reason: String(error.message) })
@@ -360,6 +367,12 @@ export async function registerGuardBridge(ctx, deps = {}) {
 
   await ctx.permission.hook("evaluate", async (event) => {
     if (event.action !== SHELL_TOOL) return
+    // A configured deny is off-limits to these scripts, the hook-layer twin
+    // of Claude's precedence. The runtime is documented to resolve deny
+    // before evaluate fires; if a deny ever reaches the hook anyway (a
+    // version touch), leaving it alone is correct regardless -- the pin
+    // "nothing softens a deny" holds from the hook's side too.
+    if (event.effect === "deny") return
     const key = eventPair(event)
     const entry = key === undefined ? undefined : pending.get(key)
     if (key !== undefined) pending.delete(key)
