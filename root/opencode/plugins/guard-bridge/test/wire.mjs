@@ -296,6 +296,20 @@ if (group === "failures") {
     )
   })
 
+  await runScenario("an unpinned event with no resources is left alone", async () => {
+    // No `source`, no stash entry, no `resources` either: commandFromResources
+    // must degrade to no command rather than crash the permission flow.
+    setOut("rm-guard", dec("allow", "rm-guard allow reason"))
+    const reg = await registerForGroup()
+    const event = { sessionID: "s1", action: "shell", effect: "ask" }
+    await evaluateOf(reg)(event)
+    check(
+      "no source and no resources leaves the effect alone",
+      event.effect === "ask" && event.message === undefined,
+      JSON.stringify(event),
+    )
+  })
+
   await runScenario("absent ~/.claude/hooks degrades quietly", async () => {
     const absent = path.join(stage, "absent-mock")
     const reg = await registerForGroup({ hooksDir: absent })

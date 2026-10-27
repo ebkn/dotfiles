@@ -173,10 +173,12 @@ export function resolveExecutionDir(base, cwd) {
  * from the scanner-produced resources. Joining with " && " puts each
  * resource back into its own segment for the scripts — never glueing two
  * commands into one token — and a reconstruction the scripts cannot parse
- * degrades to "no verdict", the safe direction.
+ * degrades to "no verdict", the safe direction. A missing or non-array
+ * resources field is the same no-op: this cannot throw, because an
+ * exception from a judgment side must never break the permission flow.
  */
 export function commandFromResources(resources) {
-  return resources.join(" && ")
+  return Array.isArray(resources) ? resources.join(" && ") : ""
 }
 
 /** Key for pairing a tool call with its permission evaluation. */

@@ -145,8 +145,9 @@ fs.rmSync(baseDir, { recursive: true })
 
 // Fallback command and pairing keys.
 check(
-  "commandFromResources joins segments without gluing tokens",
-  logic.commandFromResources(["a", "rm x"]) === "a && rm x" && logic.commandFromResources([]) === "",
+  "commandFromResources joins segments and treats non-arrays as no command",
+  logic.commandFromResources(["a", "rm x"]) === "a && rm x" && logic.commandFromResources([]) === "" &&
+    logic.commandFromResources(undefined) === "" && logic.commandFromResources("echo x") === "",
 )
 check("pairKey pairs a tool call", logic.pairKey({ messageID: "m1", id: "t1" }) === "m1:t1")
 check(
