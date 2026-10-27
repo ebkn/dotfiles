@@ -2,6 +2,41 @@
 
 Everything here is symlinked into `$HOME` by `bin/init/links.sh`.
 
+## OpenCode global config mirrors `root/.claude/settings.json`
+
+`root/opencode/opencode.jsonc` is linked to `~/.config/opencode/opencode.jsonc`
+and carries the OpenCode counterpart of the Claude permission policy. Both
+files are hand-maintained in parallel; neither tool reads the other, so a rule
+added to one is private to that tool until the other is edited too. The
+comment block at the bottom of the OpenCode file records what could not be
+translated (hooks, modes, plugin marketplaces) and at what point a plugin
+would have to pick it up.
+
+The translation is not mechanical, because the matchers differ:
+
+- **One ordered array, last match wins.** Claude's `allow` / `ask` / `deny`
+  object with hard `deny` precedence becomes a single `permissions` array,
+  written allow-first, then ask, then deny. Ordering is load-bearing: the ask
+  rules for `git branch -d` sit after the broad `git branch*` allow, the deny
+  rules sit last, and nothing matching a deny may follow them.
+- **Unmatched means ask, not a classifier.** Claude's `defaultMode: auto`
+  judged everything not listed; OpenCode asks. Anything the agent must run
+  unattended therefore *needs* an allow rule here, not just absence of a
+  deny rule.
+- **WebFetch domains are URL prefix rules, raw string matched** — the same
+  lesson as curl: `https://github.com*` would also match
+  `https://github.com.evil.com`, so each domain is two no-leak patterns (bare
+  host, host plus path) instead of a trailing wildcard. Subdomain matching
+  from Claude's `domain:` is not reproduced; the subdomains this repo actually
+  needs are listed as their own hosts.
+- **Claude's `:*` prefix rules** (tmux list-panes) get both spellings:
+  `cmd:*` and `cmd *`.
+
+The permission *hooks* still live in Claude only (`root/.claude/hooks/`); in
+OpenCode their equivalent would be a plugin using `permission.evaluate` /
+`shell.create.before` hooks, and until that exists curl and `rm` protection
+rests on the deny literals and the default ask alone.
+
 ## Global agent instructions: three destinations, all load-bearing
 
 `root/CLAUDE.md` is linked to:

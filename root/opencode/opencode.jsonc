@@ -1,5 +1,604 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  // OpenCode counterpart of root/.claude/settings.json. Hand-maintained:
+  // Claude Code has no OpenCode awareness and OpenCode reads no Claude
+  // settings, so keep edits to permissions / model policy in both files
+  // together. The comments that explain each rule live in
+  // [root/README.md](../../README.md); only what differs here is noted.
+  //
+  // Structure: Claude's allow/ask/deny object plus defaultMode: auto maps
+  // to ONE ordered array. OpenCode matches rules in order and the LAST
+  // match wins, and Claude's precedence deny > ask > allow is reproduced
+  // by writing allow rules first, then ask, then deny.
+  //
+  // No matching rule → OpenCode asks (build's base policy). Claude's
+  // unmatched Bash fell to the auto-mode classifier instead, so OpenCode
+  // prompts where Claude would have judged: allow rules must list
+  // everything the agent should run unattended, not the exciting extras.
+  //
+  // Fields with no OpenCode equivalent (hooks, statusLine, enabledPlugins,
+  // autoMode.soft_deny, ...) are listed in the comment block at the bottom.
+
+  "permissions": [
+    // ── allow: shell ──────────────────────────────────────────────
+    // Read-only inspection commands, translated from Bash(...).
+    // OpenCode checks each segment of a compound command separately: an
+    // allow for every segment lets the whole command run. rm and curl are
+    // deliberately absent here — Claude relies on hooks; see the bottom.
+    { "action": "shell", "resource": "actionlint *", "effect": "allow" },
+    { "action": "shell", "resource": "ast-grep *", "effect": "allow" },
+    { "action": "shell", "resource": "autossh -V", "effect": "allow" },
+    { "action": "shell", "resource": "awk *", "effect": "allow" },
+    { "action": "shell", "resource": "basename *", "effect": "allow" },
+    { "action": "shell", "resource": "cat *", "effect": "allow" },
+    { "action": "shell", "resource": "cut *", "effect": "allow" },
+    { "action": "shell", "resource": "date *", "effect": "allow" },
+    { "action": "shell", "resource": "df*", "effect": "allow" },
+    { "action": "shell", "resource": "diff *", "effect": "allow" },
+    { "action": "shell", "resource": "dig *", "effect": "allow" },
+    { "action": "shell", "resource": "dirname *", "effect": "allow" },
+    { "action": "shell", "resource": "done", "effect": "allow" },
+    { "action": "shell", "resource": "du*", "effect": "allow" },
+    { "action": "shell", "resource": "echo *", "effect": "allow" },
+    { "action": "shell", "resource": "false*", "effect": "allow" },
+    { "action": "shell", "resource": "file *", "effect": "allow" },
+    { "action": "shell", "resource": "find *", "effect": "allow" },
+    { "action": "shell", "resource": "fd *", "effect": "allow" },
+    { "action": "shell", "resource": "fd", "effect": "allow" },
+    { "action": "shell", "resource": "base64*", "effect": "allow" },
+    { "action": "shell", "resource": "for *", "effect": "allow" },
+    { "action": "shell", "resource": "grep *", "effect": "allow" },
+    { "action": "shell", "resource": "groups*", "effect": "allow" },
+    { "action": "shell", "resource": "head *", "effect": "allow" },
+    { "action": "shell", "resource": "host *", "effect": "allow" },
+    { "action": "shell", "resource": "id*", "effect": "allow" },
+    { "action": "shell", "resource": "jq *", "effect": "allow" },
+    { "action": "shell", "resource": "ls*", "effect": "allow" },
+    { "action": "shell", "resource": "log show*", "effect": "allow" },
+    { "action": "shell", "resource": "log stats*", "effect": "allow" },
+    { "action": "shell", "resource": "lsof*", "effect": "allow" },
+    { "action": "shell", "resource": "mkdir *", "effect": "allow" },
+    { "action": "shell", "resource": "nslookup *", "effect": "allow" },
+    { "action": "shell", "resource": "ping *", "effect": "allow" },
+    { "action": "shell", "resource": "printf *", "effect": "allow" },
+    { "action": "shell", "resource": "ps*", "effect": "allow" },
+    { "action": "shell", "resource": "pwd*", "effect": "allow" },
+    { "action": "shell", "resource": "read *", "effect": "allow" },
+    { "action": "shell", "resource": "readlink *", "effect": "allow" },
+    { "action": "shell", "resource": "realpath *", "effect": "allow" },
+    { "action": "shell", "resource": "rg *", "effect": "allow" },
+    { "action": "shell", "resource": "sed *", "effect": "allow" },
+    { "action": "shell", "resource": "shellcheck *", "effect": "allow" },
+    { "action": "shell", "resource": "sort *", "effect": "allow" },
+    { "action": "shell", "resource": "ssh -V", "effect": "allow" },
+    { "action": "shell", "resource": "stat *", "effect": "allow" },
+    { "action": "shell", "resource": "sw_vers", "effect": "allow" },
+    { "action": "shell", "resource": "tail *", "effect": "allow" },
+    { "action": "shell", "resource": "tailscale netcheck *", "effect": "allow" },
+    { "action": "shell", "resource": "tailscale ping *", "effect": "allow" },
+    { "action": "shell", "resource": "tailscale status *", "effect": "allow" },
+    { "action": "shell", "resource": "tee *", "effect": "allow" },
+    { "action": "shell", "resource": "terminal-notifier *", "effect": "allow" },
+    { "action": "shell", "resource": "test *", "effect": "allow" },
+    // Claude's ":*" means a bare prefix too; ` *`-ending rules cover it but
+    // not the no-colon spelling, so both forms are kept.
+    { "action": "shell", "resource": "tmux list-panes:*", "effect": "allow" },
+    { "action": "shell", "resource": "tmux list-panes *", "effect": "allow" },
+    { "action": "shell", "resource": "tmux list-sessions:*", "effect": "allow" },
+    { "action": "shell", "resource": "tmux list-sessions *", "effect": "allow" },
+    { "action": "shell", "resource": "touch *", "effect": "allow" },
+    { "action": "shell", "resource": "tr *", "effect": "allow" },
+    { "action": "shell", "resource": "traceroute *", "effect": "allow" },
+    { "action": "shell", "resource": "true*", "effect": "allow" },
+    { "action": "shell", "resource": "tree*", "effect": "allow" },
+    { "action": "shell", "resource": "uname*", "effect": "allow" },
+    { "action": "shell", "resource": "uptime*", "effect": "allow" },
+    { "action": "shell", "resource": "uniq *", "effect": "allow" },
+    { "action": "shell", "resource": "wait*", "effect": "allow" },
+    { "action": "shell", "resource": "wc *", "effect": "allow" },
+    { "action": "shell", "resource": "whoami*", "effect": "allow" },
+    { "action": "shell", "resource": "which *", "effect": "allow" },
+    { "action": "shell", "resource": "/opt/homebrew/bin/aws logs get-query-results *", "effect": "allow" },
+    { "action": "shell", "resource": "/opt/homebrew/bin/aws logs start-query *", "effect": "allow" },
+    { "action": "shell", "resource": "aws logs get-query-results *", "effect": "allow" },
+    { "action": "shell", "resource": "aws logs start-query *", "effect": "allow" },
+    { "action": "shell", "resource": "docker buildx imagetools inspect *", "effect": "allow" },
+    { "action": "shell", "resource": "docker manifest inspect *", "effect": "allow" },
+    { "action": "shell", "resource": "docker build*", "effect": "allow" },
+    { "action": "shell", "resource": "corepack enable*", "effect": "allow" },
+    { "action": "shell", "resource": "brew cat *", "effect": "allow" },
+    { "action": "shell", "resource": "brew deps *", "effect": "allow" },
+    { "action": "shell", "resource": "brew info *", "effect": "allow" },
+    { "action": "shell", "resource": "brew leaves*", "effect": "allow" },
+    { "action": "shell", "resource": "brew list*", "effect": "allow" },
+    { "action": "shell", "resource": "brew outdated*", "effect": "allow" },
+    { "action": "shell", "resource": "brew search *", "effect": "allow" },
+    { "action": "shell", "resource": "go build*", "effect": "allow" },
+    { "action": "shell", "resource": "go doc*", "effect": "allow" },
+    { "action": "shell", "resource": "go list*", "effect": "allow" },
+    { "action": "shell", "resource": "go mod graph*", "effect": "allow" },
+    { "action": "shell", "resource": "go mod verify*", "effect": "allow" },
+    { "action": "shell", "resource": "go mod why *", "effect": "allow" },
+    { "action": "shell", "resource": "go test*", "effect": "allow" },
+    { "action": "shell", "resource": "go tool cover*", "effect": "allow" },
+    { "action": "shell", "resource": "go version*", "effect": "allow" },
+    { "action": "shell", "resource": "go vet*", "effect": "allow" },
+    { "action": "shell", "resource": "golangci-lint run*", "effect": "allow" },
+    { "action": "shell", "resource": "npm diff *", "effect": "allow" },
+    { "action": "shell", "resource": "npm explain *", "effect": "allow" },
+    { "action": "shell", "resource": "npm fund*", "effect": "allow" },
+    { "action": "shell", "resource": "npm ls *", "effect": "allow" },
+    { "action": "shell", "resource": "npm outdated*", "effect": "allow" },
+    { "action": "shell", "resource": "npm search *", "effect": "allow" },
+    { "action": "shell", "resource": "npm view *", "effect": "allow" },
+    { "action": "shell", "resource": "npm ci*", "effect": "allow" },
+    { "action": "shell", "resource": "npx tsc*", "effect": "allow" },
+    { "action": "shell", "resource": "npx jest*", "effect": "allow" },
+    { "action": "shell", "resource": "npx vitest*", "effect": "allow" },
+    { "action": "shell", "resource": "npx biome*", "effect": "allow" },
+    { "action": "shell", "resource": "npx prettier*", "effect": "allow" },
+    { "action": "shell", "resource": "yarn info *", "effect": "allow" },
+    { "action": "shell", "resource": "yarn list*", "effect": "allow" },
+    { "action": "shell", "resource": "yarn outdated*", "effect": "allow" },
+    { "action": "shell", "resource": "yarn why *", "effect": "allow" },
+    { "action": "shell", "resource": "yarn install*", "effect": "allow" },
+    { "action": "shell", "resource": "yarn type-check*", "effect": "allow" },
+    { "action": "shell", "resource": "yarn test*", "effect": "allow" },
+    { "action": "shell", "resource": "yarn lint*", "effect": "allow" },
+    { "action": "shell", "resource": "yarn check*", "effect": "allow" },
+    { "action": "shell", "resource": "yarn build*", "effect": "allow" },
+    { "action": "shell", "resource": "yarn biome*", "effect": "allow" },
+    { "action": "shell", "resource": "yarn format*", "effect": "allow" },
+    { "action": "shell", "resource": "yarn codegen*", "effect": "allow" },
+    { "action": "shell", "resource": "volta list *", "effect": "allow" },
+    { "action": "shell", "resource": "yq *", "effect": "allow" },
+    // git — the -C rules stay away, per README's git section: OpenCode has
+    // no hook to give an allow rule the same effect on `git -C <dir> ...`,
+    // so a git -C outside the project simply asks.
+    { "action": "shell", "resource": "git add *", "effect": "allow" },
+    { "action": "shell", "resource": "git blame *", "effect": "allow" },
+    { "action": "shell", "resource": "git branch*", "effect": "allow" },
+    { "action": "shell", "resource": "git cat-file *", "effect": "allow" },
+    { "action": "shell", "resource": "git cherry-pick *", "effect": "allow" },
+    { "action": "shell", "resource": "git commit -m *", "effect": "allow" },
+    { "action": "shell", "resource": "git config --get *", "effect": "allow" },
+    { "action": "shell", "resource": "git config --get-all *", "effect": "allow" },
+    { "action": "shell", "resource": "git config --get-regexp *", "effect": "allow" },
+    { "action": "shell", "resource": "git config --list*", "effect": "allow" },
+    { "action": "shell", "resource": "git config -l*", "effect": "allow" },
+    { "action": "shell", "resource": "git config get *", "effect": "allow" },
+    { "action": "shell", "resource": "git config list*", "effect": "allow" },
+    { "action": "shell", "resource": "git describe*", "effect": "allow" },
+    { "action": "shell", "resource": "git diff*", "effect": "allow" },
+    { "action": "shell", "resource": "git fetch*", "effect": "allow" },
+    { "action": "shell", "resource": "git for-each-ref *", "effect": "allow" },
+    { "action": "shell", "resource": "git log*", "effect": "allow" },
+    { "action": "shell", "resource": "git ls-files*", "effect": "allow" },
+    { "action": "shell", "resource": "git ls-tree *", "effect": "allow" },
+    { "action": "shell", "resource": "git merge main *", "effect": "allow" },
+    { "action": "shell", "resource": "git merge origin/main *", "effect": "allow" },
+    { "action": "shell", "resource": "git merge-base *", "effect": "allow" },
+    { "action": "shell", "resource": "git push", "effect": "allow" },
+    { "action": "shell", "resource": "git push -u origin HEAD", "effect": "allow" },
+    { "action": "shell", "resource": "git push origin HEAD", "effect": "allow" },
+    { "action": "shell", "resource": "git remote show*", "effect": "allow" },
+    { "action": "shell", "resource": "git rev-parse *", "effect": "allow" },
+    { "action": "shell", "resource": "git show *", "effect": "allow" },
+    { "action": "shell", "resource": "git stash*", "effect": "allow" },
+    { "action": "shell", "resource": "git status*", "effect": "allow" },
+    { "action": "shell", "resource": "git tag", "effect": "allow" },
+    { "action": "shell", "resource": "git tag -l *", "effect": "allow" },
+    { "action": "shell", "resource": "git tag --list *", "effect": "allow" },
+    { "action": "shell", "resource": "git rev-list *", "effect": "allow" },
+    { "action": "shell", "resource": "git check-ignore *", "effect": "allow" },
+    { "action": "shell", "resource": "git worktree list*", "effect": "allow" },
+    { "action": "shell", "resource": "git remote -v", "effect": "allow" },
+    { "action": "shell", "resource": "git remote get-url *", "effect": "allow" },
+    { "action": "shell", "resource": "git --no-pager log*", "effect": "allow" },
+    { "action": "shell", "resource": "git --no-pager diff*", "effect": "allow" },
+    { "action": "shell", "resource": "git --no-pager show*", "effect": "allow" },
+    { "action": "shell", "resource": "git --no-pager branch*", "effect": "allow" },
+    // gh
+    { "action": "shell", "resource": "gh browse *", "effect": "allow" },
+    { "action": "shell", "resource": "gh issue list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh issue status *", "effect": "allow" },
+    { "action": "shell", "resource": "gh issue view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh label list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr checks *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr create *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr edit*", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr diff *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr ready*", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr status *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh release list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh release view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh repo list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh repo view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh run list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh run view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh search code *", "effect": "allow" },
+    { "action": "shell", "resource": "gh search commits *", "effect": "allow" },
+    { "action": "shell", "resource": "gh search issues *", "effect": "allow" },
+    { "action": "shell", "resource": "gh search prs *", "effect": "allow" },
+    { "action": "shell", "resource": "gh search repos *", "effect": "allow" },
+    { "action": "shell", "resource": "gh workflow list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh workflow view *", "effect": "allow" },
+
+    // ── allow: files, web, MCP, skills ────────────────────────────
+    { "action": "edit", "resource": "*", "effect": "allow" },
+    { "action": "grep", "resource": "*", "effect": "allow" },
+    { "action": "glob", "resource": "*", "effect": "allow" },
+    { "action": "read", "resource": "*", "effect": "allow" },
+    // LS and Search: OpenCode has no tools with those names; file discovery
+    // is glob, content search is grep, both allowed above.
+    // An explicit read "*" above silently overrides the base policy's .env
+    // asks, so they are restated, with the .env.example exception after.
+    { "action": "read", "resource": "*.env", "effect": "ask" },
+    { "action": "read", "resource": "*.env.*", "effect": "ask" },
+    { "action": "read", "resource": "*.env.example", "effect": "allow" },
+    // WebFetch(domain:...) — OpenCode matches the requested URL string, and
+    // the URL matcher is prefix-pattern based, NOT domain-aware:
+    // "https://github.com*" would also match "https://github.com.evil.com",
+    // the same trap root/README.md records for curl. Exact-host patterns
+    // instead: bare host, then host plus path. Claude's subdomain matching
+    // is not reproduced; the subdomains this repo actually needs
+    // (api., raw., gist., docs.) are each listed as their own host.
+    // http:// and query-string-without-slash forms ask, on purpose.
+    { "action": "webfetch", "resource": "https://api.github.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://api.github.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://caniuse.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://caniuse.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://cloud.google.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://cloud.google.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://code.claude.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://code.claude.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://developer.mozilla.org", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://developer.mozilla.org/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.aws.amazon.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.aws.amazon.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.claude.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.claude.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.docker.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.docker.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.github.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.github.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.npmjs.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.npmjs.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.python.org", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.python.org/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.rs", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.rs/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://gist.github.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://gist.github.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://github.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://github.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://hub.docker.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://hub.docker.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://json.schemastore.org", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://json.schemastore.org/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://kubernetes.io", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://kubernetes.io/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://learn.microsoft.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://learn.microsoft.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://neovim.io", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://neovim.io/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://nodejs.org", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://nodejs.org/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://pkg.go.dev", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://pkg.go.dev/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://pypi.org", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://pypi.org/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://qiita.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://qiita.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://raw.githubusercontent.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://raw.githubusercontent.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://registry.terraform.io", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://registry.terraform.io/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://socket.dev", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://socket.dev/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://stackoverflow.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://stackoverflow.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://typescriptlang.org", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://typescriptlang.org/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://wiki.archlinux.org", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://wiki.archlinux.org/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://winget.run", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://winget.run/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://www.autohotkey.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://www.autohotkey.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://developers.openai.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://developers.openai.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://biomejs.dev", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://biomejs.dev/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://www.npmjs.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://www.npmjs.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://developers.cloudflare.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://developers.cloudflare.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://ai.google.dev", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://ai.google.dev/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://developers.google.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://developers.google.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://www.anthropic.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://www.anthropic.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.anthropic.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.anthropic.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://claude.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://claude.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://platform.claude.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://platform.claude.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://support.claude.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://support.claude.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://arxiv.org", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://arxiv.org/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://coderabbit.ai", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://coderabbit.ai/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.coderabbit.ai", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.coderabbit.ai/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://www.coderabbit.ai", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://www.coderabbit.ai/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.sentry.io", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.sentry.io/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://sentry.io", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://sentry.io/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://vercel.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://vercel.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://trivy.dev", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://trivy.dev/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://yarnpkg.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://yarnpkg.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://developer.hashicorp.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://developer.hashicorp.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://posthog.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://posthog.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://brew.sh", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://brew.sh/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://github.blog", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://github.blog/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.snowflake.com", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.snowflake.com/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://nextjs.org", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://nextjs.org/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://pagespeed.web.dev", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://pagespeed.web.dev/*", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.perplexity.ai", "effect": "allow" },
+    { "action": "webfetch", "resource": "https://docs.perplexity.ai/*", "effect": "allow" },
+    { "action": "websearch", "resource": "*", "effect": "allow" },
+    // mcp__plugin_sentry_sentry__* rules. OpenCode MCP permission actions are
+    // "<mcp server name>_<tool name>", so the wildcards stand in for the
+    // server half; tighten to e.g. "sentry_search_events" once the server is
+    // named here.
+    { "action": "*_search_events", "resource": "*", "effect": "allow" },
+    { "action": "*_search_issues", "resource": "*", "effect": "allow" },
+    { "action": "*_search_sentry_tools", "resource": "*", "effect": "allow" },
+    { "action": "*_find_projects", "resource": "*", "effect": "allow" },
+    // Skill(...) — only the git-workflow skills were granted in Claude;
+    // everything else still asks by default.
+    { "action": "skill", "resource": "commit", "effect": "allow" },
+    { "action": "skill", "resource": "create-pr", "effect": "allow" },
+    { "action": "skill", "resource": "update-pr", "effect": "allow" },
+
+    // ── ask ───────────────────────────────────────────────────────
+    // Positioned after every allow they outrank: git branch* / git stash*
+    // allow broadly, the drop/clear/branch-delete forms ask here.
+    { "action": "shell", "resource": "wget *", "effect": "ask" },
+    { "action": "shell", "resource": "telnet *", "effect": "ask" },
+    { "action": "shell", "resource": "nc *", "effect": "ask" },
+    { "action": "shell", "resource": "netcat *", "effect": "ask" },
+    { "action": "shell", "resource": "git push --force-with-lease*", "effect": "ask" },
+    { "action": "shell", "resource": "git push * --force-with-lease*", "effect": "ask" },
+    { "action": "shell", "resource": "git checkout *", "effect": "ask" },
+    { "action": "shell", "resource": "git stash drop*", "effect": "ask" },
+    { "action": "shell", "resource": "git stash clear*", "effect": "ask" },
+    { "action": "shell", "resource": "git switch *", "effect": "ask" },
+    { "action": "shell", "resource": "git branch -d *", "effect": "ask" },
+    { "action": "shell", "resource": "git branch -D *", "effect": "ask" },
+    { "action": "shell", "resource": "git branch *-d *", "effect": "ask" },
+    { "action": "shell", "resource": "git branch *-D *", "effect": "ask" },
+
+    // ── deny ──────────────────────────────────────────────────────
+    // Raw command strings, not parsed paths — the tripwire caveat in
+    // root/README.md applies as written: variables, cd beforehand and
+    // path spelling games walk past every one of these. rm and curl here
+    // have no hook equivalents in OpenCode yet (see bottom comment);
+    // rm is deny-literals + an edit-rule mirror, exactly like Claude.
+    { "action": "shell", "resource": "rm -rf /", "effect": "deny" },
+    { "action": "shell", "resource": "rm -rf ~", "effect": "deny" },
+    { "action": "shell", "resource": "rm -rf /*", "effect": "deny" },
+    { "action": "shell", "resource": "rm -rf --no-preserve-root /", "effect": "deny" },
+    { "action": "shell", "resource": "rm -rf --no-preserve-root /*", "effect": "deny" },
+    { "action": "shell", "resource": "rm /etc*", "effect": "deny" },
+    { "action": "shell", "resource": "rm * /etc*", "effect": "deny" },
+    { "action": "shell", "resource": "rm /usr*", "effect": "deny" },
+    { "action": "shell", "resource": "rm * /usr*", "effect": "deny" },
+    { "action": "shell", "resource": "rm /var*", "effect": "deny" },
+    { "action": "shell", "resource": "rm * /var*", "effect": "deny" },
+    { "action": "shell", "resource": "rm /opt*", "effect": "deny" },
+    { "action": "shell", "resource": "rm * /opt*", "effect": "deny" },
+    { "action": "shell", "resource": "rm /bin*", "effect": "deny" },
+    { "action": "shell", "resource": "rm * /bin*", "effect": "deny" },
+    { "action": "shell", "resource": "rm /sbin*", "effect": "deny" },
+    { "action": "shell", "resource": "rm * /sbin*", "effect": "deny" },
+    { "action": "shell", "resource": "rm /lib*", "effect": "deny" },
+    { "action": "shell", "resource": "rm * /lib*", "effect": "deny" },
+    { "action": "shell", "resource": "rm /lib64*", "effect": "deny" },
+    { "action": "shell", "resource": "rm * /lib64*", "effect": "deny" },
+    { "action": "shell", "resource": "rm /boot*", "effect": "deny" },
+    { "action": "shell", "resource": "rm * /boot*", "effect": "deny" },
+    { "action": "shell", "resource": "rm /proc*", "effect": "deny" },
+    { "action": "shell", "resource": "rm * /proc*", "effect": "deny" },
+    { "action": "shell", "resource": "rm /sys*", "effect": "deny" },
+    { "action": "shell", "resource": "rm * /sys*", "effect": "deny" },
+    { "action": "shell", "resource": "rm /dev*", "effect": "deny" },
+    { "action": "shell", "resource": "rm * /dev*", "effect": "deny" },
+    { "action": "shell", "resource": "rm ~/.ssh/id_*", "effect": "deny" },
+    { "action": "shell", "resource": "rm * ~/.ssh/id_*", "effect": "deny" },
+    { "action": "shell", "resource": "rm ~/.ssh/*_rsa", "effect": "deny" },
+    { "action": "shell", "resource": "rm * ~/.ssh/*_rsa", "effect": "deny" },
+    { "action": "shell", "resource": "rm ~/.ssh/*_ecdsa", "effect": "deny" },
+    { "action": "shell", "resource": "rm * ~/.ssh/*_ecdsa", "effect": "deny" },
+    { "action": "shell", "resource": "rm ~/.ssh/*_ed25519", "effect": "deny" },
+    { "action": "shell", "resource": "rm * ~/.ssh/*_ed25519", "effect": "deny" },
+    { "action": "shell", "resource": "sudo", "effect": "deny" },
+    { "action": "shell", "resource": "sudo *", "effect": "deny" },
+    { "action": "shell", "resource": "su", "effect": "deny" },
+    { "action": "shell", "resource": "su *", "effect": "deny" },
+    { "action": "shell", "resource": "doas", "effect": "deny" },
+    { "action": "shell", "resource": "doas *", "effect": "deny" },
+    { "action": "shell", "resource": "sudo rm *", "effect": "deny" },
+    { "action": "shell", "resource": "sudo dd *", "effect": "deny" },
+    { "action": "shell", "resource": "sudo mkfs *", "effect": "deny" },
+    { "action": "shell", "resource": "sudo fdisk *", "effect": "deny" },
+    { "action": "shell", "resource": "sudo mount *", "effect": "deny" },
+    { "action": "shell", "resource": "sudo umount *", "effect": "deny" },
+    { "action": "shell", "resource": "dd *", "effect": "deny" },
+    { "action": "shell", "resource": "mkfs *", "effect": "deny" },
+    { "action": "shell", "resource": "fdisk *", "effect": "deny" },
+    { "action": "shell", "resource": "> /dev/*", "effect": "deny" },
+    { "action": "shell", "resource": ">> /dev/*", "effect": "deny" },
+    { "action": "shell", "resource": "chmod 777 /*", "effect": "deny" },
+    { "action": "shell", "resource": "chown root *", "effect": "deny" },
+    { "action": "shell", "resource": "sudo chmod 777 *", "effect": "deny" },
+    { "action": "shell", "resource": "sudo chown *", "effect": "deny" },
+    { "action": "shell", "resource": "sudo -i *", "effect": "deny" },
+    { "action": "shell", "resource": "sudo su *", "effect": "deny" },
+    { "action": "shell", "resource": "rm -rf .git", "effect": "deny" },
+    // --force spelled as whole words so --force-with-lease survives; the
+    // lease spellings are the ask rules above.
+    { "action": "shell", "resource": "git push --force", "effect": "deny" },
+    { "action": "shell", "resource": "git push --force *", "effect": "deny" },
+    { "action": "shell", "resource": "git push -f*", "effect": "deny" },
+    { "action": "shell", "resource": "git push * --force", "effect": "deny" },
+    { "action": "shell", "resource": "git push * --force *", "effect": "deny" },
+    { "action": "shell", "resource": "git push * -f *", "effect": "deny" },
+    { "action": "shell", "resource": "git push * -f", "effect": "deny" },
+    { "action": "shell", "resource": "git clean -fd *", "effect": "deny" },
+    { "action": "shell", "resource": "git reset --hard *", "effect": "deny" },
+    { "action": "shell", "resource": "git clean -fdx *", "effect": "deny" },
+    { "action": "shell", "resource": "git fetch *--upl*", "effect": "deny" },
+    { "action": "shell", "resource": "git log *--output*", "effect": "deny" },
+    { "action": "shell", "resource": "git diff *--output*", "effect": "deny" },
+    { "action": "shell", "resource": "git show *--output*", "effect": "deny" },
+    { "action": "shell", "resource": "docker system prune -af", "effect": "deny" },
+    { "action": "shell", "resource": "go build -toolexec *", "effect": "deny" },
+    { "action": "shell", "resource": "go build -toolexec=*", "effect": "deny" },
+    { "action": "shell", "resource": "go build * -toolexec *", "effect": "deny" },
+    { "action": "shell", "resource": "go build * -toolexec=*", "effect": "deny" },
+    { "action": "shell", "resource": "go test -exec *", "effect": "deny" },
+    { "action": "shell", "resource": "go test -exec=*", "effect": "deny" },
+    { "action": "shell", "resource": "go test * -exec *", "effect": "deny" },
+    { "action": "shell", "resource": "go test * -exec=*", "effect": "deny" },
+    { "action": "shell", "resource": "go test -toolexec *", "effect": "deny" },
+    { "action": "shell", "resource": "go test -toolexec=*", "effect": "deny" },
+    { "action": "shell", "resource": "go test * -toolexec *", "effect": "deny" },
+    { "action": "shell", "resource": "go test * -toolexec=*", "effect": "deny" },
+    { "action": "shell", "resource": "npm publish *", "effect": "deny" },
+    { "action": "shell", "resource": "diskutil *", "effect": "deny" },
+    { "action": "shell", "resource": "parted *", "effect": "deny" },
+    { "action": "shell", "resource": "sfdisk *", "effect": "deny" },
+    { "action": "shell", "resource": "gdisk *", "effect": "deny" },
+    { "action": "shell", "resource": "wipefs *", "effect": "deny" },
+    { "action": "shell", "resource": "newfs*", "effect": "deny" },
+    { "action": "shell", "resource": "shred *", "effect": "deny" },
+    { "action": "shell", "resource": "env", "effect": "deny" },
+    { "action": "shell", "resource": "env *", "effect": "deny" },
+    { "action": "shell", "resource": "printenv", "effect": "deny" },
+    { "action": "shell", "resource": "printenv *", "effect": "deny" },
+    // The Edit deny rules, with the same rm mirror reasoning: shell rules
+    // match raw text, edit rules match resolved paths, and each needs the
+    // other. System trees ($_*) and ssh keys get both spellings; the passwd,
+    // shadow and sudoers files are exact.
+    { "action": "edit", "resource": "/etc*", "effect": "deny" },
+    { "action": "edit", "resource": "/usr*", "effect": "deny" },
+    { "action": "edit", "resource": "/var*", "effect": "deny" },
+    { "action": "edit", "resource": "/opt*", "effect": "deny" },
+    { "action": "edit", "resource": "/bin*", "effect": "deny" },
+    { "action": "edit", "resource": "/sbin*", "effect": "deny" },
+    { "action": "edit", "resource": "/lib*", "effect": "deny" },
+    { "action": "edit", "resource": "/lib64*", "effect": "deny" },
+    { "action": "edit", "resource": "/boot*", "effect": "deny" },
+    { "action": "edit", "resource": "/proc*", "effect": "deny" },
+    { "action": "edit", "resource": "/sys*", "effect": "deny" },
+    { "action": "edit", "resource": "/dev*", "effect": "deny" },
+    { "action": "edit", "resource": "~/.ssh/id_*", "effect": "deny" },
+    { "action": "edit", "resource": "~/.ssh/*_rsa", "effect": "deny" },
+    { "action": "edit", "resource": "~/.ssh/*_ecdsa", "effect": "deny" },
+    { "action": "edit", "resource": "~/.ssh/*_ed25519", "effect": "deny" },
+    { "action": "edit", "resource": "/etc/passwd", "effect": "deny" },
+    { "action": "edit", "resource": "/etc/shadow", "effect": "deny" },
+    { "action": "edit", "resource": "/etc/sudoers", "effect": "deny" },
+
+    // Nothing may follow after the deny rules that matches them: the last
+    // match wins, so a later allow would resurrect what these refuse.
+  ],
+
+  // Claude's autoCompactEnabled: false. Note the difference in defaults:
+  // OpenCode compacts automatically by default, so this line is required.
+  // Manual /compact still works.
+  "compaction": {
+    "auto": false,
+  },
+
+  // Claude's autoUpdatesChannel: "stable". OpenCode has no channel concept;
+  // notify shows an update before installing it, which is the closest
+  // behavior to following a week-behind channel. Global config only.
+  "update": "notify",
+
+  // "model": "opus" translates to provider/model (e.g.
+  // "anthropic/claude-opus-..."), but unlike Claude, the root default does
+  // not hold a variant: Claude's effortLevel is per-agent in OpenCode, set
+  // as "#variant" on agents.<id>.model or in agent frontmatter.
+  // Pick the exact ID from /models and set it here when wanted.
+
+  // ── settings.json fields with no OpenCode equivalent ────────────
+  //
+  // env.CLAUDE_CODE_SUBAGENT_MODEL: subagents inherit the session model
+  //   unless their agent sets its own. Give each subagent a `model` in its
+  //   agent file instead; there is no global default for subagents.
+  // attribution: OpenCode writes no Co-Authored-By trailers; nothing to
+  //   disable.
+  // permissions.defaultMode "auto": OpenCode has no permission modes; the
+  //   unmatched rule asks and "Allow always" saves it per project (and a
+  //   saved approval never overrides a configured deny).
+  // worktree.baseRef: OpenCode's `worktree` config only sets the parent
+  //   directory.
+  // statusLine, theme, editorMode, voice, prefersReducedMotion,
+  //   preferredNotifChannel, tui: terminal preferences belong in
+  //   ~/.config/opencode/cli.json, not this file (see
+  //   https://opencode.ai/v2/docs/cli/config).
+  // enabledPlugins, extraKnownMarketplaces: no plugin-marketplace concept.
+  //   MCP servers go under `mcp.servers` here; plugins under `plugins`.
+  // fastMode (Opus runs), skipWorkflowUsageWarning, askUserQuestionTimeout,
+  //   voice, remoteControlAtStartup, autoMemory*, feedback*: Claude
+  //   product behavior, not present in OpenCode.
+  // autoMode.soft_deny (pnpm db:*): deliberately not copied — per root/
+  //   README.md, policy tied to one repository belongs in that repository's
+  //   own settings, never here.
+  //
+  // ── hooks ─────────────────────────────────────────────────────
+  //
+  // Claude's hooks block above cannot appear in this file. Its equivalents
+  // are an OpenCode plugin (`.opencode/plugins/` local plugin or a package
+  // in `plugins`); the mapping, should that plugin be written:
+  //
+  //   PreToolUse(Bash) curl-guard, rm-guard, git-guard,
+  //     git-dash-c-allow, approve-multiline-commands,
+  //     strip-redundant-cd      → ctx.permission.hook("evaluate") /
+  //                               ctx.shell.hook("create.before")
+  //   PreToolUse(Agent) agent-model-guard
+  //                             → ctx.tool.hook("execute.before") on the
+  //                               subagent tool
+  //   PreToolUse(AskUserQuestion), Notification, Stop, SessionStart,
+  //   SessionEnd, CwdChanged, SubagentStart, SubagentStop, PostToolBatch,
+  //   UserPromptSubmit, PermissionRequest (agent-state.sh,
+  //   session-cwd.sh)          → ctx.session.hook("prompt") /
+  //                               ctx.event.subscribe(...) in a plugin
+  //
+  // Until one exists, curl and rm have NO hook in OpenCode: curl is absent
+  // from allow (as in Claude, where the hook carries it) and unmatched curl
+  // asks; rm keeps only the deny literals above.
+
   // Keep MCP servers in this file, not in a sibling opencode.json: only
   // opencode.jsonc is linked into ~/.config/opencode (bin/init/links.sh), so
   // anything an installer writes to opencode.json reaches no other machine.
