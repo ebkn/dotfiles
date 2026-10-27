@@ -31,7 +31,8 @@ function Write-Step {
 
 # --silent: suppress the installer's own UI. The default only shows progress,
 # and on CI the GnuPG installer sat waiting for six hours until the job was
-# cancelled. --disable-interactivity: no winget prompts either.
+# cancelled -- and, it turned out, still hangs with --silent; see GnuPG below.
+# --disable-interactivity: no winget prompts either.
 $WingetFlags = '--exact --silent --disable-interactivity --accept-source-agreements --accept-package-agreements'
 
 function Install-WingetPackage {
@@ -119,7 +120,16 @@ Install-WingetPackage 'Microsoft.VisualStudioCode'
 Repair-DockerDesktopOwnership
 Install-WingetPackage 'Docker.DockerDesktop'
 Install-WingetPackage 'wez.wezterm'
-Install-WingetPackage 'GnuPG.GnuPG'
+# On CI the GnuPG installer hangs under winget despite --silent and
+# --disable-interactivity: every run since 2026-04 sat on it until the step's
+# 75-minute limit, so nothing after it was ever exercised. Skipped there only;
+# a real machine still installs it.
+if ($env:GITHUB_ACTIONS -eq 'true') {
+    Write-Host '  skipping GnuPG.GnuPG on CI (its installer hangs there)' -ForegroundColor Yellow
+}
+else {
+    Install-WingetPackage 'GnuPG.GnuPG'
+}
 Install-WingetPackage 'Tailscale.Tailscale'
 
 # ------------------------------------------------------------------
