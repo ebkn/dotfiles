@@ -66,6 +66,12 @@ reconstruction has documented edges:
   directory falls back — scripts resolve operands against what they are told,
   and a resolution from the wrong base can only fail their checks, never
   widen them).
+- **project**: Claude's `CLAUDE_PROJECT_DIR` named the project root; the
+  bridge sets it to the same execution cwd the scripts get for `cwd`. The
+  scripts use it only to fence checks (git `-C` in-project, git-rules' project
+  settings layer), and a narrower project can only fail those checks, never
+  widen them — an unconditional `git -C ..` under a `workdir` loses a Claude
+  approval it could have had, in the ask direction.
 - **cd compounds**: Claude edits `updatedInput` per hook in sequence; OpenCode
   runs the hooks concurrently, so the judgment scripts are given the command
   AS WRITTEN (`cd x && curl …`) — the scripts' own bail-outs are mirrored as
