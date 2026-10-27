@@ -41,20 +41,55 @@ The translation is not mechanical, because the matchers differ:
 - **Claude's `:*` prefix rules** (tmux list-panes) get both spellings:
   `cmd:*` and `cmd *`.
 
-The permission *hooks* still live in Claude only (`root/.claude/hooks/`); in
-OpenCode their equivalent would be a plugin using `permission.evaluate` /
-`shell.create.before` hooks, and until that exists the losses are concrete:
+The permission *hooks* were also translated: `root/opencode/plugins/guard-bridge`
+is an OpenCode plugin (symlinked into `~/.config/opencode/plugins/`) that runs
+the SAME six scripts from `root/.claude/hooks/` — the scripts stay the single
+source for both tools, so they cannot drift apart. It bridges Claude's hook
+contract into OpenCode's plugin hooks:
 
-- **curl and `rm`** lose only the hooks' convenience layer — their guard
-  scripts auto-approved the safe shapes — and protection rests on the deny
-  literals and the default ask, as recorded in the jsonc.
-- **`git -C` loses the deny layer outright.** Claude's git-guard.sh applied
-  deny and ask rules to `git -C x <subcommand>` over the raw string, which no
-  `git <subcommand>` rule matches. The same command in OpenCode matches no
-  rule at all and asks, instead of the refusal Claude gave `git -C x push
-  --force`. A plugin is the only way to restore it.
+- **The one rewrite script** (`strip-redundant-cd.sh`) runs on
+  `shell.create.before`, which the OpenCode source resolves BEFORE the command
+  is scanned into permission resources — so the rewritten command is what the
+  rules see, Claude's `updatedInput` treatment.
+- **The five judgment scripts** run on `permission.evaluate` (the only hook
+  allowed to change an effect), one spawn each, concurrent like Claude runs
+  its hooks; deny > ask > allow ranks the verdicts. OpenCode resolves
+  configured deny rules before the hook fires, so nothing here can soften a
+  deny — Claude's hard precedence holds for free.
 
-That last gap is also why the rules are **tripwires, not boundaries**, in both
+What OpenCode cannot hand the scripts, the bridge reconstructs, and the
+reconstruction has documented edges:
+
+- **cwd**: Claude's hook input carried the session cwd; the evaluate event
+  carries none. The bridge takes it from the tool's `workdir` resolved against
+  the session directory (`session.location.directory`, cached; a missing
+  directory falls back — scripts resolve operands against what they are told,
+  and a resolution from the wrong base can only fail their checks, never
+  widen them).
+- **cd compounds**: Claude edits `updatedInput` per hook in sequence; OpenCode
+  runs the hooks concurrently, so the judgment scripts are given the command
+  AS WRITTEN (`cd x && curl …`) — the scripts' own bail-outs are mirrored as
+  engagement prefilters, and a cd-guarded curl/rm simply stays silent, which
+  is the safe direction (no auto-approval, not a wider one).
+- **Missing scripts**: on a machine with no `~/.claude/hooks`, the bridge
+  degrades to the jsonc rules quietly; that is absence, not failure.
+- **Failure posture**: per script, mirroring the Claude registration — git-guard
+  alone is fail-closed (`onFailure: "block"` → deny here), the other five fail
+  silent. The scripts that read `~/.claude/settings.json` themselves
+  (approve-multiline, git-dash-c-allow, curl-guard, git-guard) keep reading
+  Claude's file on OpenCode too; the jsonc parity suite is what pins those
+  rule sets to match.
+
+`root/opencode/plugins/guard-bridge/guard-bridge.test.sh` pins the bridge the
+way the jsonc suite pins the rules: pure descriptors and parsing, `runHook`'s
+plumbing (stdin/cwd/env, nonzero exit, the 5s timeout mirroring
+`timeout: 5`), the wiring (stash pairing through the evaluate event's
+`source`, resources fallback, 128-entry cap, failure postures, quiet
+degradation), and the REAL scripts run against a staging dir — a change to a
+hook script's stdio contract is a red suite on both sides.
+
+That last gap — no hook-reviewed rule aware of paths — is also why the rules
+are **tripwires, not boundaries**, in both
 tools: the raw-string matchers never understood a path, so `rm /etc/../etc/x`
 with a variable, or a symlinked ancestor, walked past them before this
 translation too.

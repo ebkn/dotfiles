@@ -47,7 +47,7 @@ Claude Code loads these from `.claude/rules/` when a matching file is touched. C
 
 | Feature                                          | Doc |
 | ------------------------------------------------ | --- |
-| OpenCode permission mirror of `settings.json`    | [root/README.md](root/README.md#opencode-global-config-mirrors-rootclaudesettingsjson), [root/opencode/opencode-jsonc.test.sh](root/opencode/opencode-jsonc.test.sh) |
+| OpenCode permission mirror + hook bridge of `settings.json` | [root/README.md](root/README.md#opencode-global-config-mirrors-rootclaudesettingsjson), [root/opencode/opencode-jsonc.test.sh](root/opencode/opencode-jsonc.test.sh), [root/opencode/plugins/guard-bridge/guard-bridge.test.sh](root/opencode/plugins/guard-bridge/guard-bridge.test.sh) |
 | Agent state indicator (tmux pane options, sync)  | [root/.claude/hooks/agent-state.md](root/.claude/hooks/agent-state.md) |
 | Agent picker (`prefix + a`), answering (`ctrl-o`, `prefix + A`) | [bin/tmux-agents.md](bin/tmux-agents.md), [bin/tmux-agent-view.md](bin/tmux-agent-view.md) |
 | tmux popups (`prefix + p`/`t`/`o`)               | [bin/tmux-popup.md](bin/tmux-popup.md) |

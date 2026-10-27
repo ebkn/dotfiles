@@ -602,14 +602,27 @@
   //
   // ── hooks ─────────────────────────────────────────────────────
   //
-  // Claude's hooks block above cannot appear in this file. Its equivalents
-  // are an OpenCode plugin (`.opencode/plugins/` local plugin or a package
-  // in `plugins`); the mapping, should that plugin be written:
+  // Claude's hooks block cannot appear in this file; the Bash-side five plus
+  // the one rewrite are translated by the guard-bridge plugin
+  // (root/opencode/plugins/guard-bridge, symlinked to
+  // ~/.config/opencode/plugins/guard-bridge by bin/init/links.sh and read
+  // with the jsonc's rules by root/README's OpenCode section):
   //
-  //   PreToolUse(Bash) curl-guard, rm-guard, git-guard,
-  //     git-dash-c-allow, approve-multiline-commands,
-  //     strip-redundant-cd      → ctx.permission.hook("evaluate") /
-  //                               ctx.shell.hook("create.before")
+  //   approve-multiline-commands, git-dash-c-allow, curl-guard, rm-guard,
+  //     git-guard               → ctx.permission.hook("evaluate"); the scripts
+  //                               run as-is, deny > ask > allow, with git-guard
+  //                               fail-closed for its onFailure: "block"
+  //   strip-redundant-cd       → ctx.shell.hook("create.before"), which
+  //                               resolves before the command is scanned into
+  //                               resources, so the rewrite reaches the rules
+  //
+  // Its guarantee rests on the scripts' current stdio contract; see
+  // root/opencode/plugins/guard-bridge/guard-bridge.test.sh for what breaks
+  // the parity (and the parity suite above for the rule sets the scripts
+  // read from ~/.claude/settings.json).
+  //
+  // Still un-translated:
+  //
   //   PreToolUse(Agent) agent-model-guard
   //                             → ctx.tool.hook("execute.before") on the
   //                               subagent tool
@@ -618,10 +631,6 @@
   //   UserPromptSubmit, PermissionRequest (agent-state.sh,
   //   session-cwd.sh)          → ctx.session.hook("prompt") /
   //                               ctx.event.subscribe(...) in a plugin
-  //
-  // Until one exists, curl and rm have NO hook in OpenCode: curl is absent
-  // from allow (as in Claude, where the hook carries it) and unmatched curl
-  // asks; rm keeps only the deny literals above.
 
   // Keep MCP servers in this file, not in a sibling opencode.json: only
   // opencode.jsonc is linked into ~/.config/opencode (bin/init/links.sh), so
