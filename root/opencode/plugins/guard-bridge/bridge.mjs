@@ -217,16 +217,18 @@ export function runHook(file, { stdin, cwd, env, timeoutMs }, spawnImpl = spawn)
       // the hook contract's additions, layered on top. The one such addition
       // today is CLAUDE_PROJECT_DIR = the execution cwd, not Claude's project
       // root, because the execution directory is the only absolute dir the
-      // hook layer knows exists. Two consumers, two directions:
+      // hook layer knows exists. Two consumers, two different directions:
       //   - the in-project fence (git -C, git-workdir.lib.sh) is judged
-      //     against a root that is at most narrower for a session-internal
-      //     workdir: a rejected path prompts -- the safe direction;
+      //     against the execution cwd: for a session-internal workdir that
+      //     only rejects more paths (a rejected -C prompts), for a workdir
+      //     outside the session the fence sits on a foreign tree and can
+      //     approve a -C Claude would not have;
       //   - the project settings layer (git-rules.lib.sh reads
-      //     $CLAUDE_PROJECT_DIR/.claude/settings*.json) is NOT a fence: a
-      //     cwd with no .claude there unhooks the layer, so a project-level
-      //     deny quietly goes unhonored -- the opposite of guard widening,
-      //     and an edge to keep visible when workdirs leave the session.
-      // Full account: root/README.md's project bullet.
+      //     $CLAUDE_PROJECT_DIR/.claude/settings*.json) is NOT a fence: any
+      //     execution cwd that is not a project root unhooks the layer, so a
+      //     project-level deny quietly goes unhonored.
+      // Safe directions only when the execution cwd IS the project root;
+      // full account: root/README.md's project bullet.
       child = spawnImpl(file, [], { cwd, env: { ...process.env, ...env } })
     } catch (error) {
       return once({ failed: true, reason: String(error.message) })

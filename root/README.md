@@ -70,18 +70,24 @@ reconstruction has documented edges:
 - **project**: Claude's `CLAUDE_PROJECT_DIR` named the project root; the
   bridge sets it to the same execution cwd the scripts get for `cwd`, because
   the execution directory is the only absolute dir the hook layer knows
-  exists. The swap is safe for one consumer and not the other:
-  - the in-project fence (`git -C`, git-workdir.lib.sh) is judged against a
-    root that is at most narrower for a session-internal workdir — a rejected
-    path prompts, the ask direction;
+  exists. Two consumers, two *different* directions:
+  - the in-project fence (`git -C`, git-workdir.lib.sh) is judged against the
+    execution cwd itself. For a session-internal workdir that only rejects
+    more paths — a rejected `-C` prompts, the ask direction. For a `workdir`
+    outside the session the fence is pointed at a foreign tree, so a `git -C`
+    inside it can end up approved where Claude, fencing against the project
+    root, would not have been;
   - the project settings layer (git-rules.lib.sh reads
-    `$CLAUDE_PROJECT_DIR/.claude/settings*.json`) is **not** a fence: when the
-    execution cwd is not a project root — a `workdir` outside the session, a
-    subdirectory — the layer unhooks, and a project-level deny quietly goes
-    unhonored. Under a matching OpenCode allow rule the command can then run
-    where Claude would have denied it. The deny rules the parity suite pins
-    are user-level, so the common case (cwd = session dir = the project) is
-    unaffected; the edge belongs to workdirs that leave the session.
+    `$CLAUDE_PROJECT_DIR/.claude/settings*.json`) is **not** a fence: whenever
+    the execution cwd is not a project root — a subdirectory of one, or a
+    workdir outside the session — the layer unhooks, and a project-level deny
+    quietly goes unhonored. Under a matching OpenCode allow rule the command
+    can then run where Claude would have denied it.
+
+  The deny rules the parity suite pins are user-level and reach every cwd;
+  the common case (cwd = session dir = the project) leaves both layers
+  exactly as Claude had them. The edges live where the execution cwd is not
+  the project root.
 - **cd compounds**: Claude edits `updatedInput` per hook in sequence; OpenCode
   runs the hooks concurrently, so the judgment scripts are given the command
   AS WRITTEN (`cd x && curl …`) — the scripts' own bail-outs are mirrored as
