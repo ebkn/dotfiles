@@ -60,7 +60,9 @@ few times a year do not need one. Read the compare view, take a commit at least
 
 ## Tests
 
-`bin/tmux-plugins-install.test.sh`: upstreams are local repositories, so no case
+`bin/tmux-plugins-install.test.sh` runs in a container or CI only (`bin/test-in-docker
+bin/tmux-plugins-install.test.sh` locally): it never starts tmux, but every
+`bin/tmux-*.test.sh` sources `bin/tmux-test-guard.sh`, enrolled by name. Upstreams are local repositories, so no case
 reaches the network, and `GIT_CONFIG_GLOBAL=/dev/null` keeps the developer's
 `insteadOf` and hooks out. One case runs a copy of the tool through a link, as
 `update-all` does; one checks the list against `.tmux.conf`'s `@plugin` lines.

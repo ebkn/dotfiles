@@ -68,13 +68,19 @@ alive() { kill -0 "$1" 2>/dev/null && echo alive || echo gone; }
 # wait_gone <pid> -- poll for up to ~4s. A plain sleep would either be flaky or
 # slow; this reports as soon as the process is reaped and only pays the full
 # wait when the answer is genuinely "still alive", i.e. when the test fails.
+#
+# "alive" carries the process's state and parent. 'the last session ending
+# stops it' has failed in CI now and then (2 runs in ~20, the suite 8.0s
+# against 4.3s: the full wait), never locally, and kill -0 cannot tell a ping
+# still running -- a leak -- from a killed one its parent has not reaped yet
+# (stat Z). The FAIL line says which, next time.
 wait_gone() {
   local pid=$1 i
   for i in {1..40}; do
     kill -0 "$pid" 2>/dev/null || { echo gone; return }
     sleep 0.1
   done
-  echo alive
+  echo "alive (stat ppid: $(ps -o stat=,ppid= -p "$pid" 2>/dev/null))"
 }
 
 # case_file <name> -- start a fresh ping record for one case.
