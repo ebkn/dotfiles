@@ -112,6 +112,9 @@ link_dotfiles() {
   # real dir confines those writes outside the repo. OpenCode reads skills from
   # ~/.agents/skills and ~/.claude/skills, so it needs no skills dir of its own.
   link_with_backup "${DOTFILES_DIR}/root/opencode/opencode.jsonc" "${HOME}/.config/opencode/opencode.jsonc"
+  # TUI preferences (theme, sidebar, diffs) live in cli.json, separate from the
+  # server config above, so they need their own link.
+  link_with_backup "${DOTFILES_DIR}/root/opencode/cli.json" "${HOME}/.config/opencode/cli.json"
   # The plugin dir links as one SYMLINK, unlike skills: OpenCode only reads a
   # plugin directory (index.js -> bridge.mjs -> test/), it never installs
   # into ~/.config/opencode/plugins, so no write can come through to this

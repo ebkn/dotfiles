@@ -12,6 +12,10 @@ comment block at the bottom of the OpenCode file records what could not be
 translated (hooks, modes, plugin marketplaces) and at what point a plugin
 would have to pick it up.
 
+`root/opencode/cli.json` (TUI preferences) is linked beside it.
+`service.json`, where OpenCode stores its local server password, is
+gitignored and never linked.
+
 The translation is not mechanical, because the matchers differ:
 
 - **One ordered array, last match wins.** Claude's `allow` / `ask` / `deny`
