@@ -310,6 +310,31 @@ if (group === "failures") {
     )
   })
 
+  await runScenario("a timed-out hook takes its failure posture", async () => {
+    // The mock's hang far outlasts the test-only timeout, so the verdict
+    // comes from the kill, not an exit: a hook that runs past its timeout
+    // counts as hook failure, with each script's posture.
+    setOut("git-guard", "sleep")
+    setOut("rm-guard", "sleep")
+    const reg = await registerForGroup({ deps: { timeoutMs: 500 } })
+    await beforeOf(reg)({ tool: "shell", messageID: "h1", id: "t1", input: { command: "git status" } })
+    await beforeOf(reg)({ tool: "shell", messageID: "h2", id: "t2", input: { command: "rm x" } })
+    const gitEvent = { sessionID: "s1", action: "shell", resources: [], source: { messageID: "h1", id: "t1" }, effect: "ask" }
+    const rmEvent = { sessionID: "s1", action: "shell", resources: [], source: { messageID: "h2", id: "t2" }, effect: "ask" }
+    await Promise.all([evaluateOf(reg)(gitEvent), evaluateOf(reg)(rmEvent)])
+    check("a timed-out git-guard denies, like its onFailure block", gitEvent.effect === "deny", JSON.stringify(gitEvent))
+    check(
+      "the timed-out deny names the hook like a crash does",
+      gitEvent.message?.startsWith("guard-bridge: git-guard failed") === true,
+      JSON.stringify(gitEvent.message),
+    )
+    check(
+      "a timed-out silent script leaves the decision alone",
+      rmEvent.effect === "ask" && rmEvent.message === undefined,
+      JSON.stringify(rmEvent),
+    )
+  })
+
   await runScenario("absent ~/.claude/hooks degrades quietly", async () => {
     const absent = path.join(stage, "absent-mock")
     const reg = await registerForGroup({ hooksDir: absent })

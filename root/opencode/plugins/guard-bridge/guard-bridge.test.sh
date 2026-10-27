@@ -68,7 +68,9 @@ for name in approve-multiline-commands git-dash-c-allow curl-guard rm-guard git-
 # Same stdio shape as the ~/.claude hook scripts: one JSON input line on
 # stdin, an optional hookSpecificOutput on stdout, silent exit for no
 # opinion. Behavior comes from the .out file beside this copy:
-#   absent -> silent   | sleep -> hang (the runHook timeout case)
+#   absent -> silent   | sleep -> hang (the runHook timeout case; hangs
+#                          far past any test timeout so the kill, not the
+#                          exit, is what a timeout scenario settles)
 #   crash -> stderr + exit 7  | otherwise the file is catted verbatim
 IFS=
 line=$(cat)
@@ -83,7 +85,7 @@ if [ -n "${MOCK_LOG:-}" ]; then
 fi
 behavior=$(cat "$(dirname "$0")/$(basename "$0" .sh).out" 2>/dev/null)
 case "$behavior" in
-  sleep) sleep 5 ;;
+  sleep) sleep 60 ;;
   crash)
     printf 'mock crash from %s\n' "$(basename "$0")" >&2
     exit 7
