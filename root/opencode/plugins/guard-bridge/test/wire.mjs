@@ -451,11 +451,11 @@ if (group === "real") {
     fs.rmSync(fixture, { recursive: true })
   })
 
-  await runScenario("real rules-reading scripts act on the rules they read", async () => {
-    // The three judgment scripts whose verdicts come from
-    // ~/.claude/settings.json (approve-multiline's rule judgement needs a
-    // project rule, git-dash-c-allow and curl-guard read the allow list). A
-    // staged HOME makes the verdict a property of these fixtures, not of
+  await runScenario("real rules-driven scripts act as the fixtures say", async () => {
+    // git-dash-c-allow and curl-guard read ~/.claude/settings.json's allow
+    // list; approve-multiline-commands reads no settings -- its verdict is
+    // its own safelist, run here for real beside them. A staged HOME makes
+    // the rules-reading verdicts properties of these fixtures, not of
     // whatever the machine running the suite had set up.
     const home = fs.mkdtempSync(path.join(stage, "real-home-"))
     fs.mkdirSync(path.join(home, ".claude"))
@@ -463,7 +463,11 @@ if (group === "real") {
       path.join(home, ".claude", "settings.json"),
       JSON.stringify({
         permissions: {
-          allow: ["Bash(git status)", "Bash(git commit -m *)", "WebFetch(domain:example.invalid)"],
+          allow: [
+            "Bash(git status)",
+            "Bash(git commit -m *)",
+            "WebFetch(domain:example.invalid)",
+          ],
         },
       }),
     )

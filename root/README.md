@@ -75,10 +75,11 @@ reconstruction has documented edges:
   degrades to the jsonc rules quietly; that is absence, not failure.
 - **Failure posture**: per script, mirroring the Claude registration — git-guard
   alone is fail-closed (`onFailure: "block"` → deny here), the other five fail
-  silent. The scripts that read `~/.claude/settings.json` themselves
-  (approve-multiline, git-dash-c-allow, curl-guard, git-guard) keep reading
-  Claude's file on OpenCode too; the jsonc parity suite is what pins those
-  rule sets to match.
+  silent. The scripts that read `~/.claude/settings.json` themselves (git-guard,
+  git-dash-c-allow, curl-guard) keep reading Claude's file on OpenCode too, and
+  the jsonc parity suite is what pins those rule sets to match;
+  approve-multiline-commands reads no settings — its approval comes from a
+  safelist inside the script, so the bridge is its OpenCode side everywhere.
 
 `root/opencode/plugins/guard-bridge/guard-bridge.test.sh` pins the bridge the
 way the jsonc suite pins the rules: pure descriptors and parsing, `runHook`'s
@@ -86,10 +87,11 @@ plumbing (stdin/cwd/env, nonzero exit, the 5s timeout mirroring
 `timeout: 5`), the wiring (stash pairing through the evaluate event's
 `source`, resources fallback, 128-entry cap, failure postures, quiet
 degradation), and ALL SIX real scripts run against a staging dir — strip,
-git-guard and rm-guard on fixtures of their own, the three rules-reading
-scripts under a staged HOME holding a minimal settings.json so the verdict
-does not depend on the machine — a change to a hook script's stdio contract
-or bail-out is a red suite on both sides.
+git-guard and rm-guard on fixtures of their own, and under a staged HOME
+holding a minimal settings.json: the two rules-reading scripts (git-dash-c-allow,
+curl-guard) act on those fixtures' rules instead of the machine's, and
+approve-multiline-commands on its own in-script safelist — a change to a hook
+script's stdio contract or bail-out is a red suite on both sides.
 
 That last gap — no hook-reviewed rule aware of paths — is also why the rules
 are **tripwires, not boundaries**, in both

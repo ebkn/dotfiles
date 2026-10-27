@@ -618,8 +618,9 @@
   //
   // Its guarantee rests on the scripts' current stdio contract; see
   // root/opencode/plugins/guard-bridge/guard-bridge.test.sh for what breaks
-  // the parity (and the parity suite above for the rule sets the scripts
-  // read from ~/.claude/settings.json).
+  // the parity (and the parity suite above for the settings.json rule sets
+  // the rules-reading scripts -- git-guard, git-dash-c-allow, curl-guard --
+  // read from it; approve-multiline-commands reads no settings).
   //
   // Still un-translated:
   //
