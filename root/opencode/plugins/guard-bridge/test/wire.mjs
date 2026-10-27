@@ -450,6 +450,68 @@ if (group === "real") {
     )
     fs.rmSync(fixture, { recursive: true })
   })
+
+  await runScenario("real rules-reading scripts act on the rules they read", async () => {
+    // The three judgment scripts whose verdicts come from
+    // ~/.claude/settings.json (approve-multiline's rule judgement needs a
+    // project rule, git-dash-c-allow and curl-guard read the allow list). A
+    // staged HOME makes the verdict a property of these fixtures, not of
+    // whatever the machine running the suite had set up.
+    const home = fs.mkdtempSync(path.join(stage, "real-home-"))
+    fs.mkdirSync(path.join(home, ".claude"))
+    fs.writeFileSync(
+      path.join(home, ".claude", "settings.json"),
+      JSON.stringify({
+        permissions: {
+          allow: ["Bash(git status)", "Bash(git commit -m *)", "WebFetch(domain:example.invalid)"],
+        },
+      }),
+    )
+    const savedHome = process.env.HOME
+    process.env.HOME = home
+    try {
+      const reg = await registerForGroup({ hooksDir: claudeHooksArg, deps: realDeps })
+      // approve-multiline-commands: the newline lives inside the message data.
+      await beforeOf(reg)({ tool: "shell", messageID: "w1", id: "t1", input: { command: 'git commit -m "a\nb"' } })
+      const commit = { sessionID: "s1", action: "shell", resources: [], source: { messageID: "w1", id: "t1" }, effect: "ask" }
+      await evaluateOf(reg)(commit)
+      check("real approve-multiline allows the newline-holding message", commit.effect === "allow", JSON.stringify(commit))
+
+      // git-dash-c-allow: the -C stays in the project and the rule covers status.
+      await beforeOf(reg)({ tool: "shell", messageID: "w2", id: "t2", input: { command: "git -C . status" } })
+      const status = { sessionID: "s1", action: "shell", resources: [], source: { messageID: "w2", id: "t2" }, effect: "ask" }
+      await evaluateOf(reg)(status)
+      check("real git-dash-c-allow allows an in-project -C under its rule", status.effect === "allow", JSON.stringify(status))
+
+      await beforeOf(reg)({ tool: "shell", messageID: "w3", id: "t3", input: { command: "git -C . push" } })
+      const push = { sessionID: "s1", action: "shell", resources: [], source: { messageID: "w3", id: "t3" }, effect: "ask" }
+      await evaluateOf(reg)(push)
+      check(
+        "real git-dash-c-allow stays silent without a covering rule",
+        push.effect === "ask" && push.message === undefined,
+        JSON.stringify(push),
+      )
+
+      // curl-guard: the host must come from the settings' WebFetch allow list.
+      await beforeOf(reg)({ tool: "shell", messageID: "w4", id: "t4", input: { command: "curl -s https://example.invalid/x" } })
+      const curl = { sessionID: "s1", action: "shell", resources: [], source: { messageID: "w4", id: "t4" }, effect: "ask" }
+      await evaluateOf(reg)(curl)
+      check("real curl-guard allows an allow-listed host", curl.effect === "allow", JSON.stringify(curl))
+
+      await beforeOf(reg)({ tool: "shell", messageID: "w5", id: "t5", input: { command: "curl -s https://other.example.invalid/x" } })
+      const curled = { sessionID: "s1", action: "shell", resources: [], source: { messageID: "w5", id: "t5" }, effect: "ask" }
+      await evaluateOf(reg)(curled)
+      check(
+        "real curl-guard leaves an unlisted host to the rules",
+        curled.effect === "ask" && curled.message === undefined,
+        JSON.stringify(curled),
+      )
+    } finally {
+      if (savedHome === undefined) delete process.env.HOME
+      else process.env.HOME = savedHome
+      fs.rmSync(home, { recursive: true })
+    }
+  })
 }
 
 fs.writeFileSync(resultsPath, `${checks.join("\n")}\n`)

@@ -27,12 +27,17 @@
 #     settings.json onFailure: "block"), quiet degradation when ~/.claude
 #     /hooks does not exist (an OpenCode-only machine), and the create.before
 #     rewrite staying off when the strip script does not rewrite;
-#   - and the REAL scripts, run from this repo's root/.claude/hooks: strip
-#     rewrites `cd <cwd> && rest` and refuses an unrelated cd; git-guard
-#     denies a `-c` before the subcommand through exit 0 + JSON, not the
-#     crash path; rm-guard allows an operand inside the cwd's own tmp/ and
-#     stays silent outside it. A mock imitates this only approximately,
-#     which is why the mock contract above is pinned separately.
+#   - and ALL SIX REAL scripts, run from this repo's root/.claude/hooks:
+#     strip rewrites `cd <cwd> && rest` and refuses an unrelated cd;
+#     git-guard denies a `-c` before the subcommand through exit 0 + JSON,
+#     not the crash path; rm-guard allows an operand inside the cwd's own
+#     tmp/ and stays silent outside it; approve-multiline-commands allows a
+#     newline held inside a commit message; git-dash-c-allow and curl-guard
+#     act on the allow rules they read, under a STAGED HOME holding a
+#     minimal settings.json, so the verdicts are properties of the fixtures
+#     and not of the machine running the suite. The mocks exist for the
+#     failure paths (crash, hang) a real script cannot be asked to take on
+#     cue; the stdio shape they imitate is the same one checked here.
 #
 # The mock scripts share one directory: behavior comes from a
 # `<script>.out` file the case writes (absent = silent, `sleep` hangs,

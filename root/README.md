@@ -85,8 +85,11 @@ way the jsonc suite pins the rules: pure descriptors and parsing, `runHook`'s
 plumbing (stdin/cwd/env, nonzero exit, the 5s timeout mirroring
 `timeout: 5`), the wiring (stash pairing through the evaluate event's
 `source`, resources fallback, 128-entry cap, failure postures, quiet
-degradation), and the REAL scripts run against a staging dir — a change to a
-hook script's stdio contract is a red suite on both sides.
+degradation), and ALL SIX real scripts run against a staging dir — strip,
+git-guard and rm-guard on fixtures of their own, the three rules-reading
+scripts under a staged HOME holding a minimal settings.json so the verdict
+does not depend on the machine — a change to a hook script's stdio contract
+or bail-out is a red suite on both sides.
 
 That last gap — no hook-reviewed rule aware of paths — is also why the rules
 are **tripwires, not boundaries**, in both
