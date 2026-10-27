@@ -15,6 +15,8 @@ jobs:
     # GitHub's six-hour default on the GnuPG installer and ended grey, so nothing
     # after it had ever run in CI. This only bounds the runner time; the
     # install step's own limit below is what is meant to turn a hang red.
+    # --silent did not stop that hang either, so windows.ps1 now skips GnuPG
+    # when GITHUB_ACTIONS is set.
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -38,7 +40,8 @@ jobs:
           if (-not (Test-Path $lnk)) { throw "no startup shortcut at $lnk" }
           $map = Get-ItemPropertyValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Keyboard Layout' -Name 'Scancode Map'
           if (($map[12..15] -join ',') -ne '29,0,58,0') { throw "Scancode Map does not remap CapsLock: $($map -join ',')" }
-          foreach ($id in 'Google.Chrome', 'wez.wezterm', 'GnuPG.GnuPG', 'AutoHotkey.AutoHotkey') {
+          # No GnuPG.GnuPG: windows.ps1 skips it on CI, where its installer hangs.
+          foreach ($id in 'Google.Chrome', 'wez.wezterm', 'AutoHotkey.AutoHotkey') {
             winget list --exact --id $id --accept-source-agreements | Out-Null
             if ($LASTEXITCODE -ne 0) { throw "$id is not installed" }
           }

@@ -11,6 +11,12 @@
 #
 # Written for bash 3.2 (/bin/bash on macOS), as the tool is.
 set -uo pipefail
+# A tmux suite by name: container or CI only (see bin/tmux-test-guard.sh).
+# It never starts tmux, but enrollment is by name on purpose -- see
+# bin/tmux-test-guard.test.sh -- so it follows the rule rather than being
+# its exception.
+# shellcheck source=bin/tmux-test-guard.sh
+. "$(dirname "$0")/tmux-test-guard.sh" || exit 2
 . "$(dirname "$0")/test-lib.sh" || exit 2
 # A tmux suite by name, so it is enrolled like the others (bin/test skips it
 # on a host and bin/test-in-docker runs it): the tool it tests writes into

@@ -46,29 +46,68 @@ $(git diff --no-ext-diff --no-color main...HEAD)" \
     "$(transcript_result_text)"
 }
 
-# summary_eval_check_proactive
-# The README fix done and committed, then session-summary started -- once,
-# after the last commit -- and its message is the closing one.
-summary_eval_check_proactive() {
-  local summary last_commit skill_index
-  summary="$(transcript_result_text)"
-  # As in reports-finished-branch: haiku let repetition through. Local, so a
-  # grader calling this beside its own checks keeps its own judge.
-  local SKILL_EVAL_JUDGE_MODEL="${SKILL_EVAL_JUDGE_MODEL:-sonnet}"
-
-  # --- the request itself was carried out ---
+# summary_eval_check_install_fixed
+# The proactive request carried out: the Install section names install.sh,
+# no longer make install, and nothing is left uncommitted. Shared by every
+# case that asks for that fix, so one grader is pinned for all of them.
+summary_eval_check_install_fixed() {
   check_match "README installs with install.sh" '\./install\.sh' "$(cat README.md)"
   check_not_match "and no longer names make install" 'make install' "$(cat README.md)"
-  check "committed the work" test "$(git rev-list --count eval-base..HEAD)" -ge 1
   check_eq "left nothing uncommitted" "" "$(git status --porcelain)"
+}
 
-  # --- starting by itself ("## When to start") ---
+# summary_eval_check_timing
+# Started by itself at the end ("## When to start"): once, and after the last
+# commit. Once rules out a start mid-request as well as a second one at the
+# end: a run that summarized after its first commit either started twice or
+# came before the last.
+summary_eval_check_timing() {
+  local last_commit skill_index
   check_eq "started session-summary once" "1" "$(transcript_skill_uses session-summary)"
   # root/CLAUDE.md prefers `git -C <dir> <subcommand>`, so allow a -C.
   last_commit="$(transcript_command_indexes '^git +(-C +[^ ]+ +)?commit( |$)' | tail -n 1)"
   skill_index="$(transcript_skill_rounds session-summary | jq -s '.[0].index // empty')"
   check "started it after the last commit" \
     test "${skill_index:-0}" -gt "${last_commit:-999999}"
+}
+
+# summary_eval_check_after_publishing
+# With a GitHub origin, root/CLAUDE.md publishes before reporting back, so the
+# summary comes after the last create-pr or update-pr and after the last gh
+# command that changed the PR -- a summary written before the PR was ready
+# reports a state the PR no longer has. Needs a transcript where publishing
+# happened; a run that never published fails here, not silently.
+summary_eval_check_after_publishing() {
+  local skill_index last_skill last_gh last
+  skill_index="$(transcript_skill_rounds session-summary | jq -s '.[0].index // empty')"
+  last_skill="$({
+    transcript_skill_rounds create-pr
+    transcript_skill_rounds update-pr
+  } | jq -s 'map(.index) | max // empty')"
+  last_gh="$(transcript_command_indexes '(^|[[:space:]])gh +pr +(create|edit|ready)( |$)' | tail -n 1)"
+  last="${last_skill:-}"
+  if [ -n "$last_gh" ] && { [ -z "$last" ] || [ "$last_gh" -gt "$last" ]; }; then
+    last="$last_gh"
+  fi
+  check "published the PR through create-pr or update-pr" test -n "$last_skill"
+  check "started it after the PR was published" \
+    test "${skill_index:-0}" -gt "${last:-999999}"
+}
+
+# summary_eval_check_proactive
+# The README fix done and committed, then session-summary started -- once,
+# after the last commit -- and its message is the closing one.
+summary_eval_check_proactive() {
+  local summary
+  summary="$(transcript_result_text)"
+  # As in reports-finished-branch: haiku let repetition through. Local, so a
+  # grader calling this beside its own checks keeps its own judge.
+  local SKILL_EVAL_JUDGE_MODEL="${SKILL_EVAL_JUDGE_MODEL:-sonnet}"
+
+  summary_eval_check_install_fixed
+  check "committed the work" test "$(git rev-list --count eval-base..HEAD)" -ge 1
+
+  summary_eval_check_timing
 
   # --- the closing message is the summary ---
   check_llm "the closing message restates the request before the work" \

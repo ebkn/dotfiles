@@ -365,6 +365,101 @@ for case_name in proactive-with-claude-md proactive-at-finish; do
 done
 
 # ============================================================
+# proactive-after-pr
+# ============================================================
+# shellcheck disable=SC2016  # expanded inside act
+open_pr='git push -q -u origin HEAD; bin/gh pr create --title "docs: install with install.sh" --body b'
+pr_url="https://github.com/example/fixture/pull/1"
+pr_msg="$proactive_msg
+- PR: $pr_url"
+pr_commit='rec_tool Edit "{\"file_path\":\"README.md\"}"; rec_bash "git commit -m docs"'
+pr_open='rec_skill create-pr; rec_bash "gh pr create --title t --body b"'
+after_pr_run() {
+  new_run proactive-after-pr || return 1
+  act "$1" "$2"
+  grade "$3"
+}
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary" "$fix_readme; $open_pr" "$pr_msg"
+expect_pass "proactive-after-pr: commit, PR, then the summary passes"
+after_pr_run "$pr_commit; rec_skill update-pr; rec_bash \"gh pr ready\"; rec_skill session-summary" "$fix_readme; $open_pr" "$pr_msg"
+expect_pass "proactive-after-pr: published through update-pr passes too"
+# The skill itself reads the PR (SKILL.md, "Gather the facts"): a read after
+# it is not publishing.
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary; rec_bash \"gh pr view --json url,isDraft,title\"" "$fix_readme; $open_pr" "$pr_msg"
+expect_pass "proactive-after-pr: the summary's own gh pr view after it passes"
+after_pr_run "$pr_commit; rec_skill session-summary; $pr_open" "$fix_readme; $open_pr" "$pr_msg"
+expect_fail "proactive-after-pr: summarized before the PR was opened" "started it after the PR was published"
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary; rec_bash \"gh pr ready\"" "$fix_readme; $open_pr" "$pr_msg"
+expect_fail "proactive-after-pr: a gh pr ready after the summary" "started it after the PR was published"
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary; rec_bash \"gh pr edit --body b\"" "$fix_readme; $open_pr" "$pr_msg"
+expect_fail "proactive-after-pr: a gh pr edit after the summary" "started it after the PR was published"
+# No gh recorded after update-pr, so only the last publishing skill can
+# place it after the summary: the first one is before.
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary; rec_skill update-pr" "$fix_readme; $open_pr" "$pr_msg"
+expect_fail "proactive-after-pr: an update-pr after the summary" "started it after the PR was published"
+after_pr_run "$pr_commit; rec_bash \"gh pr create --title t --body b\"; rec_skill session-summary" "$fix_readme; $open_pr" "$pr_msg"
+expect_fail "proactive-after-pr: a PR opened by hand" "published the PR through create-pr or update-pr"
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary" "$fix_readme; $open_pr" "$proactive_msg"
+expect_fail "proactive-after-pr: the PR URL left out" "names the PR by its URL"
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary" "$fix_readme; ${open_pr/pr create/pr create --draft}" "$pr_msg"
+expect_fail "proactive-after-pr: the PR left a draft" "the PR ends ready for review"
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary" "$fix_readme; $open_pr; git commit -q --allow-empty -m x" "$pr_msg"
+expect_fail "proactive-after-pr: a commit not pushed" "pushed every commit"
+after_pr_run "$pr_commit; rec_skill session-summary" "$fix_readme" "$pr_msg"
+expect_fail "proactive-after-pr: no PR at all" "the PR ends ready for review"
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary" "$keep_make; $open_pr" "$pr_msg"
+expect_fail "proactive-after-pr: the request checks run (make install kept)" "and no longer names make install"
+# Started twice, both after the PR: only the timing checks see it, since the
+# publishing check reads the first start alone.
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary; rec_skill session-summary" "$fix_readme; $open_pr" "$pr_msg"
+expect_fail "proactive-after-pr: the timing checks run (started twice)" "started session-summary once"
+after_pr_run "$pr_commit; $pr_open; rec_skill session-summary" "$fix_readme; $open_pr" "$pr_msg JUDGE_FAIL"
+expect_fail "proactive-after-pr: the judge reads the closing message" "reports nothing the commits do not hold"
+assert_eq "proactive-after-pr: every judged check asks sonnet by default" "sonnet" \
+  "$(sort -u "$root_dir/judge-models")"
+SKILL_EVAL_JUDGE_MODEL=haiku grade "$pr_msg"
+assert_eq "proactive-after-pr: an explicit judge model still wins" "haiku" \
+  "$(sort -u "$root_dir/judge-models")"
+
+# ============================================================
+# proactive-multi-step
+# ============================================================
+# shellcheck disable=SC2016  # expanded inside act
+add_usage='printf "\n\`\`\`\n\$ ./tally.sh README.md\n  20 README.md\n\`\`\`\n" >>README.md; git commit -qam "docs: show a run of tally.sh"'
+two_commits='rec_tool Edit "{\"file_path\":\"README.md\"}"; rec_bash "git commit -m install"; rec_tool Edit "{\"file_path\":\"README.md\"}"; rec_bash "git commit -m usage"'
+multi_run() {
+  new_run proactive-multi-step || return 1
+  act "$1" "$2"
+  grade "$3"
+}
+multi_run "$two_commits; rec_skill session-summary" "$fix_readme; $add_usage" "$proactive_msg"
+expect_pass "proactive-multi-step: two commits, then the summary passes"
+multi_run 'rec_bash "git commit -m install"; rec_skill session-summary; rec_bash "git commit -m usage"' "$fix_readme; $add_usage" "$proactive_msg"
+expect_fail "proactive-multi-step: summarized after the first commit only" "started it after the last commit"
+multi_run 'rec_bash "git commit -m install"; rec_skill session-summary; rec_bash "git commit -m usage"; rec_skill session-summary' "$fix_readme; $add_usage" "$proactive_msg"
+expect_fail "proactive-multi-step: summarized after each commit" "started session-summary once"
+multi_run "$two_commits; rec_skill session-summary" "$fix_readme" "$proactive_msg"
+expect_fail "proactive-multi-step: the usage example missing" "Usage shows a run on README.md"
+expect_fail "proactive-multi-step: and one commit only" "committed twice"
+multi_run "$two_commits; rec_skill session-summary" "$keep_make; $add_usage" "$proactive_msg"
+expect_fail "proactive-multi-step: the request checks run (make install kept)" "and no longer names make install"
+# shellcheck disable=SC2016  # expanded inside act
+both_then_empty='sed "s#make install#./install.sh#" README.md >R.tmp; mv R.tmp README.md; printf "\n\`\`\`\n\$ ./tally.sh README.md\n\`\`\`\n" >>README.md; git commit -qam both; git commit -q --allow-empty -m x'
+multi_run "$two_commits; rec_skill session-summary" "$both_then_empty" "$proactive_msg"
+expect_fail "proactive-multi-step: both parts in the first commit" "and left Usage to a later one"
+assert_eq "proactive-multi-step: and nothing else failed" "1" "$(grep -c '^FAIL' <<<"$out")"
+multi_run "$two_commits; rec_skill session-summary" "git commit -q --allow-empty -m x; $fix_readme; $add_usage" "$proactive_msg"
+expect_fail "proactive-multi-step: a first commit that does not fix Install" "the first commit fixed Install"
+assert_eq "proactive-multi-step: and nothing else failed (Install first)" "1" "$(grep -c '^FAIL' <<<"$out")"
+multi_run "$two_commits; rec_skill session-summary" "$fix_readme; $add_usage" "$proactive_msg JUDGE_FAIL"
+expect_fail "proactive-multi-step: the judge reads the closing message" "reports nothing the commits do not hold"
+assert_eq "proactive-multi-step: every judged check asks sonnet by default" "sonnet" \
+  "$(sort -u "$root_dir/judge-models")"
+SKILL_EVAL_JUDGE_MODEL=haiku grade "$proactive_msg"
+assert_eq "proactive-multi-step: an explicit judge model still wins" "haiku" \
+  "$(sort -u "$root_dir/judge-models")"
+
+# ============================================================
 # no-fire-question
 # ============================================================
 answer='引数がないと wc は標準入力を読むので、入力を待って止まります。'
