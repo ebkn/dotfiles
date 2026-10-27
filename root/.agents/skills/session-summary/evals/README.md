@@ -10,6 +10,8 @@ Run with `bin/skill-eval session-summary` ([bin/skill-eval.md](../../../../../bi
 | `reports-finished-branch` | the message itself, started by name on a finished branch: the request and its change of direction first, the unrequested fix kept apart, the interface shown, what is left at the end, and no file from a main that moved on after the branch split off |
 | `reports-unfinished-request` | the same branch, with a request it does not fully meet: Usage in README.md was asked for and no commit touches it, and the unrequested usage-error fix ends `… \| ./tally.sh`, which used to count stdin. The prompt names neither; the message has to find both from git |
 | `proactive-with-claude-md` / `proactive-at-finish` | whether it starts by itself after the last commit, with `root/CLAUDE.md` or with the description alone — same prompt, fixture and grader |
+| `proactive-after-pr` | the same request with a GitHub origin (the fake one): the summary starts only after create-pr / update-pr has left the PR ready, and names it by URL |
+| `proactive-multi-step` | one request asked for in two commits: not after the first, once after the second |
 | `no-fire-question` | that it stays out of an answered question |
 
 The message is graded mostly by `check_llm`, because no regex can say "the
@@ -124,6 +126,13 @@ one point. Section 4 is now code and structure only — the usage line and an
 example show how it is called — and what the code handles is written once,
 in Left open, where it falls short: `reports-finished-branch` 5/5,
 `reports-unfinished-request` 3/3.
+
+**When it starts** (sonnet, with `root/CLAUDE.md`): `proactive-after-pr`
+3/3 — commit, create-pr opening the PR ready, then the summary with the PR's
+URL; `proactive-multi-step` 3/3 — commit, commit, then one summary. Both
+passed on the skill as it was, so they guard the timing rather than having
+driven a change; no run summarized early, which leaves the grader's FAIL
+paths proven by `assert.test.sh` only.
 
 **The auto-start rests on `root/CLAUDE.md`**, as `review-test`'s did: the
 description alone started the skill in 1 run of 6. The case is kept as the
