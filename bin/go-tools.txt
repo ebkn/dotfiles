@@ -18,4 +18,4 @@ github.com/cloudspannerecosystem/spanner-cli v0.11.2 cloudspannerecosystem/spann
 github.com/aquasecurity/tfsec v1.28.14 aquasecurity/tfsec master github.com/aquasecurity/tfsec/cmd/tfsec
 github.com/terraform-linters/tflint v0.64.0 terraform-linters/tflint master github.com/terraform-linters/tflint
 mvdan.cc/gofumpt v0.12.0 mvdan/gofumpt master mvdan.cc/gofumpt
-tailscale.com v1.104.1 tailscale/tailscale release-branch/{X.Y} tailscale.com/cmd/tailscale tailscale.com/cmd/tailscaled
+tailscale.com v1.104.2 tailscale/tailscale release-branch/{X.Y} tailscale.com/cmd/tailscale tailscale.com/cmd/tailscaled
