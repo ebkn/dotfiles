@@ -13,7 +13,7 @@ two different things scribble on it:
 
 **The mouse half is the part worth knowing**, since it looks like a wholly
 separate bug and is not ssh output at all. The cure is the same escape sequence
-`_ssh_decorate_off` sends on the way out, sent here on the way **in**.
+`ssh::decorate_off` sends on the way out, sent here on the way **in**.
 
 ## Why a shim and not a reimplementation
 

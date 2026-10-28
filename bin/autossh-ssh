@@ -91,7 +91,7 @@ centred() {
 
 # The first notice of an outage clears the screen and shuts the mouse up; later
 # attempts only repaint, so retrying every second does not flicker the whole
-# screen. The reset is the sequence _ssh_decorate_off sends on the way out (the
+# screen. The reset is the sequence ssh::decorate_off sends on the way out (the
 # five mouse tracking modes plus bracketed paste) -- sent here on the way *in*,
 # because the flood starts the moment the remote stops reading. The remote
 # re-enables what it wants when the client attaches again.

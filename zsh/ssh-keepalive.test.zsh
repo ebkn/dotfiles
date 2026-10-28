@@ -19,7 +19,7 @@
 #
 # _SSH_KEEPALIVE_POLL is turned right down so the tests do not wait seconds,
 # _SSH_KEEPALIVE_DIR points the shared state at a scratch dir, and
-# _ssh_keepalive_start takes the owner pid as an argument so a test can own a
+# ssh::keepalive_start takes the owner pid as an argument so a test can own a
 # process it is allowed to kill -- and play several "shells" from one.
 #
 # Run: zsh zsh/ssh-keepalive.test.zsh   (exit 0 = pass)
@@ -135,7 +135,7 @@ settled_pings() {
 }
 
 # wait_poll <owners dir> -- return once the supervisor behind that directory
-# (the :h of an owner file _ssh_keepalive_start registered) has run a poll that
+# (the :h of an owner file ssh::keepalive_start registered) has run a poll that
 # began after this call, so a check after it sees what the supervisor made of
 # the state as it was at the call. That is the event "it is still running"
 # needs, and polling for an absence of change cannot supply it.
@@ -172,18 +172,18 @@ owner() { sleep 600 >/dev/null 2>&1 &! echo $!; }
 
 # --- the ordinary path: myssh stops the keepalive when the session ends -----
 case_file stop
-_ssh_keepalive_start 10.0.0.1
+ssh::keepalive_start 10.0.0.1
 png=$(first_ping)
 check 'a session starts a ping' 'alive' "$(alive "$png")"
 check 'to the host it was given' '10.0.0.1' "$(head -1 "$PING_PIDFILE.target")"
-_ssh_keepalive_stop
+ssh::keepalive_stop
 check 'stopping the only session stops the ping' 'gone' "$(wait_gone "$png")"
 check 'stop clears the recorded owner' '' "$_SSH_KEEPALIVE_OWNER"
 
 # --- the leak: the owning shell dies without myssh ever returning -----------
 case_file owner
 o1=$(owner)
-_ssh_keepalive_start 10.0.0.2 "$o1"
+ssh::keepalive_start 10.0.0.2 "$o1"
 png=$(first_ping)
 check 'the ping starts for a live owner' 'alive' "$(alive "$png")"
 kill "$o1"
@@ -193,38 +193,38 @@ _SSH_KEEPALIVE_OWNER=""
 # --- sharing: several sessions on one host run one ping ---------------------
 case_file share
 o1=$(owner) o2=$(owner)
-_ssh_keepalive_start 10.0.0.3 "$o1"
+ssh::keepalive_start 10.0.0.3 "$o1"
 own1=$_SSH_KEEPALIVE_OWNER
 png=$(first_ping)
-_ssh_keepalive_start 10.0.0.3 "$o2"
+ssh::keepalive_start 10.0.0.3 "$o2"
 loser=$!
 own2=$_SSH_KEEPALIVE_OWNER
 check 'two sessions on one host run one ping' '1' "$(settled_pings 1 "$loser")"
 
 # The gap: the ping must outlive any one session while another remains.
-_SSH_KEEPALIVE_OWNER=$own1 _ssh_keepalive_stop
+_SSH_KEEPALIVE_OWNER=$own1 ssh::keepalive_stop
 wait_poll "${own2:h}"
 check 'the first session ending keeps the shared ping' 'alive' "$(alive "$png")"
-_SSH_KEEPALIVE_OWNER=$own2 _ssh_keepalive_stop
+_SSH_KEEPALIVE_OWNER=$own2 ssh::keepalive_stop
 check 'the last session ending stops it' 'gone' "$(wait_gone "$png")"
 
 # A session arriving after the last one left needs a ping of its own; the
 # previous supervisor released the lock on its way out.
-_ssh_keepalive_start 10.0.0.3 "$o1"
+ssh::keepalive_start 10.0.0.3 "$o1"
 check 'a later session on that host starts a new one' '1' "$(settled_pings 1)"
-_ssh_keepalive_stop
+ssh::keepalive_stop
 kill "$o1" "$o2"
 
 # --- different hosts are independent ----------------------------------------
 case_file hosts
 o1=$(owner)
-_ssh_keepalive_start 10.0.0.4 "$o1"
+ssh::keepalive_start 10.0.0.4 "$o1"
 own1=$_SSH_KEEPALIVE_OWNER
-_ssh_keepalive_start 10.0.0.5 "$o1"
+ssh::keepalive_start 10.0.0.5 "$o1"
 own2=$_SSH_KEEPALIVE_OWNER
 check 'two hosts run two pings' '2' "$(settled_pings 2)"
-_SSH_KEEPALIVE_OWNER=$own1 _ssh_keepalive_stop
-_SSH_KEEPALIVE_OWNER=$own2 _ssh_keepalive_stop
+_SSH_KEEPALIVE_OWNER=$own1 ssh::keepalive_stop
+_SSH_KEEPALIVE_OWNER=$own2 ssh::keepalive_stop
 kill "$o1"
 
 # --- a stale lock: the supervisor was killed outright -----------------------
@@ -232,15 +232,15 @@ kill "$o1"
 # detection every later session on that host would run with no keepalive.
 case_file stale
 o1=$(owner)
-_ssh_keepalive_start 10.0.0.6 "$o1"
+ssh::keepalive_start 10.0.0.6 "$o1"
 png=$(first_ping)
-kill -9 "$(readlink "$(_ssh_keepalive_lock_path 10.0.0.6)")"
+kill -9 "$(readlink "$(ssh::keepalive_lock_path 10.0.0.6)")"
 kill "$png"  # the orphan a SIGKILLed supervisor leaves; not what is under test
 : > "$PING_PIDFILE"
 o2=$(owner)
-_ssh_keepalive_start 10.0.0.6 "$o2"
+ssh::keepalive_start 10.0.0.6 "$o2"
 check 'a stale lock does not block a new ping' '1' "$(settled_pings 1)"
-_ssh_keepalive_stop
+ssh::keepalive_stop
 kill "$o1" "$o2"
 
 # --- the supervisor itself is killed ----------------------------------------
@@ -249,11 +249,11 @@ kill "$o1" "$o2"
 # the trap the ping would be orphaned, which is the leak this file exists for.
 case_file killed
 o1=$(owner)
-_ssh_keepalive_start 10.0.0.7 "$o1"
+ssh::keepalive_start 10.0.0.7 "$o1"
 png=$(first_ping)
-kill "$(readlink "$(_ssh_keepalive_lock_path 10.0.0.7)")"
+kill "$(readlink "$(ssh::keepalive_lock_path 10.0.0.7)")"
 check 'killing the supervisor takes its ping with it' 'gone' "$(wait_gone "$png")"
-_ssh_keepalive_stop
+ssh::keepalive_stop
 kill "$o1"
 
 # --- the OS sweeps the state dir --------------------------------------------
@@ -265,19 +265,19 @@ kill "$o1"
 # is still old is deleted.
 case_file sweep
 o1=$(owner)
-_ssh_keepalive_start 10.0.0.9 "$o1"
+ssh::keepalive_start 10.0.0.9 "$o1"
 png=$(first_ping)
 touch -t 202001010000 "$_SSH_KEEPALIVE_OWNER"
-touch -h -t 202001010000 "$(_ssh_keepalive_lock_path 10.0.0.9)"
+touch -h -t 202001010000 "$(ssh::keepalive_lock_path 10.0.0.9)"
 wait_poll "${_SSH_KEEPALIVE_OWNER:h}"
 find "$_SSH_KEEPALIVE_DIR" -mtime +3 -delete
 wait_poll "${_SSH_KEEPALIVE_OWNER:h}"
 check 'a sweep of old files keeps a live connection'"'"'s ping' 'alive' "$(alive "$png")"
 o2=$(owner)
-_ssh_keepalive_start 10.0.0.9 "$o2"
+ssh::keepalive_start 10.0.0.9 "$o2"
 loser=$!
 check 'and still blocks a second one' '1' "$(settled_pings 1 "$loser")"
-_ssh_keepalive_stop
+ssh::keepalive_stop
 kill "$o1" "$o2"
 
 # --- the shared state cannot be created -------------------------------------
@@ -287,7 +287,7 @@ kill "$o1" "$o2"
 # both are.
 case_file nodir
 mkdir -m 500 "$work/ro"
-_SSH_KEEPALIVE_DIR="$work/ro/state" _ssh_keepalive_start 10.0.0.8 >"$work/nodir.out" 2>&1
+_SSH_KEEPALIVE_DIR="$work/ro/state" ssh::keepalive_start 10.0.0.8 >"$work/nodir.out" 2>&1
 # cat, not $(<...): zsh 5.9 (CI's apt build, macOS /bin/zsh) reads that file
 # even under `zsh -n`, so bin/lint-shell failed on it; Homebrew's 5.9.2 does not.
 check 'an unwritable state dir is silent' '' "$(cat "$work/nodir.out")"
@@ -296,9 +296,9 @@ check 'and starts no ping' '0' "$(settled_pings 0)"
 chmod 700 "$work/ro"
 
 # --- nothing to ping --------------------------------------------------------
-_ssh_keepalive_start ""
+ssh::keepalive_start ""
 check 'an unresolvable host starts nothing' '' "$_SSH_KEEPALIVE_OWNER"
-_ssh_keepalive_stop
+ssh::keepalive_stop
 check 'and stop is a no-op then' '0' "$?"
 
 # A failing run is by definition one that leaked a process, so clean up after

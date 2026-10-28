@@ -82,7 +82,7 @@ check 'marks the pane with the host' \
   "select-pane -P bg=#1e2326
 set-option -p @ssh_host myhost
 tmux-pane-titles" \
-  "$(calls_of "$inside" _ssh_decorate_on myhost)"
+  "$(calls_of "$inside" ssh::decorate_on myhost)"
 
 # A host the parser could not find must still produce a marked pane, or the
 # pane is left looking local while a connection is open.
@@ -90,19 +90,19 @@ check 'an unknown host still marks the pane' \
   "select-pane -P bg=#1e2326
 set-option -p @ssh_host unknown
 tmux-pane-titles" \
-  "$(calls_of "$inside" _ssh_decorate_on '')"
+  "$(calls_of "$inside" ssh::decorate_on '')"
 
 check 'my-machine adds @ssh_my_machine' \
   "select-pane -P bg=#1e2326
 set-option -p @ssh_host myhost
 set-option -p @ssh_my_machine 1
 tmux-pane-titles" \
-  "$(calls_of "$inside" _ssh_decorate_on myhost 1)"
+  "$(calls_of "$inside" ssh::decorate_on myhost 1)"
 
 # Plain ssh must NOT claim the remote runs these dotfiles: that option is what
 # sends prefix + p to a nested tmux, and on a jump box there is none.
 check 'plain ssh does not set @ssh_my_machine' '' \
-  "$(calls_of "$inside" _ssh_decorate_on myhost | grep 'my_machine')"
+  "$(calls_of "$inside" ssh::decorate_on myhost | grep 'my_machine')"
 
 # --- decorate off ------------------------------------------------------------
 
@@ -114,20 +114,20 @@ check 'clears both options and restores the pane' \
 set-option -p -u @ssh_host
 set-option -p -u @ssh_my_machine
 tmux-pane-titles" \
-  "$(calls_of "$inside" _ssh_decorate_off)"
+  "$(calls_of "$inside" ssh::decorate_off)"
 
 # The symmetry stated as one assertion: every option _on touches, _off unsets.
-on_opts=$(calls_of "$inside" _ssh_decorate_on myhost 1 | sed -n 's/^set-option -p \(@[a-z_]*\).*/\1/p' | sort)
-off_opts=$(calls_of "$inside" _ssh_decorate_off | sed -n 's/^set-option -p -u \(@[a-z_]*\).*/\1/p' | sort)
+on_opts=$(calls_of "$inside" ssh::decorate_on myhost 1 | sed -n 's/^set-option -p \(@[a-z_]*\).*/\1/p' | sort)
+off_opts=$(calls_of "$inside" ssh::decorate_off | sed -n 's/^set-option -p -u \(@[a-z_]*\).*/\1/p' | sort)
 check 'every option set on the way in is cleared on the way out' "$on_opts" "$off_opts"
 
 # --- outside tmux ------------------------------------------------------------
 
-check 'outside tmux nothing is published' '' "$(calls_of '' _ssh_decorate_on myhost 1)"
+check 'outside tmux nothing is published' '' "$(calls_of '' ssh::decorate_on myhost 1)"
 
 # ...but the terminal reset still happens, because a remote tmux can leave mouse
 # tracking on whether or not there is a local tmux.
-reset_seq=$(PATH="$work/stub:$PATH" TMUX= _ssh_decorate_off 2>/dev/null | od -c | head -2)
+reset_seq=$(PATH="$work/stub:$PATH" TMUX= ssh::decorate_off 2>/dev/null | od -c | head -2)
 case "$reset_seq" in
   *'?'*'9'*'l'*) pass 'outside tmux the terminal is still reset' ;;
   *) fail 'outside tmux the terminal is still reset' "$reset_seq" ;;

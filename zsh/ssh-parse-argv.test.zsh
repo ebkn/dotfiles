@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# Unit tests for _ssh_parse_argv (zsh/ssh.zsh).
+# Unit tests for ssh::parse_argv (zsh/ssh.zsh).
 #
 # The function walks an ssh argument list the same way ssh itself does, to find
 # which argument is the target host. Everything downstream depends on getting
@@ -26,7 +26,7 @@ typeset -i failures=0
 assert() {
   local desc="$1" want_host="$2" want_cmd="$3"
   shift 4  # description, host, cmd, and the literal --
-  _ssh_parse_argv "$@"
+  ssh::parse_argv "$@"
   if [[ "$_SSH_PARSE_HOST" != "$want_host" ]]; then
     printf 'FAIL %s\n  host: want %-12s got %s\n' \
       "$desc" "'$want_host'" "'$_SSH_PARSE_HOST'"

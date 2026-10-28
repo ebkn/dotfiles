@@ -15,7 +15,7 @@
 #   _SSH_PARSE_HOST           — the target host argument (empty if not found)
 #   _SSH_PARSE_OPTS           — ssh options preceding the host, in order
 #   _SSH_PARSE_HAS_REMOTE_CMD — true when a command follows the host (e.g. `ssh h ls`)
-_ssh_parse_argv() {
+ssh::parse_argv() {
   _SSH_PARSE_OPTS=()
   _SSH_PARSE_HOST=""
   _SSH_PARSE_HAS_REMOTE_CMD=false
@@ -61,7 +61,7 @@ _ssh_parse_argv() {
 # Neither is guarded on `[ -t 1 ]` — the caller decides that, since it also
 # decides whether to decorate at all. See the comment on `decorate` in ssh().
 
-# _ssh_decorate_on <host> [my_machine]
+# ssh::decorate_on <host> [my_machine]
 #
 # @ssh_host is read by .tmux.conf (status-left, the purple pane border, and the
 # host-naming menu that guards d / q / F12) and by bin/tmux-agents (which local
@@ -69,7 +69,7 @@ _ssh_parse_argv() {
 # "tmux and these dotfiles are on the far end", which is what makes .tmux.conf
 # pass prefix + p/t/o/u through to the nested remote tmux instead of running the
 # local popup, and offer the "remote" item in that guard menu.
-_ssh_decorate_on() {
+ssh::decorate_on() {
   local host=$1 my_machine=${2:-}
   [ -n "$TMUX" ] || return 0
 
@@ -80,7 +80,7 @@ _ssh_decorate_on() {
   tmux-pane-titles 2>/dev/null
 }
 
-# _ssh_decorate_off
+# ssh::decorate_off
 #
 # The terminal reset comes first and happens even outside tmux: it undoes state
 # a remote tmux may have left behind on an abrupt disconnect (SGR/X10/
@@ -91,7 +91,7 @@ _ssh_decorate_on() {
 # @ssh_my_machine is cleared unconditionally, including on the plain `ssh` path
 # that never sets it. Unsetting an option that was never set is a silent no-op
 # (verified), and clearing both is what keeps this the exact inverse of _on.
-_ssh_decorate_off() {
+ssh::decorate_off() {
   printf '\e[?9l\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?2004l\e[?25h\e[0m'
   [ -n "$TMUX" ] || return 0
 
@@ -108,7 +108,7 @@ _ssh_decorate_off() {
 # auto-reconnect is desired), use `myssh` instead.
 # Bypass: use `command ssh` to skip this wrapper entirely.
 ssh() {
-  _ssh_parse_argv "$@"
+  ssh::parse_argv "$@"
   local host="$_SSH_PARSE_HOST"
 
   # Only decorate the terminal when stdout is one. zsh's _remote_files (remote
@@ -120,12 +120,12 @@ ssh() {
   local decorate=false
   [ -t 1 ] && decorate=true
 
-  $decorate && _ssh_decorate_on "$host"
+  $decorate && ssh::decorate_on "$host"
 
   command ssh "$@"
   local ret=$?
 
-  $decorate && _ssh_decorate_off
+  $decorate && ssh::decorate_off
 
   return $ret
 }
@@ -178,18 +178,18 @@ ssh() {
 : ${_SSH_KEEPALIVE_DIR:=${TMPDIR:-/tmp}/myssh-keepalive-$UID}
 typeset -g _SSH_KEEPALIVE_OWNER=""
 
-# _ssh_keepalive_lock_path <target> -- where the lock for <target> lives.
+# ssh::keepalive_lock_path <target> -- where the lock for <target> lives.
 # Its target is the pid of the supervisor pinging that host, which is how the
 # tests reach that supervisor without knowing the layout.
-_ssh_keepalive_lock_path() {
+ssh::keepalive_lock_path() {
   print -r -- "$_SSH_KEEPALIVE_DIR/${1//\//_}.lock"
 }
 
-# _ssh_keepalive_lock_take <lock> <pid> -- succeed when <pid> now holds <lock>.
+# ssh::keepalive_lock_take <lock> <pid> -- succeed when <pid> now holds <lock>.
 # `ln -s` is the atomic step, and the link's target carries the holder's pid,
 # so there is never a lock whose owner cannot be read. A holder that is no
 # longer running (SIGKILL runs no trap) is stale, and is replaced.
-_ssh_keepalive_lock_take() {
+ssh::keepalive_lock_take() {
   local lock=$1 me=$2 holder
   ln -s "$me" "$lock" 2>/dev/null && return 0
   holder=$(readlink "$lock" 2>/dev/null)
@@ -202,16 +202,16 @@ _ssh_keepalive_lock_take() {
   ln -s "$me" "$lock" 2>/dev/null
 }
 
-# _ssh_keepalive_lock_drop <lock> <pid> -- release <lock> if <pid> holds it.
-_ssh_keepalive_lock_drop() {
+# ssh::keepalive_lock_drop <lock> <pid> -- release <lock> if <pid> holds it.
+ssh::keepalive_lock_drop() {
   [ "$(readlink "$1" 2>/dev/null)" = "$2" ] && command rm -f "$1"
   return 0
 }
 
-# _ssh_keepalive_owners_live <dir> -- succeed when a registered shell is alive.
+# ssh::keepalive_owners_live <dir> -- succeed when a registered shell is alive.
 # Prunes the dead ones as it goes, so a shell that died without myssh
 # returning stops counting at the next poll.
-_ssh_keepalive_owners_live() {
+ssh::keepalive_owners_live() {
   local f live=1
   for f in "$1"/*(N); do
     if kill -0 "${f:t}" 2>/dev/null; then
@@ -223,19 +223,19 @@ _ssh_keepalive_owners_live() {
   return $live
 }
 
-# _ssh_keepalive_start <target> [owner-pid]
+# ssh::keepalive_start <target> [owner-pid]
 # Registers this shell as needing a ping to <target> and makes sure one runs.
 # Sets _SSH_KEEPALIVE_OWNER, or leaves it empty when there is nothing to ping.
 # The supervisor is the last job it starts, so `$!` right after a call that
 # registered an owner is the supervisor's pid; ssh-keepalive.test.zsh waits on
 # it to tell a lost lock race from a slow one.
-_ssh_keepalive_start() {
+ssh::keepalive_start() {
   local target=$1 owner=${2:-$$}
   _SSH_KEEPALIVE_OWNER=""
   [ -n "$target" ] || return 0
   (( $+commands[ping] )) || return 0
 
-  local lock=$(_ssh_keepalive_lock_path "$target")
+  local lock=$(ssh::keepalive_lock_path "$target")
   local owners=${lock%.lock}.owners
   mkdir -m 700 -p "$_SSH_KEEPALIVE_DIR" 2>/dev/null || return 0
   mkdir -p "$owners" 2>/dev/null || return 0
@@ -246,20 +246,20 @@ _ssh_keepalive_start() {
     # $$ in a subshell is still the parent shell's pid; the lock needs this one.
     zmodload -F zsh/system p:sysparams
     local me=${sysparams[pid]}
-    _ssh_keepalive_lock_take "$lock" "$me" || exit 0
+    ssh::keepalive_lock_take "$lock" "$me" || exit 0
 
     ping -i 0.3 -q "$target" >/dev/null 2>&1 &
     local ping_pid=$!
     # The trap covers being killed outright; the loop covers every owner
     # leaving, whether myssh returned or its shell died. `sleep` is
     # interruptible, so the trap runs promptly.
-    trap 'kill $ping_pid 2>/dev/null; _ssh_keepalive_lock_drop "$lock" "$me"; exit' TERM INT HUP
+    trap 'kill $ping_pid 2>/dev/null; ssh::keepalive_lock_drop "$lock" "$me"; exit' TERM INT HUP
     while kill -0 $ping_pid 2>/dev/null; do
-      if ! _ssh_keepalive_owners_live "$owners"; then
-        _ssh_keepalive_lock_drop "$lock" "$me"
+      if ! ssh::keepalive_owners_live "$owners"; then
+        ssh::keepalive_lock_drop "$lock" "$me"
         # The second look described above the variables.
-        _ssh_keepalive_owners_live "$owners" &&
-          _ssh_keepalive_lock_take "$lock" "$me" && continue
+        ssh::keepalive_owners_live "$owners" &&
+          ssh::keepalive_lock_take "$lock" "$me" && continue
         break
       fi
       # Keep the state young: macOS's dirhelper deletes $TMPDIR files older
@@ -271,13 +271,13 @@ _ssh_keepalive_start() {
       sleep "$_SSH_KEEPALIVE_POLL"
     done
     kill $ping_pid 2>/dev/null
-    _ssh_keepalive_lock_drop "$lock" "$me"
+    ssh::keepalive_lock_drop "$lock" "$me"
   } >/dev/null 2>&1 &!
 }
 
 # Unregisters this shell. The supervisor notices at its next poll, and stops
 # the ping only if no other connection to that host remains.
-_ssh_keepalive_stop() {
+ssh::keepalive_stop() {
   [ -n "$_SSH_KEEPALIVE_OWNER" ] || return 0
   command rm -f "$_SSH_KEEPALIVE_OWNER"
   _SSH_KEEPALIVE_OWNER=""
@@ -291,7 +291,7 @@ _ssh_keepalive_stop() {
 # Shares one low-rate keepalive ping per host, for as long as any connection
 # to it is open, to hold this Wi-Fi-first client's radio out of 802.11
 # power-save doze
-# (see _ssh_keepalive_start above).
+# (see ssh::keepalive_start above).
 #
 # Falls back to plain `command ssh` without setting `@ssh_my_machine` when:
 #   - a remote command is given (e.g. `myssh host 'ls'`) — one-shot
@@ -299,7 +299,7 @@ _ssh_keepalive_stop() {
 #
 # Bypass: use plain `ssh` (the wrapper above) or `command ssh`.
 myssh() {
-  _ssh_parse_argv "$@"
+  ssh::parse_argv "$@"
   local host="$_SSH_PARSE_HOST"
   local ssh_opts=("${_SSH_PARSE_OPTS[@]}")
   local has_remote_cmd="$_SSH_PARSE_HAS_REMOTE_CMD"
@@ -322,7 +322,7 @@ myssh() {
   # fallback path below is a plain one-shot ssh with nothing to reach.
   local my_machine=""
   $use_autossh && my_machine=1
-  $decorate && _ssh_decorate_on "$host" "$my_machine"
+  $decorate && ssh::decorate_on "$host" "$my_machine"
 
   if $use_autossh; then
     # Interactive: auto-reconnect with per-pane remote tmux session.
@@ -346,8 +346,8 @@ myssh() {
     # Quoted for the remote shell, which parses the command below once more.
     local remote_session_q=${(q)remote_session}
     # Ping the ssh-config-resolved hostname, so the keepalive exercises the
-    # same endpoint the tunnel itself uses. See _ssh_keepalive_start.
-    _ssh_keepalive_start \
+    # same endpoint the tunnel itself uses. See ssh::keepalive_start.
+    ssh::keepalive_start \
       "$(command ssh -G "$host" 2>/dev/null | awk '/^hostname /{print $2; exit}')"
     # AUTOSSH_PATH points autossh at bin/autossh-ssh, which draws the centred
     # "reconnecting" notice once per attempt and keeps ssh's per-attempt
@@ -390,9 +390,9 @@ myssh() {
   # file; a scratch file it adds has to be named here too, or it leaks.
   [ -n "$notice_state" ] && rm -f "$notice_state" "$notice_state.log"
 
-  _ssh_keepalive_stop
+  ssh::keepalive_stop
 
-  $decorate && _ssh_decorate_off
+  $decorate && ssh::decorate_off
 
   return $ret
 }

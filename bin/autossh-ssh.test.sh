@@ -96,7 +96,7 @@ same "attempt 2: nothing reaches stderr" "" "$(cat "$work/err2")"
 stdout_is_ssh 2
 # The mouse reset is the fix for the flood of raw SGR reports when the pointer
 # moves while nothing is consuming the remote tmux's mouse tracking. All five
-# tracking modes plus bracketed paste, matching _ssh_decorate_off, then a clear.
+# tracking modes plus bracketed paste, matching ssh::decorate_off, then a clear.
 reset="${E}[?9l${E}[?1000l${E}[?1002l${E}[?1003l${E}[?1006l${E}[?2004l${E}[0m${E}[2J${E}[?25l"
 case "$(cat "$tty")" in
   "$reset${E}[12;"*) pass "attempt 2: resets mouse and paste, clears, then draws mid-screen" ;;

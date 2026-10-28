@@ -6,7 +6,7 @@ keepalive.
 
 ## ssh-parse-argv.test.zsh
 
-Pins `_ssh_parse_argv`, the argv walk that decides which element of an `ssh`
+Pins `ssh::parse_argv`, the argv walk that decides which element of an `ssh`
 command line is the host. **Everything downstream trusts that answer**: `ssh()`
 publishes it as `@ssh_host` (pane colour, status bar, and the host set
 `bin/tmux-agents` queries over ssh), and `myssh()` hands it to autossh as the
@@ -25,7 +25,7 @@ function would not catch the module breaking.
 
 ## ssh-decorate.test.zsh
 
-Pins `_ssh_decorate_on` / `_ssh_decorate_off`, the pair `ssh()` and `myssh()`
+Pins `ssh::decorate_on` / `ssh::decorate_off`, the pair `ssh()` and `myssh()`
 share to mark the pane while a connection is open.
 
 **The failure worth catching is asymmetry** — something set on the way in and not
@@ -57,7 +57,7 @@ cleanup is only reached when `myssh` *returns*. **Closing the pane mid-session
 therefore left a ping running at three packets a second until the machine was
 rebooted**, with nothing left anywhere that would stop it.
 
-`_ssh_keepalive_start` disowns a **supervisor** instead: the ping is its child,
+`ssh::keepalive_start` disowns a **supervisor** instead: the ping is its child,
 it wakes every `_SSH_KEEPALIVE_POLL` seconds to check that some shell which asked
 for the keepalive is still there, and a `trap` covers it being killed.
 
@@ -69,7 +69,7 @@ Connections live in separate shells, so they share through
 `$_SSH_KEEPALIVE_DIR` (per user under `$TMPDIR`): each shell registers an owner
 file named by its pid, and a supervisor pings only while it holds the host's
 lock — a symlink whose target is its pid, so `ln -s` is the atomic step and a
-holder killed outright is recognisable as stale. `_ssh_keepalive_stop` only
+holder killed outright is recognisable as stale. `ssh::keepalive_stop` only
 unregisters; the supervisor stops the ping at its next poll once no owner is
 left alive.
 
@@ -81,13 +81,13 @@ are the real thing.
 Three seams make that fast and isolated rather than a pile of sleeps:
 `_SSH_KEEPALIVE_POLL` is turned down to 0.2s, `_SSH_KEEPALIVE_DIR` points at a
 scratch dir so a test never joins a live session's ping, and
-`_ssh_keepalive_start` takes the owner pid as an optional second argument so one
+`ssh::keepalive_start` takes the owner pid as an optional second argument so one
 test can play several shells and own processes it is allowed to kill.
 Disappearance and the expected count are polled for (`wait_gone`,
 `settled_pings`), so a slow start is waited out rather than miscounted. An
 absence is read once, after the event that decides it: "no extra ping" after the
 supervisor that must lose the lock race has exited — the test takes its pid from
-`$!` right after `_ssh_keepalive_start`, so **the supervisor must stay the last
+`$!` right after `ssh::keepalive_start`, so **the supervisor must stay the last
 job that function starts** — and "still pinging" after `wait_poll` has seen the
 supervisor prune a probe owner file (a pid that cannot exist) twice. The one
 fixed window left is `settled_pings 0`, 1 s, for a ping that must never start:
