@@ -36,6 +36,7 @@ socket="conf-test-$$"
 work=$(mktemp -d)
 cleanup() {
   tmux -L "$socket-outer" kill-server 2>/dev/null
+  tmux -L "$socket-popup" kill-server 2>/dev/null
   tmux -L "$socket" kill-server 2>/dev/null
   rm -rf "$work"
 }
@@ -660,6 +661,28 @@ case "$w_binding" in
       "the %% template did not survive parsing:" "${w_binding:-<no w binding found>}"
     ;;
 esac
+
+# --- 3b. popups keep the terminal's background ------------------------------
+
+# tmux 3.8 paints popups bg=themedarkgrey (gray15 on a dark client), a neutral
+# grey darker than WezTerm's Everforest background, so tig in prefix + t turned
+# near-black. The pin is 3.7c, where `default` is already the built-in value, so
+# reading the loaded server would pass with the two lines deleted. Instead each
+# option is first set to something else, on a server of its own, and the config
+# must bring it back.
+pop="$socket-popup"
+tmux -L "$pop" -f /dev/null new-session -d
+tmux -L "$pop" set -g popup-style bg=red \; set -g popup-border-style bg=red
+tmux -L "$pop" source-file ./.tmux.conf >/dev/null 2>&1
+for opt in popup-style popup-border-style; do
+  got=$(tmux -L "$pop" show -gwv "$opt" 2>&1)
+  if [ "$got" = default ]; then
+    pass "$opt is default after loading .tmux.conf"
+  else
+    fail "$opt is default after loading .tmux.conf" "got: $got"
+  fi
+done
+tmux -L "$pop" kill-server 2>/dev/null
 
 # --- 4. the cheatsheet renders them -----------------------------------------
 

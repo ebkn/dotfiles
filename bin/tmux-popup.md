@@ -67,6 +67,18 @@ branches) and a `#{...}` (not expanded a second time). It also checks the
 fallback against the pane's real directory, not just against itself, and that
 both bindings ask `@popup_dir`.
 
+## Popup colours: `popup-style default`
+
+`.tmux.conf` sets `popup-style` and `popup-border-style` to `default`, so a
+popup draws on the terminal's own background. tmux 3.8 changed the built-in to
+`bg=themedarkgrey` — `gray15` (#262626) on a dark client — which is darker than
+WezTerm's Everforest background. tig sets no background of its own, so it turned
+near-black. Nothing showed it until the tmux server restarted: a running server
+keeps its old binary after `brew upgrade`. `tmux-conf.test.sh` sets both
+options to something else before it loads the config. CI pins tmux 3.7c, where
+`default` is already the built-in value, so reading the loaded value alone would
+pass even with the lines missing.
+
 ## Testing (`tmux-popup.test.sh`)
 
 The one tmux script here checked against a **stubbed** `tmux` rather than a
