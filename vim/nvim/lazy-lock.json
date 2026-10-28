@@ -24,7 +24,7 @@
   "nvim-treesitter-context": { "branch": "master", "commit": "8decd73460d26ef0a0befb745d022dd1fc2c38b8" },
   "previm": { "branch": "master", "commit": "29524dba1dfad1e77a8670b8c133af96f31582a7" },
   "render-markdown.nvim": { "branch": "main", "commit": "8e8795368391036643b622875a6da6a51bcd33f4" },
-  "rust.vim": { "branch": "main", "commit": "889b9a7515db477f4cb6808bef1769e53493c578" },
+  "rust.vim": { "branch": "master", "commit": "889b9a7515db477f4cb6808bef1769e53493c578" },
   "vim-argwrap": { "branch": "master", "commit": "03615d1eed248408567bc8fa6a5a8c94ef3cd170" },
   "vim-better-whitespace": { "branch": "master", "commit": "de99b55a6fe8c96a69f9376f16b1d5d627a56e81" },
   "vim-clang-format": { "branch": "master", "commit": "6b791825ff478061ad1c57b21bb1ed5a5fd0eb29" },
