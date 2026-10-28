@@ -12,12 +12,31 @@ zsh expands aliases when it *parses* a function body, so **a module defining an
 alias must be sourced before any module whose functions use that name.**
 
 Concretely `alias.zsh` must precede `git.zsh`: `alias mkdir='mkdir -p'` is what
-makes the `mkdir -p` calls inside `gw()`'s copy helpers (`_gw_copy_files`,
-`_gw_copy_entry`) become `mkdir -p -p`.
+makes the `mkdir -p` calls inside `gw()`'s copy helpers (`gw::copy_files`,
+`gw::copy_entry`) become `mkdir -p -p`.
 
 Reordering changes the stored function body with no error and no output; the only
-way to see it is `print -r -- $functions[_gw_copy_files]`. The comment at the top of `.zshrc`
+way to see it is `print -r -- $functions[gw::copy_files]`. The comment at the top of `.zshrc`
 names the three lines that cannot move.
+
+## No helper function starts with a single `_`
+
+Claude Code's Bash tool does not source `.zshrc`. It sources a snapshot of the
+shell (`~/.claude/shell-snapshots/snapshot-zsh-*.sh`) whose function dump is
+`typeset +f | grep -vE '^_[^_]'`: names starting with one `_` are taken for
+completion functions (`_git`, `_arguments`) and left out, `__name` is kept.
+
+So a public function that calls an `_`-named helper reaches an agent **without
+the helper**, and nothing says so until it is called. `gw` did exactly that: the
+missing `_git_main_root` left the root empty, `_gw_worktree_add` was "command
+not found", and every agent fell back to a bare `git worktree add`, which skips
+the LFS and hook settings and the `.worktree-copy` copy.
+
+**Helpers are named `<owner>::<name>`** (`gw::copy_files`, `git::main_root`):
+the owner says whose implementation detail it is, as the `_` prefix used to.
+`git-worktree.test.zsh` runs `gw` and `gdmerged` with the snapshot's filter
+applied. The filter is read from Claude Code's own bundle (2.1.308), not a
+documented contract; if it changes, the test's `as_snapshot` changes with it.
 
 ## `.zshrc` finds `zsh/` relative to itself
 

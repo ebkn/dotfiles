@@ -33,18 +33,18 @@ gs() {
 alias gpull='git pull origin `git rev-parse --abbrev-ref HEAD` --recurse-submodules'
 # The trunk branches: never force-pushed (gpushf), never deleted (gdmerged),
 # and given no branch label in titles (directory.zsh, which is sourced earlier
-# but only calls _git_is_trunk from its hooks, after every module has loaded).
+# but only calls git::is_trunk from its hooks, after every module has loaded).
 # One list because it was four, and two of them had already lost `master`. An
 # ERE alternation, since gdmerged hands it to `grep -E`.
 typeset -g _TRUNK_BRANCHES='main|master|develop|staging'
-_git_is_trunk() { # <branch>
+git::is_trunk() { # <branch>
   [[ "$1" =~ "^(${_TRUNK_BRANCHES})\$" ]]
 }
 
 alias gpush='git push origin `git rev-parse --abbrev-ref HEAD`'
 gpushf() {
   local branch=$(git rev-parse --abbrev-ref HEAD)
-  if _git_is_trunk "$branch"; then
+  if git::is_trunk "$branch"; then
     echo "Error: force-push to '$branch' is not allowed." >&2
     return 1
   fi
@@ -59,14 +59,20 @@ gpushf() {
 # gdmerged used to open-code through a temp file. (open-worktree-tabs and the
 # picker still parse --porcelain on their own.)
 #
-# Everything named `_gw_*` / `_gdmerged_*` is an implementation detail of the
-# function it is named after; nothing else calls them.
+# Everything named `gw::*` / `gdmerged::*` is an implementation detail of the
+# function it is named after; nothing else calls them. `git::*` is shared by
+# this module and directory.zsh.
+#
+# Never a leading `_` for a helper: Claude Code's Bash tool sources a snapshot
+# of the shell that drops every function matching `^_[^_]` (taken for a
+# completion function), so gw would reach an agent without its helpers and
+# fail on "command not found". zsh/README.md has the details.
 
 # Print the path of the worktree that has <branch> checked out, and return 1
 # when no worktree does. `git worktree list --porcelain` emits one paragraph
 # per worktree with the "worktree <path>" line first, so the branch line always
 # refers to the path most recently seen.
-_git_worktree_for_branch() {
+git::worktree_for_branch() {
   local branch=$1 line current=""
   while IFS= read -r line; do
     case "$line" in
@@ -82,7 +88,7 @@ _git_worktree_for_branch() {
 # checkout. Assumes a non-bare repository whose git dir is named `.git`; written
 # once so the day that assumption breaks it is fixed in one place. Leaves
 # stderr alone -- the caller decides whether git's complaint is worth showing.
-_git_main_root() {
+git::main_root() {
   local common
   common=$(git rev-parse --path-format=absolute --git-common-dir) || return
   print -r -- "${common%/.git}"
@@ -95,7 +101,7 @@ _git_main_root() {
 # LFS ファイルはポインタのまま checkout されるので、必要になった worktree でだけ `git lfs pull` する。
 # hooksPath も無効化する: リポジトリの post-checkout フック（git lfs post-checkout / dedup）が
 # ポインタを実体に置き換えてしまい、index の stat が古いまま git status が dirty になるため。
-_gw_worktree_add() {
+gw::worktree_add() {
   GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null worktree add "$@"
 }
 
@@ -103,10 +109,10 @@ _gw_worktree_add() {
 # absolute path.
 # Prints nothing and returns 0 when nothing was picked (no worktrees, or the
 # user did not choose); returns the picker's own status when it failed.
-_gw_pick_worktree() {
+gw::pick_worktree() {
   # Resolve the main repo root so worktree paths can be rendered relative to it.
   local main_root
-  main_root=$(_git_main_root 2>/dev/null)
+  main_root=$(git::main_root 2>/dev/null)
 
   # Build "<padded_branch>\t<rel_path>\t<abs_path>" lines from `git worktree
   # list --porcelain`, skipping the main checkout. That is the first record --
@@ -184,7 +190,7 @@ _gw_pick_worktree() {
 # fetch its head, and print the branch name. The URL is only used for the gh
 # query and the error messages -- gw has already parsed it, and re-parsing here
 # would put the pattern in two places.
-_gw_fetch_pr_branch() {
+gw::fetch_pr_branch() {
   local url=$1 pr_owner=$2 pr_repo=$3 pr_number=$4
 
   if ! (( $+commands[gh] )); then
@@ -232,7 +238,7 @@ _gw_fetch_pr_branch() {
 # Copy one entry listed in .worktree-copy into the new worktree, skipping
 # anything Git LFS manages (the source holds a pointer, not the file). Reads
 # the caller's $lfs, the set of root-relative paths LFS manages.
-_gw_copy_entry() {
+gw::copy_entry() {
   local src=$1 dst=$2 label=$3
   if (( ${+lfs[$label]} )); then
     echo "  Skipped (git-lfs): $label"
@@ -245,7 +251,7 @@ _gw_copy_entry() {
 
 # Copy the untracked local files a fresh worktree needs to be usable (.env and
 # friends), as listed in .worktree-copy at the main repo root.
-_gw_copy_files() {
+gw::copy_files() {
   local root_dir=$1 worktree_path=$2
   local list="$root_dir/.worktree-copy"
   [ -f "$list" ] || return 0
@@ -321,12 +327,12 @@ _gw_copy_files() {
             mkdir -p "$worktree_path/$rel_path"
             continue
           fi
-          _gw_copy_entry "$entry" "$worktree_path/$rel_path" "$rel_path"
+          gw::copy_entry "$entry" "$worktree_path/$rel_path" "$rel_path"
         done
       fi
       echo "  Copied: $file"
     else
-      _gw_copy_entry "$src_path" "$dst_path" "$file" && echo "  Copied: $file"
+      gw::copy_entry "$src_path" "$dst_path" "$file" && echo "  Copied: $file"
     fi
   done
 }
@@ -345,13 +351,13 @@ function gw() {
 
   if [[ -z "$input" ]]; then
     local selected
-    selected=$(_gw_pick_worktree) || return
+    selected=$(gw::pick_worktree) || return
     [[ -z "$selected" ]] && return 0
     cd "$selected"
     return
   fi
 
-  local root_dir=$(_git_main_root)
+  local root_dir=$(git::main_root)
 
   # Work from the main checkout's root. Not for the paths below, which are all
   # absolute: `worktree add -b` with no start point branches from the HEAD of
@@ -370,7 +376,7 @@ function gw() {
   if [[ "$input" =~ $pr_url_pattern ]]; then
     # PR URL: check out the PR's existing head branch rather than creating one.
     is_pr=1
-    branch_name=$(_gw_fetch_pr_branch "$input" "${match[1]}" "${match[2]}" "${match[3]}") || return 1
+    branch_name=$(gw::fetch_pr_branch "$input" "${match[1]}" "${match[2]}" "${match[3]}") || return 1
     banner="PR #${match[3]} ($branch_name)"
   else
     branch_name="$input"
@@ -380,12 +386,12 @@ function gw() {
   local worktree_path="$root_dir/git-worktrees/${branch_name//\//-}"
   echo "Creating worktree for $banner at '$worktree_path'"
   if (( is_pr )); then
-    _gw_worktree_add "$worktree_path" "$branch_name" || return 1
+    gw::worktree_add "$worktree_path" "$branch_name" || return 1
   else
-    _gw_worktree_add -b "$branch_name" "$worktree_path" || return 1
+    gw::worktree_add -b "$branch_name" "$worktree_path" || return 1
   fi
 
-  _gw_copy_files "$root_dir" "$worktree_path"
+  gw::copy_files "$root_dir" "$worktree_path"
 
   cd "$worktree_path"
 }
@@ -439,7 +445,7 @@ function open-worktree-tabs() {
 # Ask before destroying something. A separate function because the prompt reads
 # /dev/tty directly -- the branch list is already on stdin -- so this is the
 # only seam a test can answer through. Pinned by zsh/git-worktree.test.zsh.
-_gdmerged_confirm() {
+gdmerged::confirm() {
   local prompt=$1
   read -q "?$prompt" </dev/tty
 }
@@ -447,7 +453,7 @@ _gdmerged_confirm() {
 # Delete <branch>, and the worktree it is checked out in when it has one.
 # The worktree has to go first: git refuses `branch -d` while the branch is
 # checked out somewhere.
-_gdmerged_delete() {
+gdmerged::delete() {
   local branch=$1 worktree_path=$2
 
   if [ -n "$worktree_path" ]; then
@@ -519,7 +525,7 @@ function gdmerged() {
 
     # Resolve the worktree before the prompt so its path can be shown in the
     # confirmation message.
-    worktree_path=$(_git_worktree_for_branch "$branch")
+    worktree_path=$(git::worktree_for_branch "$branch")
 
     # Auto-delete only when the upstream is gone (PR merged and remote
     # branch already pruned). Anything else — including research worktrees
@@ -528,7 +534,7 @@ function gdmerged() {
     if [[ "$upstream_track" != *"[gone]"* ]]; then
       hint=""
       [ -n "$worktree_path" ] && hint=" [worktree: $worktree_path]"
-      if ! _gdmerged_confirm "  delete '$branch'$hint? [y/N] "; then
+      if ! gdmerged::confirm "  delete '$branch'$hint? [y/N] "; then
         echo
         echo "  skipped: $branch"
         echo
@@ -537,7 +543,7 @@ function gdmerged() {
       echo
     fi
 
-    _gdmerged_delete "$branch" "$worktree_path"
+    gdmerged::delete "$branch" "$worktree_path"
     echo
   done <<< "$merged_branches"
 }

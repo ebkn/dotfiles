@@ -15,7 +15,7 @@ ends up holding (which branches exist, which worktrees are registered). Only `gh
 and `fzf` are stubbed, **never git**, because a stubbed git would keep passing if
 git changed what these commands mean.
 
-Five things are worth knowing before editing it:
+Six things are worth knowing before editing it:
 
 1. **The `mktemp -d` path must be resolved with `:A`** — macOS hands back
    `/var/…`, git reports `/private/var/…`, and without that every path comparison
@@ -34,7 +34,7 @@ Five things are worth knowing before editing it:
    `FZF_DEFAULT_OPTS`, since `zsh <file>` reads `~/.zshenv` and CI has none.
 3. **The y/N prompt reads `/dev/tty` directly** — deliberately, since the branch
    list already occupies stdin — so **no redirection can answer it**.
-   `_gdmerged_confirm` exists purely as the seam a test can override, and both
+   `gdmerged::confirm` exists purely as the seam a test can override, and both
    answers are exercised through it.
 4. **`run` reports the exit status as well as the final `PWD`**, because agents
    run `gw` and act on its status — a failure returning 0 would leave them working
@@ -45,6 +45,10 @@ Five things are worth knowing before editing it:
 5. **A case whose assertion is an absence needs a control.** The hook case first
    shows its fixture `post-checkout` hook firing on a plain `git worktree add`;
    without that, a hook that never ran would pass for nothing.
+6. **`as_snapshot` unfunctions what Claude Code's shell snapshot leaves out**
+   (every name matching `^_[^_]`) before running `gw` or `gdmerged`, because
+   that is the shell agents call them from. Its cases were red while the
+   helpers were `_gw_*`; see [README.md](README.md#no-helper-function-starts-with-a-single-_).
 
 The picker's menu is asserted on its **visible columns only**: the hidden third
 column is the absolute path, which contains both the branch name and the relative
@@ -88,7 +92,7 @@ expanding to ~200 files):
 | `.worktree-copy`, one `check-attr`/`dirname`/`mkdir`/`cp` per file | ~1.7s |
 | `.worktree-copy`, as now | ~0.15s |
 
-**The copy's cost was process count, not bytes.** So `_gw_copy_files` asks git
+**The copy's cost was process count, not bytes.** So `gw::copy_files` asks git
 about LFS for every path in one `check-attr --stdin` call, and copies a listed
 directory with one `cp -R <dir>/. <dst>` unless an LFS file is inside it —
 `/.`, because the checkout may already hold that directory, and a bare source

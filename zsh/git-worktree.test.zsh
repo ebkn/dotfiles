@@ -11,7 +11,7 @@
 # gh and fzf are stubbed, since neither may touch the network or block. git is
 # never stubbed.
 #
-# The confirmation prompt is reached through _gdmerged_confirm, which exists as
+# The confirmation prompt is reached through gdmerged::confirm, which exists as
 # a seam: the prompt reads /dev/tty directly (deliberately -- the branch list is
 # already on stdin), so a test cannot answer it by redirecting. Overriding the
 # one function is the only way to exercise both answers.
@@ -157,7 +157,7 @@ run() {
     # CONFIRM stands in for the y/N prompt, which reads /dev/tty and so cannot
     # be answered by redirecting stdin.
     if [[ -n "${CONFIRM:-}" ]]; then
-      _gdmerged_confirm() { [[ "$CONFIRM" == yes ]] }
+      gdmerged::confirm() { [[ "$CONFIRM" == yes ]] }
     fi
     "$@"
     printf 'STATUS=%s\n' "$?"
@@ -612,7 +612,7 @@ lacks 'gdmerged ignores unmerged branches' 'Processing branch: unmerged' "$out"
 # gdmerged (never deletes) and directory.zsh (shows no branch label for them).
 # It was four lists, and the two in directory.zsh had lost `master`. Whole
 # names only: a branch that merely contains one is an ordinary branch.
-trunk_of() { _git_is_trunk "$1" && print yes || print no; }
+trunk_of() { git::is_trunk "$1" && print yes || print no; }
 for b in main master develop staging; do
   check "$b is a trunk branch" yes "$(trunk_of "$b")"
 done
@@ -648,6 +648,34 @@ git -C "$repo" worktree add -q "$repo/git-worktrees/gone-one" gone/one
 /bin/rm -rf "$repo/git-worktrees/gone-one"
 out=$(run "$repo" gdmerged)
 lacks 'a manually deleted worktree does not block its branch' 'gone/one' "$(branches "$repo")"
+
+# --------------------------------------------------------------------------
+# Under Claude Code's shell snapshot
+# --------------------------------------------------------------------------
+
+# Claude Code's Bash tool sources a snapshot of the shell, not .zshrc, and the
+# snapshot leaves out every function matching `^_[^_]` -- its filter for zsh
+# completion functions (`typeset +f | grep -vE '^_[^_]'`). gw and gdmerged
+# survive it; a helper of theirs named like a completion function does not,
+# and the caller then fails on "command not found" -- for an agent, every time.
+as_snapshot() {
+  local f
+  for f in ${(k)functions}; do
+    [[ "$f" == _[^_]* ]] && unfunction -- "$f"
+  done
+  "$@"
+}
+
+repo=$(new_repo snap-gw)
+out=$(run "$repo" as_snapshot gw snap)
+check 'gw still creates a worktree under the snapshot' \
+  "PWD=$repo/git-worktrees/snap" "$(pwd_of "$out")"
+check 'and succeeds' 0 "$(status_of "$out")"
+
+repo=$(merged_repo snap-gd)
+out=$(CONFIRM=yes run "$repo" as_snapshot gdmerged)
+check 'gdmerged still deletes merged branches under the snapshot' \
+  'develop main unmerged ' "$(branches "$repo")"
 
 /bin/rm -rf "$work"
 
