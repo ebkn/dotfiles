@@ -43,7 +43,7 @@ bite quietly (it does not expand `\t` in a replacement, the trap
 
 `his()` ends in `print -z`, which pushes onto the editor buffer stack and cannot
 be read back from a non-interactive shell, so the substitutions live in
-`_his_clean` and are tested there.
+`his::clean` and are tested there.
 
 `gs()` is tested end to end with `git` and `fzf` stubbed, since what is worth
 pinning is the branch name that reaches `git switch` — in particular that

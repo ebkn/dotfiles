@@ -170,16 +170,16 @@ alias python='python3'
 # (GNU has accepted it since 4.2), so there is nothing left for gnu-sed to do
 # here, and one definition cannot drift from itself.
 #
-# _his_clean is separate so the substitutions can be tested without an
+# his::clean is separate so the substitutions can be tested without an
 # interactive `print -z`; zsh/his.test.zsh runs it on macOS and, through CI, on
 # GNU sed, which is the differential that keeps -E honest.
-_his_clean() {
+his::clean() {
   sed -E 's/ *[0-9]*\*? *//' | sed -E 's/\\/\\\\/g'
 }
 
 his() {
   print -z $( ([ -n "$ZSH_NAME" ] && fc -l 1 || history) \
-    | fzf +s --tac --reverse --no-preview | _his_clean)
+    | fzf +s --tac --reverse --no-preview | his::clean)
 }
 
 # $OSTYPE rather than `uname`: zsh sets it, so this costs no fork at startup.

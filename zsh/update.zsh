@@ -13,7 +13,7 @@
 # deadline, so this does. macOS 26.4 fixed it, which is why the release is
 # checked: on a fixed kernel this would be a false alarm on every run. See
 # zsh/README.md.
-_uptime_reboot_warning() {
+update-all::uptime_reboot_warning() {
   [[ $OSTYPE == darwin* ]] || return 0
   # One value per line, in the order asked:
   #   25.1.0
@@ -34,14 +34,14 @@ _uptime_reboot_warning() {
   print -u2 -- "         Outbound connections then fail. Reboot before that, or update to macOS 26.4+ (fixed)."
 }
 
-# _lazy_restore — `Lazy! restore`, holding on to the lockfile it was given.
+# update-all::lazy_restore — `Lazy! restore`, holding on to the lockfile it was given.
 # An install that finishes in the same nvim -- at startup, of a plugin missing
 # from disk -- rewrites lazy-lock.json from what is installed before the
 # restore reads it, undoing every pin bin/lazy-cooldown moved, without an
 # error. So the lockfile is read first, put back if the restore changed it,
 # and the change reported: the pins that passed the cooldown stay recorded,
 # and the next update-all applies them. See bin/lazy-cooldown.md.
-_lazy_restore() {
+update-all::lazy_restore() {
   local lock=${XDG_CONFIG_HOME:-$HOME/.config}/nvim/lazy-lock.json want got
   local -i st=0
   # `read -d ''` always fails at the end of the file, so what it read is the
@@ -92,11 +92,11 @@ update-all() {
   # restore runs alone in an nvim after the rewrite, because a clean or an
   # install that finishes before it in the same nvim rewrites the lockfile
   # from what is installed; so the clean, and any install at startup, go in
-  # an nvim before. _lazy_restore guards the install that can still happen.
+  # an nvim before. update-all::lazy_restore guards the install that can still happen.
   # See bin/lazy-cooldown.md.
   nvim --headless '+Lazy! clean' +qa
   lazy-cooldown || failed+=(lazy-cooldown)
-  _lazy_restore || failed+=('Lazy! restore')
+  update-all::lazy_restore || failed+=('Lazy! restore')
   # Move the versions in bin/go-tools.txt to releases whose commit has been on
   # their branch for 7 days, then install exactly those -- never @latest,
   # which builds and runs a release the minute it is published. The install
@@ -141,5 +141,5 @@ update-all() {
   fi
   # Last, so it is what is left on screen -- and so that when the clock has
   # already stopped, it explains the network failures scrolled past above.
-  _uptime_reboot_warning
+  update-all::uptime_reboot_warning
 }

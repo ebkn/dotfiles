@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# Unit tests for _uptime_reboot_warning and its place in update-all
+# Unit tests for update-all::uptime_reboot_warning and its place in update-all
 # (zsh/update.zsh), and for the order of update-all's lazy.nvim steps: clean,
 # then lazy-cooldown, then a restore in an nvim of its own (see the case).
 #
@@ -89,7 +89,7 @@ warning_on() {
   (
     OSTYPE="${3:-darwin25.0}"
     stub_machine "$1" "$(boottime_at "$2")"
-    _uptime_reboot_warning 2>&1
+    update-all::uptime_reboot_warning 2>&1
   )
 }
 
@@ -143,7 +143,7 @@ check 'silent when sysctl fails' \
       OSTYPE=darwin25.0
       sysctl() { return 1; }
       date() { print -r -- "$NOW"; }
-      _uptime_reboot_warning 2>&1
+      update-all::uptime_reboot_warning 2>&1
     )
   )"
 
@@ -153,7 +153,7 @@ check 'silent when kern.boottime is not in the shape it reads' \
     (
       OSTYPE=darwin25.0
       stub_machine $AFFECTED 'Wed Aug  5 08:24:58 2026'
-      _uptime_reboot_warning 2>&1
+      update-all::uptime_reboot_warning 2>&1
     )
   )"
 
@@ -164,7 +164,7 @@ check 'a warning is not a failure: the status stays 0' \
     (
       OSTYPE=darwin25.0
       stub_machine $AFFECTED "$(boottime_at $LONG)"
-      _uptime_reboot_warning 2>/dev/null
+      update-all::uptime_reboot_warning 2>/dev/null
       print -r -- $?
     )
   )"
@@ -315,9 +315,9 @@ check 'all seven failing are named on one line, in order' \
 # A restore can still undo the cooldown: an nvim whose startup installs a
 # plugin missing from disk -- one that failed to clone in the clean before it
 # -- rewrites the lockfile from what is installed before the restore reads it.
-# _lazy_restore keeps the lockfile it was given and puts it back if the restore
+# update-all::lazy_restore keeps the lockfile it was given and puts it back if the restore
 # changed it, so the pins that passed the cooldown stay recorded.
-# restore_with <nvim body> — run _lazy_restore against that nvim, starting
+# restore_with <nvim body> — run update-all::lazy_restore against that nvim, starting
 # from the fixture lockfile; prints what it printed, then its status.
 restore_with() {
   print -r -- $LOCKED > $LOCK
@@ -328,7 +328,7 @@ restore_as_is() {
   (
     eval "nvim() { $1; }"
     path=()
-    _lazy_restore 2>&1
+    update-all::lazy_restore 2>&1
     print -r -- "status=$?"
   )
 }
@@ -390,7 +390,7 @@ if [[ "$OSTYPE" == darwin* ]]; then
     "$(
       (
         stub_machine $AFFECTED "$real[2]" 9999999999
-        _uptime_reboot_warning 2>&1
+        update-all::uptime_reboot_warning 2>&1
       )
     )"
 else

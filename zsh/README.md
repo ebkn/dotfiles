@@ -109,7 +109,7 @@ port — so it reads as a broken remote rather than a broken machine.
 (26.4.1 was observed running `xnu-12377.101.15`; the earlier tags are matched to
 releases by their numbering.)
 
-So `_uptime_reboot_warning` exists for a machine that stays on an affected
+So `update-all::uptime_reboot_warning` exists for a machine that stays on an affected
 release, and it reads `kern.osrelease` to stay silent everywhere else — on a
 fixed kernel it would be a false alarm on every run. It asks the kernel rather
 than `$OSTYPE`, which is the release zsh was *built* for.
@@ -268,7 +268,7 @@ Four cases earn their keep:
   [bin/lazy-cooldown.md](../bin/lazy-cooldown.md#only-restore-may-run-after-the-rewrite).
   `nvim` is a function logging each argument quoted, so an unquoted
   `+Lazy! clean`, which splits into two arguments, fails it too. Beside it,
-  `_lazy_restore`'s cases point `XDG_CONFIG_HOME` at a fixture lockfile and
+  `update-all::lazy_restore`'s cases point `XDG_CONFIG_HOME` at a fixture lockfile and
   have the `nvim` function rewrite it, as an install at startup would.
 - **`update-all` ends with the warning.** The function can pass every case of
   its own while `update-all` no longer calls it — and a warning that stopped

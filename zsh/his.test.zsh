@@ -10,7 +10,7 @@
 #
 # his() ends in `print -z`, which pushes onto the editor buffer stack and is not
 # readable from a non-interactive shell, so the substitutions live in
-# _his_clean and are tested there. gs() is tested end to end with git and fzf
+# his::clean and are tested there. gs() is tested end to end with git and fzf
 # stubbed, because the part worth pinning is which branch name it hands to
 # `git switch`.
 #
@@ -36,9 +36,9 @@ check() {
   fi
 }
 
-# --- _his_clean: strip fzf's history number, re-escape backslashes ----------
+# --- his::clean: strip fzf's history number, re-escape backslashes ----------
 
-clean() { print -r -- "$1" | _his_clean; }
+clean() { print -r -- "$1" | his::clean; }
 
 check 'strips a plain history number'      'git status'   "$(clean '  123  git status')"
 check 'strips the * that marks the current entry' 'vim ~/.zshrc' "$(clean ' 1234* vim ~/.zshrc')"

@@ -37,7 +37,7 @@ missing, and restores in another after `lazy-cooldown`;
 That leaves one way in: a plugin that failed to install in the clean's nvim
 (the network down, say) is installed again at the restore's startup, and that
 install rewrites the lockfile before the restore reads it. So the restore goes
-through `_lazy_restore` in `zsh/update.zsh`, which reads the lockfile first and
+through `update-all::lazy_restore` in `zsh/update.zsh`, which reads the lockfile first and
 puts it back if the restore changed it. The pins that passed stay recorded,
 and the next `update-all` applies them.
 
