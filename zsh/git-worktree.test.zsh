@@ -676,6 +676,18 @@ repo=$(merged_repo snap-gd)
 out=$(CONFIRM=yes run "$repo" as_snapshot gdmerged)
 check 'gdmerged still deletes merged branches under the snapshot' \
   'develop main unmerged ' "$(branches "$repo")"
+check 'and succeeds' 0 "$(status_of "$out")"
+lacks 'and finds every function it calls' 'command not found' "$out"
+
+# The two cases above walk only some of the paths; a helper reached only from
+# the picker, the PR checkout or the worktree removal would slip past them.
+# What makes every path safe is the naming rule itself, so pin that: nothing
+# git.zsh defines (alias.zsh, sourced with it, included) is dropped.
+dropped=()
+for f in ${(k)functions}; do
+  [[ "$f" == _[^_]* ]] && dropped+=("$f")
+done
+check 'git.zsh defines no function the snapshot leaves out' '' "${(o)dropped[*]}"
 
 /bin/rm -rf "$work"
 
