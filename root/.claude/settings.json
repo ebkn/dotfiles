@@ -62,7 +62,6 @@
       "Bash(tailscale ping *)",
       "Bash(tailscale status *)",
       "Bash(tee *)",
-      "Bash(terminal-notifier *)",
       "Bash(test *)",
       "Bash(tmux list-panes:*)",
       "Bash(tmux list-sessions:*)",

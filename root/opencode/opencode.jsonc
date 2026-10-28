@@ -92,7 +92,6 @@
     { "action": "shell", "resource": "tailscale ping *", "effect": "allow" },
     { "action": "shell", "resource": "tailscale status *", "effect": "allow" },
     { "action": "shell", "resource": "tee *", "effect": "allow" },
-    { "action": "shell", "resource": "terminal-notifier *", "effect": "allow" },
     { "action": "shell", "resource": "test *", "effect": "allow" },
     // Claude's ":*" means a bare prefix too; ` *`-ending rules cover it but
     // not the no-colon spelling, so both forms are kept.

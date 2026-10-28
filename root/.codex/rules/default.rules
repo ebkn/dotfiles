@@ -71,7 +71,6 @@ prefix_rule(
             "stat",
             "tail",
             "tee",
-            "terminal-notifier",
             "test",
             "touch",
             "tr",

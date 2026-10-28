@@ -57,7 +57,7 @@ echo "-- allow rules must be present (proves default.rules loaded) --"
 present '["shellcheck"]'
 present '["actionlint"]'
 present '["ast-grep"]'
-present '["terminal-notifier"]'
+present '["traceroute"]'
 present '["/usr/bin/log", "show"]'
 present '["git", "commit", "-m"]'
 present '["git", "merge", "[main|origin/main]"]'

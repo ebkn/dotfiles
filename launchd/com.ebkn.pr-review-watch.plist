@@ -9,7 +9,7 @@
 
   PATH must be spelled out. A launchd agent does NOT inherit the login shell's
   environment, so it starts with the bare /usr/bin:/bin:/usr/sbin:/sbin and
-  every tool this script needs -- gh, jq, ghq, claude, terminal-notifier --
+  every tool this script needs -- gh, jq, ghq, claude --
   fails `command -v`. The script then exits with "gh is required", which lands
   in the log nobody reads while polling silently never happens.
 
