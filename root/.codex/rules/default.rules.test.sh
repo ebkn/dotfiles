@@ -61,7 +61,7 @@ present '["traceroute"]'
 present '["/usr/bin/log", "show"]'
 present '["git", "commit", "-m"]'
 present '["git", "merge", "[main|origin/main]"]'
-present '["gh", "pr", "[checks|create|diff|edit|list|status|view]"]'
+present '["gh", "pr", "[checks|create|diff|edit|list|ready|status|view]"]'
 present '["go", "mod", "[graph|verify|why]"]'
 present '["brew", "[cat|deps|info|leaves|list|outdated|search]"]'
 
