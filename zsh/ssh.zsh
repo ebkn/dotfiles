@@ -376,7 +376,10 @@ myssh() {
     # autossh manages its own reconnection; shared sockets from ControlPersist interfere.
     # tmux-track-session: reattach to the last-used session if the user switched
     # sessions on the remote. Falls back to plain tmux if script is not deployed.
-    AUTOSSH_GATETIME=0 autossh -M 0 \
+    # AUTOSSH_POLL caps autossh's backoff, which is its only use under -M 0. The
+    # default of 600 leaves a pane asleep for minutes on a network that has
+    # already come back; see bin/autossh-ssh.md.
+    AUTOSSH_GATETIME=0 AUTOSSH_POLL=15 autossh -M 0 \
       -o ControlPath=none "${ssh_opts[@]}" -t "$host" \
       "~/.local/bin/tmux-track-session attach ${remote_session_q} 2>/dev/null || tmux new-session -A -s ${remote_session_q} 2>/dev/null || exec \$SHELL -l"
   else

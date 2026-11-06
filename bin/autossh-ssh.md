@@ -7,7 +7,7 @@ The reconnect screen. Pointed at by `AUTOSSH_PATH` from `myssh` (`zsh/ssh.zsh`).
 When the link drops, the terminal still holds the remote tmux's last frame, and
 two different things scribble on it:
 
-1. ssh's diagnostic per attempt (autossh retries about once a second);
+1. ssh's diagnostic per attempt;
 2. if the pointer moves, a flood of raw SGR reports — because the remote tmux
    enabled mouse tracking and nothing is consuming it any more.
 
@@ -21,6 +21,31 @@ separate bug and is not ssh output at all. The cure is the same escape sequence
 runs once per attempt, autossh offers exactly one, and taking it leaves autossh's
 restart policy, backoff and exit handling untouched.
 
+## The notice only moves when autossh tries
+
+The shim runs once per attempt, so between attempts nothing repaints: **while
+autossh is in its backoff, the notice looks frozen.** `grace_time()` in autossh
+1.4g lets 5 attempts go fast, then sleeps `AUTOSSH_POLL / 100 * t² / 3` seconds
+(capped at `AUTOSSH_POLL`) before the t-th attempt after those. It resets only
+after an attempt that ran for `AUTOSSH_POLL / 10` seconds, or 10 if that is
+longer.
+
+At the default of 600 that is `2t²`: 2, 8, 18, 32, 50, 72, 98, … up to 10
+minutes. It looks like a hang because of how Wi-Fi fails: with no route, ssh
+exits in ~35 ms, so nothing resets the count, and the longer the outage the
+longer the sleep it is in when the network returns. Measured from `autossh` in
+the unified log (`/usr/bin/log show --info --predicate 'process == "autossh"'`;
+in zsh, bare `log` is a builtin): the network came back at 20:46:47 and the
+next attempt, inside a 450 s sleep, was at 20:49:12.
+
+`myssh` sets `AUTOSSH_POLL=15`, so a pane waits at most 15 s after the network
+returns. The value's only other use under `-M 0` is a timer with no port to
+test. The cost is one attempt per connection every 15 s for as long as a host
+keeps failing, including one that refuses authentication. Keep it below the
+shim's `OUTAGE_GAP` (30), or each backoff reads as a new outage and clears again.
+
+A running autossh keeps the value it started with: only a new `myssh` gets it.
+
 ## Three constraints
 
 1. **It must not be named `ssh`.** It resolves the real binary with
@@ -28,14 +53,14 @@ restart policy, backoff and exit handling untouched.
 2. **The first attempt is a bare `exec ssh`.** That one is the initial connect,
    where ssh's own output (host key prompt, "Permission denied") is the useful
    thing on screen and there is nothing stale to cover. Only from the second does
-   it clear, and only the first notice of each outage clears, so a retry a
-   second does not flicker. The counter lives as long as myssh, so a connection
+   it clear, and only the first notice of each outage clears, so a run of fast
+   retries does not flicker. The counter lives as long as myssh, so a connection
    that came back and dropped again starts its outage at attempt 3 or later;
    that first notice is recognised by the previous attempt having run 30s or
    more (the state file holds `<count> <start epoch>`). The shim execs ssh and
    never learns whether an attempt connected, so duration is the stand-in. It
-   errs both ways: a slow failure or a long backoff costs one extra clear, and
-   a session that drops within 30s of connecting is taken for a failed attempt,
+   errs both ways: a slow failure costs one extra clear, and a session that
+   drops within 30s of connecting is taken for a failed attempt,
    so its frame and mouse modes stay up for that outage.
 3. **ssh's stderr goes to a log rather than /dev/null, so the notice can quote
    its last line.** A changed host key retries forever otherwise, behind a line

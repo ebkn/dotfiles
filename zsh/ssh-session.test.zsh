@@ -33,6 +33,7 @@ cat >"$work/stub/autossh" <<'STUB'
 #!/bin/sh
 for a; do last=$a; done
 printf '%s' "$last" >"$REMOTE"
+printf '%s' "${AUTOSSH_POLL:-}" >"$REMOTE.poll"
 STUB
 cat >"$work/stub/ssh" <<'STUB'
 #!/bin/sh
@@ -99,6 +100,13 @@ chmod +x "$work/remote-bin/tmux"
 check "without tmux-track-session, the fallback gets the same name as one argument" \
   "new-session|my work" \
   "$(HOME="$work/bare-home" PATH="$work/remote-bin:$PATH" sh -c "$(cat "$REMOTE")" 2>/dev/null)"
+
+# autossh's backoff is capped by AUTOSSH_POLL, default 600: left unset, a pane
+# sleeps for minutes on a network that has already come back. Read from the
+# environment autossh actually received, since a value set on the wrong line
+# is silent until the next outage.
+check "autossh is started with its backoff capped at 15s" \
+  "15" "$(cat "$REMOTE.poll")"
 
 if (( failures == 0 )); then
   echo PASS

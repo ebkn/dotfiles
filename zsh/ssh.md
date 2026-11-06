@@ -135,3 +135,7 @@ The remote command is **run through `sh`** against a stub `tmux-track-session`,
 exactly as the remote login shell would, rather than matched as text — a name with
 a space passes a text match and is then split in two by the remote shell. That is
 why the name is quoted with `${(q)…}` before it goes into the command.
+
+It also pins `AUTOSSH_POLL` as autossh receives it, since the stub sits at that
+same boundary. The real backoff is not run here; why the value matters is in
+[bin/autossh-ssh.md](../bin/autossh-ssh.md#the-notice-only-moves-when-autossh-tries).
