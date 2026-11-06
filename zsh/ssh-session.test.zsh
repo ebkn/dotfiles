@@ -105,6 +105,14 @@ check "without tmux-track-session, the fallback gets the same name as one argume
 # sleeps for minutes on a network that has already come back. Read from the
 # environment autossh actually received, since a value set on the wrong line
 # is silent until the next outage.
+: >"$REMOTE.poll"
+(
+  PATH="$work/stub:$PATH"
+  rehash
+  TMUX_PANE=%12
+  unset AUTOSSH_POLL
+  myssh host >/dev/null 2>&1
+)
 check "autossh is started with its backoff capped at 15s" \
   "15" "$(cat "$REMOTE.poll")"
 
