@@ -330,7 +330,9 @@ review_loop_ended_clean() {
 # review_loop_rerun_checks <skill name>
 # review_loop_checks <skill name>
 # The predicates above as `check` lines. review_loop_rerun_checks asks what
-# every re-run owes: a finding before it and a fix before it. A check about
+# every re-run owes: a finding before it and a fix before it, and the two-
+# re-round cap from root/review-breakpoints.md (review_loop_rounds_capped).
+# A check about
 # the rounds themselves -- a ceiling on how many, say -- belongs in
 # review_loop_rerun_checks, so it reaches every case listed below as calling
 # either bundle. review_loop_checks adds the stopping rule, a clean last round,
@@ -345,11 +347,22 @@ review_loop_ended_clean() {
 #   under a label of its own.
 # - intended-layer-asks: its finding crosses the range and stays open in a run
 #   nobody can answer, so it grades no loop at all -- although it can loop.
+# Review-loop_capped <skill name> [max=3] -- the loop is capped at two
+# re-rounds: at most three calls of the skill, whatever round 2 still found.
+# The decision is root/review-breakpoints.md; at the cap the caller stops.
+review_loop_rounds_capped() {
+  local n
+  n="$(jq -s 'length' <<<"$(transcript_skill_rounds "$1")")"
+  [ "$n" -le "${2:-3}" ]
+}
+
 review_loop_rerun_checks() {
   check "fixed something before every re-run" \
     review_loop_fixed_before_each_rerun "$1"
   check "re-ran only after a round with P1 or P2" \
     review_loop_reran_only_after_findings "$1"
+  check "the loop is capped at two re-rounds" \
+    review_loop_rounds_capped "$1"
 }
 
 review_loop_checks() {

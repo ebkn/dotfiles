@@ -913,7 +913,25 @@ cat >"$DIR/rounds.jsonl" <<'EOF'
 {"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"s2","content":[{"type":"text","text":"## Test review: a\n\n### P2 (Important)\n- なし\n\n### P3\n- naming"}]}]}}
 {"type":"result","result":"done"}
 EOF
-rounds_of() { # <jq filter over the rounds array>
+ # A four-round transcript for the cap: rounds 1-2 as above, round 3 finds a
+ # P1 again, and a round 4 answers it -- review_loop_rounds_capped (default 3)
+ # fails this one.
+ cat >"$DIR/rounds-4.jsonl" <<'EOF'
+{"type":"system","subtype":"init"}
+{"type":"assistant","parent_tool_use_id":null,"message":{"content":[{"type":"tool_use","id":"s1","name":"Skill","input":{"skill":"review-test","args":"first brief"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"s1","content":"## Test review: a\n\n### P1 (Critical)\n- the refusal is untested\n\n### P2 (Important)\n- なし"}]}}
+{"type":"assistant","parent_tool_use_id":null,"message":{"content":[{"type":"tool_use","id":"e1","name":"Edit","input":{"file_path":"a.test.sh"}}]}}
+{"type":"assistant","parent_tool_use_id":null,"message":{"content":[{"type":"tool_use","id":"s2","name":"Skill","input":{"skill":"review-test","args":"second brief: fixed the refusal"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"s2","content":"## Test review: a\n\n### P1 (Critical)\n- the thrown error still untested\n\n### P2 (Important)\n- なし"}]}}
+{"type":"assistant","parent_tool_use_id":null,"message":{"content":[{"type":"tool_use","id":"e2","name":"Edit","input":{"file_path":"a.test.sh"}}]}}
+{"type":"assistant","parent_tool_use_id":null,"message":{"content":[{"type":"tool_use","id":"s3","name":"Skill","input":{"skill":"review-test","args":"third brief: covered the thrown error"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"s3","content":"## Test review: a\n\n### P1 (Critical)\n- the parsed default still untested\n\n### P2 (Important)\n- なし"}]}}
+{"type":"assistant","parent_tool_use_id":null,"message":{"content":[{"type":"tool_use","id":"e3","name":"Edit","input":{"file_path":"a.test.sh"}}]}}
+{"type":"assistant","parent_tool_use_id":null,"message":{"content":[{"type":"tool_use","id":"s4","name":"Skill","input":{"skill":"review-test","args":"fourth brief: covered the parsed default"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"s4","content":"## Test review: a\n\n### P2 (Important)\n- なし"}]}}
+{"type":"result","result":"done"}
+EOF
+ rounds_of() { # <jq filter over the rounds array>
   (
     SKILL_EVAL_TRANSCRIPT="$DIR/rounds.jsonl"
     . bin/skill-eval-assert.sh
@@ -936,7 +954,7 @@ loop() {
   if (
     SKILL_EVAL_TRANSCRIPT="${2:-$DIR/rounds.jsonl}"
     . bin/skill-eval-assert.sh
-    "$1" review-test
+    "$1" review-test "${@:3}"
   ); then echo yes; else echo no; fi
 }
 t "caller_writes_between: the caller's Edit, not the fork's" "1" \
@@ -946,6 +964,11 @@ t "caller_writes_between: bounds are exclusive" "0" \
 t "loop: the fixture re-ran only after findings" "yes" "$(loop review_loop_reran_only_after_findings)"
 t "loop: the fixture fixed before re-running" "yes" "$(loop review_loop_fixed_before_each_rerun)"
 t "loop: the fixture ended clean" "yes" "$(loop review_loop_ended_clean)"
+# The cap: two re-rounds, three rounds of the skill at most. The fixture has
+# two rounds, so the default cap holds and a tighter one does not.
+t "loop: the cap holds at the fixture's two re-rounds" "yes" "$(loop review_loop_rounds_capped)"
+t "loop: a cap tighter than the fixture's rounds catches it" "no" "$(loop review_loop_rounds_capped '' 1)"
+t "loop: the cap catches a fourth round" "no" "$(loop review_loop_rounds_capped "$DIR/rounds-4.jsonl")"
 
 # Each predicate broken by one change to the fixture.
 sed '6d' "$DIR/rounds.jsonl" >"$DIR/rounds-nofix.jsonl"
