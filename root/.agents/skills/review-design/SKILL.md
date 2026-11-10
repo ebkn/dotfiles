@@ -1,6 +1,6 @@
 ---
 name: review-design
-description: Run this before reporting a finished unit of work back to the user, without being asked, whenever that unit — committed, tests passing — added or changed an interface: an exported function or type, a command's arguments, flags or output, an environment variable, a configuration key, a file format, a new module or script. It reviews the design of the change — whether comments, docs and the intended design still match the code, and whether its interfaces are deep (simple to use, hiding real work) and testable — reports what to tidy, ranked P1/P2/P3, and the fixes follow. Also run it before the PR is marked ready (update-pr ready, or create-pr opening it ready) while part of the branch is unreviewed. Not after every commit, and not for a change to tests, docs or configuration alone, or a small fix that changes no interface. On request too — "設計をレビューして", "設計の観点でレビューして", "コメントやドキュメントとの乖離を見て", "リファクタリングの観点で見て", "design review", "review the design" — or via the /review-design command. Not for finding bugs (code-review), reviewing test code (review-test), or line-level cleanups (simplify). It runs in a fresh context that sees none of the conversation, so pass it a brief as the arguments: what the unit set out to do and why, the next planned change if one is known, the range (or the last `Reviewed:` line), and the user's language.
+description: Run this before reporting a finished request back to the user, without being asked, once its commits are in — committed, tests passing. It reviews the design of the change — whether comments, docs and the intended design still match the code, and whether its interfaces are deep (simple to use, hiding real work) and testable — reports what to tidy, ranked P1/P2/P3, and the fixes follow. Also run it before the PR is marked ready (update-pr ready, or create-pr opening it ready) while part of the branch is unreviewed. One breakpoint per user request; its intermediate commits are not checkpoints — fire mid-request only when the range added or changed an interface or contract, and let a change to tests, docs or configuration alone, or a small non-interface fix, ride to the boundary. On request too — "設計をレビューして", "設計の観点でレビューして", "コメントやドキュメントとの乖離を見て", "リファクタリングの観点で見て", "design review", "review the design" — or via the /review-design command. Not for finding bugs (code-review), reviewing test code (review-test), or line-level cleanups (simplify). It runs in a fresh context that sees none of the conversation, so pass it a brief as the arguments: what the request set out to do and why, the next planned change if one is known, the range (or the last `Reviewed:` line), and the user's language.
 effort: high
 allowed-tools: Read, Glob, Grep, Bash(git diff *), Bash(git log *), Bash(git show *), Bash(git merge-base *), Bash(git status *), Bash(git rev-parse *)
 context: fork
@@ -33,18 +33,16 @@ Wherever the steps below say "the brief", they mean this text; with no brief, fa
 
 ## When to start
 
-Beyond an explicit request, **start at an implementation breakpoint, even if no one asked.** A breakpoint is the end of a unit of work — a plan step, a task, a request — with its tests passing and its commits made: the moment before reporting it back to the user, or before starting the next unit.
+Beyond an explicit request, **start at the boundary of the user's request, even if no one asked.** A breakpoint is the end of the request — commits made, tests passing: the moment before reporting it back to the user, or before starting the next request. Mid-request, fire only on an interface or contract change; everything smaller rides to the boundary.
 
-- **Start** at a breakpoint when, since the last review, the work has
-  - added or changed an interface (Phase 2 lists what counts: an exported function or type, a command's arguments, flags or output, an environment variable, a configuration key, a file format, a new module or script), or
-  - grown past about 200 changed lines outside tests.
-- **Start** before the PR is marked ready as well — `update-pr ready`, or `create-pr` opening it ready — if part of the branch has not been reviewed yet. Not before a draft opened at a unit's first commit: that is the middle of the unit.
+- **Start** at the request's boundary when the request changed non-test code — interfaces included — or docs written alongside that code. Not for a request whose range is tests, docs, configuration or formatting alone: nothing the skill reviews changed there.
+- **Fire mid-request** when, since the last review, the work has added or changed an interface (Phase 2 lists what counts: an exported function or type, a command's arguments, flags or output, an environment variable, a configuration key, a file format, a new module or script).
+- **Start** before the PR is marked ready as well — `update-pr ready`, or `create-pr` opening it ready — if part of the branch has not been reviewed yet. Not before a draft opened at a request's first commit: that is mid-request.
 - **Don't start**:
-  - after every commit — one unit of work often spans several
-  - in the middle of a unit: tests failing, the work half done
-  - for a change to tests, docs, configuration or formatting alone
-  - for a small fix that changes no interface; the next breakpoint reviews it
-  - for the commits this skill's own follow-up made
+  - after every commit — one request usually spans several
+  - mid-request without an interface or contract change: rewording, reformatting and small non-interface fixes wait for the boundary
+  - for a request whose range is tests, docs, configuration or formatting alone
+  - for the mid-request commits this skill's own follow-up made
   - when the user has said a review is unnecessary
 
 **The trigger decides when; the range decides what.** The range runs from the last review (Phase 1), so a change that started no review is still in the next one: skipping a breakpoint delays a review, it never loses one.
@@ -70,15 +68,15 @@ Two prices start rising once a unit of work is done.
 
 This skill changes no files while it runs, per the boundary above. When it ran forked, the report arrives as the skill's result, which the user does not necessarily see; the caller is the one who passes it on. After a requested review, the caller writes the report out to the user and takes over once it is out, and not before. After a review it started itself, the caller takes over as soon as the review is done, and the report follows the fixes ("When to start"). Either way the caller carries on without stopping. The order, then:
 
-- **requested**: report (Phase 5) → tests → fixes → tests → commit → review again, until a round reports no P1 and no P2
-- **started by itself**: tests → fixes → tests → commit → review again, until a round reports no P1 and no P2 → the report atop the closing message
+- **requested**: report (Phase 5) → tests → fixes → tests → commit → review again, until a round reports no P1 and no P2, at most two re-rounds (step 6)
+- **started by itself**: tests → fixes → tests → commit → review again, until a round reports no P1 and no P2, at most two re-rounds (step 6) → the report atop the closing message
 
 1. **Fix the P1 and P2 findings of the first report whose reach is local, without asking first** (see "Reach" below). The report is not the deliverable; code and docs that agree, and interfaces that hide what they should, are. Reporting and stopping leaves every P1 in place, and asking permission to act on a review the caller already asked for is the failure this step exists to prevent.
 2. **For drift, fix the doc, not the code.** Rewriting a doc's old promise — and the reason it gave — is not changing a requirement: the commit already changed it, and the doc is catching up. If the code looks like what is wrong, that is a question for "Outside this review", not a fix.
 3. **For structure, change the code's shape and nothing it does.** Work in small named refactorings — Inline Function, Move Function, Change Function Declaration, Split Phase — and prefer deleting a layer to adding a better one. A missing seam is added the same way: Introduce Parameter, with the old source as its default, so every existing caller behaves as before.
 4. **Keep behavior where it is.** Run the tests before and after. The tests of what callers see must pass unchanged — a new test beside them, say for a function the fix extracted, changes nothing they expect; a fix that would change what such a test expects is not a tidying — stop and report it. The one exception is a test the fix's seam was for: it may move onto the seam, asserting the same behavior with a fixed input in place of the clock or the environment.
 5. **Commit the fixes on their own, after the commits of the unit of work.** Never amend them into those commits or fold them in: the review is what justifies the fix, and folding it in hides that. This is the caller's step — the skill runs no git that writes.
-6. **Review again, in a fresh run, until a round reports no P1 and no P2.** Its brief carries the last `Reviewed:` line and what this round fixed. There is no round cap, and no fix too small to skip it: a one-line fix is where a doc that still disagrees is easiest to miss.
+6. **Review again, in a fresh run, until a round reports no P1 and no P2 — at most two re-rounds.** Its brief carries the last `Reviewed:` line and what this round fixed. At the cap: an open P2 whose reach is local is fixed without a further round and disclosed as unreviewed; a crossing one follows "Reach" and waits; an open P1 is not auto-fixed — it goes to the user with the round's reasoning, and no PR may be marked ready while it stands.
 7. **Never auto-fix P3**; report it.
 
 What is left for the user to decide is what "Outside this review" asks, and any fix whose reach crosses the range — nothing else.
@@ -176,7 +174,7 @@ Write the full report, in the format below, as your final message. The caller pa
 - <a question about behavior for the user; a suspected bug, a test-quality issue or a line-level cleanup, with the skill that covers it>
 
 Reviewed: <base>..<head>
-Caller: the user may not see this result. If they asked for this review, write the report out to them in full as your own message before any other tool call; if you started it yourself, put it in full at the top of your closing message once the fixes are committed. A summary does not count. Then, without asking: fix every P1 and P2 whose reach is local — the questions under "Outside this review" do not hold them back and are asked at the end — run the tests, commit the fixes on their own, and run this skill again with the Reviewed line above and what you fixed, however small the fix, until a round reports no P1 and no P2. Details: "After the review" in ${CLAUDE_SKILL_DIR}/SKILL.md.
+Caller: the user may not see this result. If they asked for this review, write the report out to them in full as your own message before any other tool call; if you started it yourself, put it in full at the top of your closing message once the fixes are committed. A summary does not count. Then, without asking: fix every P1 and P2 whose reach is local — the questions under "Outside this review" do not hold them back and are asked at the end — run the tests, commit the fixes on their own, and run this skill again with the Reviewed line above and what you fixed, at most two re-rounds: at the cap an open P2 is fixed unreviewed and disclosed, an open P1 goes to the user and blocks marking the PR ready. Details: "After the review" in ${CLAUDE_SKILL_DIR}/SKILL.md.
 ```
 
 Keep the `Caller:` line untranslated: a forked caller never read this file, and that line is how it learns what its part is. It comes last, after the `Reviewed:` line, because it is addressed to the caller and is left out when the report is passed on — on 2026-10-16, with the `Reviewed:` line placed after a long `Caller:` line, the report a caller passed on named no reviewed range in 9 of 9 runs, and the one inspected had dropped both lines.

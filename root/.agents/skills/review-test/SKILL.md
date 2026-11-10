@@ -1,6 +1,6 @@
 ---
 name: review-test
-description: Review test code. Start from the module's public contract (inputs and outputs, error conditions, guaranteed side effects) and judge whether the tests hold as a specification of behavior, then report what to improve, ranked P1/P2/P3. Use when asked to review the tests themselves — "テストをレビューして", "テストのレビューをお願い", "test review", "review the tests" — or via the /review-test command. Use it proactively as well, without being asked, at an implementation breakpoint: once a unit of work — committed, tests passing — added or changed test files (`*.test.*`, `*.spec.*`, `*_test.*`, `*_spec.*`). Once per unit, not after every batch of test edits. It runs in a fresh context that sees none of the conversation, so pass it a brief as the arguments: the test files and the module they test, the commits of the unit, what the change set out to do, the user's language, and on a later round what the last one fixed.
+description: Review test code. Start from the module's public contract (inputs and outputs, error conditions, guaranteed side effects) and judge whether the tests hold as a specification of behavior, then report what to improve, ranked P1/P2/P3. Use when asked to review the tests themselves — "テストをレビューして", "テストのレビューをお願い", "test review", "review the tests" — or via the /review-test command. Use it proactively as well, without being asked, at the end of the user's request: once the request's commits — tests passing — added or changed test files (`*.test.*`, `*.spec.*`, `*_test.*`, `*_spec.*`); mid-request, only when a committed change since the last review can alter what the tests assert. One review per request — its intermediate commits are not breakpoints. It runs in a fresh context that sees none of the conversation, so pass it a brief as the arguments: the test files and the module they test, the commits of the request, what the change set out to do, the user's language, and on a later round what the last one fixed.
 allowed-tools: Read, Glob, Grep
 context: fork
 agent: general-purpose
@@ -30,14 +30,15 @@ Take the targets from the brief. If it names none, ask for them in your report r
 
 ## When to start
 
-Beyond an explicit request, **start at an implementation breakpoint, even if no one asked.** A breakpoint is the end of a unit of work — a plan step, a task, a request — with its tests passing and its commits made: the moment before reporting it back to the user, or before starting the next unit. Tests are the specification of behavior, and the end of the unit that wrote them is when they are still cheap to fix.
+Beyond an explicit request, **start at the boundary of the user's request, even if no one asked.** A breakpoint is the end of the request — tests passing, commits made: the moment before reporting it back to the user, or before starting the next request. Mid-request, start only when a committed change since the last review can alter what a test asserts.
 
-- **Start** at a breakpoint when the unit added or changed test files — `*.test.ts`, `*.spec.ts`, `*_test.go`, `*_spec.rb`, `*.test.sh`, `*.test.zsh`, whatever the language. Review the test files the unit's commits touched.
+- **Start** at the request's boundary when the request added or changed test files — `*.test.ts`, `*.spec.ts`, `*_test.go`, `*_spec.rb`, `*.test.sh`, `*.test.zsh`, whatever the language. Review the test files the request's commits touched.
 - **Don't start**:
-  - after every batch of test edits or every commit — one unit of work often spans several, and each forked run re-reads the code from scratch
-  - in the middle of a unit: tests failing, the work half done
+  - after every batch of test edits or every commit — one request usually spans several, and each forked run re-reads the code from scratch
+  - mid-request when nothing since the last review can alter what the tests assert
+  - while the work is half done: tests failing, changes uncommitted
   - when the user has said a review is unnecessary
-  - when the unit never reached test code (implementation only, configuration only)
+  - when the request never reached test code (implementation only, configuration only)
   - when nothing the tests assert could have changed — a typo, formatting, reordered imports
   - for the commits this skill's own follow-up made
 
@@ -49,7 +50,7 @@ This skill changes no files while it runs, per the boundary above. Once it repor
 
 1. **Fix the P1 and P2 findings, without asking first.** P1 means "deal with this before merging" and P2 decides how far the tests can be trusted; reporting and stopping discharges neither. Asking for permission to act on a review the caller already asked for is the failure mode this step exists to prevent. The fixes are to the tests: a finding in the implementation is not P1–P3 and is not fixed here, because changing the code under test to suit its tests inverts which one is the specification. Report it; it is the user's call.
 2. **Review again** with this skill, in a fresh run, with a brief that says what this round fixed. A fix can break another part of the test or introduce a new P1, and this is where that surfaces.
-3. **Repeat 1–2 until a round reports no P1 and no P2.** There is no round cap.
+3. **Repeat 1–2 until a round reports no P1 and no P2 — at most two re-rounds.** At the cap: an open P2 is fixed without a further round and disclosed as unreviewed; an open P1 is not auto-fixed — it goes to the user with the round's reasoning, and no PR may be marked ready while it stands.
 4. **Never auto-fix P3.** Report it; acting on it is the user's call.
 5. **Commit the fixes once the loop ends, on their own, after the commits of the unit** — never amended or folded into them: the review is what justifies the fix, and folding it in hides that. Use the granularity the caller's commit workflow would use anyway — a fix that changes what a test asserts and one that only reorganizes it are separate commits. Not inside this skill: it runs no git at all, per the boundary above. This is the caller's step, and it is here because a review whose fixes sit uncommitted is indistinguishable from one that was never acted on.
 

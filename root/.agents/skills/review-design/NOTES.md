@@ -128,6 +128,10 @@ and the last measurement are in `evals/README.md` — kept there because the
 runner strips `evals/` from the copy of the skill a run sees, and this file is
 not stripped.
 
+## Breakpoints
+
+Policy change 2026-11-10, after a measured fork explosion (`root/review-breakpoints.md` holds the numbers, the decision, and this note's evidence): the breakpoint is the end of the **user's request**, not each commit or plan step. Mid-request forks fire only when the range added or changed an interface or contract; at the boundary the skill fires for any non-test code change, and a request whose range is tests/docs/config/formatting alone fires nothing. The fix→re-review loop is capped at two re-rounds — measured over 14 days: 158 fork runs (29% of all output tokens, 34% of cache-new), one session at 53 forks of which only 11 were re-rounds and ~37 separate loop starts, which is why the cap alone would not have been enough. The PostToolUse hook below stays in reserve; the doc names the relapse threshold (> ~3 forks/session, or one session > ~6) and the committed instrument (`bin/review-token-audit`) that decides it.
+
 ## Open
 
 - **Requested reviews reporting first** is the softest measured behaviour: a

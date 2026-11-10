@@ -54,5 +54,5 @@ Update the existing pull request for the current branch. Follow this flow:
      PR_BODY_EOF
      ```
    - Keep the title free of backticks — GitHub renders PR titles as plain text, so backticks would appear literally *and* would trigger shell command substitution inside the double quotes; escape any `$` or `"` if the title contains them.
-   - When the arguments say `ready` and the PR is a draft (`isDraft` from step 2), mark it ready with `gh pr ready` after the edit: the caller is reporting the work as finished, and a draft at that point waits on a reviewer nobody asked. Without `ready`, leave its draft state as it is — a direct `/update-pr` mid-work keeps the draft.
+   - When the arguments say `ready` and the latest review round (`review-test`/`review-design`/`review-design-doc`) named an open P1, **do not mark ready** — report the P1 and leave the draft as it is: work with an outstanding P1 is not ready for a reviewer. Otherwise, with `ready` and a draft PR (`isDraft` from step 2), mark it ready with `gh pr ready` after the edit: the caller is reporting the work as finished, and a draft at that point waits on a reviewer nobody asked. Without `ready`, leave its draft state as it is — a direct `/update-pr` mid-work keeps the draft.
    - Return the PR URL.

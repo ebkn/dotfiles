@@ -23,7 +23,7 @@ Create a pull request. Follow this flow:
 
    **An open PR already**: run `gh pr view --json url,isDraft`. If it succeeds, the branch has a PR — opened in an earlier session, say — and a second `gh pr create` would only be refused. Create nothing: say so with its URL, and that `update-pr` (with `ready`, when the work is finished) is what brings it up to date. A caller that started this skill automatically goes on with `update-pr` itself.
 
-   **Draft or ready**: open it as a draft (`gh pr create --draft`) when the arguments say `draft` — the caller is opening it at a unit's first commit, with more to come, and `update-pr ready` marks it ready at the end. Otherwise open it ready, as a direct `/create-pr` at the end of the work expects.
+   **Draft or ready**: open it as a draft (`gh pr create --draft`) when the arguments say `draft` — the caller is opening it at a unit's first commit, with more to come, and `update-pr ready` marks it ready at the end. Otherwise it is opened ready — **unless the caller's latest review round (`review-test`/`review-design`/`review-design-doc`) named an open P1**: then open it as a draft and report the P1, because work with an outstanding P1 is not ready for a reviewer.
 
 3. **PR template**:
    - If a template path is listed, `Read` it before writing title/body.
