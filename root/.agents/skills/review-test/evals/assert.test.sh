@@ -556,11 +556,12 @@ expect_fail "no-fire: a fix left uncommitted is caught" "committed the fix"
 # one full step (Edit, tests, add, commit) per call of the step builder is
 # overkill here; the pinned assertions are the count, the place and the cap,
 # so a single representative step plus the fork records is enough.
-boundary_run() { # <skill starts> <tree change: the delivered state>
+boundary_run() { # <skill starts> <tree change: the delivered state> [records ahead of the work]
   local i
   new_run boundary-only || return 1
   in_work "${2:-:}"
   {
+    if [ -n "${3:-}" ]; then eval "$3"; fi
     rec_edit Edit calc.sh
     rec_edit Edit lib/quantity.test.sh
     rec_bash ./run-tests.sh
@@ -626,6 +627,14 @@ TEST
 boundary_run 1 boundary_work
 grade "5 回コミットしました。"
 expect_pass "boundary-only: one fork after the last commit passes every assertion"
+
+# A real run under root/CLAUDE.md commits through the `commit` skill, so a
+# foreign Skill call precedes the work. The guard reads the tested skill's
+# own first call (transcript_skill_rounds); this is the transcript a
+# regression to any-Skill-first turns red -- round 1's P1, unlived otherwise.
+boundary_run 1 boundary_work 'rec_tool Skill "{\"skill\":\"commit\"}"'
+grade "5 回コミットしました。"
+expect_pass "boundary-only: another skill before the commit does not count as an early start"
 
 boundary_run 2
 grade "5 回コミットしました。"

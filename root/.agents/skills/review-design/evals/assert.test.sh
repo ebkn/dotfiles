@@ -954,10 +954,11 @@ expect_fail "no-fire: two forks for one small fix are caught" \
 # state, its own grader (exactly one fork at the boundary, a clean round) --
 # running no-fire-small-fix's grader here would show nothing about the
 # expectations that differ.
-claudemd_run() { # <skill starts> <tree change> — the pair's fixture, built here for real
+claudemd_run() { # <skill starts> <tree change> [records ahead of the work]
   local i
   new_run no-fire-small-fix-claude-md || return 1
   {
+    if [ -n "${3:-}" ]; then eval "$3"; fi
     rec_edit Edit lib/quantity.sh
     rec_bash ./run-tests.sh
     rec_bash "git add lib/quantity.sh"
@@ -970,6 +971,13 @@ claudemd_run() { # <skill starts> <tree change> — the pair's fixture, built he
 claudemd_run 1 fix_nofire
 grade "直してコミットしました。"
 expect_pass "no-fire-claude-md: the boundary fork passes every assertion"
+
+# A real run under root/CLAUDE.md commits through the `commit` skill before
+# the work: the place guard reads review-design's own first call, and this
+# transcript is the one a regression to any-Skill-first turns red.
+claudemd_run 1 fix_nofire 'rec_tool Skill "{\"skill\":\"commit\"}"'
+grade "直してコミットしました。"
+expect_pass "no-fire-claude-md: another skill before the commit does not count as an early start"
 
 claudemd_run 2 fix_nofire
 grade "直してコミットしました。"
@@ -996,10 +1004,11 @@ expect_fail "no-fire-claude-md: no fork at the boundary is caught" \
 # ============================================================
 # Two non-interface fixes, two commits, one request: no fork between the
 # commits, at most one at the boundary. The delivered tree fixes both bugs.
-midreq_run() { # <skill starts> <tree change>
+midreq_run() { # <skill starts> <tree change> [records ahead of the work]
   local i
   new_run no-fire-midrequest-non-interface || return 1
   {
+    if [ -n "${3:-}" ]; then eval "$3"; fi
     rec_edit Edit lib/quantity.sh
     rec_bash ./run-tests.sh
     rec_bash "git add lib/quantity.sh"
@@ -1023,6 +1032,13 @@ midreq_fix() {
 midreq_run 1 midreq_fix
 grade "2 つとも直してコミットしました。"
 expect_pass "midrequest: the two fixes with one boundary fork pass"
+
+# root/CLAUDE.md commits through the `commit` skill before the work; the
+# place guard reads review-design's own first call, and this transcript is
+# the one a regression to any-Skill-first turns red.
+midreq_run 1 midreq_fix 'rec_tool Skill "{\"skill\":\"commit\"}"'
+grade "2 つとも直してコミットしました。"
+expect_pass "midrequest: another skill before the commit does not count as an early start"
 
 midreq_run 2 midreq_fix
 grade "2 つとも直してコミットしました。"
