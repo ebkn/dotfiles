@@ -547,6 +547,111 @@ typo_run 0 "${typo_fix%; git commit*}"
 grade "直しました。"
 expect_fail "no-fire: a fix left uncommitted is caught" "committed the fix"
 
+# ============================================================
+# boundary-only
+# ============================================================
+# Five helper commits, each changing what the tests assert — the shape the old
+# per-commit trigger fired on — with exactly one fork, after the last commit,
+# within the cap. boundary_run <skill starts> <before-commit> <after-commit>:
+# one full step (Edit, tests, add, commit) per call of the step builder is
+# overkill here; the pinned assertions are the count, the place and the cap,
+# so a single representative step plus the fork records is enough.
+boundary_run() { # <skill starts> <tree change: the delivered state>
+  local i
+  new_run boundary-only || return 1
+  in_work "${2:-:}"
+  {
+    rec_edit Edit calc.sh
+    rec_edit Edit lib/quantity.test.sh
+    rec_bash ./run-tests.sh
+    rec_bash "git add -A"
+    rec_bash "git commit -m step"
+    for ((i = 0; i < ($1 + 1) && i < 2; i++)); do
+      rec_edit Edit calc.sh
+      rec_bash ./run-tests.sh
+      rec_bash "git add -A"
+      rec_bash "git commit -m step"
+    done
+    for ((i = 0; i < $1; i++)); do rec_skill; done
+  } >>"$art/transcript.jsonl"
+  in_work :
+}
+
+# The delivered state the grader's work checks read: the five helpers, their
+# tests, and the five commits the prompt asked for (one real, four empty — the
+# pin is the grader's count shape, not a faithful replay of the run).
+# pin is the grader's count shape, not a faithful replay of the run).
+# in_work evals this by name, invisible to shellcheck.
+# shellcheck disable=SC2329
+boundary_work() {
+  cat >calc.sh <<'CALC'
+#!/bin/bash
+inc() { echo $(($1 + 1)); }
+dbl() { echo $(($1 * 2)); }
+negate() { echo $((0 - $1)); }
+abs() { if [ "$1" -lt 0 ]; then echo $((0 - $1)); else echo "$1"; fi; }
+max() { if [ "$1" -gt "$2" ]; then echo "$1"; else echo "$2"; fi; }
+CALC
+  chmod +x calc.sh
+  cat >lib/calc.test.sh <<'TEST'
+#!/bin/bash
+set -uo pipefail
+. "$(dirname "$0")/../calc.sh"
+t() {
+  local expect=$1 input=$2 got
+  got=$(eval "$input" 2>/dev/null)
+  if [ "$got" = "$expect" ]; then
+    printf 'ok - %s\n' "$expect"
+  else
+    printf 'FAIL - %s: expect %s, got %s\n' "$input" "$expect" "$got"
+    exit 1
+  fi
+}
+t '5' 'inc 4'
+t '-6' 'dbl -3'
+t '-7' 'negate 7'
+t '2' 'abs -2'
+t '9' 'max 3 9'
+t '-5' 'max -5 -9'
+TEST
+  chmod +x calc.test.sh
+  git add -A
+  git commit -q -m helpers
+  git commit -q --allow-empty -m step2
+  git commit -q --allow-empty -m step3
+  git commit -q --allow-empty -m step4
+  git commit -q --allow-empty -m step5
+}
+
+boundary_run 1 boundary_work
+grade "5 回コミットしました。"
+expect_pass "boundary-only: one fork after the last commit passes every assertion"
+
+boundary_run 2
+grade "5 回コミットしました。"
+expect_fail "boundary-only: two forks cross the cap" \
+  "review-test ran exactly once"
+
+boundary_skill_at_step() {
+  new_run boundary-only || return 1
+  {
+    rec_edit Edit calc.sh
+    rec_bash ./run-tests.sh
+    rec_bash "git add -A"
+    rec_bash "git commit -m step"
+    rec_skill
+    rec_edit Edit calc.sh
+    rec_bash ./run-tests.sh
+    rec_bash "git add -A"
+    rec_bash "git commit -m step"
+  } >>"$art/transcript.jsonl"
+  in_work :
+}
+boundary_skill_at_step
+grade "5 回コミットしました。"
+expect_fail "boundary-only: a fork before the boundary is caught" \
+  "the fork is at the boundary"
+
 if [ "$fails" -eq 0 ]; then
   printf '\nall review-test grader tests passed\n'
   exit 0

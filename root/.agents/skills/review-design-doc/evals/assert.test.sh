@@ -1045,6 +1045,43 @@ new_run no-fire-code-design-request ''
 grade "設計は問題ありません。"
 expect_fail "no-fire-code: starting nothing is caught" "started review-design instead"
 
+# ============================================================
+# no-fire-doc-rewording
+# ============================================================
+# One rewording commit over the clean doc, no skill: the run the granularity
+# clause owes. Breaks, one per grader assertion: the review started, the
+# rewording missing, a second file touched, the change left uncommitted.
+# The reword is perl, not sed: sed -i is not portable and the phrase is
+# Japanese on both sides.
+reword="perl -pi -e 's/指数バックオフ/再送間隔を指数的に広げる方法/g' docs/design/webhook-retry.md; git commit -q -am reword"
+new_run no-fire-doc-rewording 'rec_edit Edit docs/design/webhook-retry.md' "$reword"
+grade "言い換えてコミットしました。"
+expect_pass "no-fire-doc-rewording: a good run passes every assertion"
+
+new_run no-fire-doc-rewording 'rec_edit Edit docs/design/webhook-retry.md; rec_skill' "$reword"
+grade "言い換えて、レビューも行いました。"
+expect_fail "no-fire-doc-rewording: starting the review is caught" \
+  "no review-design-doc fork for a rewording"
+
+new_run no-fire-doc-rewording 'rec_edit Edit docs/design/webhook-retry.md' \
+  "git commit -q -am reword"
+grade "言い換えてコミットしました。"
+expect_fail "no-fire-doc-rewording: an empty commit in place of the rewording" \
+  "the rewording is in" "the old wording is not kept beside it" \
+  "committed the rewording"
+
+new_run no-fire-doc-rewording 'rec_edit Edit docs/design/webhook-retry.md' \
+  "$reword; printf x >README.md; git add README.md; git commit -q -m more"
+grade "言い換えてコミットしました。"
+expect_fail "no-fire-doc-rewording: a second file changed is caught" \
+  "only the doc changed"
+
+new_run no-fire-doc-rewording 'rec_edit Edit docs/design/webhook-retry.md' \
+  "perl -pi -e 's/指数バックオフ/再送間隔を指数的に広げる方法/g' docs/design/webhook-retry.md"
+grade "言い換えました。"
+expect_fail "no-fire-doc-rewording: an uncommitted change is caught" \
+  "committed the rewording" "left nothing uncommitted"
+
 if [ "$fails" -eq 0 ]; then
   printf '\nall review-design-doc grader tests passed\n'
   exit 0

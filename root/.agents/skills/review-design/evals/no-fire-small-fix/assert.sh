@@ -11,10 +11,22 @@ check "committed the fix" test "$(git rev-list --count eval-base..HEAD)" -ge 1
 check_eq "left nothing uncommitted" "" "$(git status --porcelain)"
 
 # --- not starting ("## When to start") ---
-# A one-character fix that makes the code do what its comment already says
-# changes no interface. This is the whole measurement: the skill was available
-# and the commit happened, and the skill stayed out of it.
-check_eq "did not start review-design for a small fix" "0" \
+# The mid-request half of the pair (no-fire-small-fix-claude-md carries the
+# CLAUDE.md side): with the skill's description alone, whether the request's
+# own boundary review fires is not pinned — only that no fork ran before the
+# fix's commit finished, and that at most one fork happened at all.
+check_match "review-design ran at most once" '^(0|1)$' \
   "$(transcript_skill_uses review-design)"
+# A fork, if it ran at all, sits at the boundary: after the fix's last commit.
+# check invokes the guard by name, so shellcheck cannot see the call site.
+# shellcheck disable=SC2329
+if_boundary_then_after_commit() {
+  local commits skillat
+  commits="$(transcript_command_indexes 'git commit' | tail -n 1)"
+  skillat="$(transcript_first_tool_index Skill)"
+  [ -z "$skillat" ] && return 0
+  [ -n "$commits" ] && [ "$skillat" -gt "$commits" ]
+}
+check "a fork, if any, ran at the boundary" if_boundary_then_after_commit
 
 skill_eval_finish

@@ -919,10 +919,135 @@ nofire_run 0 fix_nofire
 grade "直してコミットしました。"
 expect_pass "no-fire: a good run passes every assertion"
 
+# Under the boundary policy the small fix sits inside one request, so its
+# fork may sit after the fix's commit: the count pin loosened to at most one,
+# and what stays absolute is the place.
 nofire_run 1 fix_nofire
 grade "直してコミットしました。"
-expect_fail "no-fire: starting the skill for a small fix is caught" \
-  "did not start review-design for a small fix"
+expect_pass "no-fire: one fork at the boundary passes the count"
+
+nofire_pre() { # a fork invoked before the fix's commit is a per-commit review again
+  new_run no-fire-small-fix || return 1
+  {
+    rec_edit Edit lib/quantity.sh
+    rec_skill
+    rec_bash ./run-tests.sh
+    rec_bash "git add lib/quantity.sh"
+    rec_bash "git commit -m fix"
+  } >>"$art/transcript.jsonl"
+  in_work fix_nofire
+}
+nofire_pre
+grade "直してコミットしました。"
+expect_fail "no-fire: a fork before the boundary is caught" \
+  "a fork, if any, ran at the boundary"
+
+nofire_run 2 fix_nofire
+grade "直してコミットしました。"
+expect_fail "no-fire: two forks for one small fix are caught" \
+  "review-design ran at most once"
+
+# ============================================================
+# no-fire-small-fix-claude-md
+# ============================================================
+# The CLAUDEMd pair of no-fire-small-fix: same scaffold, same grader shape,
+# one fork expected at the boundary. Its scenarios run the very grader of
+# no-fire-small-fix's case — a copy keeps the pair's asserts from drifting,
+# so only its own expectations differ.
+claudemd_run() { # <skill starts> <tree change> — the pair's fixture, built here for real
+  local i
+  new_run no-fire-small-fix-claude-md || return 1
+  {
+    rec_edit Edit lib/quantity.sh
+    rec_bash ./run-tests.sh
+    rec_bash "git add lib/quantity.sh"
+    rec_bash "git commit -m fix"
+    for ((i = 0; i < $1; i++)); do rec_skill; done
+  } >>"$art/transcript.jsonl"
+  in_work "${2:-fix_nofire}"
+}
+
+claudemd_run 1 fix_nofire
+grade "直してコミットしました。"
+expect_pass "no-fire-claude-md: the boundary fork passes every assertion"
+
+claudemd_run 2 fix_nofire
+grade "直してコミットしました。"
+expect_fail "no-fire-claude-md: two forks are caught" \
+  "one review-design fork, at the boundary"
+
+claudemd_nofork() {
+  new_run no-fire-small-fix-claude-md || return 1
+  {
+    rec_edit Edit lib/quantity.sh
+    rec_bash ./run-tests.sh
+    rec_bash "git add lib/quantity.sh"
+    rec_bash "git commit -m fix"
+  } >>"$art/transcript.jsonl"
+  in_work fix_nofire
+}
+claudemd_nofork
+grade "直してコミットしました。"
+expect_fail "no-fire-claude-md: no fork at the boundary is caught" \
+  "one review-design fork, at the boundary"
+
+# ============================================================
+# no-fire-midrequest-non-interface
+# ============================================================
+# Two non-interface fixes, two commits, one request: no fork between the
+# commits, at most one at the boundary. The delivered tree fixes both bugs.
+midreq_run() { # <skill starts> <tree change>
+  local i
+  new_run no-fire-midrequest-non-interface || return 1
+  {
+    rec_edit Edit lib/quantity.sh
+    rec_bash ./run-tests.sh
+    rec_bash "git add lib/quantity.sh"
+    rec_bash "git commit -m fix-one"
+    rec_edit Edit lib/size.sh
+    rec_bash ./run-tests.sh
+    rec_bash "git add lib/size.sh"
+    rec_bash "git commit -m fix-two"
+    for ((i = 0; i < $1; i++)); do rec_skill; done
+  } >>"$art/transcript.jsonl"
+  in_work "${2:-midreq_fix}"
+}
+
+midreq_fix() {
+  fix_nofire # the quantity bug: the pair's own fix
+  perl -pi -e 's|1000 / 1000|1024 / 1024|' lib/size.sh
+  git add lib/size.sh
+  git commit -q -m "fix: divide by 1024"
+}
+
+midreq_run 1 midreq_fix
+grade "2 つとも直してコミットしました。"
+expect_pass "midrequest: the two fixes with one boundary fork pass"
+
+midreq_run 2 midreq_fix
+grade "2 つとも直してコミットしました。"
+expect_fail "midrequest: two forks are caught" \
+  "review-design ran at most once"
+
+midreq_pre() { # a fork after the first commit is a per-commit review
+  new_run no-fire-midrequest-non-interface || return 1
+  {
+    rec_edit Edit lib/quantity.sh
+    rec_bash ./run-tests.sh
+    rec_bash "git add lib/quantity.sh"
+    rec_bash "git commit -m fix-one"
+    rec_skill
+    rec_edit Edit lib/size.sh
+    rec_bash ./run-tests.sh
+    rec_bash "git add lib/size.sh"
+    rec_bash "git commit -m fix-two"
+  } >>"$art/transcript.jsonl"
+  in_work midreq_fix
+}
+midreq_pre
+grade "2 つとも直してコミットしました。"
+expect_fail "midrequest: a fork before the boundary is caught" \
+  "no fork before the last commit"
 
 nofire_run 0 :
 grade "直しました。"
@@ -1071,6 +1196,13 @@ if shard_begin; then
       ok "the CLAUDE.md pair shares its prompt $part"
     else
       bad "the CLAUDE.md pair shares its prompt $part"
+    fi
+    without="$(pair_part no-fire-small-fix "$part")"
+    with="$(pair_part no-fire-small-fix-claude-md "$part")"
+    if [ -n "$without" ] && [ "$without" = "$with" ]; then
+      ok "the no-fire CLAUDE.md pair shares its prompt $part"
+    else
+      bad "the no-fire CLAUDE.md pair shares its prompt $part"
     fi
   done
 fi
