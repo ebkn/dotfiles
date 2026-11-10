@@ -92,7 +92,10 @@ A case calls them bundled as `check` lines, not one by one:
 `review_loop_rerun_checks` and `review_loop_checks`, whose comment says what
 each asks and which case calls which. A check on the re-runs — a ceiling, say
 — goes in `review_loop_rerun_checks`, so it reaches every case that calls
-either bundle; that comment names the two that call neither.
+either bundle; that comment names the two that call neither. The ceiling is
+real policy now: `review_loop_rounds_capped` holds the loop at three rounds
+of the skill at most (two re-rounds, `root/review-breakpoints.md`), and its
+runner test pins it at two, three and four rounds.
 A fix made through `Bash` instead of `Write`/`Edit` is invisible to them; the
 review cases open no command that writes.
 
@@ -119,9 +122,19 @@ asserts) runs with `root/CLAUDE.md`, because that is where `review-test`'s
 auto-start rests and without it the case would pass by never starting
 anything. `review-design`'s `no-fire-small-fix` runs without it, which is
 meaningful only because `review-design` starts on its description alone (9/9,
-measured before `context: fork`, in its `evals/README.md`); it has no
-CLAUDE.md variant yet. `proactive-at-breakpoint-with-claude-md` is
-`review-design`'s counterpart of `proactive-with-claude-md`.
+measured before `context: fork`, in its `evals/README.md`). Since the
+breakpoints policy (`root/review-breakpoints.md`) the boundary fires once per
+request, so `no-fire-small-fix` now asks for *at most one* fork and that it
+sits after the fix's commit — a fork before it is the old per-commit
+behaviour — and I added the two half-pins the earlier measurement lacked:
+`no-fire-small-fix-claude-md` for `review-design`, where exactly one boundary
+fork is the contract, and `boundary-only` for `review-test`. The others ask
+for silence inside the request:
+`review-design`'s `no-fire-midrequest-non-interface` (two non-interface fixes
+in one request — no fork between the commits) and `review-design-doc`'s
+`no-fire-doc-rewording` (a reworded, already-reviewed sentence never forks
+again, the shape measured at 55 opus forks). `proactive-at-breakpoint-with-claude-md`
+is `review-design`'s counterpart of `proactive-with-claude-md`.
 
 The four index functions exist for **ordering** assertions, which is what is
 left once a skill's caller acts on its report in the same run: "never wrote" is
@@ -346,14 +359,22 @@ it, so the documented snippet is executed rather than trusted.
 
 `review-test/evals/assert.test.sh` does the same for that skill's cases (`proactive-with-claude-md` runs
 `proactive-after-writing-tests`'s scaffold and grader, so it is pinned through
-that one), `review-design/evals/assert.test.sh` for all eight of its, and
+that one; the pinned grader provokes the boundary fork's place and count too),
+`review-design/evals/assert.test.sh` for all nine of its original cases plus the
+breakpoints pair `no-fire-small-fix-claude-md` and
+`no-fire-midrequest-non-interface` — a pair equality for the CLAUDE.md variants
+keeps their prompts from drifting, and `no-fire-midrequest-non-interface`'s
+delivered state is built through `in_work` rather than a faithful transcript,
+so the pin is the grader's own shape — and
 `create-pr/evals/assert.test.sh` for `create-pr`'s and `update-pr`'s, which
 share their graders, and `lint-docs/evals/assert.test.sh` for all nine of
 `lint-docs`'s — which cannot pin that each planted finding is one textlint
 reports, since CI has no textlint (see that skill's `evals/README.md`) — and
-`review-design-doc/evals/assert.test.sh` for all seventeen of
+`review-design-doc/evals/assert.test.sh` for all eighteen of
 `review-design-doc`'s, written before the skill itself, so the cases are its
-specification; it reads the report from the final response, not from the
+specification; the newest of them, `no-fire-doc-rewording`, is graded on
+equality with the clean doc plus silence in the transcript; it reads the
+report from the final response, not from the
 Skill's `tool_result` — and `session-summary/evals/assert.test.sh` for all
 seven of `session-summary`'s, whose message is graded mostly by `check_llm`;
 its fixture also pins the trap `reports-finished-branch` is built on, a main
