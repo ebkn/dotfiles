@@ -43,8 +43,13 @@ Cost attribution limits worth knowing when reading the table:
   re-reads the code (cache-read) and writes findings (not cacheable);
 - **`sessions` counts parent sessions, not distinct repos**, and a session id
   can appear in several project directories after a session moves;
-- **forks and mains with zero assistant records are skipped** (no usage), so
-  `runs` may sit below a raw `find | wc -l`.
+- **forks and mains with zero usage are counted, not skipped** — every
+  transcript file contributes a row, whether any assistant record carries
+  usage or not — so empty transcripts sit in the denominators of `runs`,
+  `sessions` and both means. If a window ever shows `runs` at a raw
+  `find | wc -l` with mean lines that look low, suspect empty files before
+  suspecting little reviewing: excluding them is a behavior change the
+  decision (`root/review-breakpoints.md`) has not asked for.
 
 ## Testing it
 
