@@ -30,12 +30,11 @@ Take the targets from the brief. If it names none, ask for them in your report r
 
 ## When to start
 
-Beyond an explicit request, **start at the boundary of the user's request, even if no one asked.** A breakpoint is the end of the request — tests passing, commits made: the moment before reporting it back to the user, or before starting the next request. Mid-request, start only when a committed change since the last review can alter what a test asserts.
+Beyond an explicit request, **start at the boundary of the user's request, even if no one asked.** A breakpoint is the end of the request — tests passing, commits made: the moment before reporting it back to the user, or before starting the next request. Mid-request it does not start, whatever a commit did to the tests: one forked run re-reads everything from scratch, and the boundary runs over the whole range.
 
 - **Start** at the request's boundary when the request added or changed test files — `*.test.ts`, `*.spec.ts`, `*_test.go`, `*_spec.rb`, `*.test.sh`, `*.test.zsh`, whatever the language. Review the test files the request's commits touched.
 - **Don't start**:
-  - after every batch of test edits or every commit — one request usually spans several, and each forked run re-reads the code from scratch
-  - mid-request when nothing since the last review can alter what the tests assert
+  - before the boundary — not per commit, not per batch of test edits
   - while the work is half done: tests failing, changes uncommitted
   - when the user has said a review is unnecessary
   - when the request never reached test code (implementation only, configuration only)

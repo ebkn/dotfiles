@@ -35,9 +35,9 @@
 
 # Test Review
 
-- Use the `review-test` skill at the boundary of the user's request, without waiting to be asked: once the request's commits are in, tests passing, and it added or changed test files. Its intermediate commits are not breakpoints — one review per request, not per commit or batch of test edits (each forked run re-reads everything from scratch); mid-request, start only when a committed change since the last review can alter what a test asserts.
+- Use the `review-test` skill at the boundary of the user's request, without waiting to be asked: once the request's commits are in, tests passing, and it added or changed test files. Its intermediate commits are not breakpoints — one review per request, not per commit or batch of test edits; mid-request it does not start, whatever a commit did to the tests.
 - It runs in a forked, fresh context, so it knows only what you pass as its arguments: the test files, the module they test, the commits of the unit, what the change set out to do, and the language to answer in. Write the brief as intent, not as a defence of the code — the fresh context exists so the reviewer does not inherit your reasons.
-- Skip it only when the user says review is unnecessary, or when no test change since the last review could alter what the tests assert (typos, formatting, import order).
+- Skip it only when the user says review is unnecessary, or when no test change in the whole request could alter what the tests assert (typos, formatting, import order).
 - Fix the P1 and P2 findings without asking first — a review that only reports leaves the work undone. Then re-run the review until a round reports no P1 and no P2 — **at most two re-rounds**. At the cap: an open P2 is fixed without a further round and disclosed as unreviewed; an open P1 is not auto-fixed — it goes to the user and blocks `gh pr ready`. P3 is reported, never auto-fixed.
 - Once the loop ends, call the `commit` skill and let it split the result at its own granularity — a fix that changes what a test asserts and one that only reorganizes it are separate commits, per Tidy First. Do not fold the fixes into the commit that introduced the tests: the review is what justifies them, and burying it loses that.
 
