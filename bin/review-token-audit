@@ -1,0 +1,85 @@
+#!/bin/bash
+# Summarize Claude Code token usage: review forks vs. main sessions.
+# Aggregates ~/.claude/projects transcripts (assistant-record usage) over a
+# mtime window, keyed by the skill each forked transcript carries. Usage:
+#   bin/review-token-audit [--days N]      (default: 14)
+# Companion of root/review-breakpoints.md — its tables are this output.
+set -eo pipefail
+
+days=14
+while [ $# -gt 0 ]; do
+  case $1 in
+  --days)
+    days=$2
+    shift 2
+    ;;
+  *)
+    echo "usage: $0 [--days N]" >&2
+    exit 64
+    ;;
+  esac
+done
+
+projects=$HOME/.claude/projects
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+find "$projects" -type f -name '*.jsonl' -mtime "-$days" >"$tmpdir/files" || true
+
+: >"$tmpdir/rows"
+while IFS= read -r f; do
+  if [[ $f == */subagents/* ]]; then
+    kind=fork
+    parentdir=$(dirname "$(dirname "$f")")
+    session=$(basename "$(dirname "$parentdir")")/$(basename "$parentdir")
+    skill=$(rg -m1 -o '/skills/[a-z0-9._-]+' "$f" 2>/dev/null | head -n 1 || true)
+    skill=${skill#/skills/}
+    case $skill in
+    review-design | review-design-doc | review-test | review-support | session-summary | update-pr | create-pr | commit | lint-docs) ;;
+    *) skill=eval/$skill ;; # a skill-eval fixture carry, not a real review fork (e.g. es-review-test)
+    esac
+    [ -n "$skill" ] || skill=other-fork
+  else
+    kind=main
+    session=$(basename "${f%.jsonl}")
+    skill=-
+  fi
+  usage=$(jq -r 'select(.type=="assistant") | .message.usage // empty | [.input_tokens//0,.output_tokens//0,.cache_read_input_tokens//0,.cache_creation_input_tokens//0] | @tsv' "$f" 2>/dev/null |
+    awk '{i+=$1;o+=$2;c+=$3;n+=$4} END{printf "%d %d %d %d", i+0, o+0, c+0, n+0}') || usage='0 0 0 0'
+  IFS=' ' read -r i o c n <<<"$usage"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$kind" "$skill" "$session" "$i" "$o" "$c" "$n" >>"$tmpdir/rows"
+done <"$tmpdir/files"
+
+awk -F'\t' '
+  {
+    k = $1 SUBSEP $2
+    if (runs[k]++ == 0) order[++n] = k
+    out[k] += $5
+    read[k] += $6
+    new[k] += $7
+    if ($1 == "fork") {
+      if (!(($3 SUBSEP k) in sseen)) {
+        sseen[$3 SUBSEP k] = 1
+        scnt[k]++
+      }
+      fks[$3]++
+    }
+    if ($1 == "main") {
+      mout += $5
+      mread += $6
+      mnew += $7
+    }
+  }
+  END {
+    print "skill\truns\tsessions\tout(M)\tcache_read(M)\tcache_new(M)"
+    for (x = 1; x <= n; x++) {
+      k = order[x]
+      sk = k
+      gsub(/\034/, "/", sk)
+      printf "%s\t%d\t%d\t%.1f\t%.0f\t%.1f\n", sk, runs[k], scnt[k], out[k] / 1e6, read[k] / 1e6, new[k] / 1e6
+    }
+    printf "main-total\t-\t-\t%.1f\t%.0f\t%.1f\n", mout / 1e6, mread / 1e6, mnew / 1e6
+    print ""
+    print "sessions by fork count (>=3 forks, the relapse signal):"
+    for (s in fks) if (fks[s] >= 3) printf "%d\t%s\n", fks[s], s
+  }' "$tmpdir/rows"
