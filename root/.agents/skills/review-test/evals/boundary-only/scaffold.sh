@@ -8,7 +8,7 @@ set -eo pipefail
 
 # shellcheck source=../../../../../../bin/skill-eval-scaffold.sh
 source "$SKILL_EVAL_LIB_DIR/skill-eval-scaffold.sh"
-# shellcheck source=../../../lib.sh
+# shellcheck source=../lib.sh
 source "$SKILL_EVAL_REPO_ROOT/root/.agents/skills/review-test/evals/lib.sh"
 
 review_test_fixture_init

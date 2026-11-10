@@ -13,17 +13,25 @@ check_eq "left nothing uncommitted" "" "$(git status --porcelain)"
 # --- the boundary shape (root/review-breakpoints.md) ---
 # One small non-interface fix is the whole request, so its boundary review is
 # the one fork this policy owes: exactly one review-design run, after the
-# commit, ending within the cap.
+# commit, ending in a clean round.
 check_eq "one review-design fork, at the boundary" "1" \
   "$(transcript_skill_uses review-design)"
+# check invokes the guard by name, so shellcheck cannot see the call site.
+# shellcheck disable=SC2329
 boundary_only() {
-  local commits skillat
+  local first_skill commits
+  # The first call of review-design, not of any Skill: with root/CLAUDE.md a
+  # correct run calls `commit` before committing (proactive-at-breakpoint
+  # hits the same hazard and takes the skill's own rounds for the same
+  # reason).
+  first_skill="$(transcript_skill_rounds review-design | jq -s '.[0].index // empty')"
   commits="$(transcript_command_indexes 'git commit' | tail -n 1)"
-  skillat="$(transcript_first_tool_index Skill)"
-  [ -n "$skillat" ] && [ -n "$commits" ] && [ "$skillat" -gt "$commits" ]
+  [ -n "$first_skill" ] && [ -n "$commits" ] && [ "$first_skill" -gt "$commits" ]
 }
 check "the fork is at the boundary" boundary_only
-review_loop_rounds_capped review-design
-review_loop_ended_clean review-design
+# The count above already bounds the loop at one call; the cap adds nothing
+# there, so only the stopping rule is worth its own check — bare calls fail
+# without a FAIL line and would say nothing the count does not.
+check "the boundary review ended clean" review_loop_ended_clean review-design
 
 skill_eval_finish

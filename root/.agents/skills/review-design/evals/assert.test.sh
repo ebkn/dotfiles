@@ -950,10 +950,10 @@ expect_fail "no-fire: two forks for one small fix are caught" \
 # ============================================================
 # no-fire-small-fix-claude-md
 # ============================================================
-# The CLAUDEMd pair of no-fire-small-fix: same scaffold, same grader shape,
-# one fork expected at the boundary. Its scenarios run the very grader of
-# no-fire-small-fix's case — a copy keeps the pair's asserts from drifting,
-# so only its own expectations differ.
+# The CLAUDEMd pair of no-fire-small-fix: same scaffold, same delivered
+# state, its own grader (exactly one fork at the boundary, a clean round) --
+# running no-fire-small-fix's grader here would show nothing about the
+# expectations that differ.
 claudemd_run() { # <skill starts> <tree change> — the pair's fixture, built here for real
   local i
   new_run no-fire-small-fix-claude-md || return 1

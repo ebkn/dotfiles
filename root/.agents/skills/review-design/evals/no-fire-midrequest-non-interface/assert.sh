@@ -20,14 +20,19 @@ check_eq "left nothing uncommitted" "" "$(git status --porcelain)"
 # boundary is not pinned, only the mid-request silence is.
 check_match "review-design ran at most once" '^(0|1)$' \
   "$(transcript_skill_uses review-design)"
+# check invokes the guard by name, so shellcheck cannot see the call site.
+# shellcheck disable=SC2329
 no_fork_before_the_boundary() {
-  local commits skillat
+  local first_skill commits
+  # The first call of review-design, not of any Skill: with root/CLAUDE.md a
+  # correct run calls `commit` before committing
+  # (proactive-at-breakpoint hits the same hazard).
+  first_skill="$(transcript_skill_rounds review-design | jq -s '.[0].index // empty')"
   commits="$(transcript_command_indexes 'git commit' | tail -n 1)"
-  skillat="$(transcript_first_tool_index Skill)"
-  [ -z "$skillat" ] && return 0
-  [ -n "$commits" ] && [ "$skillat" -gt "$commits" ]
+  [ -z "$first_skill" ] && return 0
+  [ -n "$commits" ] && [ "$first_skill" -gt "$commits" ]
 }
 check "no fork before the last commit" no_fork_before_the_boundary
-review_loop_rounds_capped review-design
+# The at-most-once count already bounds the loop below the cap.
 
 skill_eval_finish
