@@ -9,14 +9,14 @@ set -eo pipefail
 days=14
 while [ $# -gt 0 ]; do
   case $1 in
-  --days)
-    days=$2
-    shift 2
-    ;;
-  *)
-    echo "usage: $0 [--days N]" >&2
-    exit 64
-    ;;
+    --days)
+      days=$2
+      shift 2
+      ;;
+    *)
+      echo "usage: $0 [--days N]" >&2
+      exit 64
+      ;;
   esac
 done
 
@@ -35,8 +35,8 @@ while IFS= read -r f; do
     skill=$(rg -m1 -o '/skills/[a-z0-9._-]+' "$f" 2>/dev/null | head -n 1 || true)
     skill=${skill#/skills/}
     case $skill in
-    review-design | review-design-doc | review-test | review-support | session-summary | update-pr | create-pr | commit | lint-docs) ;;
-    *) skill=eval/$skill ;; # a skill-eval fixture carry, not a real review fork (e.g. es-review-test)
+      review-design | review-design-doc | review-test | review-support | session-summary | update-pr | create-pr | commit | lint-docs) ;;
+      *) skill=eval/$skill ;; # a skill-eval fixture carry, not a real review fork (e.g. es-review-test)
     esac
     [ -n "$skill" ] || skill=other-fork
   else

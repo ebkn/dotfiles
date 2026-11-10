@@ -913,10 +913,10 @@ cat >"$DIR/rounds.jsonl" <<'EOF'
 {"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"s2","content":[{"type":"text","text":"## Test review: a\n\n### P2 (Important)\n- なし\n\n### P3\n- naming"}]}]}}
 {"type":"result","result":"done"}
 EOF
- # A four-round transcript for the cap: rounds 1-2 as above, round 3 finds a
- # P1 again, and a round 4 answers it -- review_loop_rounds_capped (default 3)
- # fails this one.
- cat >"$DIR/rounds-4.jsonl" <<'EOF'
+# A four-round transcript for the cap: rounds 1-2 as above, round 3 finds a
+# P1 again, and a round 4 answers it -- review_loop_rounds_capped (default 3)
+# fails this one.
+cat >"$DIR/rounds-4.jsonl" <<'EOF'
 {"type":"system","subtype":"init"}
 {"type":"assistant","parent_tool_use_id":null,"message":{"content":[{"type":"tool_use","id":"s1","name":"Skill","input":{"skill":"review-test","args":"first brief"}}]}}
 {"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"s1","content":"## Test review: a\n\n### P1 (Critical)\n- the refusal is untested\n\n### P2 (Important)\n- なし"}]}}
@@ -931,7 +931,7 @@ EOF
 {"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"s4","content":"## Test review: a\n\n### P2 (Important)\n- なし"}]}}
 {"type":"result","result":"done"}
 EOF
- rounds_of() { # <jq filter over the rounds array>
+rounds_of() { # <jq filter over the rounds array>
   (
     SKILL_EVAL_TRANSCRIPT="$DIR/rounds.jsonl"
     . bin/skill-eval-assert.sh
