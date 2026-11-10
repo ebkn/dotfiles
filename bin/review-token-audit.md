@@ -7,8 +7,9 @@ over the last `N` days of mtimes (default 14) in `~/.claude/projects`:
   carries (matched from `skills/<name>` in the fork's brief), with a
   `fork/<skill>` row each — skips, not just `review-*`, so `session-summary`,
   `update-pr` and eval fixtures (`eval/<name>`) appear too;
-- **main sessions** (`<session>.jsonl`) are summed into one row, the
-  `main-total` line, because their usage is not attributable per skill.
+- **main sessions** (`<session>.jsonl`) are summed into the `main-total` line —
+  once each, so shares recomputed from the table do not double-count — because
+  their usage is not attributable per skill.
 
 It exists because **the standard aggregates hide the review forks**:
 `session-review` excludes subagent transcripts by default, so the largest
@@ -19,10 +20,20 @@ were 29% of all output tokens and 34% of all cache-new while `session-review
 re-measure after the breakpoints policy lands must run the same script that
 produced the baseline, so the before/after differ by behaviour, not by tool.
 
-The last block, `sessions by fork count (>=3 forks)`, is the policy's relapse
-signal: `root/review-breakpoints.md` pulls the deferred PostToolUse hook out
-of its reserve when forks-per-session climbs back above ~3 or a single
-session exceeds ~6 on a re-measure.
+The relapse decision reads **both** of the last two blocks —
+`root/review-breakpoints.md` pulls the reserved PostToolUse hook out of its
+reserve when forks/session climbs past ~3, or a single session exceeds ~6, on
+a re-measure:
+
+- `forks: F over K forked sessions, S main sessions in window` and the two
+  mean lines are the decision row. It prints **both** means because the
+  thresholds were written as "forks/session" without picking a population:
+  per main session (0-fork ones included) is what a whole-week window sees,
+  per forked session is the inflated one a run that barely reviews reads, and
+  the doc does not commit to either.
+- `sessions by fork count (>=3)` is the outlier list: the per-session half of
+  the threshold — one bad session tripping the hook without moving a mean —
+  reads here, not from the mean.
 
 Cost attribution limits worth knowing when reading the table:
 

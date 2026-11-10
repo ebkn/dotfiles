@@ -53,11 +53,19 @@ done <"$tmpdir/files"
 awk -F'\t' '
   {
     k = $1 SUBSEP $2
-    if (runs[k]++ == 0) order[++n] = k
+    # Main rows are summed into the main-total line below, not the table:
+    # a second row of the same totals would double every share someone
+    # recomputes from the table.
+    if (runs[k]++ == 0 && $1 == "fork") order[++n] = k
     out[k] += $5
     read[k] += $6
     new[k] += $7
     if ($1 == "fork") {
+      forks++
+      if (!($3 in fsess)) {
+        fsess[$3] = 1
+        fsessn++
+      }
       if (!(($3 SUBSEP k) in sseen)) {
         sseen[$3 SUBSEP k] = 1
         scnt[k]++
@@ -68,6 +76,7 @@ awk -F'\t' '
       mout += $5
       mread += $6
       mnew += $7
+      msessions++
     }
   }
   END {
@@ -80,6 +89,9 @@ awk -F'\t' '
     }
     printf "main-total\t-\t-\t%.1f\t%.0f\t%.1f\n", mout / 1e6, mread / 1e6, mnew / 1e6
     print ""
-    print "sessions by fork count (>=3 forks, the relapse signal):"
+    # The mean thresholds read from here; the list below is the per-session end.
+    printf "forks: %d over %d forked sessions, %d main sessions in window\n", forks, fsessn, msessions
+    printf "mean %.1f forks per main session, %.1f per forked session\n", forks / (msessions ? msessions : 1), forks / (fsessn ? fsessn : 1)
+    print "sessions by fork count (>=3 forked sessions, the per-session end):"
     for (s in fks) if (fks[s] >= 3) printf "%d\t%s\n", fks[s], s
   }' "$tmpdir/rows"

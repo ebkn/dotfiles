@@ -59,7 +59,7 @@ Do not leave this condition to the caller's configuration alone (a `CLAUDE.md` o
 
 ## Why at a breakpoint
 
-Two prices start rising once a unit of work is done.
+Two prices start rising once the user's request is done.
 
 - **An interface is cheapest to change while its only callers are the ones just written.** Each caller, doc and test added afterwards raises the price, and once something outside the change depends on it, changing it needs someone's agreement.
 - **A doc that disagrees with the code is cheapest to fix while it is still known which side is right.** At a breakpoint the code was just changed on purpose, so the doc is the side to fix. Later, deciding which of the two is wrong takes archaeology.
@@ -75,7 +75,7 @@ This skill changes no files while it runs, per the boundary above. When it ran f
 2. **For drift, fix the doc, not the code.** Rewriting a doc's old promise — and the reason it gave — is not changing a requirement: the commit already changed it, and the doc is catching up. If the code looks like what is wrong, that is a question for "Outside this review", not a fix.
 3. **For structure, change the code's shape and nothing it does.** Work in small named refactorings — Inline Function, Move Function, Change Function Declaration, Split Phase — and prefer deleting a layer to adding a better one. A missing seam is added the same way: Introduce Parameter, with the old source as its default, so every existing caller behaves as before.
 4. **Keep behavior where it is.** Run the tests before and after. The tests of what callers see must pass unchanged — a new test beside them, say for a function the fix extracted, changes nothing they expect; a fix that would change what such a test expects is not a tidying — stop and report it. The one exception is a test the fix's seam was for: it may move onto the seam, asserting the same behavior with a fixed input in place of the clock or the environment.
-5. **Commit the fixes on their own, after the commits of the unit of work.** Never amend them into those commits or fold them in: the review is what justifies the fix, and folding it in hides that. This is the caller's step — the skill runs no git that writes.
+5. **Commit the fixes on their own, after the request's commits.** Never amend them into those commits or fold them in: the review is what justifies the fix, and folding it in hides that. This is the caller's step — the skill runs no git that writes.
 6. **Review again, in a fresh run, until a round reports no P1 and no P2 — at most two re-rounds.** Its brief carries the last `Reviewed:` line and what this round fixed. At the cap: an open P2 whose reach is local is fixed without a further round and disclosed as unreviewed; a crossing one follows "Reach" and waits; an open P1 is not auto-fixed — it goes to the user with the round's reasoning, and no PR may be marked ready while it stands.
 7. **Never auto-fix P3**; report it.
 
@@ -100,7 +100,7 @@ Five phases, in this order.
    - If the brief names one, use it.
    - If the brief carries an earlier report's closing line (`Reviewed: <base>..<head>`), start from its head, so finished work is not reviewed twice.
    - Otherwise, from the merge-base with the default branch to `HEAD`. Find the default branch with `git rev-parse --abbrev-ref origin/HEAD`; without a remote, use `main`, then `master`.
-   - On the default branch itself, where that merge-base is `HEAD` and the range would be empty, take the commits of the unit of work just finished, as the brief names them. With no such brief, say in the report that the range is unknown and stop — the caller can ask.
+   - On the default branch itself, where that merge-base is `HEAD` and the range would be empty, take the commits the request just finished, as the brief names them. With no such brief, say in the report that the range is unknown and stop — the caller can ask.
    - Uncommitted changes (`git status --short`) belong to the work too. Include them, and say so in the report: a fix made now will share their commit.
 2. **Read what the change meant to do**: the commit messages in the range (`git log`), and the brief, which stands in for the plan, issue or conversation it came from. Note what comes next as well, if the brief says — Phase 4 weighs the structure against it. Do not invent one.
 3. **List the changed files** (`git diff --stat`). If the range changes nothing a caller or a reader depends on — formatting, a lockfile, tests alone — say so in one line and stop.
@@ -207,7 +207,7 @@ P1/P2/P3 are **absolute criteria**, not a distribution. Classify by whether a fi
 
 **A finding whose fix would change what the code does is not a tidying.** Rank it nowhere in P1–P3: put it under "Outside this review" as a question for the user — an edge case nothing decides, a behavior no doc or intent explains. That keeps "fix P1 and P2 without asking" from ever reaching behavior, so every P1 and P2 can be acted on without a decision.
 
-**P1** — fix before the next unit of work starts. Any one of:
+**P1** — fix before the next request starts. Any one of:
 
 - A comment, doc, name or usage text states something about the code that is no longer true.
 - An interface the range created or changed leaks an implementation decision its callers must know or repeat. Every caller written from now on will depend on it.
