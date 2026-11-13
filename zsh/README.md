@@ -39,11 +39,13 @@ applied. The filter is read from Claude Code's own bundle (2.1.308), not a
 documented contract; if it changes, the test's `as_snapshot` changes with it.
 
 **The snapshot's options are not `.zshrc`'s either.** `setopt` in the Bash tool
-shows `nobareglobqual` and `markdirs`, which nothing here sets. Under
-`nobareglobqual` a bare `*(DN^/)` is a glob group, not qualifiers: a bad pattern
-that aborted `gw` in the middle of its `.worktree-copy` copy, so agents' worktrees
-never got `.env`. A function that globs with qualifiers starts with
-`emulate -L zsh` (`gw::copy_files` does); `as_snapshot` sets those options too.
+shows `nobareglobqual`, which nothing here sets. Under it a bare `*(DN^/)` is a
+glob group, not qualifiers: a bad pattern that aborted `gw` in the middle of its
+`.worktree-copy` copy, so agents' worktrees never got `.env`. `gw::copy_files`
+therefore starts with `emulate -L zsh`, and `as_snapshot` sets the snapshot's
+options (the list is there). The `*(N)` globs in `ssh.zsh` do not have this
+guard yet. Give a new qualifier glob in a function an agent can call the same
+`emulate -L zsh`.
 
 ## `.zshrc` finds `zsh/` relative to itself
 

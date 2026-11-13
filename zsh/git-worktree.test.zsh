@@ -658,10 +658,12 @@ lacks 'a manually deleted worktree does not block its branch' 'gone/one' "$(bran
 # completion functions (`typeset +f | grep -vE '^_[^_]'`). gw and gdmerged
 # survive it; a helper of theirs named like a completion function does not,
 # and the caller then fails on "command not found" -- for an agent, every time.
-# The snapshot also runs with options .zshrc never sets, `setopt` in the Bash
-# tool lists them. nobareglobqual is the one that bites: a bare `*(DN)` is then
-# a glob group, not qualifiers -- `(DN^/)` is a bad pattern that aborts the
-# copy, `(DN)` silently matches nothing -- so .env never reached the worktree.
+# The snapshot also runs with its own options, as `setopt` in the Bash tool
+# lists them: nobareglobqual and markdirs, which nothing here sets, and
+# nonomatch from .zshrc. nobareglobqual is the one that bites: a bare `*(DN)` is
+# then a glob group, not qualifiers. `(DN^/)` is a bad pattern that aborts gw
+# before .env is copied; `(DN)` matches no file, so under nonomatch the
+# pattern itself becomes the one entry the loop walks.
 as_snapshot() {
   local f
   for f in ${(k)functions}; do
