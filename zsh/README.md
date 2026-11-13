@@ -38,6 +38,13 @@ the owner says whose implementation detail it is, as the `_` prefix used to.
 applied. The filter is read from Claude Code's own bundle (2.1.308), not a
 documented contract; if it changes, the test's `as_snapshot` changes with it.
 
+**The snapshot's options are not `.zshrc`'s either.** `setopt` in the Bash tool
+shows `nobareglobqual` and `markdirs`, which nothing here sets. Under
+`nobareglobqual` a bare `*(DN^/)` is a glob group, not qualifiers: a bad pattern
+that aborted `gw` in the middle of its `.worktree-copy` copy, so agents' worktrees
+never got `.env`. A function that globs with qualifiers starts with
+`emulate -L zsh` (`gw::copy_files` does); `as_snapshot` sets those options too.
+
 ## `.zshrc` finds `zsh/` relative to itself
 
 Via `DOTFILES="${${(%):-%N}:A:h}"`, so a checkout anywhere loads *its own*

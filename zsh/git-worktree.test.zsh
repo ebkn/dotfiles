@@ -658,19 +658,38 @@ lacks 'a manually deleted worktree does not block its branch' 'gone/one' "$(bran
 # completion functions (`typeset +f | grep -vE '^_[^_]'`). gw and gdmerged
 # survive it; a helper of theirs named like a completion function does not,
 # and the caller then fails on "command not found" -- for an agent, every time.
+# The snapshot also runs with options .zshrc never sets, `setopt` in the Bash
+# tool lists them. nobareglobqual is the one that bites: a bare `*(DN)` is then
+# a glob group, not qualifiers -- `(DN^/)` is a bad pattern that aborts the
+# copy, `(DN)` silently matches nothing -- so .env never reached the worktree.
 as_snapshot() {
   local f
   for f in ${(k)functions}; do
     [[ "$f" == _[^_]* ]] && unfunction -- "$f"
   done
+  setopt nobareglobqual markdirs nonomatch
   "$@"
 }
 
+# models/ holds an LFS file, so both directory walks in gw::copy_files run.
 repo=$(new_repo snap-gw)
+mkdir -p "$repo/models/sub"
+printf 'secret\n' > "$repo/.env"
+printf 'cfg\n' > "$repo/models/sub/conf.yml"
+printf 'pointer\n' > "$repo/models/weights.bin"
+printf '*.bin filter=lfs\n' > "$repo/.gitattributes"
+printf '%s\n' models .env > "$repo/.worktree-copy"
 out=$(run "$repo" as_snapshot gw snap)
 check 'gw still creates a worktree under the snapshot' \
   "PWD=$repo/git-worktrees/snap" "$(pwd_of "$out")"
 check 'and succeeds' 0 "$(status_of "$out")"
+lacks 'and its globs parse under nobareglobqual' 'bad pattern' "$out"
+check 'and copies a listed file' 'secret' \
+  "$(cat "$repo/git-worktrees/snap/.env" 2>&1)"
+check 'and walks a listed directory that holds an LFS file' 'cfg' \
+  "$(cat "$repo/git-worktrees/snap/models/sub/conf.yml" 2>&1)"
+check 'and still skips the LFS file in it' 'absent' \
+  "$([[ -e "$repo/git-worktrees/snap/models/weights.bin" ]] && echo present || echo absent)"
 
 repo=$(merged_repo snap-gd)
 out=$(CONFIRM=yes run "$repo" as_snapshot gdmerged)

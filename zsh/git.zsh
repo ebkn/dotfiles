@@ -255,9 +255,12 @@ gw::copy_files() {
   local root_dir=$1 worktree_path=$2
   local list="$root_dir/.worktree-copy"
   [ -f "$list" ] || return 0
-  # For the `#` (zero or more) in the trim below; without it `#` is a literal
-  # character, and the trim silently leaves every entry as it was.
-  setopt localoptions extendedglob
+  # zsh defaults first: Claude Code's shell snapshot runs with nobareglobqual,
+  # which turns the `*(DN^/)` qualifiers below into a bad pattern that aborts
+  # gw, and markdirs, which hides a symlinked directory from `-L`. extendedglob
+  # is for the `#` (zero or more) in the trim below; without it `#` is a
+  # literal character, and the trim silently leaves every entry as it was.
+  emulate -L zsh -o extendedglob
 
   echo "Copying files..."
   # Every local is declared outside the loops: `local` re-run on a variable

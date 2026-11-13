@@ -49,6 +49,9 @@ Six things are worth knowing before editing it:
    (every name matching `^_[^_]`) before running `gw` or `gdmerged`, because
    that is the shell agents call them from. Its cases were red while the
    helpers were `_gw_*`; see [README.md](README.md#no-helper-function-starts-with-a-single-_).
+   It also sets the snapshot's `nobareglobqual markdirs nonomatch`, under which
+   the `.worktree-copy` glob was a bad pattern; its copy case, with an LFS file
+   in a listed directory, walks both globs in `gw::copy_files`.
 
 The picker's menu is asserted on its **visible columns only**: the hidden third
 column is the absolute path, which contains both the branch name and the relative
