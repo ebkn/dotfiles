@@ -257,7 +257,7 @@ gw::copy_files() {
   [ -f "$list" ] || return 0
   # zsh defaults first: Claude Code's shell snapshot runs with nobareglobqual,
   # which turns the `*(DN^/)` qualifiers below into a bad pattern that aborts
-  # gw, and markdirs, which hides a symlinked directory from `-L`. extendedglob
+  # gw, and with other options no test here can enumerate. extendedglob
   # is for the `#` (zero or more) in the trim below; without it `#` is a
   # literal character, and the trim silently leaves every entry as it was.
   emulate -L zsh -o extendedglob
