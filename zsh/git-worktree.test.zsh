@@ -672,19 +672,20 @@ as_snapshot() {
 }
 
 # models/ holds an LFS file, so both directory walks in gw::copy_files run.
+# The spaced .env entry pins the extendedglob trim under the snapshot's options.
 repo=$(new_repo snap-gw)
 mkdir -p "$repo/models/sub"
 printf 'secret\n' > "$repo/.env"
 printf 'cfg\n' > "$repo/models/sub/conf.yml"
 printf 'pointer\n' > "$repo/models/weights.bin"
 printf '*.bin filter=lfs\n' > "$repo/.gitattributes"
-printf '%s\n' models .env > "$repo/.worktree-copy"
+printf '%s\n' models '  .env  ' > "$repo/.worktree-copy"
 out=$(run "$repo" as_snapshot gw snap)
 check 'gw still creates a worktree under the snapshot' \
   "PWD=$repo/git-worktrees/snap" "$(pwd_of "$out")"
 check 'and succeeds' 0 "$(status_of "$out")"
 lacks 'and its globs parse under nobareglobqual' 'bad pattern' "$out"
-check 'and copies a listed file' 'secret' \
+check 'and copies a listed file, its entry trimmed' 'secret' \
   "$(cat "$repo/git-worktrees/snap/.env" 2>&1)"
 check 'and walks a listed directory that holds an LFS file' 'cfg' \
   "$(cat "$repo/git-worktrees/snap/models/sub/conf.yml" 2>&1)"
