@@ -2,7 +2,8 @@
 # Claude Code statusLine — p10k-flavored, two rows.
 #   Row 1: <launch-dir>[ (working in ./<working-dir-relative-to-launch>)]
 #   Row 2: <model>[ ・ <effort>][ ・ <pct>% Used][ ・ <s>%(session)・<w>%(week)]
-#          [ ・ <email>][ (<config-dir>)]
+#          [ ・ <account>]
+#   where <account> is "<email> (<config-dir>)", "<email>" or "(<config-dir>)".
 # Row 1 names the directory Claude was launched from and, only when the live
 # working directory has moved elsewhere, appends where it is now. Row 2 lists
 # session info: model, effort, consumed context, and Claude.ai subscription
@@ -53,6 +54,7 @@ abbrev_path() {
   elif [ "$p" = "$HOME" ]; then
     printf '~'
   elif [ "${p#"$HOME"/}" != "$p" ]; then
+    # '~/%s' would trip shellcheck's SC2088; the / rides in the argument.
     printf '~%s' "/${p#"$HOME"/}"
   else
     printf '%s' "$p"
