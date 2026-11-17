@@ -1,10 +1,9 @@
 #!/bin/bash
-# Pins two parts of statusline-command.sh's output. The account segment of the
-# second row: the email of the account the session is logged in as, read from
-# the global config of the active config dir, and that dir itself whenever
-# CLAUDE_CONFIG_DIR points somewhere other than ~/.claude. And the ~
-# abbreviation of paths, which both rows use. Every failure here is silent -- a
-# wrong path just drops the segment -- so each case asserts on the rendered row.
+# Pins two parts of statusline-command.sh's output. The config-dir segment of
+# the second row: the name of the dir CLAUDE_CONFIG_DIR points at, shown only
+# when that is somewhere other than ~/.claude. And the ~ abbreviation of paths
+# in the first row. Every failure here is silent -- a wrong comparison just
+# drops or adds the segment -- so each case asserts on the rendered row.
 set -uo pipefail
 
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/statusline-command.sh"
@@ -13,13 +12,7 @@ SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/statusline-command.sh"
 
 test_tmpdir
 home="$TEST_TMPDIR/home"
-mkdir -p "$home/.claude" "$home/.claude-work" "$home/.claude-nologin"
-printf '{"oauthAccount":{"emailAddress":"me@example.com"}}' >"$home/.claude.json"
-# The same dir's .claude.json differs from ~/.claude.json on purpose: an unset
-# CLAUDE_CONFIG_DIR must read the latter, an explicit ~/.claude the former.
-printf '{"oauthAccount":{"emailAddress":"inner@example.com"}}' >"$home/.claude/.claude.json"
-printf '{"oauthAccount":{"emailAddress":"work@example.com"}}' >"$home/.claude-work/.claude.json"
-printf '{}' >"$home/.claude-nologin/.claude.json"
+mkdir -p "$home"
 
 input='{"workspace":{"project_dir":"/p","current_dir":"/p"},"model":{"display_name":"Opus"}}'
 
@@ -35,40 +28,24 @@ row2() {
   printf '%s' "${out#*$'\n'}"
 }
 
-assert_eq "default config dir: email only, read from ~/.claude.json" \
-  "Opus ・ me@example.com" "$(row2)"
-assert_eq "CLAUDE_CONFIG_DIR=~/.claude is the default: no dir shown" \
-  "Opus ・ inner@example.com" "$(row2 "$home/.claude")"
+assert_eq "CLAUDE_CONFIG_DIR unset: no segment, no separator" "Opus" "$(row2)"
+assert_eq "CLAUDE_CONFIG_DIR=~/.claude is the default: no segment" \
+  "Opus" "$(row2 "$home/.claude")"
 assert_eq "a trailing slash on ~/.claude is still the default" \
-  "Opus ・ inner@example.com" "$(row2 "$home/.claude/")"
-assert_eq "another config dir: its email and the dir, ~-abbreviated" \
-  "Opus ・ work@example.com (~/.claude-work)" "$(row2 "$home/.claude-work")"
-assert_eq "no logged-in account: the dir alone" \
-  "Opus ・ (~/.claude-nologin)" "$(row2 "$home/.claude-nologin")"
-assert_eq "a config dir with no .claude.json: the dir alone" \
-  "Opus ・ (~/.claude-missing)" "$(row2 "$home/.claude-missing")"
+  "Opus" "$(row2 "$home/.claude/")"
+assert_eq "another config dir: its name" \
+  "Opus ・ .claude-work" "$(row2 "$home/.claude-work")"
+assert_eq "a trailing slash on another dir does not empty its name" \
+  "Opus ・ .claude-work" "$(row2 "$home/.claude-work/")"
+assert_eq "a config dir outside \$HOME: its name too" \
+  "Opus ・ elsewhere" "$(row2 "$TEST_TMPDIR/elsewhere")"
 
-mkdir -p "$TEST_TMPDIR/elsewhere" "$home/.claude-broken"
-printf '{"oauthAccount":{"emailAddress":"far@example.com"}}' >"$TEST_TMPDIR/elsewhere/.claude.json"
-printf '{' >"$home/.claude-broken/.claude.json"
-assert_eq "a config dir outside \$HOME stays absolute" \
-  "Opus ・ far@example.com ($TEST_TMPDIR/elsewhere)" "$(row2 "$TEST_TMPDIR/elsewhere")"
-assert_eq "a malformed .claude.json drops the email and leaks no jq error" \
-  "Opus ・ (~/.claude-broken)" "$(row2 "$home/.claude-broken" 2>&1)"
-
-# The account goes last, after every other part, with one separator each.
+# The segment goes last, after every other part, with one separator each.
 full='{"workspace":{"project_dir":"/p","current_dir":"/p"},"model":{"display_name":"Opus"},"effort":{"level":"high"},"context_window":{"used_percentage":42},"rate_limits":{"five_hour":{"used_percentage":10},"seven_day":{"used_percentage":20}}}'
 out=$(printf '%s' "$full" | HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude-work" "$SCRIPT")
-assert_eq "with every part present the account comes last" \
-  "Opus ・ high ・ 42% Used ・ 10%(session)・20%(week) ・ work@example.com (~/.claude-work)" \
+assert_eq "with every part present the config dir comes last" \
+  "Opus ・ high ・ 42% Used ・ 10%(session)・20%(week) ・ .claude-work" \
   "${out#*$'\n'}"
-
-# A HOME with no ~/.claude.json: unset CLAUDE_CONFIG_DIR leaves no segment.
-bare="$TEST_TMPDIR/bare"
-mkdir -p "$bare"
-out=$(printf '%s' "$input" | env -u CLAUDE_CONFIG_DIR HOME="$bare" "$SCRIPT")
-assert_eq "no ~/.claude.json and the default dir: no segment, no separator" \
-  "Opus" "${out#*$'\n'}"
 
 # row1 <dir> -- the first row for a session launched and working in <dir>.
 row1() {

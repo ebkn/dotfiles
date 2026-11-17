@@ -2,13 +2,12 @@
 # Claude Code statusLine — p10k-flavored, two rows.
 #   Row 1: <launch-dir>[ (working in ./<working-dir-relative-to-launch>)]
 #   Row 2: <model>[ ・ <effort>][ ・ <pct>% Used][ ・ <s>%(session)・<w>%(week)]
-#          [ ・ <account>]
-#   where <account> is "<email> (<config-dir>)", "<email>" or "(<config-dir>)".
+#          [ ・ <config-dir-name>]
 # Row 1 names the directory Claude was launched from and, only when the live
 # working directory has moved elsewhere, appends where it is now. Row 2 lists
 # session info: model, effort, consumed context, and Claude.ai subscription
-# usage limits (5-hour session window and 7-day weekly window), then the
-# logged-in account and, when CLAUDE_CONFIG_DIR is not ~/.claude, that dir.
+# usage limits (5-hour session window and 7-day weekly window), then, when
+# CLAUDE_CONFIG_DIR is not ~/.claude, that dir's name (e.g. .claude-private).
 # Parsing stdin is a single jq pass with no per-field subprocess, keeping the
 # status line fast on every prompt.
 
@@ -102,25 +101,15 @@ limits=""
 [ -n "$week_pct" ] && limits="${limits:+${limits}・}${week_pct}%(week)"
 [ -n "$limits" ] && row2="$row2 ・ $limits"
 
-# Account: the stdin JSON carries no account field, so the email comes from the
-# global config Claude Code itself reads -- $CLAUDE_CONFIG_DIR/.claude.json when
-# the variable is set, ~/.claude.json (not ~/.claude/.claude.json) when it is
-# not. The statusline command inherits Claude Code's environment, so this is
-# the session's own config dir. A dir other than ~/.claude is shown beside the
-# email, since several dirs may be logged in to the same account; with no
-# logged-in account (API key, missing file) the dir alone remains. A second jq
-# pass, but only over a file of a few hundred KB.
+# Config dir: each CLAUDE_CONFIG_DIR is its own login, so its name says which
+# account the session runs as. The statusline command inherits Claude Code's
+# environment, so this is the session's own dir. Only the name is shown (the
+# dirs sit side by side in $HOME, so it is what tells them apart), and nothing
+# for the default ~/.claude. The trailing / is stripped first, or both the
+# comparison and the name would come out wrong.
 config_dir=${CLAUDE_CONFIG_DIR%/}
-if [ -n "$config_dir" ]; then
-  config_file="$config_dir/.claude.json"
-else
-  config_file="$HOME/.claude.json"
-fi
-account=""
-[ -r "$config_file" ] && account=$(jq -r '.oauthAccount.emailAddress // empty' "$config_file" 2>/dev/null)
 if [ -n "$config_dir" ] && [ "$config_dir" != "$HOME/.claude" ]; then
-  account="${account:+$account }($(abbrev_path "$config_dir"))"
+  row2="$row2 ・ ${config_dir##*/}"
 fi
-[ -n "$account" ] && row2="$row2 ・ $account"
 
 printf '%s\n%s' "$row1" "$row2"
