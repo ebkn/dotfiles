@@ -48,6 +48,28 @@ assert_eq "no logged-in account: the dir alone" \
 assert_eq "a config dir with no .claude.json: the dir alone" \
   "Opus ・ (~/.claude-missing)" "$(row2 "$home/.claude-missing")"
 
+mkdir -p "$TEST_TMPDIR/elsewhere" "$home/.claude-broken"
+printf '{"oauthAccount":{"emailAddress":"far@example.com"}}' >"$TEST_TMPDIR/elsewhere/.claude.json"
+printf '{' >"$home/.claude-broken/.claude.json"
+assert_eq "a config dir outside \$HOME stays absolute" \
+  "Opus ・ far@example.com ($TEST_TMPDIR/elsewhere)" "$(row2 "$TEST_TMPDIR/elsewhere")"
+assert_eq "a malformed .claude.json drops the email and leaks no jq error" \
+  "Opus ・ (~/.claude-broken)" "$(row2 "$home/.claude-broken" 2>&1)"
+
+# The account goes last, after every other part, with one separator each.
+full='{"workspace":{"project_dir":"/p","current_dir":"/p"},"model":{"display_name":"Opus"},"effort":{"level":"high"},"context_window":{"used_percentage":42},"rate_limits":{"five_hour":{"used_percentage":10},"seven_day":{"used_percentage":20}}}'
+out=$(printf '%s' "$full" | HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude-work" "$SCRIPT")
+assert_eq "with every part present the account comes last" \
+  "Opus ・ high ・ 42% Used ・ 10%(session)・20%(week) ・ work@example.com (~/.claude-work)" \
+  "${out#*$'\n'}"
+
+# A HOME with no ~/.claude.json: unset CLAUDE_CONFIG_DIR leaves no segment.
+bare="$TEST_TMPDIR/bare"
+mkdir -p "$bare"
+out=$(printf '%s' "$input" | env -u CLAUDE_CONFIG_DIR HOME="$bare" "$SCRIPT")
+assert_eq "no ~/.claude.json and the default dir: no segment, no separator" \
+  "Opus" "${out#*$'\n'}"
+
 # row1 <dir> -- the first row for a session launched and working in <dir>.
 row1() {
   local out
