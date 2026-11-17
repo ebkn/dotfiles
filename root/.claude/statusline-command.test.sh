@@ -29,6 +29,8 @@ row2() {
 }
 
 assert_eq "CLAUDE_CONFIG_DIR unset: no segment, no separator" "Opus" "$(row2)"
+assert_eq "CLAUDE_CONFIG_DIR set but empty: no segment, no separator" \
+  "Opus" "$(row2 "")"
 assert_eq "CLAUDE_CONFIG_DIR=~/.claude is the default: no segment" \
   "Opus" "$(row2 "$home/.claude")"
 assert_eq "a trailing slash on ~/.claude is still the default" \
@@ -39,6 +41,8 @@ assert_eq "a trailing slash on another dir does not empty its name" \
   "Opus ・ .claude-work" "$(row2 "$home/.claude-work/")"
 assert_eq "a config dir outside \$HOME: its name too" \
   "Opus ・ elsewhere" "$(row2 "$TEST_TMPDIR/elsewhere")"
+assert_eq "a .claude outside \$HOME is not the default: the full path decides" \
+  "Opus ・ .claude" "$(row2 "$TEST_TMPDIR/other/.claude")"
 
 # The segment goes last, after every other part, with one separator each.
 full='{"workspace":{"project_dir":"/p","current_dir":"/p"},"model":{"display_name":"Opus"},"effort":{"level":"high"},"context_window":{"used_percentage":42},"rate_limits":{"five_hour":{"used_percentage":10},"seven_day":{"used_percentage":20}}}'
