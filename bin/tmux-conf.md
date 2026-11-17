@@ -49,6 +49,12 @@ of only refusing.
   and then this menu. WezTerm cannot tell an ssh tab from a local one, so only the
   second prompt can name the host. Removing WezTerm's prompt for ssh tabs would
   mean keying on the `≫` title marker, and that coupling was not judged worth it.
+- **The tab's × button (and middle-click, `Ctrl+Shift+W`, the window's close
+  button) asks too, but bypasses tmux:** it is WezTerm's own `Really kill this
+  tab?`, enabled by an empty `skip_close_confirmation_for_processes_named` in
+  `wezterm.lua` (the default list holds `zsh` and `tmux`, so it never asked).
+  It kills only the tmux *client*: the session survives as `○ no tab` in
+  `prefix + w`, and no ssh menu is shown.
 
 ## The `prefix + w` tree format (`@tree_format`)
 

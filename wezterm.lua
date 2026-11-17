@@ -325,6 +325,15 @@ return {
   -- ANSI colors and UI chrome share a consistent look.
   color_scheme = 'Everforest Dark (Gogh)',
 
+  -- Ask before every tab/window close, not only when something "stateful" runs.
+  -- The tab's × button, a middle-click on a tab, Ctrl+Shift+W and the window's
+  -- close button all prompt only when a pane runs a process NOT in this list,
+  -- and the default list holds zsh and tmux -- which is all a tab here ever
+  -- runs, so every one of those closed silently. Empty means always ask.
+  -- (Cmd+W is our own PromptInputLine and Cmd+Q is governed by
+  -- window_close_confirmation; neither reads this list.)
+  skip_close_confirmation_for_processes_named = {},
+
   show_tab_index_in_tab_bar = false,
   tab_max_width = 160,
   -- Disable two-finger swipe / mouse wheel over the tab bar from switching
