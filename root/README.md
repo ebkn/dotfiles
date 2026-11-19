@@ -567,6 +567,15 @@ relink, so it self-heals). Add one by creating its dir here, then run `relink`.
 Note OpenCode reads both `~/.agents/skills` and `~/.claude/skills`, so it may
 list each skill twice.
 
+**Keep each `description` under ~1,000 characters, triggers first.** Codex cuts
+a longer one with `...` at about that length (`codex debug prompt-input` shows
+it), so whatever sits at the end never reaches it: four skills once lost their
+trigger phrases or brief that way. Every character is also in every Claude
+session's context. What the caller does with a forked skill's result belongs in
+its `Caller:` line and `root/CLAUDE.md`, not here — but the *trigger* stays in
+both the description and `root/CLAUDE.md`
+([review-breakpoints.md](review-breakpoints.md): each layer fires on its own).
+
 ### Ignored means unenforced, which matters for safety
 
 Skills use Claude frontmatter (`effort`, `allowed-tools`) and `!` command
