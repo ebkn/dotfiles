@@ -510,6 +510,15 @@ On a fresh machine the Cloudflare plugin is declared (`extraKnownMarketplaces`)
 but not installed; install it at local scope in the repo instead of enabling it:
 `claude plugin install cloudflare@cloudflare --scope local`.
 
+**`syncClaudeAiSkills` is `false`** for the same reason: the skills turned on
+for the claude.ai account (`docx`, `pptx`, `xlsx`, `pdf`, `docs`,
+`google-workspace`, `computer-use`, two browser skills, …) were ~3.2k tokens
+in every session and are rarely what a coding session needs. It drops all of
+them in Claude Code only; claude.ai itself keeps them. A higher-precedence
+`true` does not undo it ([a `false` from user settings
+wins](https://code.claude.com/docs/en/settings.md#exceptions-to-managed-settings-precedence)),
+so getting one back means flipping it here.
+
 **Cloudflare's skills used to be loose directories** that its installer
 (`npx skills add`) wrote into `~/.claude/skills` and `~/.codex/skills`, where no
 setting can switch them off per project. The plugin replaced them in 2026-11.

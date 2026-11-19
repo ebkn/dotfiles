@@ -643,6 +643,7 @@
     }
   },
   "effortLevel": "medium",
+  "syncClaudeAiSkills": false,
   "fastMode": true,
   "askUserQuestionTimeout": "never",
   "autoUpdatesChannel": "stable",
