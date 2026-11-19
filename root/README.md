@@ -479,6 +479,41 @@ machine: a plugin's hooks and MCP servers run with the session's rights.
   entry inside a marketplace. Re-declaring the plugins in an inline
   (`"source": "settings"`) marketplace with their own `sha` worked, and was
   tried and dropped (2026-10).
+- **Cloudflare's marketplace (`cloudflare/skills`) is third-party**, so its
+  auto-update is [off by
+  default](https://code.claude.com/docs/en/discover-plugins.md#keep-plugins-updated):
+  the plugin stays at the version installed until `claude plugin update
+  cloudflare@cloudflare`.
+
+## Platform plugins are off globally and switched on per project
+
+Slack, Sentry and Cloudflare are `false` in `enabledPlugins`. Each enabled
+plugin puts every skill's description into **every** session, in every repo:
+Cloudflare alone is ~2k tokens (`claude plugin details cloudflare@cloudflare`),
+the three together ~4k — paid on each turn, and competing for attention with
+the instructions that apply everywhere.
+
+Turn one on in the repo that needs it, for yourself only:
+
+```sh
+claude plugin enable cloudflare@cloudflare --scope local
+```
+
+That writes `true` into the repo's git-ignored `.claude/settings.local.json`,
+which [outranks the user
+file](https://code.claude.com/docs/en/discover-plugins.md#choose-an-install-scope),
+and a worktree reads the main checkout's copy. Committing it to the repo's
+`.claude/settings.json` instead turns it on for every collaborator.
+
+On a fresh machine the Cloudflare plugin is declared (`extraKnownMarketplaces`)
+but not installed; install it at local scope in the repo instead of enabling it:
+`claude plugin install cloudflare@cloudflare --scope local`.
+
+**Cloudflare's skills used to be loose directories** that its installer
+(`npx skills add`) wrote into `~/.claude/skills` and `~/.codex/skills`, where no
+setting can switch them off per project. The plugin replaced them in 2026-11.
+Codex has no plugins, so it no longer sees them globally; a Codex project that
+wants them runs `npx skills add cloudflare/skills` inside that repo.
 
 ## Codex prefix rules
 
