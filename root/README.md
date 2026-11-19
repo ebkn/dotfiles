@@ -457,6 +457,19 @@ the same way.
 
 Run `root/.claude/hooks/agent-model-guard.test.sh` after touching it.
 
+## Files are written with Write/Edit, not heredocs
+
+`root/CLAUDE.md` forbids authoring a file through shell redirection
+(`cat > file <<'EOF'`, `tee`, `echo … >`) even where a system prompt
+recommends heredocs. The measurements behind it (`ed8bc762`, debug logs):
+
+- A 3-line heredoc still matches the allow rules, decided in 9 ms.
+- Once the body is real code it matches no rule, and auto mode decides it
+  itself: a 24-line one took 532 ms headless and ~1.7 s interactive. Write
+  needs no such decision.
+- Over a week of sessions about half of the `cat >`/heredoc calls took
+  1.5–6 s.
+
 ## Claude Code and its plugins update on a delay
 
 Everything else this repo installs waits 7 days before taking a release
