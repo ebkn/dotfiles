@@ -266,11 +266,42 @@ if pane_has guard: '^[[24~' && tmux -L "$socket" has-session -t guard 2>/dev/nul
 else
   fail "the remote item sends F12 to the pane and keeps the window" "$(tmux -L "$socket" capture-pane -p -t guard:)"
 fi
-# A window that is nothing but one myssh pane has no local panes to split,
-# focus or resize, so those chords go to the remote tmux. Checked by effect: the
-# chord arrives in the pane and the local window still has one pane.
+# v/s in a myssh pane could mean either tmux, so they ask with the same menu
+# shape as d/q. "remote" sends the chord down and splits nothing here; cancel
+# does neither.
 panes() { tmux -L "$socket" display-message -p -t guard: '#{window_panes}'; }
-for k in v s h j k l H J K L; do
+$outer send-keys C-q v
+menu_seen=0
+if screen_has 'split on devbox (remote)' && screen_has 'split this LOCAL pane'; then
+  menu_seen=1
+  pass "prefix + v in a myssh pane opens a menu naming the host"
+else
+  fail "prefix + v in a myssh pane opens a menu naming the host" "$(screen)"
+fi
+$outer send-keys r
+# Gated on the menu: a v forwarded with no menu also puts ^Qv in the pane.
+if [ "$menu_seen" = 1 ] && pane_has guard: '^Qv' && [ "$(panes)" = 1 ]; then
+  pass "the remote item of v sends C-q v and splits nothing locally"
+else
+  fail "the remote item of v sends C-q v and splits nothing locally" \
+    "panes: $(panes)" "$(tmux -L "$socket" capture-pane -p -t guard:)"
+fi
+$outer send-keys C-q s
+menu_seen=0
+screen_has 'split this LOCAL pane' && menu_seen=1
+$outer send-keys c
+if [ "$menu_seen" = 1 ] && screen_lacks 'split this LOCAL pane' && [ "$(panes)" = 1 ] &&
+  ! tmux -L "$socket" capture-pane -p -t guard: | grep -qF '^Qs'; then
+  pass "cancel on s's menu splits nothing on either side"
+else
+  fail "cancel on s's menu splits nothing on either side" "panes: $(panes)" "$(screen)"
+fi
+
+# Focus and resize are not ambiguous the same way: a window that is nothing but
+# one myssh pane has no local panes to move between or resize, so those chords
+# go straight to the remote. Checked by effect: the chord arrives in the pane
+# and the local window still has one pane.
+for k in h j k l H J K L; do
   $outer send-keys C-q "$k"
   if pane_has guard: "^Q$k" && [ "$(panes)" = 1 ]; then
     pass "prefix + $k in a window of one myssh pane goes to the remote"
@@ -318,6 +349,25 @@ else
     "active: $(tmux -L "$socket" display-message -p -t guard: '#{pane_id}')"
 fi
 
+# The split menu does not depend on the pane count: with a second local pane
+# the myssh pane is still ambiguous. Its LOCAL item splits here.
+tmux -L "$socket" select-pane -t "$ssh_pane"
+$outer send-keys C-q v
+menu_seen=0
+screen_has 'split this LOCAL pane' && menu_seen=1
+$outer send-keys l
+for _ in $(seq 100); do
+  [ "$(panes)" = 3 ] && break
+  sleep 0.05
+done
+if [ "$menu_seen" = 1 ] && [ "$(panes)" = 3 ]; then
+  pass "the LOCAL item of v splits the myssh pane locally"
+else
+  fail "the LOCAL item of v splits the myssh pane locally" "panes: $(panes)" "$(screen)"
+fi
+# The split took focus; drop it so the window is back to ssh + plain.
+tmux -L "$socket" kill-pane -t guard:
+
 # The LOCAL items still do what the keys always did. The split left the plain
 # pane active, so the ssh pane is selected first; killing it leaves the plain
 # one for the unguarded cases after.
@@ -351,6 +401,18 @@ else
   fail "prefix + q in a local pane keeps its y/n prompt" "$(screen)"
 fi
 $outer send-keys n
+# And v splits at once, with no menu, outside a myssh pane.
+$outer send-keys C-q v
+for _ in $(seq 100); do
+  [ "$(panes)" = 2 ] && break
+  sleep 0.05
+done
+if [ "$(panes)" = 2 ] && ! screen | grep -qF 'LOCAL tmux'; then
+  pass "prefix + v in a local pane splits without asking"
+else
+  fail "prefix + v in a local pane splits without asking" "panes: $(panes)" "$(screen)"
+fi
+tmux -L "$socket" kill-pane -t guard:
 
 # F12's LOCAL item is the most deeply quoted command here -- run-shell inside a
 # menu item inside a brace block -- and a quote lost there makes it do nothing,
