@@ -266,6 +266,19 @@ if pane_has guard: '^[[24~' && tmux -L "$socket" has-session -t guard 2>/dev/nul
 else
   fail "the remote item sends F12 to the pane and keeps the window" "$(tmux -L "$socket" capture-pane -p -t guard:)"
 fi
+# A window that is nothing but one myssh pane has no local panes to split,
+# focus or resize, so those chords go to the remote tmux. Checked by effect: the
+# chord arrives in the pane and the local window still has one pane.
+panes() { tmux -L "$socket" display-message -p -t guard: '#{window_panes}'; }
+for k in v s h j k l H J K L; do
+  $outer send-keys C-q "$k"
+  if pane_has guard: "^Q$k" && [ "$(panes)" = 1 ]; then
+    pass "prefix + $k in a window of one myssh pane goes to the remote"
+  else
+    fail "prefix + $k in a window of one myssh pane goes to the remote" \
+      "panes: $(panes)" "$(tmux -L "$socket" capture-pane -p -t guard:)"
+  fi
+done
 plain_pane=$(tmux -L "$socket" split-window -P -F '#{pane_id}' -t guard: "$probe_cmd")
 $outer send-keys F12
 menu_seen=0
@@ -282,6 +295,27 @@ if [ "$menu_seen" = 1 ] && screen_lacks 'close this LOCAL window' &&
   pass "cancel on F12's menu keeps the window"
 else
   fail "cancel on F12's menu keeps the window" "$(tmux -L "$socket" list-panes -t guard: 2>&1)"
+fi
+
+# With a second local pane the pane keys are local again, even from the myssh
+# pane: there is now a local layout they mean something in. The split was
+# -v, so the ssh pane is above the plain one.
+# The loop above already put one ^Qj in that pane, so a forwarded chord shows
+# as a second one.
+qj_count() { tmux -L "$socket" capture-pane -p -t "$ssh_pane" | grep -oF '^Qj' | wc -l | tr -d ' '; }
+tmux -L "$socket" select-pane -t "$ssh_pane"
+qj_before=$(qj_count)
+$outer send-keys C-q j
+for _ in $(seq 100); do
+  [ "$(tmux -L "$socket" display-message -p -t guard: '#{pane_id}')" = "$plain_pane" ] && break
+  sleep 0.05
+done
+if [ "$(tmux -L "$socket" display-message -p -t guard: '#{pane_id}')" = "$plain_pane" ] &&
+  [ "$(qj_count)" = "$qj_before" ]; then
+  pass "prefix + j with a second local pane moves focus locally"
+else
+  fail "prefix + j with a second local pane moves focus locally" \
+    "active: $(tmux -L "$socket" display-message -p -t guard: '#{pane_id}')"
 fi
 
 # The LOCAL items still do what the keys always did. The split left the plain

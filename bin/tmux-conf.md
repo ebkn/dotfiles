@@ -10,7 +10,7 @@ Per-feature detail is in the script docs: [tmux-agents](tmux-agents.md),
 ## `prefix + d` asks before detaching
 
 Inside an ssh pane the chord is deliberately *not* passed through to the remote
-tmux the way `p`/`t`/`o`/`u` are, so a mistyped `d` detaches the client in front
+tmux the way `p`/`t`/`o`/`u` and the pane keys are, so a mistyped `d` detaches the client in front
 of you and drops you out of everything local — the expensive direction of the
 mistake, and an easy one to make while working on a remote.
 
@@ -18,6 +18,28 @@ Popups are exempt (`#{E:@in_popup}`, the one place the `_*` glob is written; see
 [tmux-popup.md](tmux-popup.md)): there `d` closes a popup, which is
 what it looks like it does, and asking on the way out of a view is friction with
 nothing to protect.
+
+## Pane keys go to the remote in a window of one `myssh` pane (`@remote_panes`)
+
+`s`/`v` (split), `h`/`j`/`k`/`l` (focus) and `H`/`J`/`K`/`L` (resize) send
+`C-q <key>` down to the remote tmux when the local window holds exactly one
+pane and it has `@ssh_my_machine`. That is the shape of a window opened for a
+remote: its panes are the remote's, and locally there is nothing to focus or
+resize. A local split there puts a shell beside the remote session, which is
+not what such a window is for.
+
+- **The condition is the local window, not the remote's layout.** The remote may
+  have one pane or five; this side cannot see it, and does not need to.
+- **A second local pane turns them back to local**, even from the `myssh` pane,
+  because now there is a local layout they act on. Mixing the two — focus going
+  remote until the edge, then local — would need the remote's layout and was
+  not attempted.
+- **The cost:** a `myssh` window cannot be split locally with `prefix + s`/`v`.
+  Open the local shell in another window.
+- `H`/`J`/`K`/`L` keep `-r`: the repeat window is the local tmux's, so holding
+  the key re-runs the binding, and each run sends `C-q H` again.
+- `q` is not in the set: it already has the host-naming menu below, whose
+  remote item does the same thing.
 
 ## In an ssh pane, `d` / `q` / `F12` ask which machine you meant
 
@@ -202,6 +224,10 @@ What it asserts:
 - `set-titles-string` evaluates to the blocked glyph plus the window name, and
   over ssh to the glyph, the mark and the remote's title. The glyph and the
   mark are read from `wezterm.lua`, which counts and matches them.
+- The pane keys `s v h j k l H J K L` arrive in a window of one `myssh` pane as
+  `^Q<key>` and the window keeps its single pane — by effect, on the rendered
+  client the menu cases use. With a second local pane `j` moves focus locally
+  and sends nothing down.
 - `p`/`t`/`o` send the chord on as the **true** branch of `@ssh_my_machine`,
   matched in place; `A`'s else block runs `tmux-agents --answer-first` through
   `run-shell` by absolute path with `#{client_name}`.
