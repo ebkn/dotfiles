@@ -2,7 +2,8 @@
 
 - Communicate primarily in clear, precise English. (CEFR C1 Level)
 - Japanese may be used only when explicitly requested.
-- A review of a document is written in that document's language (`review-design-doc`, `lint-docs`): its readers are the ones who act on it. The rest of the conversation stays in English.
+- A project's CLAUDE.md / AGENTS.md, or its `language` setting, that names another language wins over this section. It then covers everything said in the session, including the short progress notes between tool calls and the prompts passed to subagents.
+- A review of a document is written in that document's language (`review-design-doc`, `lint-docs`): its readers are the ones who act on it. The rest of the conversation stays in the session's language.
 
 # Role
 
