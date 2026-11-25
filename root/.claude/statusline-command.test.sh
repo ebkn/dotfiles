@@ -118,6 +118,39 @@ fresh_cache
 limits "{\"five_hour\":{\"used_percentage\":100,\"resets_at\":$past},\"seven_day\":{\"used_percentage\":40,\"resets_at\":$future}}" >/dev/null
 assert_eq "a full window that has since reset: no highlight" \
   "Opus ・ 0%(session)・40%(week)" "$(limits "")"
+
+# The cache belongs to the login, i.e. the config dir.
+# plain <rate_limits JSON or ""> -- row2 with CLAUDE_CONFIG_DIR unset.
+plain() {
+  local in out
+  in=$(jq -nc --arg rl "$1" '{workspace:{project_dir:"/p",current_dir:"/p"},
+    model:{display_name:"Opus"}} + (if $rl == "" then {} else {rate_limits:($rl | fromjson)} end)')
+  out=$(printf '%s' "$in" | env -u CLAUDE_CONFIG_DIR HOME="$home" "$SCRIPT")
+  printf '%s' "${out#*$'\n'}"
+}
+fresh_cache
+plain "{\"five_hour\":{\"used_percentage\":7,\"resets_at\":$future}}" >/dev/null
+assert_eq "CLAUDE_CONFIG_DIR unset: the cache is ~/.claude's" \
+  "Opus ・ 7%(session)・--%(week)" "$(limits "")"
+
+work="$home/.claude-work"
+mkdir -p "$work"
+out=$(printf '%s' "$input" | HOME="$home" CLAUDE_CONFIG_DIR="$work" "$SCRIPT")
+assert_eq "another login does not see ~/.claude's cache" \
+  "Opus ・ --%(session)・--%(week) ・ .claude-work" "${out#*$'\n'}"
+rm -rf "$work"
+
+# A config dir that does not exist: the live values still render, quietly,
+# and no temp file is left anywhere.
+missing="$home/.claude-gone"
+err=$(jq -nc "{workspace:{project_dir:\"/p\",current_dir:\"/p\"},model:{display_name:\"Opus\"},rate_limits:{five_hour:{used_percentage:9,resets_at:$future}}}" |
+  HOME="$home" CLAUDE_CONFIG_DIR="$missing" "$SCRIPT" 2>&1 >"$TEST_TMPDIR/out")
+out=$(cat "$TEST_TMPDIR/out")
+assert_eq "a missing config dir: the live values render" \
+  "Opus ・ 9%(session)・--%(week) ・ .claude-gone" "${out#*$'\n'}"
+assert_eq "a missing config dir: nothing on stderr" "" "$err"
+assert_eq "a missing config dir: it is not created" "no" \
+  "$([ -e "$missing" ] && echo yes || echo no)"
 rm -rf "$cfg"
 
 # row1 <dir> -- the first row for a session launched and working in <dir>.
