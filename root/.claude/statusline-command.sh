@@ -27,8 +27,9 @@ config_dir=${CLAUDE_CONFIG_DIR%/}
 # or idle session would show no usage at all. The limits belong to the
 # account, not the session, so the last values any session of this login saw
 # stand in until live ones arrive. One file per config dir = one per login.
-# ~/.claude is a real directory (only single files inside it are linked from
-# this repo), so the cache never lands in the checkout.
+# ~/.claude is a real directory (this repo links entries inside it, such as
+# settings.json, hooks/ and skills, never the dir itself), so a file at its
+# top level never lands in the checkout. Do not move it under hooks/.
 cache_file="${config_dir:-$HOME/.claude}/statusline-rate-limits.json"
 cached=$(cat "$cache_file" 2>/dev/null)
 
