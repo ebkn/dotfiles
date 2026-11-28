@@ -7,8 +7,10 @@ the branch has none, in the browser **of the machine the terminal runs on**.
 `run-shell -b`. It asks `gh pr view --json url`, then `gh repo view --json url`,
 and says with `display-message` which URL it opened, or why it did not: `<dir>`
 is no GitHub repository, cannot be entered, the opener failed, or (over ssh)
-the pane's tty cannot be written. It always exits 0, since `run-shell -b`
-shows nobody a status.
+the pane's tty cannot be written. Each of those exits 0, because tmux shows a
+failing `run-shell` job's status in a view mode over the pane (tmux(1); see
+[tmux-track-session.md](tmux-track-session.md)), which would bury the message.
+Only a missing argument exits 1, and tmux then shows that.
 
 ## Over ssh the URL travels back to WezTerm
 
@@ -45,7 +47,8 @@ control characters, and logs anything else.
 last, not the one that pressed the key.** `run-shell` inherits the session
 environment, and `update-environment` (default list, which includes
 `SSH_CONNECTION`) sets it from each attaching client, removing it when that
-client has none (tmux(1)). One client at a time is always right. With two
+client has none (tmux(1); confirmed in the test container, with a server
+started without it). One client at a time is always right. With two
 attached at once, an ssh one and one at the remote's console, a press from
 the earlier one is routed as if made from the later: the URL goes to the pane
 from the console, or a browser opens on the remote for the ssh client.
