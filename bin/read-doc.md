@@ -180,7 +180,9 @@ Three constraints, all verified:
    fails silently, so depths 0/1/2 are all emitted; exactly one survives, a
    wrapper one layer short is eaten by the last tmux, and one too deep reaches
    WezTerm as an unknown DCS and is ignored. Needs `allow-passthrough on`,
-   already set.
+   already set. [tmux-open-github](tmux-open-github.md) sends its `open_url`
+   the same way, with a copy of the loop, so a change to the depths is made in
+   both.
 2. **`/dev/tty` passes `[ -w ]` even with no controlling terminal** and then
    fails at write time with ENXIO — an earlier version exited 0 having emitted
    nothing. Attempt the write and fall back; and brace the redirect

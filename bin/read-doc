@@ -204,6 +204,8 @@ if [ -n "${SSH_CONNECTION:-}" ] && [ "${print_only}" -eq 0 ] && [ "${force_here}
   # survive — a wrapper that arrives one layer short is eaten by the last tmux,
   # and one that arrives too deep reaches WezTerm as an unknown DCS, which it
   # ignores. Requires `allow-passthrough on` (already set in .tmux.conf).
+  # bin/tmux-open-github emits the same depths with the same loop: a change
+  # to the count or the wrapper here has to be made there too.
   emit="${seq}"
   for _ in 1 2; do
     seq="${esc}Ptmux;${seq//${esc}/${esc}${esc}}${esc}\\"

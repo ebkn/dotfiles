@@ -5,8 +5,10 @@ the branch has none, in the browser **of the machine the terminal runs on**.
 
 `tmux-open-github <pane_tty> <dir>` is what the binding runs, through
 `run-shell -b`. It asks `gh pr view --json url`, then `gh repo view --json url`,
-and says which URL it opened, or that `<dir>` is no GitHub repository, with
-`display-message`.
+and says with `display-message` which URL it opened, or why it did not: `<dir>`
+is no GitHub repository, cannot be entered, the opener failed, or (over ssh)
+the pane's tty cannot be written. It always exits 0, since `run-shell -b`
+shows nobody a status.
 
 ## Over ssh the URL travels back to WezTerm
 
@@ -39,11 +41,14 @@ own, so it passes through like any program's.
 `wezterm.lua` opens only an `https://github.com/` URL without whitespace or
 control characters, and logs anything else.
 
-**`$SSH_CONNECTION` is the remote tmux's environment, not the client's.**
-`run-shell` inherits it from the session, which `update-environment` refreshes
-on every attach. A tmux server attached at the remote's own console after an
-ssh attach would still see it, and send the URL to the pane rather than open
-it there.
+**`$SSH_CONNECTION` is the session's, so it follows the client that attached
+last, not the one that pressed the key.** `run-shell` inherits the session
+environment, and `update-environment` (default list, which includes
+`SSH_CONNECTION`) sets it from each attaching client, removing it when that
+client has none (tmux(1)). One client at a time is always right. With two
+attached at once, an ssh one and one at the remote's console, a press from
+the earlier one is routed as if made from the later: the URL goes to the pane
+from the console, or a browser opens on the remote for the ssh client.
 
 ## The directory is an argument, not `run-shell -c`
 
