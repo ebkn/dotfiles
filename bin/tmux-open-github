@@ -24,10 +24,13 @@ fi
 
 if [ -z "${SSH_CONNECTION:-}" ]; then
   # By OS, not `command -v open`: on Debian `open` is openvt.
-  if [ "$(uname -s)" = Darwin ]; then
-    open "$url"
-  else
-    xdg-open "$url" >/dev/null 2>&1
+  opener=xdg-open
+  if [ "$(uname -s)" = Darwin ]; then opener=open; fi
+  # Checked, not left to set -e: that would exit before any message, and a
+  # headless Linux box has no xdg-open at all.
+  if ! "$opener" "$url" >/dev/null 2>&1; then
+    tmux display-message "open github: $opener failed for $url"
+    exit 0
   fi
   tmux display-message "opening $url"
   exit 0

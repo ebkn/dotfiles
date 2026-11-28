@@ -33,6 +33,7 @@ for cmd in tmux open xdg-open; do
   cat >"$STUB/$cmd" <<EOF
 #!/bin/bash
 printf '%s\n' "\$*" >>"\$STUB_LOG/$cmd"
+[ -z "\${FAIL_OPENER:-}" ] || [ "$cmd" = tmux ]
 EOF
 done
 chmod +x "$STUB"/*
@@ -64,6 +65,10 @@ assert_eq "gh asks about the directory it was given" \
 
 run local-repo GH_REPO_URL=$REPO
 assert_eq "without a PR the repository opens" "$REPO" "$(opened local-repo)"
+
+run opener-fails GH_PR_URL=$PR FAIL_OPENER=1
+assert_contains "a failing opener is reported, not swallowed by set -e" "$(log opener-fails tmux)" "failed for $PR"
+assert_not_contains "and not reported as opened" "$(log opener-fails tmux)" "opening"
 
 run none
 assert_eq "outside a GitHub repo nothing opens" "" "$(opened none)"
