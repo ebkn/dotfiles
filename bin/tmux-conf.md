@@ -10,7 +10,7 @@ Per-feature detail is in the script docs: [tmux-agents](tmux-agents.md),
 ## `prefix + d` asks before detaching
 
 Inside an ssh pane the chord is deliberately *not* passed through to the remote
-tmux the way `p`/`t`/`o`/`u` and the focus keys are, so a mistyped `d` detaches the client in front
+tmux the way `p`/`t`/`o`/`g`/`u` and the focus keys are, so a mistyped `d` detaches the client in front
 of you and drops you out of everything local — the expensive direction of the
 mistake, and an easy one to make while working on a remote.
 
@@ -239,6 +239,9 @@ What it asserts:
 - `p`/`t`/`o` send the chord on as the **true** branch of `@ssh_my_machine`,
   matched in place; `A`'s else block runs `tmux-agents --answer-first` through
   `run-shell` by absolute path with `#{client_name}`.
+- `g` is pressed through the client: in a `myssh` pane it arrives as `^Qg`,
+  elsewhere it runs a stub `~/.local/bin/tmux-open-github` that must receive
+  the pane's tty and directory (see [tmux-open-github](tmux-open-github.md)).
 - `C-]` leaves an agent view — read out of the **root** table, since a prefix
   chord there would reintroduce the nested-tmux ambiguity it exists to avoid —
   and `send-keys` the key through outside a view. Both are guarded on

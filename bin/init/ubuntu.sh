@@ -215,6 +215,7 @@ link_with_backup "${DOTFILES_DIR}/bin/tmux-agents" "${HOME}/.local/bin/tmux-agen
 link_with_backup "${DOTFILES_DIR}/bin/tmux-agent-view" "${HOME}/.local/bin/tmux-agent-view"
 link_with_backup "${DOTFILES_DIR}/bin/tmux-cheatsheet" "${HOME}/.local/bin/tmux-cheatsheet"
 link_with_backup "${DOTFILES_DIR}/bin/tmux-tig" "${HOME}/.local/bin/tmux-tig"
+link_with_backup "${DOTFILES_DIR}/bin/tmux-open-github" "${HOME}/.local/bin/tmux-open-github"
 link_with_backup "${DOTFILES_DIR}/bin/tmux-popup" "${HOME}/.local/bin/tmux-popup"
 link_with_backup "${DOTFILES_DIR}/bin/fzf-nvim" "${HOME}/.local/bin/fzf-nvim"
 link_with_backup "${DOTFILES_DIR}/bin/fzf-files" "${HOME}/.local/bin/fzf-files"

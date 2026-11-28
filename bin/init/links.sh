@@ -142,6 +142,7 @@ link_dotfiles() {
   link_with_backup "${DOTFILES_DIR}/bin/tmux-agent-view" "${HOME}/.local/bin/tmux-agent-view"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-cheatsheet" "${HOME}/.local/bin/tmux-cheatsheet"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-tig" "${HOME}/.local/bin/tmux-tig"
+  link_with_backup "${DOTFILES_DIR}/bin/tmux-open-github" "${HOME}/.local/bin/tmux-open-github"
   link_with_backup "${DOTFILES_DIR}/bin/tmux-session-swap" "${HOME}/.local/bin/tmux-session-swap"
   # Named by the prefix + p/t/o bindings in .tmux.conf, so an unlinked one makes
   # the popup open and close again with nothing in it.

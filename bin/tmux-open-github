@@ -1,0 +1,58 @@
+#!/bin/bash
+# tmux-open-github <pane_tty> <dir> -- open <dir>'s PR, else its repository,
+# in the browser of the machine the terminal runs on. Bound to prefix + g.
+# See bin/tmux-open-github.md.
+set -eo pipefail
+
+tty=${1:?usage: tmux-open-github <pane_tty> <dir>}
+dir=${2:?usage: tmux-open-github <pane_tty> <dir>}
+if ! cd "$dir" 2>/dev/null; then
+  tmux display-message "open github: cannot enter $dir"
+  exit 0
+fi
+
+# --json rather than --web: over ssh the URL has to travel, and --web would
+# open it on this machine instead of handing it back.
+if url=$(gh pr view --json url --jq .url 2>/dev/null) && [ -n "$url" ]; then
+  :
+elif url=$(gh repo view --json url --jq .url 2>/dev/null) && [ -n "$url" ]; then
+  :
+else
+  tmux display-message "open github: not a GitHub repository (or gh is not logged in)"
+  exit 0
+fi
+
+if [ -z "${SSH_CONNECTION:-}" ]; then
+  # By OS, not `command -v open`: on Debian `open` is openvt.
+  if [ "$(uname -s)" = Darwin ]; then
+    open "$url"
+  else
+    xdg-open "$url" >/dev/null 2>&1
+  fi
+  tmux display-message "opening $url"
+  exit 0
+fi
+
+# Over ssh, open(1) would launch a browser on the far end, where nobody is
+# looking. Hand the URL to WezTerm instead, as the open_url user var that
+# wezterm.lua opens locally. tr: GNU base64 wraps at 76 columns, and a newline
+# would end the OSC early.
+esc=$(printf '\033')
+bel=$(printf '\007')
+seq="${esc}]1337;SetUserVar=open_url=$(printf '%s' "$url" | base64 | tr -d '\n')${bel}"
+
+# Each tmux on the way strips one passthrough wrapper, and this side cannot
+# tell how many there are (the remote's own, plus usually one beside WezTerm),
+# so depths 0-2 are all sent and exactly one arrives -- read-doc's reasoning,
+# bin/read-doc.md. Written to the pane's tty because run-shell has no terminal
+# of its own: the remote tmux reads it as the pane's output and passes it on.
+emit=$seq
+for _ in 1 2; do
+  seq="${esc}Ptmux;${seq//${esc}/${esc}${esc}}${esc}\\"
+  emit="${emit}${seq}"
+done
+if ! { printf '%s' "$emit" >"$tty"; } 2>/dev/null; then
+  tmux display-message "open github: cannot write to $tty"
+  exit 0
+fi
+tmux display-message "opening $url on the terminal's machine"

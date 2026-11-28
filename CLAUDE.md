@@ -51,6 +51,7 @@ Claude Code loads these from `.claude/rules/` when a matching file is touched. C
 | Agent state indicator (tmux pane options, sync)  | [root/.claude/hooks/agent-state.md](root/.claude/hooks/agent-state.md) |
 | Agent picker (`prefix + a`), answering (`ctrl-o`, `prefix + A`) | [bin/tmux-agents.md](bin/tmux-agents.md), [bin/tmux-agent-view.md](bin/tmux-agent-view.md) |
 | tmux popups (`prefix + p`/`t`/`o`)               | [bin/tmux-popup.md](bin/tmux-popup.md) |
+| Open GitHub (`prefix + g`), from ssh too         | [bin/tmux-open-github.md](bin/tmux-open-github.md) |
 | `.tmux.conf` and the `prefix + ?` cheatsheet     | [bin/tmux-conf.md](bin/tmux-conf.md), [bin/tmux-cheatsheet.md](bin/tmux-cheatsheet.md) |
 | One WezTerm tab = one tmux session (`prefix + w`) | [bin/tmux-session-swap.md](bin/tmux-session-swap.md) |
 | Remote sessions, autossh, tab restore            | [bin/tmux-track-session.md](bin/tmux-track-session.md), [bin/tmux-restore-ssh-tabs.md](bin/tmux-restore-ssh-tabs.md), [bin/autossh-ssh.md](bin/autossh-ssh.md) |

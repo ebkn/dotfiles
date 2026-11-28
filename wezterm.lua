@@ -65,6 +65,19 @@ wezterm.on('user-var-changed', function(window, _pane, name, value)
     return
   end
 
+  -- bin/tmux-open-github on a remote sends the URL of its PR or repository
+  -- here, since a browser opened over there is one nobody sees. Any process
+  -- that can write to a pane can set this, so only a github.com https URL is
+  -- opened, and only one with no whitespace or control characters in it.
+  if name == 'open_url' then
+    if value:match('^https://github%.com/[^%s%c]*$') then
+      wezterm.open_with(value)
+    else
+      wezterm.log_error('open_url: rejected ' .. value:sub(1, 200))
+    end
+    return
+  end
+
   if name ~= 'read_doc' then
     return
   end

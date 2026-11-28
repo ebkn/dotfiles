@@ -189,6 +189,38 @@ else
   fail "a client attaches for the guard cases" "$(screen)"
 fi
 
+# prefix + g, pressed rather than read off the binding: what has to hold is
+# that run-shell expands #{pane_current_path} and #{pane_tty} for the script
+# (bin/tmux-open-github.md), and binding text cannot show that. In a myssh
+# pane the repo is the remote's, so the chord goes down instead.
+$outer send-keys C-q g
+if pane_has guard: '^Qg'; then
+  pass "prefix + g in a myssh pane is passed to the remote"
+else
+  fail "prefix + g in a myssh pane is passed to the remote" "$(tmux -L "$socket" capture-pane -p -t guard:)"
+fi
+mkdir -p "$HOME/.local/bin"
+cat >"$HOME/.local/bin/tmux-open-github" <<EOF
+#!/bin/sh
+printf '%s|%s' "\$2" "\$1" >"$work/g.out"
+EOF
+chmod +x "$HOME/.local/bin/tmux-open-github"
+tmux -L "$socket" set-option -p -u -t guard: @ssh_my_machine
+$outer send-keys C-q g
+g_want=$(tmux -L "$socket" display-message -p -t "$ssh_pane" '#{pane_current_path}|#{pane_tty}')
+for _ in $(seq 100); do
+  [ -s "$work/g.out" ] && break
+  sleep 0.05
+done
+g_got=$(cat "$work/g.out" 2>/dev/null || :)
+if [ -n "$g_want" ] && [ "$g_got" = "$g_want" ]; then
+  pass "prefix + g elsewhere runs tmux-open-github in the pane's directory, given its tty"
+else
+  fail "prefix + g elsewhere runs tmux-open-github in the pane's directory, given its tty" \
+    "want: $g_want" "got: ${g_got:-<not run>}"
+fi
+tmux -L "$socket" set-option -p -t guard: @ssh_my_machine 1
+
 # d in a myssh pane: the host is named, and both machines are offered.
 $outer send-keys C-q d
 if screen_has 'this pane is ssh to devbox' &&
@@ -469,7 +501,7 @@ tmux -L "$socket" kill-session -t guard 2>/dev/null
 
 # "Am I in a popup?" is one option, @in_popup, because bin/tmux-popup and
 # bin/tmux-agent-view name their sessions `_...` and eight bindings have to agree
-# on what that means: p/t/o/a/A and the command popups g/? refuse to open a
+# on what that means: p/t/o/a/A/g and the command popup ? refuse to open a
 # popup inside one, d skips its confirmation there. Written out per binding it
 # was six copies of a glob (g and ? had none at all), and a
 # seventh binding copied wrong would stack popups with no error anywhere. So the
@@ -598,7 +630,7 @@ for k in p t o a A g '?'; do
   # its else block. That a config loads says nothing about whether the move kept
   # the command intact, so the else block is checked to still open the same thing.
   case $k in
-    g) want='gh pr view --web' ;;
+    # g is no popup any more; what it does is pressed for real in section 2b.
     '?') want='tmux-cheatsheet' ;;
     # p/t/o route through bin/tmux-popup, whose session name is what the guard
     # above recognises -- so a binding that stopped calling it would stack
