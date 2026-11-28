@@ -84,7 +84,21 @@ osc="${esc}]1337;SetUserVar=open_url=${b64}${bel}"
 d1="${esc}Ptmux;${osc//${esc}/${esc}${esc}}${esc}\\"
 d2="${esc}Ptmux;${d1//${esc}/${esc}${esc}}${esc}\\"
 tty_out=$(cat "$TEST_TMPDIR/ssh/tty")
-assert_contains "over ssh the URL is sent as the open_url user var, two tmux layers deep" "$tty_out" "$d2"
-assert_contains "and unwrapped, for a remote with no tmux beside WezTerm" "$tty_out" "$d1"
+# Exact, not "contains": $osc is a substring of $d1, so only the whole write
+# shows that depth 0 (a remote tmux with nothing beside WezTerm) was sent.
+assert_eq "over ssh the open_url user var is written at depths 0, 1 and 2, and nothing else" \
+  "$osc$d1$d2" "$tty_out"
+
+mkdir -p "$TEST_TMPDIR/no-dir/log"
+env -u SSH_CONNECTION PATH="$STUB:/usr/bin:/bin" STUB_LOG="$TEST_TMPDIR/no-dir/log" GH_PR_URL=$PR \
+  "$SCRIPT" "$TEST_TMPDIR/no-dir/tty" "$TEST_TMPDIR/no-dir/repo dir" >/dev/null 2>&1
+assert_eq "a directory that is gone opens nothing" "" "$(opened no-dir)"
+assert_contains "and says it cannot enter it" "$(log no-dir tmux)" "cannot enter"
+
+mkdir -p "$TEST_TMPDIR/no-tty/log" "$TEST_TMPDIR/no-tty/repo"
+env PATH="$STUB:/usr/bin:/bin" STUB_LOG="$TEST_TMPDIR/no-tty/log" GH_PR_URL=$PR \
+  SSH_CONNECTION='10.0.0.1 1 10.0.0.2 22' \
+  "$SCRIPT" "$TEST_TMPDIR/no-tty/missing/tty" "$TEST_TMPDIR/no-tty/repo" >/dev/null 2>&1
+assert_contains "over ssh a tty it cannot write says so" "$(log no-tty tmux)" "cannot write to"
 
 test_summary

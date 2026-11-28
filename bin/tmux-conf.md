@@ -241,7 +241,8 @@ What it asserts:
   `run-shell` by absolute path with `#{client_name}`.
 - `g` is pressed through the client: in a `myssh` pane it arrives as `^Qg`,
   elsewhere it runs a stub `~/.local/bin/tmux-open-github` that must receive
-  the pane's tty and directory (see [tmux-open-github](tmux-open-github.md)).
+  the pane's tty and directory, from a pane in a directory with a space, which is what
+  `#{q:…}` is for (see [tmux-open-github](tmux-open-github.md)).
 - `C-]` leaves an agent view — read out of the **root** table, since a prefix
   chord there would reintroduce the nested-tmux ambiguity it exists to avoid —
   and `send-keys` the key through outside a view. Both are guarded on

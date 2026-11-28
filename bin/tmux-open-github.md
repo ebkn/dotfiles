@@ -57,7 +57,9 @@ binding text could not show.
 
 `bin/tmux-open-github.test.sh` stubs `gh`, `tmux`, `open` and `xdg-open` on
 `PATH`. It checks which URL is chosen, that `gh` runs in `<dir>`, that a
-directory with no repository says so, and that over ssh nothing opens remotely
-and the pane receives the depth-1 and depth-2 sequences for a URL long enough
-to wrap. It sources the tmux guard only because every `bin/tmux-*.test.sh` must.
+directory with no repository, a directory that is gone and an unwritable tty
+each say so, and that over ssh nothing opens remotely and the pane receives
+exactly the depth 0, 1 and 2 sequences for a URL long enough to wrap. Exactly,
+because depth 0 is a substring of depth 1 and a "contains" check could not
+show it was sent. It sources the tmux guard only because every `bin/tmux-*.test.sh` must.
 The WezTerm handler has no test: nothing here runs `wezterm.lua`.

@@ -205,9 +205,13 @@ cat >"$HOME/.local/bin/tmux-open-github" <<EOF
 printf '%s|%s' "\$2" "\$1" >"$work/g.out"
 EOF
 chmod +x "$HOME/.local/bin/tmux-open-github"
-tmux -L "$socket" set-option -p -u -t guard: @ssh_my_machine
+# A local pane in a directory with a space, the case #{q:...} exists for. A
+# window of its own, killed after, so the ssh pane the cases below drive stays
+# as it was.
+mkdir -p "$work/a repo"
+g_pane=$(tmux -L "$socket" new-window -P -F '#{pane_id}' -t guard: -c "$work/a repo" "$probe_cmd")
+g_want=$(tmux -L "$socket" display-message -p -t "$g_pane" '#{pane_current_path}|#{pane_tty}')
 $outer send-keys C-q g
-g_want=$(tmux -L "$socket" display-message -p -t "$ssh_pane" '#{pane_current_path}|#{pane_tty}')
 for _ in $(seq 100); do
   [ -s "$work/g.out" ] && break
   sleep 0.05
@@ -219,7 +223,8 @@ else
   fail "prefix + g elsewhere runs tmux-open-github in the pane's directory, given its tty" \
     "want: $g_want" "got: ${g_got:-<not run>}"
 fi
-tmux -L "$socket" set-option -p -t guard: @ssh_my_machine 1
+tmux -L "$socket" kill-pane -t "$g_pane"
+rm -f "$HOME/.local/bin/tmux-open-github"
 
 # d in a myssh pane: the host is named, and both machines are offered.
 $outer send-keys C-q d
